@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import './ExperienceCounter.css';
 
 const ExperienceCounter = () => {
+  const { t } = useTranslation();
   const [count, setCount] = useState(0);
   const [hasAnimated, setHasAnimated] = useState(false);
   const counterRef = useRef(null);
@@ -9,23 +11,8 @@ const ExperienceCounter = () => {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && !hasAnimated) {
-          let start = 0;
-          const end = 15;
-          const duration = 2000;
-          const increment = end / (duration / 16);
-          
-          const timer = setInterval(() => {
-            start += increment;
-            if (start >= end) {
-              setCount(end);
-              setHasAnimated(true);
-              clearInterval(timer);
-            } else {
-              setCount(Math.ceil(start));
-            }
-          }, 16);
+        if (entries[0].isIntersecting && !hasAnimated) {
+          setHasAnimated(true);
         }
       },
       { threshold: 0.5 }
@@ -35,23 +22,35 @@ const ExperienceCounter = () => {
       observer.observe(counterRef.current);
     }
 
-    return () => {
-      if (counterRef.current) {
-        observer.unobserve(counterRef.current);
-      }
-    };
+    return () => observer.disconnect();
+  }, [hasAnimated]);
+
+  useEffect(() => {
+    if (hasAnimated) {
+      let start = 0;
+      const end = 15;
+      const duration = 2000;
+      const incrementTime = duration / end;
+
+      const timer = setInterval(() => {
+        start += 1;
+        setCount(start);
+        if (start === end) clearInterval(timer);
+      }, incrementTime);
+
+      return () => clearInterval(timer);
+    }
   }, [hasAnimated]);
 
   return (
     <section className="counter-section" ref={counterRef}>
-      <div className="container">
-        <div className="counter-wrapper glass-panel">
-          <div className="counter-number">
-            +<span className="number">{count}</span>
-          </div>
-          <div className="counter-text">
-            عاماً من الريادة الرقمية
-          </div>
+      <div className="container counter-wrapper">
+        <div className="counter-number">
+          {count}<span>+</span>
+        </div>
+        <div className="counter-text">
+          <h2>{t('experience.title')}</h2>
+          <p>{t('experience.description')}</p>
         </div>
       </div>
     </section>

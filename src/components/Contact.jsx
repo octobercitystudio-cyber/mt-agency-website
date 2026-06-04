@@ -1,39 +1,44 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import './Contact.css';
 
 const Contact = () => {
+  const { t } = useTranslation();
+
   return (
     <>
       <section id="contact" className="contact-section">
         <div className="container contact-container">
           <div className="contact-info glass-panel">
-            <h2 className="section-title">تواصل <span className="text-gradient">معنا</span></h2>
-            <p>نحن هنا لتحويل أفكارك إلى واقع. دعنا نتحدث عن مشروعك القادم.</p>
+            <h2 className="section-title">
+              {t('contact.title1')} <span className="text-gradient">{t('contact.title2')}</span>
+            </h2>
+            <p>{t('contact.description')}</p>
             
             <div className="contact-details">
               <div className="detail-item">
                 <span className="detail-icon">📍</span>
                 <a href="https://www.google.com/maps/place/Multi+Task+Studio/data=!4m2!3m1!1s0x0:0xa83e5d8b7ce8bfc7?sa=X&ved=1t:2428&ictx=111" target="_blank" rel="noopener noreferrer" className="detail-text">
-                  العنوان: مدينة 6 أكتوبر، الجيزة، مصر
+                  {t('contact.addressTitle')}
                 </a>
               </div>
               <div className="detail-item">
                 <span className="detail-icon">📞</span>
-                <a href="tel:+201114466646" className="detail-text">هاتف: 01114466646 (+20)</a>
+                <a href="tel:+201114466646" className="detail-text">{t('contact.phoneTitle')}</a>
               </div>
             </div>
 
             <form className="contact-form">
               <div className="form-group">
-                <input type="text" placeholder="الاسم الكريم" required />
+                <input type="text" placeholder={t('contact.form.name')} required />
               </div>
               <div className="form-group">
-                <input type="email" placeholder="البريد الإلكتروني" required />
+                <input type="email" placeholder={t('contact.form.email')} required />
               </div>
               <div className="form-group">
-                <textarea placeholder="رسالتك..." rows="4" required></textarea>
+                <textarea placeholder={t('contact.form.message')} rows="4" required></textarea>
               </div>
-              <button type="submit" className="btn-primary w-100">إرسال الرسالة</button>
+              <button type="submit" className="btn-primary w-100">{t('contact.form.submit')}</button>
             </form>
           </div>
           
@@ -46,7 +51,7 @@ const Contact = () => {
               allowFullScreen="" 
               loading="lazy" 
               referrerPolicy="no-referrer-when-downgrade"
-              title="موقع الشركة"
+              title="MT Agency Location"
             ></iframe>
           </div>
         </div>

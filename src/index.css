@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Tajawal:wght@400;500;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800;900&display=swap');
 
 :root {
   /* Color Palette */
@@ -12,7 +12,8 @@
   
   /* Typography */
   --font-arabic: 'Tajawal', sans-serif;
-  --font-latin: 'Space Grotesk', sans-serif;
+  --font-latin: 'Inter', sans-serif;
+  --current-font: var(--font-arabic);
   
   /* Spacing & Sizes */
   --spacing-sm: 0.5rem;
@@ -28,6 +29,71 @@
   --glass-border: 1px solid rgba(122, 40, 203, 0.3);
 }
 
+body[dir="ltr"], html[lang="en"] body {
+  --current-font: var(--font-latin);
+}
+
+/* Fix English punctuation while keeping right alignment */
+html[lang="en"] h1, 
+html[lang="en"] h2, 
+html[lang="en"] h3, 
+html[lang="en"] h4, 
+html[lang="en"] h5, 
+html[lang="en"] h6, 
+html[lang="en"] p, 
+html[lang="en"] span, 
+html[lang="en"] a,
+html[lang="en"] li,
+html[lang="en"] input,
+html[lang="en"] textarea,
+html[lang="en"] button {
+  direction: ltr;
+  text-align: right;
+}
+
+/* Restore specific alignments to match Arabic layout */
+html[lang="en"] .counter-number,
+html[lang="en"] .counter-text,
+html[lang="en"] .counter-text h2,
+html[lang="en"] .counter-text p,
+html[lang="en"] .counter-section,
+html[lang="en"] .service-card,
+html[lang="en"] .service-title,
+html[lang="en"] .service-desc,
+html[lang="en"] .stat-item h3,
+html[lang="en"] .stat-item span,
+html[lang="en"] .hero-logo-fallback {
+  text-align: center;
+}
+
+html[lang="en"] .about-text p,
+html[lang="en"] .about-text {
+  text-align: justify;
+  text-align-last: center;
+}
+
+@media (max-width: 992px) {
+  html[lang="en"] .hero-container,
+  html[lang="en"] .hero-title,
+  html[lang="en"] .hero-subtitle {
+    text-align: center;
+  }
+}
+
+/* Adjust English hero title to fit on one line */
+html[lang="en"] .hero-title {
+  font-size: 3.2rem;
+}
+
+/* Center all main section titles globally */
+.section-title, 
+html[lang="en"] .section-title {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+  display: block;
+  width: 100%;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -36,13 +102,13 @@
 
 body {
   margin: 0;
-  font-family: var(--font-arabic);
+  font-family: var(--current-font);
   background-color: var(--bg-dark);
   background-image: var(--bg-gradient);
   background-attachment: fixed;
   color: var(--color-light-silver);
   line-height: 1.6;
-  direction: rtl; /* Right to left for Arabic */
+  direction: rtl; /* Always keep RTL layout structure */
   overflow-x: hidden;
 }
 
@@ -98,7 +164,7 @@ ul {
   padding: 12px 30px;
   border-radius: 30px;
   font-weight: 700;
-  font-family: var(--font-arabic);
+  font-family: var(--current-font);
   font-size: 1.1rem;
   border: none;
   cursor: pointer;
@@ -109,6 +175,28 @@ ul {
 .btn-primary:hover {
   transform: translateY(-3px);
   box-shadow: 0 6px 20px rgba(122, 40, 203, 0.6);
+  color: #fff;
+}
+
+.btn-secondary {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  padding: 12px 30px;
+  border-radius: 30px;
+  font-weight: 700;
+  font-family: var(--current-font);
+  font-size: 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: var(--transition);
+  backdrop-filter: blur(5px);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-3px);
   color: #fff;
 }
 

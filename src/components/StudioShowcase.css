@@ -7,6 +7,46 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-md);
+  animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.studio-tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.studio-tab-btn {
+  background: rgba(28, 11, 59, 0.4);
+  border: 1px solid rgba(122, 40, 203, 0.3);
+  color: var(--color-silver);
+  padding: 10px 25px;
+  border-radius: 30px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+  transition: var(--transition);
+  backdrop-filter: blur(5px);
+}
+
+.studio-tab-btn:hover {
+  background: rgba(122, 40, 203, 0.2);
+  color: #fff;
+}
+
+.studio-tab-btn.active {
+  background: linear-gradient(135deg, var(--color-vibrant-purple), var(--color-neon-purple));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 15px rgba(122, 40, 203, 0.4);
 }
 
 .showcase-item {

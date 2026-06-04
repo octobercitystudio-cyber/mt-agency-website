@@ -1,24 +1,25 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import './Header.css';
 
 const Header = () => {
-  const [lang, setLang] = useState('ar');
+  const { t, i18n } = useTranslation();
+  const [lang, setLang] = useState(i18n.language);
 
   const toggleLanguage = () => {
     const newLang = lang === 'ar' ? 'en' : 'ar';
     setLang(newLang);
+    i18n.changeLanguage(newLang);
     document.documentElement.lang = newLang;
-    document.body.dir = newLang === 'ar' ? 'rtl' : 'ltr';
-    // Here we can also add logic to update texts site-wide via Context or Redux
   };
 
   const navLinks = [
-    { name: 'الرئيسية', href: '#home' },
-    { name: 'من نحن', href: '#about' },
-    { name: 'خدماتنا', href: '#services' },
-    { name: 'أعمالنا', href: '#portfolio' },
-    { name: 'استوديو', href: '#studio' },
-    { name: 'تواصل معنا', href: '#contact' },
+    { name: t('header.home'), href: '#home' },
+    { name: t('header.about'), href: '#about' },
+    { name: t('header.services'), href: '#services' },
+    { name: t('header.portfolio'), href: '#portfolio' },
+    { name: t('header.studio'), href: '#studio' },
+    { name: t('header.contact'), href: '#contact' },
   ];
 
   return (
@@ -39,7 +40,7 @@ const Header = () => {
         </a>
         
         <button className="lang-btn" onClick={toggleLanguage}>
-          {lang === 'ar' ? 'EN' : 'عربي'}
+          {t('header.lang')}
         </button>
       </div>
 
@@ -61,7 +62,7 @@ const Header = () => {
       {/* Left Column: Actions */}
       <div className="top-bar-left">
         <a href="#contact" className="btn-primary quote-btn">
-          الحصول على عرض سعر
+          {t('header.getQuote')}
         </a>
       </div>
     </div>

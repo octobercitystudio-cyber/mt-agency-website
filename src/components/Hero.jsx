@@ -1,19 +1,26 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import './Hero.css';
 
 const Hero = () => {
+  const { t } = useTranslation();
+
   return (
     <section id="home" className="hero-section">
       <div className="container hero-container">
+        
         <div className="hero-content">
           <h1 className="hero-title">
-            نصنع رؤيتك،<br />
-            <span className="text-gradient">ونقود التأثير</span>
+            <span className="text-gradient">{t('hero.title1')}</span><br/>
+            {t('hero.title2')}
           </h1>
           <p className="hero-subtitle">
-            خلف كل محتوى عظيم، 15 عاماً من الخبرة. نحن نقدم لك الحلول الرقمية الشاملة.
+            {t('hero.subtitle')}
           </p>
-          <button className="btn-primary">ابدأ مشروعك الآن</button>
+          <div className="hero-actions">
+            <a href="#portfolio" className="btn-primary">{t('hero.discover')}</a>
+            <a href="#contact" className="btn-secondary">{t('hero.contact')}</a>
+          </div>
         </div>
         
         <div className="hero-visual">
@@ -26,13 +33,18 @@ const Hero = () => {
             />
             {/* Fallback geometric monogram if logo is missing */}
             <div className="hero-logo-fallback" style={{display: 'none', textAlign: 'center'}}>
-               <span style={{color: 'var(--color-vibrant-purple)', fontSize: '8rem', fontWeight: '900'}}>M</span>
-               <span style={{color: 'var(--color-silver)', fontSize: '8rem', fontWeight: '900'}}>T</span>
+               <span style={{color: 'var(--color-vibrant-purple)', fontSize: '8rem', fontWeight: '900'}}>{t('hero.fallbackLogoTitle')[0]}</span>
+               <span style={{color: 'var(--color-silver)', fontSize: '8rem', fontWeight: '900'}}>{t('hero.fallbackLogoTitle')[1]}</span>
             </div>
             <div className="glow-effect"></div>
           </div>
         </div>
+
       </div>
+      
+      {/* Background elements */}
+      <div className="bg-blob blob-1"></div>
+      <div className="bg-blob blob-2"></div>
     </section>
   );
 };

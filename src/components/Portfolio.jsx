@@ -1,37 +1,51 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import './Portfolio.css';
 
-const portfolioData = [
-  { id: 1, category: 'فيديو', title: 'إعلان تجاري', embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-  { id: 2, category: 'تصميم', title: 'هوية بصرية', imageUrl: 'https://images.unsplash.com/photo-1626785773985-92731114b0b1?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' },
-  { id: 3, category: 'ريلز', title: 'حملة سوشيال ميديا', embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-  { id: 4, category: 'بودكاست', title: 'حلقة بودكاست', embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-  { id: 5, category: 'فيديو', title: 'تغطية فعالية', embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-  { id: 6, category: 'تصميم', title: 'موقع إلكتروني', imageUrl: 'https://images.unsplash.com/photo-1547658719-da2b51169166?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' }
+const portfolioMedia = [
+  { id: 1, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
+  { id: 2, imageUrl: 'https://images.unsplash.com/photo-1626785773985-92731114b0b1?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' },
+  { id: 3, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
+  { id: 4, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
+  { id: 5, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
+  { id: 6, imageUrl: 'https://images.unsplash.com/photo-1547658719-da2b51169166?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' }
 ];
 
-const categories = ['الكل', 'فيديو', 'تصميم', 'ريلز', 'بودكاست'];
-
 const Portfolio = () => {
-  const [filter, setFilter] = useState('الكل');
+  const { t } = useTranslation();
+  const [filterKey, setFilterKey] = useState('all');
 
-  const filteredData = filter === 'الكل' 
+  const categories = t('portfolio.categories', { returnObjects: true });
+  const items = t('portfolio.items', { returnObjects: true });
+
+  const categoryKeys = Object.keys(categories); // ['all', 'video', 'design', 'reels', 'podcast']
+
+  // Combine translations with media
+  const portfolioData = items.map((item, index) => ({
+    ...item,
+    ...portfolioMedia[index],
+    id: index + 1
+  }));
+
+  const filteredData = filterKey === 'all' 
     ? portfolioData 
-    : portfolioData.filter(item => item.category === filter);
+    : portfolioData.filter(item => item.category === filterKey);
 
   return (
     <section id="portfolio" className="portfolio-section">
       <div className="container">
-        <h2 className="section-title">معرض <span className="text-gradient">الأعمال</span></h2>
+        <h2 className="section-title">
+          {t('portfolio.title1')} <span className="text-gradient">{t('portfolio.title2')}</span>
+        </h2>
         
         <div className="portfolio-filters">
-          {categories.map((cat, index) => (
+          {categoryKeys.map((key) => (
             <button 
-              key={index} 
-              className={`filter-btn ${filter === cat ? 'active' : ''}`}
-              onClick={() => setFilter(cat)}
+              key={key} 
+              className={`filter-btn ${filterKey === key ? 'active' : ''}`}
+              onClick={() => setFilterKey(key)}
             >
-              {cat}
+              {categories[key]}
             </button>
           ))}
         </div>
@@ -55,7 +69,7 @@ const Portfolio = () => {
               </div>
               <div className="portfolio-info">
                 <h4>{item.title}</h4>
-                <span>{item.category}</span>
+                <span>{categories[item.category]}</span>
               </div>
             </div>
           ))}
