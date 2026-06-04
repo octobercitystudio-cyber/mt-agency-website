@@ -1,12 +1,15 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useData } from '../store/DataContext';
 import './Services.css';
 
-const serviceIcons = ['📸', '🎪', '🎙️', '🤖', '🎨', '📱', '💻'];
-
 const Services = () => {
-  const { t } = useTranslation();
-  const services = t('services.items', { returnObjects: true });
+  const { t, i18n } = useTranslation();
+  const { siteData } = useData();
+  const isEnglish = i18n.language === 'en';
+
+  // Use dynamic services from the DataContext
+  const services = siteData.services;
 
   return (
     <section id="services" className="services-section">
@@ -16,14 +19,14 @@ const Services = () => {
         </h2>
         
         <div className="services-grid">
-          {Array.isArray(services) && services.map((service, index) => (
+          {services.map((service, index) => (
             <div key={index} className="service-card glass-panel">
-              <div className="service-icon-wrapper">
-                <div className="service-icon">{serviceIcons[index]}</div>
-              </div>
-              <h3 className="service-title">{service.title}</h3>
-              <p className="service-desc">{service.desc}</p>
               <div className="card-glow"></div>
+              <div className="service-icon-wrapper">
+                <span className="service-icon">{service.icon}</span>
+              </div>
+              <h3 className="service-title">{isEnglish ? service.titleEn : service.title}</h3>
+              <p className="service-desc">{isEnglish ? service.descEn : service.desc}</p>
             </div>
           ))}
         </div>

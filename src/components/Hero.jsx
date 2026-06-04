@@ -1,9 +1,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useData } from '../store/DataContext';
 import './Hero.css';
 
 const Hero = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { siteData } = useData();
+  const isEnglish = i18n.language === 'en';
+  
+  const heroData = siteData.hero;
 
   return (
     <section id="home" className="hero-section">
@@ -11,11 +16,11 @@ const Hero = () => {
         
         <div className="hero-content">
           <h1 className="hero-title">
-            <span className="text-gradient">{t('hero.title1')}</span><br/>
-            {t('hero.title2')}
+            <span className="text-gradient">{isEnglish ? heroData.title1En : heroData.title1}</span><br/>
+            {isEnglish ? heroData.title2En : heroData.title2}
           </h1>
           <p className="hero-subtitle">
-            {t('hero.subtitle')}
+            {isEnglish ? heroData.subtitleEn : heroData.subtitle}
           </p>
           <div className="hero-actions">
             <a href="#portfolio" className="btn-primary">{t('hero.discover')}</a>

@@ -1,65 +1,78 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useData } from '../store/DataContext';
 import './Contact.css';
 
 const Contact = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { siteData } = useData();
+  const isEnglish = i18n.language === 'en';
+  
+  const contactData = siteData.contact;
 
   return (
     <>
       <section id="contact" className="contact-section">
-        <div className="container contact-container">
-          <div className="contact-info glass-panel">
-            <h2 className="section-title">
-              {t('contact.title1')} <span className="text-gradient">{t('contact.title2')}</span>
-            </h2>
-            <p>{t('contact.description')}</p>
-            
-            <div className="contact-details">
-              <div className="detail-item">
-                <span className="detail-icon">📍</span>
-                <a href="https://www.google.com/maps/place/Multi+Task+Studio/data=!4m2!3m1!1s0x0:0xa83e5d8b7ce8bfc7?sa=X&ved=1t:2428&ictx=111" target="_blank" rel="noopener noreferrer" className="detail-text">
-                  {t('contact.addressTitle')}
-                </a>
-              </div>
-              <div className="detail-item">
-                <span className="detail-icon">📞</span>
-                <a href="tel:+201114466646" className="detail-text">{t('contact.phoneTitle')}</a>
+        <div className="container">
+          <div className="contact-grid">
+            <div className="contact-info glass-panel">
+              <h2 className="section-title">
+                {t('contact.title1')} <span className="text-gradient">{t('contact.title2')}</span>
+              </h2>
+              <p className="contact-desc">
+                {t('contact.description')}
+              </p>
+              
+              <div className="contact-details">
+                <div className="contact-item">
+                  <span className="icon">📍</span>
+                  <p>{isEnglish ? contactData.addressEn : contactData.address}</p>
+                </div>
+                <div className="contact-item">
+                  <span className="icon">📞</span>
+                  <p dir="ltr" style={{textAlign: isEnglish ? 'left' : 'right'}}>{contactData.phone}</p>
+                </div>
+                <div className="contact-item">
+                  <span className="icon">✉️</span>
+                  <p dir="ltr" style={{textAlign: isEnglish ? 'left' : 'right'}}>{contactData.email}</p>
+                </div>
               </div>
             </div>
-
-            <form className="contact-form">
-              <div className="form-group">
-                <input type="text" placeholder={t('contact.form.name')} required />
-              </div>
-              <div className="form-group">
-                <input type="email" placeholder={t('contact.form.email')} required />
-              </div>
-              <div className="form-group">
-                <textarea placeholder={t('contact.form.message')} rows="4" required></textarea>
-              </div>
-              <button type="submit" className="btn-primary w-100">{t('contact.form.submit')}</button>
-            </form>
-          </div>
-          
-          <div className="contact-map">
-            <iframe 
-              src="https://maps.google.com/maps?q=Multi%20Task%20Studio&t=&z=15&ie=UTF8&iwloc=&output=embed"
-              width="100%" 
-              height="100%" 
-              style={{ border: 0, minHeight: '400px' }} 
-              allowFullScreen="" 
-              loading="lazy" 
-              referrerPolicy="no-referrer-when-downgrade"
-              title="MT Agency Location"
-            ></iframe>
+            
+            <div className="contact-form glass-panel">
+              <form>
+                <div className="form-group">
+                  <input type="text" placeholder={t('contact.form.name')} required />
+                </div>
+                <div className="form-group">
+                  <input type="email" placeholder={t('contact.form.email')} required />
+                </div>
+                <div className="form-group">
+                  <textarea rows="5" placeholder={t('contact.form.message')} required></textarea>
+                </div>
+                <button type="submit" className="btn-primary w-100">{t('contact.form.submit')}</button>
+              </form>
+            </div>
+            
+            <div className="contact-map">
+              <iframe 
+                src="https://maps.google.com/maps?q=Multi%20Task%20Studio&t=&z=15&ie=UTF8&iwloc=&output=embed"
+                width="100%" 
+                height="100%" 
+                style={{ border: 0, minHeight: '400px' }} 
+                allowFullScreen="" 
+                loading="lazy" 
+                referrerPolicy="no-referrer-when-downgrade"
+                title="MT Agency Location"
+              ></iframe>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Floating WhatsApp Button */}
       <a 
-        href="https://wa.me/201114466646" 
+        href={`https://wa.me/${contactData.phone.replace(/[^0-9]/g, '')}`} 
         className="whatsapp-float"
         target="_blank" 
         rel="noopener noreferrer"

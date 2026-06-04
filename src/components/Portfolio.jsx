@@ -1,35 +1,20 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useData } from '../store/DataContext';
 import './Portfolio.css';
 
-const portfolioMedia = [
-  { id: 1, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-  { id: 2, imageUrl: 'https://images.unsplash.com/photo-1626785773985-92731114b0b1?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' },
-  { id: 3, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-  { id: 4, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-  { id: 5, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ' },
-  { id: 6, imageUrl: 'https://images.unsplash.com/photo-1547658719-da2b51169166?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' }
-];
-
 const Portfolio = () => {
-  const { t } = useTranslation();
-  const [filterKey, setFilterKey] = useState('all');
-
+  const { t, i18n } = useTranslation();
+  const { siteData } = useData();
+  const [filter, setFilter] = useState('all');
+  const isEnglish = i18n.language === 'en';
+  
+  const portfolioItems = siteData.portfolio;
   const categories = t('portfolio.categories', { returnObjects: true });
-  const items = t('portfolio.items', { returnObjects: true });
 
-  const categoryKeys = Object.keys(categories); // ['all', 'video', 'design', 'reels', 'podcast']
-
-  // Combine translations with media
-  const portfolioData = items.map((item, index) => ({
-    ...item,
-    ...portfolioMedia[index],
-    id: index + 1
-  }));
-
-  const filteredData = filterKey === 'all' 
-    ? portfolioData 
-    : portfolioData.filter(item => item.category === filterKey);
+  const filteredPortfolio = filter === 'all' 
+    ? portfolioItems 
+    : portfolioItems.filter(item => item.category === filter);
 
   return (
     <section id="portfolio" className="portfolio-section">
@@ -39,41 +24,44 @@ const Portfolio = () => {
         </h2>
         
         <div className="portfolio-filters">
-          {categoryKeys.map((key) => (
+          {Object.keys(categories).map(key => (
             <button 
               key={key} 
-              className={`filter-btn ${filterKey === key ? 'active' : ''}`}
-              onClick={() => setFilterKey(key)}
+              className={`filter-btn ${filter === key ? 'active' : ''}`}
+              onClick={() => setFilter(key)}
             >
               {categories[key]}
             </button>
           ))}
         </div>
-
+        
         <div className="portfolio-grid">
-          {filteredData.map((item) => (
-            <div key={item.id} className="portfolio-item glass-panel">
+          {filteredPortfolio.map((item, index) => (
+            <div key={item.id || index} className="portfolio-item glass-panel">
               <div className="portfolio-media">
                 {item.embedUrl ? (
                   <iframe 
                     src={item.embedUrl} 
-                    title={item.title}
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    title={isEnglish ? item.titleEn : item.title}
+                    frameBorder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                     allowFullScreen
-                    loading="lazy"
                   ></iframe>
                 ) : (
-                  <img src={item.imageUrl} alt={item.title} loading="lazy" />
+                  <img src={item.imageUrl} alt={isEnglish ? item.titleEn : item.title} loading="lazy" />
                 )}
+                <div className="portfolio-overlay">
+                  <div className="overlay-icon">▶</div>
+                </div>
               </div>
               <div className="portfolio-info">
-                <h4>{item.title}</h4>
-                <span>{categories[item.category]}</span>
+                <h3>{isEnglish ? item.titleEn : item.title}</h3>
+                <span>{categories[item.category] || item.category}</span>
               </div>
             </div>
           ))}
         </div>
+        
       </div>
     </section>
   );
