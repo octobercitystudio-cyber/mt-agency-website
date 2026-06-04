@@ -1,0 +1,123 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Tajawal:wght@400;500;700;800;900&display=swap');
+
+:root {
+  /* Color Palette */
+  --bg-dark: #05010f;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #1C0B3B 0%, #05010f 80%);
+  --color-deep-purple: #1C0B3B;
+  --color-vibrant-purple: #7A28CB;
+  --color-silver: #E0E0E0;
+  --color-light-silver: #F8F8F8;
+  --color-neon-purple: #9d4edd;
+  
+  /* Typography */
+  --font-arabic: 'Tajawal', sans-serif;
+  --font-latin: 'Space Grotesk', sans-serif;
+  
+  /* Spacing & Sizes */
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 2rem;
+  --spacing-xl: 4rem;
+  
+  /* Utilities */
+  --border-radius: 12px;
+  --transition: all 0.3s ease-in-out;
+  --box-shadow: 0 8px 32px 0 rgba(122, 40, 203, 0.15);
+  --glass-bg: rgba(28, 11, 59, 0.4);
+  --glass-border: 1px solid rgba(122, 40, 203, 0.3);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-arabic);
+  background-color: var(--bg-dark);
+  background-image: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--color-light-silver);
+  line-height: 1.6;
+  direction: rtl; /* Right to left for Arabic */
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: var(--spacing-md);
+}
+
+a {
+  color: var(--color-silver);
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+a:hover {
+  color: var(--color-vibrant-purple);
+}
+
+ul {
+  list-style: none;
+}
+
+.container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-vibrant-purple);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neon-purple);
+}
+
+/* Button Styles */
+.btn-primary {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--color-vibrant-purple), var(--color-neon-purple));
+  color: #fff;
+  padding: 12px 30px;
+  border-radius: 30px;
+  font-weight: 700;
+  font-family: var(--font-arabic);
+  font-size: 1.1rem;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(122, 40, 203, 0.4);
+  transition: var(--transition);
+}
+
+.btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(122, 40, 203, 0.6);
+  color: #fff;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: var(--glass-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+}
