@@ -108,6 +108,11 @@ html {
   html {
     font-size: 14px;
   }
+  :root {
+    --spacing-md: 0.8rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2.5rem;
+  }
 }
 
 * {

@@ -54,8 +54,8 @@
 }
 
 .monogram-container {
-  width: 350px;
-  height: 350px;
+  width: min(100%, 350px);
+  aspect-ratio: 1/1;
   display: flex;
   justify-content: center;
   align-items: center;
