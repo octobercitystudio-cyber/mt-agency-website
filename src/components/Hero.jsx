@@ -28,11 +28,26 @@ const Hero = () => {
 
   return (
     <section id="home" className="hero-section">
-      <div className="container">
-        <div className="hero-banner-wrapper glass-panel">
-          
-          {/* Background Slider */}
-          <div className="slider-container">
+      <div className="container hero-container">
+        
+        {/* Text Content (Right side in RTL) */}
+        <div className="hero-content">
+          <h1 className="hero-title">
+            <span className="text-gradient">{isEnglish ? heroData.title1En : heroData.title1}</span><br/>
+            {isEnglish ? heroData.title2En : heroData.title2}
+          </h1>
+          <p className="hero-subtitle">
+            {isEnglish ? heroData.subtitleEn : heroData.subtitle}
+          </p>
+          <div className="hero-actions">
+            <a href="#portfolio" className="btn-primary">{t('hero.discover')}</a>
+            <a href="#contact" className="btn-secondary">{t('hero.contact')}</a>
+          </div>
+        </div>
+        
+        {/* Visual Slider (Left side in RTL) */}
+        <div className="hero-visual">
+          <div className="visual-banner">
             {sliderImages.map((img, index) => (
               <img 
                 key={index}
@@ -41,25 +56,10 @@ const Hero = () => {
                 className={`hero-slider-img ${index === currentImageIndex ? 'active' : ''}`}
               />
             ))}
-            <div className="hero-overlay"></div>
+            <div className="visual-overlay"></div>
           </div>
-          
-          {/* Text Content */}
-          <div className="hero-content">
-            <h1 className="hero-title">
-              <span className="text-gradient">{isEnglish ? heroData.title1En : heroData.title1}</span><br/>
-              {isEnglish ? heroData.title2En : heroData.title2}
-            </h1>
-            <p className="hero-subtitle">
-              {isEnglish ? heroData.subtitleEn : heroData.subtitle}
-            </p>
-            <div className="hero-actions">
-              <a href="#portfolio" className="btn-primary">{t('hero.discover')}</a>
-              <a href="#contact" className="btn-secondary">{t('hero.contact')}</a>
-            </div>
-          </div>
-          
         </div>
+        
       </div>
       
       {/* Background elements */}
