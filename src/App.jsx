@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import AdminLayout from './admin/AdminLayout';
@@ -19,6 +19,15 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  useEffect(() => {
+    // Prevent browser from restoring previous scroll position
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    // Always start at the top
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <DataProvider>
       <BrowserRouter>
