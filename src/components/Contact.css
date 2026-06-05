@@ -154,6 +154,18 @@ a.detail-text:hover {
     grid-template-columns: 1fr;
   }
   
+  .contact-info {
+    text-align: center;
+  }
+  
+  .contact-details {
+    align-items: center;
+  }
+  
+  .contact-item {
+    justify-content: center;
+  }
+  
   .contact-map {
     min-height: 300px;
   }
