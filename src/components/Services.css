@@ -91,3 +91,9 @@
 .service-card:hover .card-glow {
   opacity: 1;
 }
+
+@media (max-width: 768px) {
+  .services-grid {
+    grid-template-columns: 1fr;
+  }
+}

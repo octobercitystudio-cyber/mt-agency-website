@@ -77,3 +77,9 @@
   font-size: 0.9rem;
   color: var(--color-vibrant-purple);
 }
+
+@media (max-width: 768px) {
+  .portfolio-grid {
+    grid-template-columns: 1fr;
+  }
+}
