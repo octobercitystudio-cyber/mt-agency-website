@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 import './Hero.css';
@@ -9,6 +9,22 @@ const Hero = () => {
   const isEnglish = i18n.language === 'en';
   
   const heroData = siteData.hero;
+
+  const sliderImages = [
+    '/hero-service-1.png', // Photography
+    '/hero-service-2.png', // AI Video
+    '/hero-service-3.png', // Creative Design
+    '/hero-service-4.png'  // Social Media
+  ];
+
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % sliderImages.length);
+    }, 4000); // Change image every 4 seconds
+    return () => clearInterval(interval);
+  }, [sliderImages.length]);
 
   return (
     <section id="home" className="hero-section">
@@ -29,18 +45,15 @@ const Hero = () => {
         </div>
         
         <div className="hero-visual">
-          <div className="monogram-container glass-panel">
-            <img src="/logo.png" alt="MT Agency Large Logo" className="hero-main-logo" 
-                 onError={(e) => {
-                   e.target.style.display = 'none';
-                   e.target.nextSibling.style.display = 'block';
-                 }} 
-            />
-            {/* Fallback geometric monogram if logo is missing */}
-            <div className="hero-logo-fallback" style={{display: 'none', textAlign: 'center'}}>
-               <span style={{color: 'var(--color-vibrant-purple)', fontSize: '8rem', fontWeight: '900'}}>{t('hero.fallbackLogoTitle')[0]}</span>
-               <span style={{color: 'var(--color-silver)', fontSize: '8rem', fontWeight: '900'}}>{t('hero.fallbackLogoTitle')[1]}</span>
-            </div>
+          <div className="monogram-container glass-panel slider-container">
+            {sliderImages.map((img, index) => (
+              <img 
+                key={index}
+                src={img} 
+                alt={`Our Service ${index + 1}`} 
+                className={`hero-slider-img ${index === currentImageIndex ? 'active' : ''}`}
+              />
+            ))}
             <div className="glow-effect"></div>
           </div>
         </div>
