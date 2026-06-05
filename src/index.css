@@ -2,13 +2,13 @@
 
 :root {
   /* Color Palette */
-  --bg-dark: #05010f;
-  --bg-gradient: radial-gradient(circle at 50% 0%, #1C0B3B 0%, #05010f 80%);
-  --color-deep-purple: #1C0B3B;
-  --color-vibrant-purple: #7A28CB;
+  --bg-dark: #0d0620;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #260f50 0%, #0d0620 80%);
+  --color-deep-purple: #260f50;
+  --color-vibrant-purple: #8b3cdb;
   --color-silver: #E0E0E0;
   --color-light-silver: #F8F8F8;
-  --color-neon-purple: #9d4edd;
+  --color-neon-purple: #ae5af2;
   
   /* Typography */
   --font-arabic: 'Tajawal', sans-serif;
