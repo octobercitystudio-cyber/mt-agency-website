@@ -21,11 +21,21 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   useEffect(() => {
     // Prevent browser from restoring previous scroll position
-    if ('scrollRestoration' in history) {
-      history.scrollRestoration = 'manual';
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
     }
-    // Always start at the top
+    
+    // Clear any hash (#portfolio, etc.) from URL on fresh load
+    // so the browser doesn't automatically jump down
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    
+    // Force scroll to top (with slight delay to outrun browser's native jump)
     window.scrollTo(0, 0);
+    setTimeout(() => {
+      window.scrollTo(0, 0);
+    }, 100);
   }, []);
 
   return (
