@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Menu, X } from 'lucide-react';
 import './Header.css';
 
 const Header = () => {
   const { t, i18n } = useTranslation();
   const [lang, setLang] = useState(i18n.language);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const toggleLanguage = () => {
     const newLang = lang === 'ar' ? 'en' : 'ar';
@@ -24,7 +26,7 @@ const Header = () => {
 
   return (
     <div className="top-bar">
-      {/* Right Column: Logo & Language */}
+      {/* Right Column: Logo & Language & Hamburger */}
       <div className="top-bar-right">
         <a href="#home" className="logo-link">
           <img src="/logo.png" alt="MT Agency Logo" className="header-logo" 
@@ -42,28 +44,35 @@ const Header = () => {
         <button className="lang-btn" onClick={toggleLanguage}>
           {t('header.lang')}
         </button>
+
+        <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          {isMenuOpen ? <X size={28} /> : <Menu size={28} />}
+        </button>
       </div>
 
-      {/* Center Column: Navigation */}
-      <div className="top-bar-center">
-        <header className="header-nav">
-          <nav className="main-nav">
-            <ul className="nav-list">
-              {navLinks.map((link) => (
-                <li key={link.href}>
-                  <a href={link.href} className="nav-link">{link.name}</a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </header>
-      </div>
+      {/* Center & Left Columns: Navigation (Hidden on mobile unless open) */}
+      <div className={`mobile-nav-wrapper ${isMenuOpen ? 'open' : ''}`}>
+        <div className="top-bar-center">
+          <header className="header-nav">
+            <nav className="main-nav">
+              <ul className="nav-list">
+                {navLinks.map((link) => (
+                  <li key={link.href}>
+                    <a href={link.href} className="nav-link" onClick={() => setIsMenuOpen(false)}>
+                      {link.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </header>
+        </div>
 
-      {/* Left Column: Actions */}
-      <div className="top-bar-left">
-        <a href="#contact" className="btn-primary quote-btn">
-          {t('header.getQuote')}
-        </a>
+        <div className="top-bar-left">
+          <a href="#contact" className="btn-primary quote-btn" onClick={() => setIsMenuOpen(false)}>
+            {t('header.getQuote')}
+          </a>
+        </div>
       </div>
     </div>
   );
