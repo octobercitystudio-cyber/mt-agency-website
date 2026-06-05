@@ -138,3 +138,59 @@
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
 }
+
+/* Mobile Responsiveness for Admin Dashboard */
+@media (max-width: 768px) {
+  .admin-container {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+  
+  .admin-sidebar {
+    width: 100%;
+    border-left: none;
+    border-bottom: 1px solid rgba(122, 40, 203, 0.3);
+  }
+  
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 10px;
+    gap: 5px;
+  }
+  
+  .nav-item {
+    white-space: nowrap;
+    padding: 10px 15px;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    justify-content: center;
+  }
+  
+  .nav-item.active {
+    border-right: none;
+    border-bottom: 3px solid var(--color-vibrant-purple);
+  }
+  
+  .sidebar-footer {
+    display: flex;
+    justify-content: space-around;
+  }
+  
+  .admin-header {
+    padding: 15px;
+  }
+  
+  .admin-content {
+    padding: 15px;
+  }
+  
+  .admin-card {
+    padding: 20px;
+  }
+  
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+}

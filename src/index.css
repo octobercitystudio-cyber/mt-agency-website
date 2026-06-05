@@ -94,6 +94,22 @@ html[lang="en"] .section-title {
   width: 100%;
 }
 
+html {
+  font-size: 16px;
+}
+
+@media (max-width: 992px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
