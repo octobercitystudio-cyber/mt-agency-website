@@ -36,8 +36,12 @@ const AdminContact = () => {
           <hr style={{borderColor: 'rgba(255,255,255,0.1)', margin: '15px 0'}} />
           
           <div className="form-group">
-            <label>رقم الهاتف / الواتساب</label>
+            <label>رقم الهاتف الأول / الواتساب</label>
             <input type="text" className="form-control" dir="ltr" value={contactData.phone} onChange={e => handleChange('phone', e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>رقم الهاتف الثاني</label>
+            <input type="text" className="form-control" dir="ltr" value={contactData.phone2 || ''} onChange={e => handleChange('phone2', e.target.value)} />
           </div>
           <div className="form-group">
             <label>البريد الإلكتروني (Email)</label>

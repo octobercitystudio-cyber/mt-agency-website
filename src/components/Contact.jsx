@@ -29,9 +29,14 @@ const Contact = () => {
                   <p>{isEnglish ? contactData.addressEn : contactData.address}</p>
                 </div>
                 <div className="contact-item">
-                  <span className="icon">📞</span>
+                <span className="icon">📞</span>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
                   <p dir="ltr" style={{textAlign: isEnglish ? 'left' : 'right'}}>{contactData.phone}</p>
+                  {contactData.phone2 && (
+                    <p dir="ltr" style={{textAlign: isEnglish ? 'left' : 'right'}}>{contactData.phone2}</p>
+                  )}
                 </div>
+              </div>
                 <div className="contact-item">
                   <span className="icon">✉️</span>
                   <p dir="ltr" style={{textAlign: isEnglish ? 'left' : 'right'}}>{contactData.email}</p>

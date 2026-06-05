@@ -35,6 +35,7 @@ const defaultData = {
     address: "مدينة 6 أكتوبر، الجيزة، مصر",
     addressEn: "6th of October City, Giza, Egypt",
     phone: "01114466646",
+    phone2: "+201094084424",
     email: "info@mt-agency.com",
     facebook: "#",
     instagram: "#",
