@@ -181,7 +181,7 @@
     width: 100%;
     flex-direction: column;
     gap: 15px;
-    background: rgba(13, 6, 32, 0.95);
+    background: rgba(22, 10, 51, 0.95);
     backdrop-filter: blur(15px);
     padding: 20px;
     border-radius: 15px;
