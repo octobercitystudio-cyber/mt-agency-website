@@ -73,13 +73,17 @@
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: opacity 1.5s ease-in-out, transform 4s ease-in-out;
-  transform: scale(1.1);
+  transition: opacity 1.5s ease-in-out, transform 4s linear;
+  transform: scale(1.05) translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
 }
 
 .hero-slider-img.active {
   opacity: 1;
-  transform: scale(1);
+  transform: scale(1) translateZ(0);
 }
 
 .visual-overlay {
