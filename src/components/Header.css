@@ -93,8 +93,8 @@
 }
 
 .nav-link:hover {
-  color: var(--color-light-silver);
-  text-shadow: 0 0 10px rgba(122, 40, 203, 0.3);
+  color: #fff;
+  text-shadow: 0 0 10px rgba(122, 40, 203, 0.6);
 }
 
 .nav-link:hover::after {
@@ -116,8 +116,8 @@
 }
 
 .lang-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--color-light-silver);
+  background: rgba(224, 224, 224, 0.1);
+  color: #fff;
   border-color: var(--color-vibrant-purple);
 }
 
@@ -130,7 +130,7 @@
   display: none;
   background: transparent;
   border: none;
-  color: var(--color-light-silver);
+  color: #fff;
   cursor: pointer;
 }
 
@@ -181,7 +181,7 @@
     width: 100%;
     flex-direction: column;
     gap: 15px;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(28, 28, 30, 0.95);
     backdrop-filter: blur(15px);
     padding: 20px;
     border-radius: 15px;
