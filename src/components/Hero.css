@@ -74,9 +74,6 @@
   object-fit: contain;
   opacity: 0;
   transition: opacity 1.5s ease-in-out;
-  /* Crucial mask to kill the hard rectangular borders from AI images and make them look 'transparent/hollowed' */
-  -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 45%, rgba(0,0,0,0) 75%);
-  mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 45%, rgba(0,0,0,0) 75%);
 }
 
 .hero-slider-img.active {
