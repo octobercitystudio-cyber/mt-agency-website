@@ -1,5 +1,5 @@
 .footer-section {
-  background-color: #030008;
+  background-color: var(--bg-dark);
   border-top: 1px solid rgba(122, 40, 203, 0.3);
   padding: 60px 0 20px;
   position: relative;

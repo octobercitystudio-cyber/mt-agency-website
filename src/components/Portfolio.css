@@ -64,7 +64,7 @@
 
 .portfolio-info {
   padding: var(--spacing-md);
-  background: rgba(10, 10, 10, 0.6);
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .portfolio-info h4 {

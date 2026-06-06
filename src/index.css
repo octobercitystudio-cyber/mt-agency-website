@@ -2,13 +2,13 @@
 
 :root {
   /* Color Palette */
-  --bg-dark: #000000;
-  --bg-gradient: radial-gradient(circle at 50% 0%, #1a1a1a 0%, #000000 80%);
-  --color-deep-purple: #1a1a1a;
-  --color-vibrant-purple: #8b3cdb;
-  --color-silver: #E0E0E0;
-  --color-light-silver: #F8F8F8;
-  --color-neon-purple: #ae5af2;
+  --bg-dark: #f5f5f7;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #ffffff 0%, #f5f5f7 80%);
+  --color-deep-purple: #ffffff;
+  --color-vibrant-purple: #7a28cb;
+  --color-silver: #666666;
+  --color-light-silver: #1a1a1a;
+  --color-neon-purple: #8b3cdb;
   
   /* Typography */
   --font-arabic: 'Tajawal', sans-serif;
@@ -24,9 +24,9 @@
   /* Utilities */
   --border-radius: 12px;
   --transition: all 0.3s ease-in-out;
-  --box-shadow: 0 8px 32px 0 rgba(122, 40, 203, 0.15);
-  --glass-bg: rgba(28, 11, 59, 0.4);
-  --glass-border: 1px solid rgba(122, 40, 203, 0.3);
+  --box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: 1px solid rgba(122, 40, 203, 0.15);
 }
 
 body[dir="ltr"], html[lang="en"] body {
@@ -201,31 +201,31 @@ ul {
 
 .btn-secondary {
   display: inline-block;
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
+  background: rgba(0, 0, 0, 0.05);
+  color: #1a1a1a;
   padding: 12px 30px;
   border-radius: 30px;
   font-weight: 700;
   font-family: var(--current-font);
   font-size: 1.1rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   cursor: pointer;
   transition: var(--transition);
   backdrop-filter: blur(5px);
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.1);
+  border-color: rgba(0, 0, 0, 0.2);
   transform: translateY(-3px);
-  color: #fff;
+  color: #1a1a1a;
 }
 
 /* Glassmorphism utility */
 .glass-panel {
   background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
   border: var(--glass-border);
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow);
