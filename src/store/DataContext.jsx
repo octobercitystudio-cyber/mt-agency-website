@@ -30,7 +30,7 @@ const defaultData = {
     { id: 4, imageUrl: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'حلقة بودكاست', titleEn: 'Podcast Episode', category: 'podcast' },
     { id: 5, embedUrl: 'https://www.youtube.com/embed/9bZkp7q19f0', title: 'تغطية فعالية', titleEn: 'Event Coverage', category: 'video' },
     { id: 6, imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'موقع إلكتروني', titleEn: 'Website', category: 'design' },
-    { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: '/qpshoes_mockup.png', title: 'متجر QP Shoes', titleEn: 'QP Shoes Store', category: 'web' }
+    { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: '/qpshoes.png', title: 'متجر قصر الملكة', titleEn: 'QP Shoes Store', category: 'web' }
   ],
   contact: {
     address: "مدينة 6 أكتوبر، الجيزة، مصر",
@@ -70,7 +70,7 @@ export const useData = () => useContext(DataContext);
 
 export const DataProvider = ({ children }) => {
   const [siteData, setSiteData] = useState(() => {
-    const saved = localStorage.getItem('mt_agency_data_v4');
+    const saved = localStorage.getItem('mt_agency_data_v5');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -87,7 +87,7 @@ export const DataProvider = ({ children }) => {
   });
 
   useEffect(() => {
-    localStorage.setItem('mt_agency_data_v4', JSON.stringify(siteData));
+    localStorage.setItem('mt_agency_data_v5', JSON.stringify(siteData));
   }, [siteData]);
 
   const updateSection = (sectionName, newData) => {
