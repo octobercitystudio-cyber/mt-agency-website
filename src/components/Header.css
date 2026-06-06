@@ -157,9 +157,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    position: relative; /* Remove absolute positioning on mobile */
+    position: absolute;
     top: 0;
-    margin-bottom: 20px;
+    left: 0;
+    transform: none;
+    width: 100%;
+    padding: 20px 5%;
+    margin-bottom: 0;
   }
   
   .top-bar-right {
