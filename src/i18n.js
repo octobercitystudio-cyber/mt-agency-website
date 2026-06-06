@@ -158,7 +158,7 @@ const resources = {
       },
       experience: {
         title: "عاماً من الخبرة في الإنتاج المرئي",
-        description: "منذ عام 2011، وMT Agency رائدة في صناعة المحتوى الرقمي."
+        description: "منذ عام 2011، وتعتبر MT Agency رائدة في صناعة المحتوى الرقمي."
       },
       services: {
         title1: "خدماتنا",
