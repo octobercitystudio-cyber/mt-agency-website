@@ -219,8 +219,9 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 50vw; /* Exactly half the screen as requested */
-    min-width: unset;
+    width: max-content;
+    min-width: 260px; /* Large enough to fit the "Get a Quote" button without wrapping */
+    max-width: 75vw; /* But don't let it take the whole screen */
     height: 100vh;
     flex-direction: column;
     background: rgba(19, 13, 26, 0.98);
@@ -269,10 +270,12 @@
   .nav-link {
     font-size: 1.2rem;
     padding: 5px 0;
+    white-space: nowrap;
   }
   
   .quote-btn {
     width: 100%;
     text-align: center;
+    white-space: nowrap;
   }
 }
