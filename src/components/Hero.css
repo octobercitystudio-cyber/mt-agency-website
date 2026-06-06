@@ -20,7 +20,7 @@
 }
 
 .hero-title {
-  font-size: 4rem;
+  font-size: 3.2rem;
   line-height: 1.4;
   margin-bottom: var(--spacing-md);
   color: var(--color-light-silver);
@@ -34,15 +34,16 @@
 }
 
 .hero-subtitle {
-  font-size: 1.2rem;
+  font-size: 1.45rem;
+  line-height: 1.7;
   color: var(--color-silver);
   margin-bottom: var(--spacing-xl);
-  max-width: 500px;
+  max-width: 650px;
 }
 
 .hero-actions {
   display: flex;
-  gap: 20px;
+  gap: 24px;
   align-items: center;
   flex-wrap: wrap;
 }
