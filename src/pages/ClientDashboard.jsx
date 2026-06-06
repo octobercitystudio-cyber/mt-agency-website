@@ -100,6 +100,44 @@ const ClientDashboard = () => {
     return `${days[date.getDay()]} ${dateStr}`;
   };
 
+  // Group bookings by service
+  const packages = {};
+  bookings.forEach(booking => {
+    if (!packages[booking.service]) {
+      packages[booking.service] = {
+        name: booking.service,
+        bookings: [],
+        usedHours: 0,
+        paid: 0,
+        discount: 0,
+        cost: -1,
+        latestExpiry: null,
+        notes: []
+      };
+    }
+    const pkg = packages[booking.service];
+    pkg.bookings.push(booking);
+    pkg.usedHours += (booking.actual_hours || 0);
+    pkg.paid += (booking.payment || 0);
+    
+    if (booking.discount > pkg.discount) {
+      pkg.discount = booking.discount;
+      if (booking.notes && booking.discount > 0) {
+        pkg.notes.push(booking.notes);
+      }
+    }
+    
+    if (booking.custom_price !== null && booking.custom_price !== -1) {
+      pkg.cost = booking.custom_price;
+    }
+
+    if (booking.delivery_date) {
+      if (!pkg.latestExpiry || new Date(booking.delivery_date) > new Date(pkg.latestExpiry)) {
+        pkg.latestExpiry = booking.delivery_date;
+      }
+    }
+  });
+
   return (
     <div className="client-dashboard container">
       <div className="dashboard-header glass-panel">
@@ -110,27 +148,23 @@ const ClientDashboard = () => {
         <button className="btn-secondary" onClick={handleLogout}>تسجيل الخروج</button>
       </div>
 
-      <h3 className="section-subtitle">📸 باقة التصوير النشطة:</h3>
+      <h3 className="section-subtitle">📸 باقات التصوير الخاصة بك:</h3>
       <div className="bookings-grid">
-        {bookings.length === 0 ? (
+        {Object.keys(packages).length === 0 ? (
           <p className="no-data">لا توجد حجوزات مسجلة حالياً.</p>
         ) : (
-          bookings.map(booking => {
-            const serviceDetails = services.find(s => s.name === booking.service) || {};
+          Object.values(packages).map(pkg => {
+            const serviceDetails = services.find(s => s.name === pkg.name) || {};
             const totalHours = serviceDetails.total_hours || 0;
-            const usedHours = booking.actual_hours || 0;
-            const remainingHours = Math.max(0, totalHours - usedHours);
+            const remainingHours = Math.max(0, totalHours - pkg.usedHours);
 
-            const cost = (booking.custom_price !== null && booking.custom_price !== -1) ? booking.custom_price : (serviceDetails.price || 0);
-            const paid = booking.payment || 0;
-            const discount = booking.discount || 0;
-            // Calculate remaining cost considering discount
-            const remainingCost = Math.max(0, cost - discount - paid);
+            const cost = pkg.cost !== -1 ? pkg.cost : (serviceDetails.price || 0);
+            const remainingCost = Math.max(0, cost - pkg.discount - pkg.paid);
 
             return (
-              <div key={booking.id} className="package-card">
+              <div key={pkg.name} className="package-card">
                 <div className="package-header">
-                  <h4 className="package-title">{booking.service}</h4>
+                  <h4 className="package-title">{pkg.name}</h4>
                 </div>
 
                 <div className="package-stats-row">
@@ -140,7 +174,7 @@ const ClientDashboard = () => {
                   </div>
                   <div className="package-stat-box">
                     <span className="stat-label">المستخدم</span>
-                    <span className="stat-value-time text-blue">{formatTime(usedHours)}</span>
+                    <span className="stat-value-time text-blue">{formatTime(pkg.usedHours)}</span>
                   </div>
                   <div className="package-stat-box">
                     <span className="stat-label">الباقة</span>
@@ -148,9 +182,9 @@ const ClientDashboard = () => {
                   </div>
                 </div>
 
-                {booking.delivery_date && (
+                {pkg.latestExpiry && (
                   <div className="expiry-badge">
-                    📅 انتهاء الصلاحية: {getDayName(booking.delivery_date)}
+                    📅 انتهاء الصلاحية: {getDayName(pkg.latestExpiry)}
                   </div>
                 )}
 
@@ -161,7 +195,7 @@ const ClientDashboard = () => {
                   </div>
                   <div className="package-stat-box box-green">
                     <span className="stat-label text-green">المدفوع</span>
-                    <span className="stat-value-money text-green">{paid} ج</span>
+                    <span className="stat-value-money text-green">{pkg.paid} ج</span>
                   </div>
                   <div className="package-stat-box">
                     <span className="stat-label">التكلفة</span>
@@ -169,10 +203,10 @@ const ClientDashboard = () => {
                   </div>
                 </div>
 
-                {discount > 0 && (
+                {pkg.discount > 0 && (
                   <div className="discount-banner">
-                    🏷️ الخصم المضاف: {discount} ج.م
-                    {booking.notes && <span className="discount-reason">({booking.notes})</span>}
+                    🏷️ الخصم المضاف: {pkg.discount} ج.م
+                    {pkg.notes.length > 0 && <span className="discount-reason">({pkg.notes[0]})</span>}
                   </div>
                 )}
 
@@ -183,23 +217,23 @@ const ClientDashboard = () => {
                 )}
 
                 <div className="booking-times-section">
-                  <h5 className="times-title">مواعيد التصوير</h5>
-                  <div className="time-row">
-                    <span>التاريخ:</span>
-                    <strong>{getDayName(booking.date)}</strong>
-                  </div>
-                  <div className="time-row">
-                    <span>وقت البدء:</span>
-                    <strong dir="ltr">{booking.start_time}</strong>
-                  </div>
-                  <div className="time-row">
-                    <span>وقت الانتهاء:</span>
-                    <strong dir="ltr">{booking.end_time}</strong>
-                  </div>
-                  <div className="time-row">
-                    <span>الحالة:</span>
-                    <strong className={`status-text ${booking.status === 'ملغي' ? 'text-red' : 'text-green'}`}>{booking.status}</strong>
-                  </div>
+                  <h5 className="times-title">مواعيد جلسات التصوير</h5>
+                  {pkg.bookings.map(b => (
+                    <div key={b.id} style={{marginBottom: '15px', paddingBottom: '15px', borderBottom: '1px solid #eee'}}>
+                      <div className="time-row">
+                        <span>التاريخ:</span>
+                        <strong>{getDayName(b.date)}</strong>
+                      </div>
+                      <div className="time-row">
+                        <span>الوقت:</span>
+                        <strong dir="ltr">{b.start_time} - {b.end_time}</strong>
+                      </div>
+                      <div className="time-row">
+                        <span>الحالة:</span>
+                        <strong className={`status-text ${b.status === 'ملغي' ? 'text-red' : 'text-green'}`}>{b.status}</strong>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             );
