@@ -2,9 +2,9 @@
 
 :root {
   /* Color Palette */
-  --bg-dark: #1c1c1e;
-  --bg-gradient: radial-gradient(circle at 50% 0%, #2c2c2e 0%, #1c1c1e 80%);
-  --color-deep-purple: #2c2c2e;
+  --bg-dark: #000000;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #1a1a1a 0%, #000000 80%);
+  --color-deep-purple: #1a1a1a;
   --color-vibrant-purple: #8b3cdb;
   --color-silver: #E0E0E0;
   --color-light-silver: #F8F8F8;
