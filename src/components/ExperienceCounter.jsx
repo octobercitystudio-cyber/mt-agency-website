@@ -50,7 +50,7 @@ const ExperienceCounter = () => {
         </div>
         <div className="counter-text">
           <h2>{t('experience.title')}</h2>
-          <p>{t('experience.description')}</p>
+          <p dir="auto">{t('experience.description')}</p>
         </div>
       </div>
     </section>
