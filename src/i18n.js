@@ -26,7 +26,7 @@ const resources = {
       about: {
         title1: "About",
         title2: "Us",
-        p1: "At <strong>MT Agency</strong>, we are more than just a digital agency; we are your partners in crafting impact and success. With over 15 years of experience, we specialize in transforming visions and ideas into tangible digital realities that touch audiences and achieve goals.",
+        p1: "Since 2011, <strong>MT Agency</strong> has been a pioneer in the digital content industry. We are your partners in crafting impact and success. With over 15 years of visual production experience, we specialize in transforming visions into tangible digital realities that touch audiences and achieve goals.",
         p2: "We offer a comprehensive suite of services that includes professional photography, visual production, event coverage, world-class podcast production, and innovative AI solutions, in addition to web design and comprehensive digital presence management.",
         p3: "Our mission is to be the driving force behind every great content, with a futuristic vision that keeps pace with the latest technologies and the highest quality standards.",
         stats: {
@@ -147,7 +147,7 @@ const resources = {
       about: {
         title1: "من",
         title2: "نحن",
-        p1: "في <strong>MT Agency</strong>، نحن أكثر من مجرد وكالة رقمية؛ نحن شركاؤك في صناعة التأثير والنجاح. على مدار أكثر من 15 عاماً من الخبرة، تخصصنا في تحويل الرؤى والأفكار إلى واقع رقمي ملموس يلامس الجمهور ويحقق الأهداف.",
+        p1: "منذ عام 2011، وتعتبر <strong>MT Agency</strong> رائدة في صناعة المحتوى الرقمي. نحن شركاؤك في صناعة التأثير والنجاح، وعلى مدار أكثر من 15 عاماً من الخبرة في الإنتاج المرئي، تخصصنا في تحويل الرؤى والأفكار إلى واقع رقمي ملموس يلامس الجمهور ويحقق الأهداف.",
         p2: "نقدم مجموعة متكاملة من الخدمات التي تشمل التصوير الاحترافي، الإنتاج المرئي، تغطية الفعاليات، إنتاج البودكاست بمعايير عالمية، وحلول الذكاء الاصطناعي المبتكرة، بالإضافة إلى تصميم المواقع وإدارة التواجد الرقمي بشكل شامل.",
         p3: "مهمتنا هي أن نكون القوة الدافعة خلف كل محتوى عظيم، برؤية مستقبلية تواكب أحدث التقنيات وأعلى معايير الجودة.",
         stats: {
