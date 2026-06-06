@@ -70,7 +70,7 @@ export const useData = () => useContext(DataContext);
 
 export const DataProvider = ({ children }) => {
   const [siteData, setSiteData] = useState(() => {
-    const saved = localStorage.getItem('mt_agency_data');
+    const saved = localStorage.getItem('mt_agency_data_v2');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -87,7 +87,7 @@ export const DataProvider = ({ children }) => {
   });
 
   useEffect(() => {
-    localStorage.setItem('mt_agency_data', JSON.stringify(siteData));
+    localStorage.setItem('mt_agency_data_v2', JSON.stringify(siteData));
   }, [siteData]);
 
   const updateSection = (sectionName, newData) => {
