@@ -20,7 +20,8 @@
 }
 
 .hero-title {
-  font-size: 3.2rem;
+  font-size: clamp(1.8rem, 3.5vw, 3rem); /* Responsive font size */
+  white-space: nowrap; /* Force one line */
   line-height: 1.4;
   margin-bottom: var(--spacing-md);
   color: var(--color-light-silver);
@@ -113,9 +114,7 @@
     justify-content: center;
   }
   
-  .hero-title {
-    font-size: 2.8rem;
-  }
+  /* Font size handled by clamp() in base styles */
 }
 
 @media (max-width: 768px) {
@@ -129,7 +128,6 @@
   }
   
   .hero-title {
-    font-size: 2.2rem;
     line-height: 1.3;
   }
   
