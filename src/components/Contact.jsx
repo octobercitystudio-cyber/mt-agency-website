@@ -14,37 +14,42 @@ const Contact = () => {
     <>
       <section id="contact" className="contact-section">
         <div className="container">
-          <div className="contact-grid">
-            <div className="contact-info glass-panel">
-              <h2 className="section-title">
-                {t('contact.title1')} <span className="text-gradient">{t('contact.title2')}</span>
-              </h2>
-              <p className="contact-desc">
-                {t('contact.description')}
-              </p>
-              
-              <div className="contact-details">
-                <div className="contact-item">
-                  <span className="icon">📍</span>
-                  <p>{isEnglish ? contactData.addressEn : contactData.address}</p>
-                </div>
-                <div className="contact-item">
+          
+          {/* Top Info Section */}
+          <div className="contact-header text-center">
+            <h2 className="section-title">
+              {t('contact.title1')} <span className="text-gradient">{t('contact.title2')}</span>
+            </h2>
+            <p className="contact-desc" style={{maxWidth: '600px', margin: '0 auto 30px', color: 'var(--color-silver)'}}>
+              {t('contact.description')}
+            </p>
+            
+            <div className="contact-details-row">
+              <div className="contact-item">
+                <span className="icon">📍</span>
+                <p>{isEnglish ? contactData.addressEn : contactData.address}</p>
+              </div>
+              <div className="contact-item">
                 <span className="icon">📞</span>
-                <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
-                  <p dir="ltr" style={{textAlign: isEnglish ? 'left' : 'right'}}>{contactData.phone}</p>
+                <div style={{display: 'flex', flexDirection: 'column'}}>
+                  <p dir="ltr">{contactData.phone}</p>
                   {contactData.phone2 && (
-                    <p dir="ltr" style={{textAlign: isEnglish ? 'left' : 'right'}}>{contactData.phone2}</p>
+                    <p dir="ltr">{contactData.phone2}</p>
                   )}
                 </div>
               </div>
-                <div className="contact-item">
-                  <span className="icon">✉️</span>
-                  <p dir="ltr" style={{textAlign: isEnglish ? 'left' : 'right'}}>{contactData.email}</p>
-                </div>
+              <div className="contact-item">
+                <span className="icon">✉️</span>
+                <p dir="ltr">{contactData.email}</p>
               </div>
             </div>
+          </div>
+
+          {/* Form and Map Side by Side Grid */}
+          <div className="contact-grid">
             
             <div className="contact-form glass-panel">
+              <h3 style={{marginBottom: '20px', color: 'var(--color-light-silver)'}}>{isEnglish ? 'Send us a Message' : 'أرسل لنا رسالة'}</h3>
               <form>
                 <div className="form-group">
                   <input type="text" placeholder={t('contact.form.name')} required />
@@ -59,7 +64,7 @@ const Contact = () => {
               </form>
             </div>
             
-            <div className="contact-map">
+            <div className="contact-map glass-panel" style={{padding: '0', overflow: 'hidden'}}>
               <iframe 
                 src="https://maps.google.com/maps?q=Multi%20Task%20Studio&t=&z=15&ie=UTF8&iwloc=&output=embed"
                 width="100%" 
@@ -71,6 +76,7 @@ const Contact = () => {
                 title="MT Agency Location"
               ></iframe>
             </div>
+            
           </div>
         </div>
       </section>
