@@ -60,6 +60,9 @@
   position: relative;
   width: 100%;
   min-height: 600px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .hero-slider-img {
@@ -68,31 +71,21 @@
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain; /* Contain ensures the full object is visible without clipping */
   opacity: 0;
-  transition: opacity 1.5s ease-in-out, transform 4s ease-out;
-  transform: scale(1.05);
-  mix-blend-mode: screen; /* This magically turns the pure black background into transparent PNG! */
+  transition: opacity 1.5s ease-in-out;
+  /* Removed transform zoom to eliminate jitter entirely */
+  /* Replaced mix-blend-mode with a clean alpha mask for perfect frameless blending */
+  -webkit-mask-image: radial-gradient(circle at center, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 75%);
+  mask-image: radial-gradient(circle at center, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 75%);
 }
 
 .hero-slider-img.active {
   opacity: 1;
-  transform: scale(1);
 }
 
 .visual-overlay {
-  position: absolute;
-  top: -5%;
-  left: -5%;
-  width: 110%;
-  height: 110%;
-  /* Replace heavy mask-image with a cheap radial gradient edge fader */
-  background: 
-    radial-gradient(circle at 35% 35%, rgba(198, 120, 255, 0.2) 0%, transparent 50%),
-    radial-gradient(circle at 65% 65%, rgba(0, 255, 255, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at center, transparent 40%, var(--bg-dark) 75%);
-  z-index: 1;
-  pointer-events: none;
+  display: none; /* Removed the old hacky overlay */
 }
 
 @media (max-width: 992px) {
