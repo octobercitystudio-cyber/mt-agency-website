@@ -59,16 +59,18 @@ const ClientDashboard = () => {
     setPhone('');
   };
 
+  const [activeTab, setActiveTab] = useState('home');
+
   if (!client) {
     return (
-      <div className="dashboard-login-container">
-        <div className="login-box glass-panel">
-          <h2>بوابة العملاء 📸</h2>
-          <p>تابع حجوزاتك، مواعيد التصوير، وتفاصيل باقتك بكل سهولة.</p>
+      <div className="dashboard-login-container wp-login-style">
+        <div className="login-box">
+          <div className="wp-login-logo">MT Agency</div>
+          <h2>بوابة العملاء</h2>
           <form onSubmit={handleLogin}>
             <input 
               type="tel" 
-              placeholder="أدخل رقم الهاتف المسجل لدينا..." 
+              placeholder="رقم الهاتف..." 
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
@@ -76,7 +78,7 @@ const ClientDashboard = () => {
             />
             {error && <p className="error-msg">{error}</p>}
             <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
+              {loading ? 'جاري التحقق...' : 'دخول'}
             </button>
           </form>
         </div>
@@ -138,107 +140,174 @@ const ClientDashboard = () => {
     }
   });
 
-  return (
-    <div className="client-dashboard container">
-      <div className="dashboard-header glass-panel">
-        <div className="welcome-text">
-          <h2>أهلاً بك، أ. {client.name} ✨</h2>
-          <p>هنا يمكنك متابعة تفاصيل باقتك ومواعيد التصوير الخاصة بك.</p>
+  const renderHome = () => (
+    <div className="wp-dashboard-widgets">
+      <div className="wp-widget">
+        <h3>نظرة عامة</h3>
+        <div className="widget-stats">
+          <div className="stat-item">
+            <span>إجمالي الباقات</span>
+            <strong>{Object.keys(packages).length}</strong>
+          </div>
+          <div className="stat-item">
+            <span>إجمالي المواعيد</span>
+            <strong>{bookings.length}</strong>
+          </div>
+          <div className="stat-item">
+            <span>المديونية المتبقية</span>
+            <strong className={client.debt > 0 ? 'text-red' : 'text-green'}>
+              {client.debt} ج.م
+            </strong>
+          </div>
         </div>
-        <button className="btn-secondary" onClick={handleLogout}>تسجيل الخروج</button>
       </div>
+    </div>
+  );
 
-      <h3 className="section-subtitle">📸 باقات التصوير الخاصة بك:</h3>
-      <div className="bookings-grid">
-        {Object.keys(packages).length === 0 ? (
-          <p className="no-data">لا توجد حجوزات مسجلة حالياً.</p>
-        ) : (
-          Object.values(packages).map(pkg => {
-            const serviceDetails = services.find(s => s.name === pkg.name) || {};
-            const totalHours = serviceDetails.total_hours || 0;
-            const remainingHours = Math.max(0, totalHours - pkg.usedHours);
+  const renderPackages = () => (
+    <div className="wp-packages-list">
+      {Object.keys(packages).length === 0 ? (
+        <div className="wp-notice info"><p>لا توجد باقات حالياً.</p></div>
+      ) : (
+        Object.values(packages).map(pkg => {
+          const serviceDetails = services.find(s => s.name === pkg.name) || {};
+          const totalHours = serviceDetails.total_hours || 0;
+          const remainingHours = Math.max(0, totalHours - pkg.usedHours);
 
-            const cost = pkg.cost !== -1 ? pkg.cost : (serviceDetails.price || 0);
-            const remainingCost = Math.max(0, cost - pkg.discount - pkg.paid);
+          const cost = pkg.cost !== -1 ? pkg.cost : (serviceDetails.price || 0);
+          const remainingCost = Math.max(0, cost - pkg.discount - pkg.paid);
 
-            return (
-              <div key={pkg.name} className="package-card">
-                <div className="package-header">
-                  <h4 className="package-title">{pkg.name}</h4>
-                </div>
+          return (
+            <div key={pkg.name} className="wp-post-box">
+              <div className="post-box-header">
+                <h2>{pkg.name}</h2>
+                {pkg.latestExpiry && <span className="wp-badge">انتهاء الصلاحية: {pkg.latestExpiry}</span>}
+              </div>
+              <div className="post-box-content">
+                <table className="wp-list-table">
+                  <thead>
+                    <tr>
+                      <th>إجمالي الباقة</th>
+                      <th>الساعات المستخدمة</th>
+                      <th>الساعات المتبقية</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{formatTime(totalHours)}</td>
+                      <td className="text-blue">{formatTime(pkg.usedHours)}</td>
+                      <td className="text-green"><strong>{formatTime(remainingHours)}</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
 
-                <div className="package-stats-row">
-                  <div className="package-stat-box">
-                    <span className="stat-label">المتبقي</span>
-                    <span className="stat-value-time text-green">{formatTime(remainingHours)}</span>
-                  </div>
-                  <div className="package-stat-box">
-                    <span className="stat-label">المستخدم</span>
-                    <span className="stat-value-time text-blue">{formatTime(pkg.usedHours)}</span>
-                  </div>
-                  <div className="package-stat-box">
-                    <span className="stat-label">الباقة</span>
-                    <span className="stat-value-time">{formatTime(totalHours)}</span>
-                  </div>
-                </div>
-
-                {pkg.latestExpiry && (
-                  <div className="expiry-badge">
-                    📅 انتهاء الصلاحية: {getDayName(pkg.latestExpiry)}
-                  </div>
-                )}
-
-                <div className="package-stats-row mt-3">
-                  <div className="package-stat-box box-red">
-                    <span className="stat-label text-red">المتبقي</span>
-                    <span className="stat-value-money text-red">{remainingCost} ج</span>
-                  </div>
-                  <div className="package-stat-box box-green">
-                    <span className="stat-label text-green">المدفوع</span>
-                    <span className="stat-value-money text-green">{pkg.paid} ج</span>
-                  </div>
-                  <div className="package-stat-box">
-                    <span className="stat-label">التكلفة</span>
-                    <span className="stat-value-money">{cost} ج</span>
-                  </div>
-                </div>
-
-                {pkg.discount > 0 && (
-                  <div className="discount-banner">
-                    🏷️ الخصم المضاف: {pkg.discount} ج.م
-                    {pkg.notes.length > 0 && <span className="discount-reason">({pkg.notes[0]})</span>}
-                  </div>
-                )}
+                <h3 className="sub-heading mt-4">تفاصيل المدفوعات</h3>
+                <table className="wp-list-table mt-2">
+                  <thead>
+                    <tr>
+                      <th>التكلفة الكلية</th>
+                      <th>المدفوع</th>
+                      <th>المتبقي للدفعة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{cost} ج.م</td>
+                      <td className="text-green">{pkg.paid} ج.م</td>
+                      <td className="text-red"><strong>{remainingCost} ج.م</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
 
                 {remainingCost > 0 && (
-                  <button className="btn-pay-remaining">
-                    سداد المتبقي للباقة 🔔
-                  </button>
+                  <div className="wp-actions mt-3">
+                    <button className="button button-primary">💳 سداد المتبقي ورفع الإيصال</button>
+                  </div>
                 )}
 
-                <div className="booking-times-section">
-                  <h5 className="times-title">مواعيد جلسات التصوير</h5>
-                  {pkg.bookings.map(b => (
-                    <div key={b.id} style={{marginBottom: '15px', paddingBottom: '15px', borderBottom: '1px solid #eee'}}>
-                      <div className="time-row">
-                        <span>التاريخ:</span>
-                        <strong>{getDayName(b.date)}</strong>
-                      </div>
-                      <div className="time-row">
-                        <span>الوقت:</span>
-                        <strong dir="ltr">{b.start_time} - {b.end_time}</strong>
-                      </div>
-                      <div className="time-row">
-                        <span>الحالة:</span>
-                        <strong className={`status-text ${b.status === 'ملغي' ? 'text-red' : 'text-green'}`}>{b.status}</strong>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <h3 className="sub-heading mt-4">مواعيد جلسات التصوير</h3>
+                <table className="wp-list-table mt-2">
+                  <thead>
+                    <tr>
+                      <th>اليوم والتاريخ</th>
+                      <th>الوقت</th>
+                      <th>الحالة</th>
+                      <th>إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pkg.bookings.map(b => (
+                      <tr key={b.id}>
+                        <td>{getDayName(b.date)}</td>
+                        <td dir="ltr">{b.start_time} - {b.end_time}</td>
+                        <td>
+                          <span className={`wp-status ${b.status === 'ملغي' ? 'status-cancelled' : 'status-active'}`}>
+                            {b.status}
+                          </span>
+                        </td>
+                        <td>
+                          <button className="button button-small">تعديل الموعد</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            );
-          })
-        )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  return (
+    <div className="wp-admin-layout">
+      {/* Sidebar */}
+      <div className="wp-admin-menu">
+        <div className="wp-menu-header">
+          <h3>MT Dashboard</h3>
+        </div>
+        <ul className="wp-menu-list">
+          <li className={activeTab === 'home' ? 'current' : ''} onClick={() => setActiveTab('home')}>
+            <span className="dashicons">🏠</span> الرئيسية
+          </li>
+          <li className={activeTab === 'packages' ? 'current' : ''} onClick={() => setActiveTab('packages')}>
+            <span className="dashicons">📸</span> باقاتي ومواعيدي
+          </li>
+          <li className={activeTab === 'payments' ? 'current' : ''} onClick={() => setActiveTab('payments')}>
+            <span className="dashicons">💰</span> الفواتير والدفع
+          </li>
+        </ul>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="wp-admin-wrapper">
+        {/* Top Bar */}
+        <div className="wp-admin-bar">
+          <div className="admin-bar-left">
+            <span>مرحباً، <strong>{client.name}</strong></span>
+          </div>
+          <div className="admin-bar-right">
+            <button className="button" onClick={handleLogout}>تسجيل الخروج</button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="wp-admin-content">
+          <div className="wp-content-header">
+            <h1>{activeTab === 'home' ? 'الرئيسية' : activeTab === 'packages' ? 'باقاتي ومواعيدي' : 'الفواتير والدفع'}</h1>
+          </div>
+          
+          {activeTab === 'home' && renderHome()}
+          {activeTab === 'packages' && renderPackages()}
+          {activeTab === 'payments' && (
+             <div className="wp-post-box">
+               <div className="post-box-content">
+                 <p>سيتم عرض سجل الفواتير والمرفقات هنا قريباً.</p>
+               </div>
+             </div>
+          )}
+        </div>
       </div>
     </div>
   );

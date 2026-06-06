@@ -42,7 +42,7 @@ const Header = () => {
         </a>
         
         <button className="lang-btn" onClick={toggleLanguage}>
-          {t('header.lang')}
+          {lang === 'ar' ? 'EN' : 'AR'}
         </button>
 
         <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>
