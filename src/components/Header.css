@@ -12,6 +12,10 @@
   z-index: 1000;
 }
 
+.mobile-menu-backdrop, .close-menu-btn {
+  display: none;
+}
+
 /* Columns */
 .top-bar-right {
   display: flex;
@@ -173,24 +177,59 @@
     justify-content: center;
   }
   
-  .mobile-nav-wrapper {
-    display: none;
-    position: absolute;
-    top: 80px;
+  .mobile-menu-backdrop.open {
+    display: block;
+    position: fixed;
+    top: 0;
     left: 0;
-    width: 100%;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1500;
+    animation: fadeIn 0.3s ease;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .close-menu-btn {
+    display: flex;
+    align-self: flex-end;
+    background: transparent;
+    border: none;
+    color: var(--color-silver);
+    cursor: pointer;
+    padding: 10px;
+    margin-bottom: 20px;
+    transition: var(--transition);
+  }
+  
+  .close-menu-btn:hover {
+    color: var(--color-neon-purple);
+  }
+
+  .mobile-nav-wrapper {
+    position: fixed;
+    top: 0;
+    left: -280px; /* Hidden off-screen to the left */
+    width: 280px;
+    height: 100vh;
     flex-direction: column;
-    gap: 15px;
-    background: rgba(19, 13, 26, 0.95);
-    backdrop-filter: blur(15px);
+    background: rgba(19, 13, 26, 0.98);
+    backdrop-filter: blur(20px);
     padding: 20px;
-    border-radius: 15px;
-    border: 1px solid rgba(122, 40, 203, 0.3);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border-right: 1px solid rgba(122, 40, 203, 0.3);
+    box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+    z-index: 2000;
+    transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
   }
   
   .mobile-nav-wrapper.open {
-    display: flex;
+    left: 0;
   }
   
   .top-bar-center {
@@ -201,12 +240,14 @@
   .top-bar-left {
     width: 100%;
     justify-content: center;
+    margin-top: auto; /* Push to bottom of drawer */
+    padding-bottom: 20px;
   }
   
   .header-nav {
     width: 100%;
     border-radius: 10px;
-    padding: 15px;
+    padding: 15px 0;
     background: transparent;
     box-shadow: none;
     border: none;
@@ -214,14 +255,14 @@
   
   .nav-list {
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start; /* Align left in drawer */
     gap: 20px;
     width: 100%;
   }
   
   .nav-link {
     font-size: 1.2rem;
-    padding: 5px;
+    padding: 5px 0;
   }
   
   .quote-btn {

@@ -50,8 +50,18 @@ const Header = () => {
         </button>
       </div>
 
-      {/* Center & Left Columns: Navigation (Hidden on mobile unless open) */}
+      {/* Mobile Menu Backdrop */}
+      <div 
+        className={`mobile-menu-backdrop ${isMenuOpen ? 'open' : ''}`} 
+        onClick={() => setIsMenuOpen(false)}
+      ></div>
+
+      {/* Center & Left Columns: Navigation (Side Drawer on mobile) */}
       <div className={`mobile-nav-wrapper ${isMenuOpen ? 'open' : ''}`}>
+        <button className="close-menu-btn" onClick={() => setIsMenuOpen(false)}>
+          <X size={28} />
+        </button>
+
         <div className="top-bar-center">
           <header className="header-nav">
             <nav className="main-nav">
