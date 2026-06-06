@@ -11,9 +11,39 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 40px;
+  gap: 20px;
   flex-wrap: wrap;
-  margin-top: 20px;
+  margin-top: 30px;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(122, 40, 203, 0.05);
+  padding: 12px 25px;
+  border-radius: 50px;
+  border: 1px solid rgba(122, 40, 203, 0.2);
+  transition: var(--transition);
+}
+
+.contact-item:hover {
+  background: rgba(122, 40, 203, 0.15);
+  transform: translateY(-3px);
+  border-color: rgba(122, 40, 203, 0.4);
+}
+
+.contact-item .icon {
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+}
+
+.contact-item p {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-silver);
+  line-height: 1.4;
 }
 
 .contact-grid {
