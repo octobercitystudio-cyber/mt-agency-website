@@ -9,7 +9,9 @@ import AdminAbout from './admin/AdminAbout';
 import AdminPortfolio from './admin/AdminPortfolio';
 import AdminStudio from './admin/AdminStudio';
 import AdminContact from './admin/AdminContact';
+import ClientDashboard from './pages/ClientDashboard';
 import { DataProvider, useData } from './store/DataContext';
+import { useLocation } from 'react-router-dom';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -18,31 +20,28 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-function App() {
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
   useEffect(() => {
-    // Prevent browser from restoring previous scroll position
-    if ('scrollRestoration' in window.history) {
-      window.history.scrollRestoration = 'manual';
-    }
-    
     // Clear any hash (#portfolio, etc.) from URL on fresh load
-    // so the browser doesn't automatically jump down
     if (window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname);
     }
-    
-    // Force scroll to top (with slight delay to outrun browser's native jump)
     window.scrollTo(0, 0);
-    setTimeout(() => {
-      window.scrollTo(0, 0);
-    }, 100);
-  }, []);
+  }, [pathname]);
 
+  return null;
+};
+
+function App() {
   return (
     <DataProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/dashboard" element={<ClientDashboard />} />
           <Route path="/adminmt/login" element={<AdminLogin />} />
           <Route 
             path="/adminmt/*" 
