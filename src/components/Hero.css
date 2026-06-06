@@ -74,10 +74,6 @@
   object-fit: contain; /* Contain ensures the full object is visible without clipping */
   opacity: 0;
   transition: opacity 1.5s ease-in-out;
-  /* Removed transform zoom to eliminate jitter entirely */
-  /* Replaced mix-blend-mode with a clean alpha mask for perfect frameless blending */
-  -webkit-mask-image: radial-gradient(circle at center, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 75%);
-  mask-image: radial-gradient(circle at center, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 75%);
 }
 
 .hero-slider-img.active {
