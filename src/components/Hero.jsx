@@ -33,9 +33,8 @@ const Hero = () => {
         {/* Text Content (Right side in RTL) */}
         <div className="hero-content">
           <h1 className="hero-title">
-            <span className="text-gradient">
-              {isEnglish ? `${heroData.title1En} ${heroData.title2En}` : `${heroData.title1} ${heroData.title2}`}
-            </span>
+            {isEnglish ? heroData.title1En : heroData.title1}{' '}
+            <span className="text-gradient">{isEnglish ? heroData.title2En : heroData.title2}</span>
           </h1>
           <p className="hero-subtitle">
             {isEnglish ? heroData.subtitleEn : heroData.subtitle}
