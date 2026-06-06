@@ -2,13 +2,13 @@
 
 :root {
   /* Color Palette */
-  --bg-dark: #1c1c1e;
-  --bg-gradient: radial-gradient(circle at 50% 0%, #2c2c2e 0%, #1c1c1e 80%);
-  --color-deep-purple: #2c2c2e;
-  --color-vibrant-purple: #8b3cdb;
+  --bg-dark: #130D1A;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #1e142e 0%, #130D1A 80%);
+  --color-deep-purple: #1e142e;
+  --color-vibrant-purple: #9d4edd;
   --color-silver: #E0E0E0;
-  --color-light-silver: #F8F8F8;
-  --color-neon-purple: #ae5af2;
+  --color-light-silver: #FFFFFF;
+  --color-neon-purple: #c678ff;
   
   /* Typography */
   --font-arabic: 'Tajawal', sans-serif;
@@ -189,13 +189,13 @@ ul {
   font-size: 1.1rem;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 15px rgba(122, 40, 203, 0.4);
   transition: var(--transition);
+  box-shadow: 0 4px 25px rgba(198, 120, 255, 0.5);
 }
 
 .btn-primary:hover {
   transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(122, 40, 203, 0.6);
+  box-shadow: 0 8px 35px rgba(198, 120, 255, 0.7);
   color: #fff;
 }
 

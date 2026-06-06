@@ -12,7 +12,7 @@
   max-width: 800px;
   margin: 0 auto;
   border: 1px solid rgba(224, 224, 224, 0.2); /* Silver accent */
-  background: linear-gradient(180deg, rgba(28, 11, 59, 0.4) 0%, rgba(28, 28, 30, 0.8) 100%);
+  background: linear-gradient(180deg, rgba(30, 20, 46, 0.4) 0%, rgba(19, 13, 26, 0.8) 100%);
 }
 
 .counter-number {
