@@ -81,7 +81,8 @@ const resources = {
           video: "Video",
           design: "Design",
           reels: "Reels",
-          podcast: "Podcast"
+          podcast: "Podcast",
+          web: "Web"
         },
         items: [
           { title: "Commercial Ad", category: "video" },
@@ -202,7 +203,8 @@ const resources = {
           video: "فيديو",
           design: "تصميم",
           reels: "ريلز",
-          podcast: "بودكاست"
+          podcast: "بودكاست",
+          web: "ويب"
         },
         items: [
           { title: "إعلان تجاري", category: "video" },

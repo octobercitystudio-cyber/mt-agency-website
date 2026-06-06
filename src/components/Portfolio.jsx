@@ -39,7 +39,11 @@ const Portfolio = () => {
           {filteredPortfolio.map((item, index) => (
             <div key={item.id || index} className="portfolio-item glass-panel">
               <div className="portfolio-media">
-                {item.embedUrl ? (
+                {item.projectUrl ? (
+                  <a href={item.projectUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', width: '100%', height: '100%' }}>
+                    <img src={item.imageUrl} alt={isEnglish ? item.titleEn : item.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </a>
+                ) : item.embedUrl ? (
                   <iframe 
                     src={item.embedUrl} 
                     title={isEnglish ? item.titleEn : item.title}
@@ -51,7 +55,11 @@ const Portfolio = () => {
                   <img src={item.imageUrl} alt={isEnglish ? item.titleEn : item.title} loading="lazy" />
                 )}
                 <div className="portfolio-overlay">
-                  <div className="overlay-icon">▶</div>
+                  {item.projectUrl ? (
+                    <a href={item.projectUrl} target="_blank" rel="noopener noreferrer" className="overlay-icon" style={{ textDecoration: 'none' }}>🔗</a>
+                  ) : (
+                    <div className="overlay-icon">▶</div>
+                  )}
                 </div>
               </div>
               <div className="portfolio-info">

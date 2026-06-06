@@ -29,7 +29,8 @@ const defaultData = {
     { id: 3, embedUrl: 'https://www.youtube.com/embed/jNQXAC9IVRw', title: 'حملة سوشيال ميديا', titleEn: 'Social Media Campaign', category: 'reels' },
     { id: 4, imageUrl: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'حلقة بودكاست', titleEn: 'Podcast Episode', category: 'podcast' },
     { id: 5, embedUrl: 'https://www.youtube.com/embed/9bZkp7q19f0', title: 'تغطية فعالية', titleEn: 'Event Coverage', category: 'video' },
-    { id: 6, imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'موقع إلكتروني', titleEn: 'Website', category: 'design' }
+    { id: 6, imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'موقع إلكتروني', titleEn: 'Website', category: 'design' },
+    { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'متجر QP Shoes', titleEn: 'QP Shoes Store', category: 'web' }
   ],
   contact: {
     address: "مدينة 6 أكتوبر، الجيزة، مصر",
