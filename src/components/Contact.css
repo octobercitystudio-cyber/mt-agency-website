@@ -44,6 +44,14 @@ a.detail-text:hover {
   color: var(--color-vibrant-purple);
 }
 
+.contact-form {
+  padding: var(--spacing-xl);
+}
+
+.contact-form h3 {
+  text-align: center;
+}
+
 .contact-form .form-group {
   margin-bottom: var(--spacing-md);
 }
@@ -149,6 +157,10 @@ a.detail-text:hover {
 @media (max-width: 992px) {
   .contact-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .contact-form {
+    padding: var(--spacing-lg);
   }
   
   .contact-details-row {
