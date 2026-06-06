@@ -84,6 +84,22 @@ const ClientDashboard = () => {
     );
   }
 
+  const formatTime = (decimalHours) => {
+    if (!decimalHours) return '0 س';
+    const hours = Math.floor(decimalHours);
+    const minutes = Math.round((decimalHours - hours) * 60);
+    if (hours === 0) return `${minutes} د`;
+    if (minutes === 0) return `${hours} س`;
+    return `${hours} س و ${minutes} د`;
+  };
+
+  const getDayName = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    return `${days[date.getDay()]} ${dateStr}`;
+  };
+
   return (
     <div className="client-dashboard container">
       <div className="dashboard-header glass-panel">
@@ -94,54 +110,96 @@ const ClientDashboard = () => {
         <button className="btn-secondary" onClick={handleLogout}>تسجيل الخروج</button>
       </div>
 
-      <div className="dashboard-stats">
-        <div className="stat-box glass-panel">
-          <h3>إجمالي الحجوزات</h3>
-          <p className="stat-value">{bookings.length}</p>
-        </div>
-        <div className="stat-box glass-panel">
-          <h3>الرصيد المتبقي عليك</h3>
-          <p className="stat-value debt-value">{client.debt > 0 ? `${client.debt} ج.م` : '0 ج.م (خالص)'}</p>
-        </div>
-        <div className="stat-box glass-panel">
-          <h3>النقاط المكتسبة</h3>
-          <p className="stat-value">{client.points} نقطة</p>
-        </div>
-      </div>
-
-      <h3 className="section-subtitle">📅 مواعيد التصوير الخاصة بك</h3>
+      <h3 className="section-subtitle">📸 باقة التصوير النشطة:</h3>
       <div className="bookings-grid">
         {bookings.length === 0 ? (
           <p className="no-data">لا توجد حجوزات مسجلة حالياً.</p>
         ) : (
           bookings.map(booking => {
-            const serviceDetails = services.find(s => s.name === booking.service);
+            const serviceDetails = services.find(s => s.name === booking.service) || {};
+            const totalHours = serviceDetails.total_hours || 0;
+            const usedHours = booking.actual_hours || 0;
+            const remainingHours = Math.max(0, totalHours - usedHours);
+
+            const cost = (booking.custom_price !== null && booking.custom_price !== -1) ? booking.custom_price : (serviceDetails.price || 0);
+            const paid = booking.payment || 0;
+            const discount = booking.discount || 0;
+            // Calculate remaining cost considering discount
+            const remainingCost = Math.max(0, cost - discount - paid);
+
             return (
-              <div key={booking.id} className="booking-card glass-panel">
-                <div className="booking-status">
-                  <span className={`status-badge ${booking.status === 'ملغي' ? 'cancelled' : 'active'}`}>
-                    {booking.status}
-                  </span>
+              <div key={booking.id} className="package-card">
+                <div className="package-header">
+                  <h4 className="package-title">{booking.service}</h4>
                 </div>
-                <h4>{booking.service}</h4>
-                <div className="booking-details">
-                  <p><strong>التاريخ:</strong> <span dir="ltr">{booking.date}</span></p>
-                  <p><strong>وقت البدء:</strong> <span dir="ltr">{booking.start_time}</span></p>
-                  <p><strong>وقت الانتهاء:</strong> <span dir="ltr">{booking.end_time}</span></p>
-                  <p><strong>تاريخ التسليم:</strong> {booking.delivery_date || 'غير محدد'}</p>
-                  
-                  {serviceDetails && (
-                    <div className="service-info">
-                      <p><strong>تفاصيل الباقة:</strong> تتضمن {serviceDetails.total_hours} ساعات تصوير.</p>
-                    </div>
-                  )}
-                  
-                  {booking.notes && (
-                    <div className="booking-notes">
-                      <strong>ملاحظات:</strong>
-                      <p>{booking.notes}</p>
-                    </div>
-                  )}
+
+                <div className="package-stats-row">
+                  <div className="package-stat-box">
+                    <span className="stat-label">المتبقي</span>
+                    <span className="stat-value-time text-green">{formatTime(remainingHours)}</span>
+                  </div>
+                  <div className="package-stat-box">
+                    <span className="stat-label">المستخدم</span>
+                    <span className="stat-value-time text-blue">{formatTime(usedHours)}</span>
+                  </div>
+                  <div className="package-stat-box">
+                    <span className="stat-label">الباقة</span>
+                    <span className="stat-value-time">{formatTime(totalHours)}</span>
+                  </div>
+                </div>
+
+                {booking.delivery_date && (
+                  <div className="expiry-badge">
+                    📅 انتهاء الصلاحية: {getDayName(booking.delivery_date)}
+                  </div>
+                )}
+
+                <div className="package-stats-row mt-3">
+                  <div className="package-stat-box box-red">
+                    <span className="stat-label text-red">المتبقي</span>
+                    <span className="stat-value-money text-red">{remainingCost} ج</span>
+                  </div>
+                  <div className="package-stat-box box-green">
+                    <span className="stat-label text-green">المدفوع</span>
+                    <span className="stat-value-money text-green">{paid} ج</span>
+                  </div>
+                  <div className="package-stat-box">
+                    <span className="stat-label">التكلفة</span>
+                    <span className="stat-value-money">{cost} ج</span>
+                  </div>
+                </div>
+
+                {discount > 0 && (
+                  <div className="discount-banner">
+                    🏷️ الخصم المضاف: {discount} ج.م
+                    {booking.notes && <span className="discount-reason">({booking.notes})</span>}
+                  </div>
+                )}
+
+                {remainingCost > 0 && (
+                  <button className="btn-pay-remaining">
+                    سداد المتبقي للباقة 🔔
+                  </button>
+                )}
+
+                <div className="booking-times-section">
+                  <h5 className="times-title">مواعيد التصوير</h5>
+                  <div className="time-row">
+                    <span>التاريخ:</span>
+                    <strong>{getDayName(booking.date)}</strong>
+                  </div>
+                  <div className="time-row">
+                    <span>وقت البدء:</span>
+                    <strong dir="ltr">{booking.start_time}</strong>
+                  </div>
+                  <div className="time-row">
+                    <span>وقت الانتهاء:</span>
+                    <strong dir="ltr">{booking.end_time}</strong>
+                  </div>
+                  <div className="time-row">
+                    <span>الحالة:</span>
+                    <strong className={`status-text ${booking.status === 'ملغي' ? 'text-red' : 'text-green'}`}>{booking.status}</strong>
+                  </div>
                 </div>
               </div>
             );

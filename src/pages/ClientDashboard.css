@@ -108,80 +108,170 @@
 }
 
 .section-subtitle {
-  margin-bottom: 20px;
+  margin-bottom: 25px;
   color: #fff;
-  font-size: 1.5rem;
+  font-size: 1.4rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .bookings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 25px;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 30px;
 }
 
-.booking-card {
-  padding: 25px;
-  position: relative;
-}
-
-.booking-status {
-  position: absolute;
-  top: 25px;
-  left: 25px;
-}
-
-.status-badge {
-  padding: 5px 15px;
+.package-card {
+  background: #ffffff;
   border-radius: 20px;
-  font-size: 0.85rem;
+  padding: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  color: #333;
+  position: relative;
+  overflow: hidden;
+  border-right: 5px solid #0066ff;
+}
+
+.package-header {
+  text-align: right;
+  margin-bottom: 20px;
+}
+
+.package-title {
+  color: #0066ff;
+  font-size: 1.4rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.package-stats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.mt-3 {
+  margin-top: 15px;
+}
+
+.package-stat-box {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 15px 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.package-stat-box.box-red {
+  background: #ffe5e5;
+  border-color: #ffcccc;
+}
+
+.package-stat-box.box-green {
+  background: #e6f9ec;
+  border-color: #ccf2d9;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: #666;
   font-weight: bold;
 }
 
-.status-badge.active {
-  background: rgba(46, 213, 115, 0.2);
-  color: #2ed573;
-}
-
-.status-badge.cancelled {
-  background: rgba(255, 71, 87, 0.2);
-  color: #ff4757;
-}
-
-.booking-card h4 {
+.stat-value-time {
   font-size: 1.3rem;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--color-vibrant-purple);
+  font-weight: bold;
+  color: #333;
 }
 
-.booking-details p {
-  margin-bottom: 10px;
-  color: #e0e0e0;
+.stat-value-money {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #333;
 }
 
-.booking-details strong {
-  color: var(--color-silver);
-  margin-left: 5px;
-}
+.text-green { color: #00994d; }
+.text-red { color: #e60000; }
+.text-blue { color: #0066ff; }
 
-.service-info {
-  margin-top: 20px;
-  padding: 15px;
-  background: rgba(122, 40, 203, 0.1);
+.expiry-badge {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
   border-radius: 8px;
-}
-
-.booking-notes {
-  margin-top: 20px;
-  padding-top: 15px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.1);
-}
-
-.booking-notes p {
-  margin-top: 5px;
+  padding: 10px;
+  text-align: center;
   font-size: 0.95rem;
-  font-style: italic;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.discount-banner {
+  background: #fce4e4;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  font-weight: bold;
+  color: #8a1c1c;
+  margin-bottom: 20px;
+}
+
+.discount-reason {
+  display: block;
+  font-weight: normal;
+  font-size: 0.9rem;
+  margin-top: 5px;
+  color: #555;
+}
+
+.btn-pay-remaining {
+  width: 100%;
+  background: #ffb800;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 15px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s;
+  margin-bottom: 25px;
+}
+
+.btn-pay-remaining:hover {
+  transform: scale(1.02);
+  background: #f0ad00;
+}
+
+.booking-times-section {
+  border-top: 1px dashed #ccc;
+  padding-top: 20px;
+}
+
+.times-title {
+  color: #333;
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.time-row strong {
+  color: #222;
 }
 
 @media (max-width: 768px) {
@@ -189,5 +279,9 @@
     flex-direction: column;
     text-align: center;
     gap: 20px;
+  }
+  
+  .bookings-grid {
+    grid-template-columns: 1fr;
   }
 }
