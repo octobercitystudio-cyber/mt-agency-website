@@ -219,8 +219,8 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: max-content;
-    min-width: 220px;
+    width: 50vw; /* Exactly half the screen as requested */
+    min-width: unset;
     height: 100vh;
     flex-direction: column;
     background: rgba(19, 13, 26, 0.98);
