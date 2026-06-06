@@ -120,6 +120,8 @@
 @media (max-width: 768px) {
   .hero-section {
     padding-top: 100px;
+    padding-bottom: 40px;
+    min-height: auto; /* Remove 100vh on mobile to prevent huge gaps */
   }
   
   .visual-banner {
