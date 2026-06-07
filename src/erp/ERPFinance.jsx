@@ -322,6 +322,13 @@ const ERPFinance = () => {
             <button onClick={() => changeMonth(-1)} className="btn btn-sm btn-light rounded-circle" style={{ color: 'var(--erp-primary)' }}><ChevronLeft size={18} /></button>
           </div>
           
+          <button className="btn btn-sm no-print me-auto shadow-sm" style={{ border: '1px dashed #dc3545', background: '#fff5f5', color: '#dc3545', borderRadius: '50px', padding: '8px 15px', fontWeight: 'bold' }}>
+            <Undo size={16} className="me-1 d-inline" /> تراجع عن آخر عملية
+          </button>
+          
+          <button className="btn btn-dark rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" onClick={() => window.print()}>
+            <i className="fas fa-print me-2"></i> طباعة
+          </button>
           <button className="btn btn-info text-dark rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" onClick={() => setModalState({...modalState, transfer: true})}>
             <ArrowRightLeft size={18} className="me-2" /> تحويل رصيد
           </button>
@@ -373,6 +380,7 @@ const ERPFinance = () => {
               <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', padding: '15px', borderRadius: '50%' }}>
                 <Banknote size={24} />
               </div>
+              {isAdmin && <button className="btn btn-sm btn-light text-primary rounded-circle no-print" title="تسوية الرصيد"><Pen size={14} /></button>}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>صندوق الكاش (النقدية)</p>
             <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.cash.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
@@ -384,6 +392,7 @@ const ERPFinance = () => {
               <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', padding: '15px', borderRadius: '50%' }}>
                 <Smartphone size={24} />
               </div>
+              {isAdmin && <button className="btn btn-sm btn-light text-danger rounded-circle no-print" title="تسوية الرصيد"><Pen size={14} /></button>}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>محفظة فودافون كاش</p>
             <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.vodafone.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
@@ -395,6 +404,7 @@ const ERPFinance = () => {
               <div style={{ background: '#f4f0ff', color: '#6f42c1', padding: '15px', borderRadius: '50%' }}>
                 <Send size={24} />
               </div>
+              {isAdmin && <button className="btn btn-sm btn-light rounded-circle no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><Pen size={14} /></button>}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>حساب البنك (InstaPay)</p>
             <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.instapay.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
@@ -428,9 +438,9 @@ const ERPFinance = () => {
                 {partner.due === 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-text-muted)' }}>0 <small className="fs-6">ج</small></h5>}
                 
                 <div className="d-flex gap-1 justify-content-end mt-2">
-                  <button className="btn btn-sm rounded-pill px-3 fw-bold" style={{ border: '1px solid var(--erp-danger)', color: 'var(--erp-danger)' }} onClick={() => openAdvanceModal(partner.key)}>سحب سلفة</button>
-                  {partner.due > 0 && <button className="btn btn-sm rounded-pill px-3 fw-bold" style={{ border: '1px solid var(--erp-success)', color: 'var(--erp-success)' }} onClick={() => openSettleModal(partner.key, partner.due)}>سداد له</button>}
-                  {partner.due < 0 && <button className="btn btn-sm rounded-pill px-3 fw-bold" style={{ border: '1px solid var(--erp-primary)', color: 'var(--erp-primary)' }} onClick={() => openPayAdvanceModal(partner.key, partner.due * -1)}>سداد السلفة</button>}
+                  <button className="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold no-print" onClick={() => openAdvanceModal(partner.key)}>سحب سلفة</button>
+                  {partner.due > 0 && <button className="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold no-print" onClick={() => openSettleModal(partner.key, partner.due)}>سداد له</button>}
+                  {partner.due < 0 && <button className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold no-print" onClick={() => openPayAdvanceModal(partner.key, partner.due * -1)}>سداد السلفة</button>}
                 </div>
               </div>
             </div>
@@ -476,7 +486,8 @@ const ERPFinance = () => {
                           <span className="fw-bold fs-6 d-block" style={{ color: 'var(--erp-success)' }}>+{i.amount.toLocaleString()} ج</span>
                           {isAdmin && (
                             <div className="mt-2 d-flex gap-2 justify-content-center">
-                              <button className="btn btn-sm btn-light border py-0 px-2" style={{ color: 'var(--erp-danger)' }} onClick={() => deleteTransaction(i.id)}><Trash2 size={14} /></button>
+                              <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><Edit size={14} /></button>
+                              <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(i.id)} title="حذف"><Trash2 size={14} /></button>
                             </div>
                           )}
                         </td>
@@ -530,7 +541,8 @@ const ERPFinance = () => {
                           <span className="fw-bold fs-6 d-block" style={{ color: e.type === 'سداد مستحقات' ? 'var(--erp-text-main)' : 'var(--erp-danger)' }}>-{e.amount.toLocaleString()} ج</span>
                           {isAdmin && (
                             <div className="mt-2 d-flex gap-2 justify-content-center">
-                              <button className="btn btn-sm btn-light border py-0 px-2" style={{ color: 'var(--erp-danger)' }} onClick={() => deleteTransaction(e.id)}><Trash2 size={14} /></button>
+                              <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><Edit size={14} /></button>
+                              <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(e.id)} title="حذف"><Trash2 size={14} /></button>
                             </div>
                           )}
                         </td>
