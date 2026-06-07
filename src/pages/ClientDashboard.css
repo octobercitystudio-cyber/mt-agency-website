@@ -187,6 +187,37 @@
 
 .text-neon { color: var(--color-neon-purple) !important; }
 
+/* Time Filters */
+.time-filters-container {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.filter-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #8c8c8c;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.filter-btn:hover {
+  background: rgba(157, 78, 221, 0.1);
+  color: #fff;
+}
+
+.filter-btn.active {
+  background: var(--color-vibrant-purple);
+  color: #fff;
+  border-color: var(--color-vibrant-purple);
+  box-shadow: 0 0 10px rgba(157, 78, 221, 0.3);
+}
+
 /* Chart Center Text */
 .package-chart {
   position: relative;

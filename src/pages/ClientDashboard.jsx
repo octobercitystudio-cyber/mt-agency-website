@@ -12,9 +12,10 @@ const ClientDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('home');
   const [rescheduleModal, setRescheduleModal] = useState({ isOpen: false, booking: null, date: '', time: '' });
   const [pendingRequests, setPendingRequests] = useState([]); // Simulate database for pending requests
+  const [timeFilter, setTimeFilter] = useState('all');
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -149,16 +150,36 @@ const ClientDashboard = () => {
     progressPercent = totalHours > 0 ? (primaryPackage.usedHours / totalHours) * 100 : 0;
   }
 
+  const now = new Date();
+  const filteredBookings = bookings.filter(b => {
+    if (timeFilter === 'all') return true;
+    const bDate = new Date(b.date);
+    const diffTime = Math.abs(now - bDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (timeFilter === 'month') return diffDays <= 30;
+    if (timeFilter === 'week') return diffDays <= 7;
+    if (timeFilter === 'day') return diffDays <= 1;
+    return true;
+  });
+
+  // Re-calculate used hours based on filtered bookings
+  let filteredUsedHours = 0;
+  filteredBookings.forEach(b => {
+    if (primaryPackage && b.service === primaryPackage.name) {
+      filteredUsedHours += (b.actual_hours || 0);
+    }
+  });
+
   const pieData = [
-    { name: 'مستخدم', value: primaryPackage ? primaryPackage.usedHours : 0 },
-    { name: 'متبقي', value: remainingHours }
+    { name: 'مستخدم بالفترة', value: filteredUsedHours },
+    { name: 'متبقي', value: Math.max(0, totalHours - filteredUsedHours) }
   ];
   const PIE_COLORS = ['#c678ff', 'rgba(255,255,255,0.05)'];
 
-  const barData = bookings.slice(0, 5).map(b => ({
+  const barData = filteredBookings.slice(0, 10).map(b => ({
     name: b.date,
     hours: b.actual_hours || 0
-  }));
+  })).reverse();
 
   return (
     <div className="mt-dashboard">
@@ -202,42 +223,77 @@ const ClientDashboard = () => {
         <div className="content-wrapper">
           {activeTab === 'home' && primaryPackage && (
             <div className="home-tab">
-              <div className="mt-card premium-glass">
+              {/* Time Filters */}
+              <div className="time-filters-container mb-4">
+                <button className={`filter-btn ${timeFilter === 'all' ? 'active' : ''}`} onClick={() => setTimeFilter('all')}>مدة الباقة كاملة</button>
+                <button className={`filter-btn ${timeFilter === 'month' ? 'active' : ''}`} onClick={() => setTimeFilter('month')}>آخر شهر</button>
+                <button className={`filter-btn ${timeFilter === 'week' ? 'active' : ''}`} onClick={() => setTimeFilter('week')}>آخر أسبوع</button>
+                <button className={`filter-btn ${timeFilter === 'day' ? 'active' : ''}`} onClick={() => setTimeFilter('day')}>آخر يوم</button>
+              </div>
+
+              {/* Massive Consumption Chart Section */}
+              <div className="mt-card premium-glass mb-4">
                 <div className="card-header">
-                  <h3><Calendar size={20}/> تفاصيل الباقة الحالية</h3>
-                  <span className="badge-glow">{primaryPackage.name}</span>
+                  <h3><Clock size={20}/> تفاصيل الاستهلاك للفترة المحددة</h3>
                 </div>
-                <div className="card-body package-split">
-                  <div className="package-info">
-                    <div className="info-item">
-                      <span className="label">إجمالي الساعات:</span>
-                      <span className="value">{formatTime(totalHours)}</span>
-                    </div>
-                    <div className="info-item">
-                      <span className="label">المستخدم:</span>
-                      <span className="value text-neon">{formatTime(primaryPackage.usedHours)}</span>
-                    </div>
-                    <div className="info-item">
-                      <span className="label">المتبقي:</span>
-                      <span className="value text-silver">{formatTime(remainingHours)}</span>
-                    </div>
-                    <div className="info-item mt-2">
-                      <span className="label">الصلاحية:</span>
-                      <span className="value">{primaryPackage.latestExpiry || 'غير محدد'}</span>
-                    </div>
+                <div className="card-body" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 60%', minWidth: '300px', height: '300px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={barData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis dataKey="name" stroke="#fff" tick={{fill: '#b3b3b3'}} />
+                        <YAxis stroke="#fff" tick={{fill: '#b3b3b3'}} />
+                        <Tooltip contentStyle={{backgroundColor: '#1e142e', border: '1px solid #9d4edd', borderRadius: '8px'}}/>
+                        <Bar dataKey="hours" fill="url(#colorUv)" radius={[4, 4, 0, 0]} />
+                        <defs>
+                          <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#c678ff" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#9d4edd" stopOpacity={0.2}/>
+                          </linearGradient>
+                        </defs>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                  <div className="package-chart">
+                  
+                  <div className="package-chart" style={{ flex: '1 1 30%', minWidth: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                     <div className="chart-center-text">
-                      <strong>{Math.round(progressPercent)}%</strong>
-                      <span>مستهلك</span>
+                      <strong style={{fontSize: '1.8rem'}}>{filteredUsedHours}</strong>
+                      <span>ساعة استهلاك</span>
                     </div>
-                    <ResponsiveContainer width={120} height={120}>
+                    <ResponsiveContainer width={200} height={200}>
                       <PieChart>
-                        <Pie data={pieData} innerRadius={45} outerRadius={60} paddingAngle={5} dataKey="value" stroke="none">
+                        <Pie data={pieData} innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value" stroke="none">
                           {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-card premium-glass">
+                <div className="card-header">
+                  <h3><Calendar size={20}/> تفاصيل الباقة الإجمالية</h3>
+                  <span className="badge-glow">{primaryPackage.name}</span>
+                </div>
+                <div className="card-body package-split">
+                  <div className="package-info" style={{width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: '2rem'}}>
+                    <div className="info-item" style={{flex: 1}}>
+                      <span className="label">إجمالي الساعات:</span>
+                      <span className="value">{formatTime(totalHours)}</span>
+                    </div>
+                    <div className="info-item" style={{flex: 1}}>
+                      <span className="label">المستخدم الكلي:</span>
+                      <span className="value text-neon">{formatTime(primaryPackage.usedHours)}</span>
+                    </div>
+                    <div className="info-item" style={{flex: 1}}>
+                      <span className="label">المتبقي الكلي:</span>
+                      <span className="value text-silver">{formatTime(remainingHours)}</span>
+                    </div>
+                    <div className="info-item" style={{flex: 1}}>
+                      <span className="label">الصلاحية:</span>
+                      <span className="value">{primaryPackage.latestExpiry || 'غير محدد'}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -248,24 +304,10 @@ const ClientDashboard = () => {
             <div className="consumption-tab">
               <div className="mt-card premium-glass">
                 <div className="card-header">
-                  <h3><Clock size={20}/> معدل استهلاك الساعات (آخر 5 جلسات)</h3>
+                  <h3><Clock size={20}/> تفاصيل الاستهلاك</h3>
                 </div>
-                <div className="card-body" style={{ height: '300px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={barData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                      <XAxis dataKey="name" stroke="#fff" tick={{fill: '#b3b3b3'}} />
-                      <YAxis stroke="#fff" tick={{fill: '#b3b3b3'}} />
-                      <Tooltip contentStyle={{backgroundColor: '#1e142e', border: '1px solid #9d4edd', borderRadius: '8px'}}/>
-                      <Bar dataKey="hours" fill="url(#colorUv)" radius={[4, 4, 0, 0]} />
-                      <defs>
-                        <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#c678ff" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#9d4edd" stopOpacity={0.2}/>
-                        </linearGradient>
-                      </defs>
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="card-body">
+                  <p className="text-silver">تم نقل الرسوم البيانية الاستهلاكية إلى الصفحة الرئيسية لتوضيح كافة التفاصيل.</p>
                 </div>
               </div>
             </div>
