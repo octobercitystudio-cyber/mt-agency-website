@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { UserPlus, Edit, Trash2, Search, Phone, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText } from 'lucide-react';
+import { UserPlus, Edit, Trash2, Search, Phone, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText, Camera, Calendar, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ERPClients = () => {
@@ -137,6 +137,16 @@ const ERPClients = () => {
     });
 
     setActivePackages(activeList);
+  };
+
+  const formatHours = (decimalVal) => {
+    if (!decimalVal || decimalVal === 0) return "0 س";
+    const h = Math.floor(decimalVal);
+    const m = Math.round((decimalVal - h) * 60);
+    const res = [];
+    if (h > 0) res.push(`${h} س`);
+    if (m > 0) res.push(`${m} د`);
+    return res.join(" و ");
   };
 
   const fetchClients = async () => {
@@ -455,52 +465,115 @@ const ERPClients = () => {
 
               {/* Active Packages Cards */}
               {activePackages.length > 0 && (
-                <div style={{ marginTop: '10px' }}>
-                  <h5 style={{ color: 'var(--erp-text-muted)', fontWeight: 'bold', margin: '0 0 10px 0' }}>الباقات والخدمات النشطة</h5>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div style={{ marginTop: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                    <Camera size={20} color="var(--erp-primary)" />
+                    <h5 style={{ color: 'var(--erp-text-main)', fontWeight: 'bold', margin: 0 }}>باقة التصوير النشطة:</h5>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {activePackages.map((pkg, idx) => {
                       const totalHours = pkg.total_hours;
                       const totalReels = pkg.total_reels;
-                      const hoursPercent = totalHours > 0 ? Math.min(100, (pkg.used_hours / totalHours) * 100) : 0;
-                      const reelsPercent = totalReels > 0 ? Math.min(100, (pkg.used_reels / totalReels) * 100) : 0;
+                      
+                      const remHours = Math.max(0, totalHours - pkg.used_hours);
+                      const remReels = Math.max(0, totalReels - pkg.used_reels);
+                      
+                      const remainingPaid = Math.max(0, pkg.price - pkg.paid);
                       
                       return (
-                        <div key={idx} style={{ background: 'var(--erp-surface)', border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '15px', position: 'relative', overflow: 'hidden' }}>
-                          <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: '4px', background: 'var(--erp-primary)' }}></div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                            <h6 style={{ fontWeight: 'bold', color: 'var(--erp-primary)', margin: 0 }}>{pkg.service}</h6>
-                            <span style={{ fontSize: '0.8rem', background: 'rgba(52, 152, 219, 0.1)', color: '#3498db', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>نشط</span>
-                          </div>
+                        <div key={idx} style={{ background: 'var(--erp-surface)', border: '1px solid var(--erp-border)', borderRadius: '16px', padding: '20px', position: 'relative', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+                          {/* Right Blue Border */}
+                          <div style={{ position: 'absolute', top: '15px', right: 0, bottom: '15px', width: '5px', background: '#0d6efd', borderRadius: '10px 0 0 10px' }}></div>
                           
+                          <h4 style={{ fontWeight: 'bold', color: '#0d6efd', marginBottom: '20px', textAlign: 'right', marginRight: '15px' }}>{pkg.service.replace(' (مؤرشف)', '')}</h4>
+                          
+                          {/* Hours / Reels Stats (3 Boxes) */}
                           {totalHours > 0 && (
-                            <div style={{ marginBottom: '10px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>
-                                <span>الساعات المستخدمة</span>
-                                <span><strong style={{ color: 'var(--erp-text-main)' }}>{pkg.used_hours}</strong> / {totalHours} ساعة</span>
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                              <div style={{ flex: 1, border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '10px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>المتبقي</div>
+                                <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1.2rem', direction: 'rtl' }}>{formatHours(remHours)}</div>
                               </div>
-                              <div style={{ background: 'var(--erp-border)', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{ background: hoursPercent >= 100 ? '#e74c3c' : 'var(--erp-primary)', height: '100%', width: `${hoursPercent}%`, transition: 'width 0.5s ease' }}></div>
+                              <div style={{ flex: 1, border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '10px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>المستخدم</div>
+                                <div style={{ fontWeight: 'bold', color: '#0d6efd', fontSize: '1.2rem', direction: 'rtl' }}>{formatHours(pkg.used_hours)}</div>
+                              </div>
+                              <div style={{ flex: 1, border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '10px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>الباقة</div>
+                                <div style={{ fontWeight: 'bold', color: '#212529', fontSize: '1.2rem', direction: 'rtl' }}>{totalHours} س</div>
                               </div>
                             </div>
                           )}
 
                           {totalReels > 0 && (
-                            <div style={{ marginBottom: '10px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>
-                                <span>الريلز المصورة</span>
-                                <span><strong style={{ color: 'var(--erp-text-main)' }}>{pkg.used_reels}</strong> / {totalReels} فيديو</span>
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                              <div style={{ flex: 1, border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '10px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>المتبقي</div>
+                                <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1.2rem' }}>{remReels} ريل</div>
                               </div>
-                              <div style={{ background: 'var(--erp-border)', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{ background: reelsPercent >= 100 ? '#e74c3c' : '#2ecc71', height: '100%', width: `${reelsPercent}%`, transition: 'width 0.5s ease' }}></div>
+                              <div style={{ flex: 1, border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '10px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>المستخدم</div>
+                                <div style={{ fontWeight: 'bold', color: '#0d6efd', fontSize: '1.2rem' }}>{pkg.used_reels} ريل</div>
+                              </div>
+                              <div style={{ flex: 1, border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '10px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>الباقة</div>
+                                <div style={{ fontWeight: 'bold', color: '#212529', fontSize: '1.2rem' }}>{totalReels} ريل</div>
                               </div>
                             </div>
                           )}
 
-                          <div style={{ display: 'flex', gap: '15px', marginTop: '10px', fontSize: '0.85rem', color: 'var(--erp-text-muted)' }}>
-                            {(pkg.custom_expiry || pkg.delivery_date) && (
-                              <div>📅 <strong>انتهاء/تسليم:</strong> <span style={{ color: '#e74c3c', direction: 'ltr', display: 'inline-block' }}>{pkg.custom_expiry || pkg.delivery_date}</span></div>
+                          {/* Expiry Date */}
+                          {(pkg.custom_expiry || pkg.delivery_date) && (
+                            <div style={{ background: '#f8f9fa', border: '1px solid var(--erp-border)', borderRadius: '8px', padding: '8px', textAlign: 'center', marginBottom: '20px', fontSize: '0.9rem', width: 'fit-content', margin: '0 auto 20px auto' }}>
+                              <Calendar size={14} color="#0d6efd" style={{ marginRight: '5px', verticalAlign: 'middle' }} />
+                              <strong>انتهاء الصلاحية:</strong> <span style={{ direction: 'ltr', display: 'inline-block' }}>{pkg.custom_expiry || pkg.delivery_date}</span>
+                            </div>
+                          )}
+
+                          {/* Finance Stats (3 Boxes) */}
+                          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                            <div style={{ flex: 1, background: '#f8d7da', borderRadius: '10px', padding: '15px 10px', textAlign: 'center' }}>
+                              <div style={{ fontSize: '0.85rem', color: '#dc3545', marginBottom: '5px' }}>المتبقي</div>
+                              <div style={{ fontWeight: 'bold', color: '#dc3545', fontSize: '1.1rem' }}>{remainingPaid} ج</div>
+                            </div>
+                            <div style={{ flex: 1, background: '#d1e7dd', borderRadius: '10px', padding: '15px 10px', textAlign: 'center' }}>
+                              <div style={{ fontSize: '0.85rem', color: '#198754', marginBottom: '5px' }}>المدفوع</div>
+                              <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1.1rem' }}>{pkg.paid} ج</div>
+                            </div>
+                            <div style={{ flex: 1, border: '1px solid var(--erp-border)', borderRadius: '10px', padding: '15px 10px', textAlign: 'center' }}>
+                              <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>التكلفة</div>
+                              <div style={{ fontWeight: 'bold', color: '#212529', fontSize: '1.1rem' }}>{pkg.price} ج</div>
+                            </div>
+                          </div>
+
+                          {/* Discount Box */}
+                          {pkg.discount > 0 && (
+                            <div style={{ background: '#f8d7da', borderRadius: '10px', padding: '15px', textAlign: 'center', marginBottom: '20px' }}>
+                              <div style={{ fontWeight: 'bold', color: '#5a191f', marginBottom: '5px' }}>
+                                <Tag size={16} style={{ marginLeft: '5px', verticalAlign: 'middle' }} />
+                                الخصم المضاف: {pkg.discount} ج.م
+                              </div>
+                              <div style={{ color: '#6c757d', fontSize: '0.9rem' }}>({pkg.discount_reason})</div>
+                            </div>
+                          )}
+
+                          {/* Action Buttons */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {remainingPaid > 0 && (
+                              <button onClick={() => { setFinanceMethod('كاش'); setIsFinanceModalOpen(true); }} style={{ background: '#ffc107', color: '#212529', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+                                <Wallet size={18} /> سداد المتبقي للباقة 🔔
+                              </button>
                             )}
-                            <div>💰 <strong>المدفوع:</strong> <span style={{ color: '#2ecc71' }}>{pkg.paid} ج</span> من {pkg.price} ج</div>
+                            
+                            <div style={{ display: 'flex', gap: '10px', marginTop: remainingPaid > 0 ? '10px' : '0' }}>
+                              <button style={{ flex: 1, background: 'transparent', color: '#dc3545', border: '1px solid #dc3545', padding: '10px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
+                                <Trash2 size={16} /> حذف الباقة
+                              </button>
+                              <button style={{ flex: 1, background: 'transparent', color: '#212529', border: '1px solid #212529', padding: '10px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
+                                <Edit size={16} /> تعديل إداري
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
