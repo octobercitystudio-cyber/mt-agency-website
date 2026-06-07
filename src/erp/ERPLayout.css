@@ -301,3 +301,90 @@
         padding: 20px;
     }
 }
+
+/* Top Navbar Desktop */
+.erp-top-navbar-desktop {
+    display: none;
+}
+@media (min-width: 993px) {
+    .erp-top-navbar-desktop {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-bottom: 20px;
+        gap: 15px;
+    }
+}
+
+/* Mobile Header */
+.erp-mobile-header {
+    display: none;
+    height: 70px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    align-items: center;
+    padding: 0 20px;
+    justify-content: space-between;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1030;
+    border-bottom: 1px solid var(--erp-border);
+}
+
+.erp-mobile-toggle-btn {
+    background: var(--erp-surface);
+    border: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    cursor: pointer;
+}
+
+.erp-mobile-undo-btn {
+    background: #ef4444;
+    color: white;
+    border: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(239, 68, 68, 0.2);
+    cursor: pointer;
+}
+
+@media (max-width: 992px) {
+    .erp-mobile-header {
+        display: flex;
+    }
+}
+
+/* Undo Action Button */
+.btn-undo-action {
+    background-color: #fef2f2;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+    border-radius: 50px;
+    padding: 8px 15px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(239, 68, 68, 0.1);
+    cursor: pointer;
+}
+.btn-undo-action:hover {
+    background-color: #ef4444;
+    color: #ffffff;
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}

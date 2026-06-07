@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard } from 'lucide-react';
+import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, RotateCcw } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import './ERPLayout.css';
 
@@ -16,6 +16,18 @@ const ERPLayout = () => {
 
   return (
     <div className="erp-layout">
+      {/* Mobile Header */}
+      <div className="erp-mobile-header">
+        <h4 style={{fontWeight: 'bold', margin: 0, color: 'var(--erp-text-main)'}}>Multi Task <span style={{color: 'var(--erp-primary)'}}>Agency</span></h4>
+        <div style={{display: 'flex', gap: '8px'}}>
+          <button className="erp-mobile-undo-btn" onClick={() => { if(window.confirm('هل أنت متأكد من التراجع عن آخر عملية؟')) alert('سيتم التراجع قريباً'); }}>
+            <RotateCcw size={16} />
+          </button>
+          <button className="erp-mobile-toggle-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
+            <Menu size={20} color="var(--erp-text-main)" />
+          </button>
+        </div>
+      </div>
 
       {/* Sidebar Overlay */}
       {sidebarOpen && (
@@ -59,9 +71,29 @@ const ERPLayout = () => {
               <DollarSign size={20} /> الخزينة والحسابات
             </NavLink>
           </li>
+          <li className="erp-nav-item">
+            <NavLink to="/erp/reminders" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <ClipboardList size={20} /> المهام والتذكيرات
+            </NavLink>
+          </li>
+          <li className="erp-nav-item">
+            <NavLink to="/erp/offer-generator" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <FileText size={20} /> إنشاء عرض سعر
+            </NavLink>
+          </li>
         </nav>
 
         <div style={{marginTop: 'auto', paddingTop: '15px', borderTop: '1px solid rgba(0,0,0,0.03)'}}>
+          <div className="erp-nav-item mb-1">
+            <button className="erp-nav-link erp-nav-alert-btn" style={{width: '100%', border: '1px solid rgba(255, 152, 0, 0.2)', background: 'rgba(255, 193, 7, 0.1)', color: '#ff9800', justifyContent: 'flex-start'}}>
+              <Bell size={20} style={{color: '#ff9800'}} /> مركز الإشعارات
+            </button>
+          </div>
+          <div className="erp-nav-item mb-1">
+            <NavLink to="/erp/settings" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <Settings size={20} /> إعدادات النظام
+            </NavLink>
+          </div>
           <a href="/" target="_blank" className="erp-nav-link mb-2" style={{color: 'var(--erp-text-muted)'}}>
             <Home size={20} /> عرض الموقع
           </a>
@@ -73,6 +105,11 @@ const ERPLayout = () => {
 
       {/* Main Content Area */}
       <div className="erp-main" style={{marginTop: '0'}}>
+        <div className="erp-top-navbar-desktop no-print">
+          <button className="btn-undo-action" onClick={() => { if(window.confirm('هل أنت متأكد من التراجع عن آخر عملية في البرنامج بالكامل؟')) alert('سيتم التراجع قريباً'); }}>
+            <RotateCcw size={16} /> تراجع عن أخر عملية
+          </button>
+        </div>
         <Outlet />
       </div>
     </div>
