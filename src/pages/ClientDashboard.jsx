@@ -386,27 +386,32 @@ const ClientDashboard = () => {
                   <div className="card-header">
                     <h3><CreditCard size={20}/> الرسوم البيانية للحالة المادية</h3>
                   </div>
-                  <div className="card-body" style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center' }}>
-                    <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      <div className="finance-box" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                        <span>إجمالي التكلفة</span>
-                        <strong>{cost} ج</strong>
+                  <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    {/* Glass Buttons Row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                      <div className="stat-card premium-glass glow-silver" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', textAlign: 'center' }}>
+                        <span className="stat-label" style={{ marginBottom: '0.5rem' }}>إجمالي التكلفة</span>
+                        <strong className="stat-value text-silver">{cost} ج</strong>
                       </div>
-                      <div className="finance-box box-paid">
-                        <span>المدفوع الكلي</span>
-                        <strong>{primaryPackage.paid} ج</strong>
+                      <div className="stat-card premium-glass glow-neon" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', textAlign: 'center' }}>
+                        <span className="stat-label" style={{ marginBottom: '0.5rem' }}>المدفوع الكلي</span>
+                        <strong className="stat-value text-neon">{primaryPackage.paid} ج</strong>
                       </div>
-                      <div className="finance-box box-debt">
-                        <span>المتبقي</span>
-                        <strong>{remainingCost} ج</strong>
+                      <div className="stat-card premium-glass glow-purple" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', textAlign: 'center', borderColor: 'rgba(255, 71, 87, 0.3)' }}>
+                        <span className="stat-label" style={{ marginBottom: '0.5rem' }}>المتبقي</span>
+                        <strong className="stat-value" style={{ color: '#ff4757' }}>{remainingCost} ج</strong>
                       </div>
                     </div>
-                    <div style={{ flex: '1 1 300px', height: '250px', position: 'relative' }}>
+
+                    {/* Chart Row */}
+                    <div style={{ height: '300px', position: 'relative', marginTop: '1rem' }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie 
                             data={[{name: 'المدفوع', value: parseFloat(primaryPackage.paid) || 0}, {name: 'المتبقي', value: remainingCost > 0 ? remainingCost : 0}]} 
-                            innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none"
+                            innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" stroke="none"
+                            label={({ name, value }) => `${name} (${value} ج)`}
+                            labelLine={{ stroke: 'rgba(255,255,255,0.2)' }}
                           >
                             <Cell fill="#2ed573" />
                             <Cell fill="#ff4757" />
