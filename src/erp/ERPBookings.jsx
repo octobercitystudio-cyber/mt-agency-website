@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { CalendarPlus, Trash2, Search, CheckCircle, Clock, Calendar as CalendarIcon, DollarSign, X } from 'lucide-react';
+import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, ShieldAlert, Truck, Pointer } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
@@ -8,6 +8,7 @@ import { ar } from 'date-fns/locale';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import timeGridPlugin from '@fullcalendar/timeGrid';
 
 const ERPBookings = () => {
   const [bookings, setBookings] = useState([]);
@@ -18,21 +19,23 @@ const ERPBookings = () => {
   // UI State
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const isAdmin = true; // Hardcoded to true for owner based on their template
   
   // Modal Form State
   const [newBooking, setNewBooking] = useState({
     client_name: '',
-    color: '#9d4edd',
+    color: '#4318ff',
     category: '',
     service: '',
-    dates: [{ date: format(new Date(), 'yyyy-MM-dd'), start_time: '12:00', end_time: '13:00' }],
+    dates: [],
     delivery_date: '',
     base_price: 0,
     discount: 0,
     discount_reason: '',
     paid: 0,
-    payment_method: 'كاش',
-    notes: ''
+    payment_method: 'فودافون كاش',
+    notes: '',
+    schedule_extra: false
   });
 
   useEffect(() => {
@@ -41,7 +44,6 @@ const ERPBookings = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    
     const { data: bData } = await supabase.from('bookings').select('*').order('date', { ascending: false });
     const { data: cData } = await supabase.from('clients').select('name, color');
     const { data: sData } = await supabase.from('services').select('*');
@@ -55,10 +57,9 @@ const ERPBookings = () => {
 
   const getClientColor = (clientName) => {
     const client = clients.find(c => c.name === clientName);
-    return client?.color || 'var(--erp-primary)';
+    return client?.color || '#4318ff';
   };
 
-  // Convert DB bookings to FullCalendar events
   const calendarEvents = bookings.map(b => ({
     id: b.id,
     title: b.client_name,
@@ -81,8 +82,15 @@ const ERPBookings = () => {
   const handleEventClick = (info) => {
     const bId = info.event.extendedProps.booking_id;
     const client = info.event.title;
-    if (window.confirm(`هل أنت متأكد من إلغاء موعد العميل: ${client}؟`)) {
-      deleteBooking(bId);
+    const status = info.event.extendedProps.status === 'منتهي' ? '(منتهي)' : '(مجدول)';
+    const time = info.event.extendedProps.time;
+    
+    if (isAdmin) {
+      if (window.confirm(`العميل: ${client} ${status}\nالتوقيت: ${time}\n\nبصفتك المالك (مدير النظام)، هل تريد حذف هذا الموعد نهائياً من التقويم والسجلات؟`)) {
+        deleteBooking(bId);
+      }
+    } else {
+      alert(`العميل: ${client} ${status}\nالتوقيت: ${time}`);
     }
   };
 
@@ -91,10 +99,10 @@ const ERPBookings = () => {
     if (!error) fetchData();
   };
 
-  const addDateRow = () => {
+  const addDateRow = (dateStr = format(new Date(), 'yyyy-MM-dd')) => {
     setNewBooking({
       ...newBooking,
-      dates: [...newBooking.dates, { date: format(new Date(), 'yyyy-MM-dd'), start_time: '12:00', end_time: '13:00' }]
+      dates: [...newBooking.dates, { date: dateStr, start_time: '12:00', end_time: '13:00' }]
     });
   };
 
@@ -129,16 +137,15 @@ const ERPBookings = () => {
   const handleSaveBooking = async (e) => {
     e.preventDefault();
     
-    // Validate
-    if (newBooking.dates.length === 0) {
-      alert('يجب تحديد موعد واحد على الأقل');
+    const needsDates = newBooking.category !== 'باقة ريلز' && newBooking.category !== 'خدمة إضافية' || newBooking.schedule_extra;
+    if (needsDates && newBooking.dates.length === 0) {
+      alert('يجب تحديد موعد واحد على الأقل في التقويم أو عن طريق الضغط مرتين على اليوم المختار');
       return;
     }
 
-    // Insert Finance Record if payment > 0
     if (newBooking.paid > 0) {
       await supabase.from('finance').insert([{
-        type: 'وارد',
+        type: 'إيراد',
         amount: newBooking.paid,
         method: newBooking.payment_method,
         detail: `دفعة من ${newBooking.client_name} لخدمة ${newBooking.service}`,
@@ -147,43 +154,62 @@ const ERPBookings = () => {
       }]);
     }
 
-    // Insert Bookings (one for each date row)
-    const bookingsToInsert = newBooking.dates.map(d => {
-      // Calculate actual hours
-      let hours = 0;
-      if (d.start_time && d.end_time) {
-        const [startH, startM] = d.start_time.split(':').map(Number);
-        const [endH, endM] = d.end_time.split(':').map(Number);
-        const diffInMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-        hours = diffInMinutes > 0 ? +(diffInMinutes / 60).toFixed(2) : 0;
-      }
+    let bookingsToInsert = [];
+    
+    if (needsDates) {
+      bookingsToInsert = newBooking.dates.map(d => {
+        let hours = 0;
+        if (d.start_time && d.end_time) {
+          const [startH, startM] = d.start_time.split(':').map(Number);
+          const [endH, endM] = d.end_time.split(':').map(Number);
+          const diffInMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+          hours = diffInMinutes > 0 ? +(diffInMinutes / 60).toFixed(2) : 0;
+        }
 
-      return {
+        return {
+          client_name: newBooking.client_name,
+          service: newBooking.service,
+          date: d.date,
+          start_time: d.start_time,
+          end_time: d.end_time,
+          actual_hours: hours,
+          custom_price: newBooking.base_price,
+          discount: newBooking.discount,
+          discount_reason: newBooking.discount_reason,
+          delivery_date: newBooking.delivery_date || null,
+          status: 'مؤكد',
+          notes: newBooking.notes,
+          payment: newBooking.paid // Apply full payment to first record for simplicity, or divide it
+        };
+      });
+      // only apply payment to first record so it isn't duplicated
+      bookingsToInsert.forEach((b, i) => { if(i > 0) b.payment = 0; });
+    } else {
+      bookingsToInsert = [{
         client_name: newBooking.client_name,
         service: newBooking.service,
-        date: d.date,
-        start_time: d.start_time,
-        end_time: d.end_time,
-        actual_hours: hours,
+        date: format(new Date(), 'yyyy-MM-dd'),
+        start_time: '',
+        end_time: '',
+        actual_hours: 0,
         custom_price: newBooking.base_price,
         discount: newBooking.discount,
         discount_reason: newBooking.discount_reason,
         delivery_date: newBooking.delivery_date || null,
         status: 'مؤكد',
-        notes: newBooking.notes
-      };
-    });
+        notes: newBooking.notes,
+        payment: newBooking.paid
+      }];
+    }
 
     const { error } = await supabase.from('bookings').insert(bookingsToInsert);
 
     if (!error) {
       fetchData();
       setIsModalOpen(false);
-      // Reset
       setNewBooking({
-        client_name: '', color: '#9d4edd', category: '', service: '',
-        dates: [{ date: format(new Date(), 'yyyy-MM-dd'), start_time: '12:00', end_time: '13:00' }],
-        delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'كاش', notes: ''
+        client_name: '', color: '#4318ff', category: '', service: '', dates: [],
+        delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'فودافون كاش', notes: '', schedule_extra: false
       });
     } else {
       console.error(error);
@@ -191,124 +217,189 @@ const ERPBookings = () => {
     }
   };
 
-  // Finance calculations
   const remainingPrice = Math.max(0, newBooking.base_price - newBooking.discount - newBooking.paid);
+  const showDelivery = newBooking.category === 'باقة ريلز' || newBooking.category === 'خدمة إضافية';
+  const showCalendar = !showDelivery || newBooking.schedule_extra;
 
   return (
-    <div>
-      <div className="erp-header">
+    <div className="animate__animated animate__fadeIn">
+      <style>{`
+        .fc-theme-standard td, .fc-theme-standard th { border-color: var(--erp-border); }
+        .fc-theme-standard .fc-scrollgrid { border: none; }
+        .fc-col-header-cell { background-color: var(--erp-bg); padding: 10px 0; border-bottom: 2px solid var(--erp-border) !important; }
+        .fc-col-header-cell-cushion { color: var(--erp-text-muted); font-weight: 700; font-size: 0.9rem; text-decoration: none; }
+        .fc-daygrid-day-number { color: var(--erp-text-main); font-weight: 700; padding: 8px !important; text-decoration: none; transition: 0.2s; }
+        .fc-daygrid-day-number:hover { background-color: var(--erp-border); border-radius: 50%; }
+        .fc .fc-daygrid-day.fc-day-today { background-color: rgba(67, 24, 255, 0.05); }
+        
+        .selected-day-highlight { background-color: rgba(67, 24, 255, 0.1) !important; border: 2px solid var(--erp-primary) !important; border-radius: 8px; transition: all 0.2s ease-in-out; box-shadow: inset 0 0 10px rgba(67, 24, 255, 0.05); }
+        .selected-day-highlight .fc-daygrid-day-number { color: var(--erp-primary) !important; }
+
+        td.fc-day-fri { background-color: rgba(0,0,0,0.03) !important; border-color: var(--erp-border) !important; }
+        th.fc-day-fri { background-color: rgba(0,0,0,0.05) !important; border-color: var(--erp-border) !important; }
+        th.fc-day-fri .fc-col-header-cell-cushion { color: var(--erp-warning) !important; } 
+        td.fc-day-fri .fc-daygrid-day-number { color: var(--erp-text-muted) !important; }
+        td.fc-day-fri:hover { background-color: rgba(0,0,0,0.06) !important; }
+        td.fc-day-fri .fc-daygrid-day-frame::before { content: "إجازة رسمية"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 1.4rem; font-weight: 900; color: rgba(0,0,0, 0.05); pointer-events: none; z-index: 0; white-space: nowrap; }
+        
+        .fc-daygrid-day-events { position: relative; z-index: 1; }
+        .fc-event { border: none !important; border-radius: 6px !important; padding: 4px 6px; margin-bottom: 4px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .fc-event:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); filter: brightness(1.1); }
+        .fc-h-event .fc-event-main { color: white; }
+        
+        .fc-toolbar-title { font-weight: 800 !important; color: var(--erp-text-main) !important; font-size: 1.5rem !important; }
+        .fc .fc-button-primary { background-color: var(--erp-surface); border: 1px solid var(--erp-border); color: var(--erp-text-muted); font-weight: 700; border-radius: 8px; text-transform: capitalize; transition: 0.2s; }
+        .fc .fc-button-primary:hover { background-color: var(--erp-bg); border-color: var(--erp-text-muted); color: var(--erp-text-main); }
+        .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active { background-color: var(--erp-primary); border-color: var(--erp-primary); color: white; }
+        
+        .timeline-card { transition: all 0.3s ease; border-right: 4px solid var(--erp-primary); background: var(--erp-surface); }
+        .timeline-card:hover { transform: translateX(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.05) !important; border-right-color: var(--erp-warning); }
+        .timeline-time { font-size: 1.1rem; font-weight: 800; color: var(--erp-primary); letter-spacing: -0.5px; }
+        .timeline-client { font-size: 1.1rem; font-weight: 800; color: var(--erp-text-main); }
+        .timeline-service { font-size: 0.8rem; font-weight: 700; color: var(--erp-text-muted); background: var(--erp-bg); padding: 4px 10px; border-radius: 20px; display: inline-block; }
+
+        .admin-delete-btn { cursor: pointer; opacity: 0.5; transition: 0.3s; color: var(--erp-danger); }
+        .admin-delete-btn:hover { opacity: 1; transform: scale(1.2); color: #dc2626 !important; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <CalendarIcon color="var(--erp-primary)" /> إدارة المواعيد والتقويم
-          </h2>
-          <p>اضغط على أي يوم في التقويم لاستعراض جلساته، أو اضغط مرتين لإضافة حجز.</p>
+          <h3 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', margin: 0, display: 'flex', alignItems: 'center' }}>
+            <CalendarIcon style={{ marginRight: '10px', color: 'var(--erp-primary)' }} /> إدارة المواعيد والتقويم
+          </h3>
+          <p style={{ color: 'var(--erp-text-muted)', fontSize: '0.9rem', margin: '5px 0 0 0' }}>
+            اضغط مرتين للحجز.
+            {isAdmin && <span style={{ color: 'var(--erp-danger)', fontWeight: 'bold', marginRight: '5px' }}>
+              <ShieldAlert size={14} style={{ display: 'inline', marginLeft: '3px' }} /> بصفتك مدير: يمكنك حجز تواريخ سابقة، أو حذف أي موعد.
+            </span>}
+          </p>
         </div>
-        <button className="erp-btn-primary" onClick={() => setIsModalOpen(true)}>
-          <CalendarPlus size={18} /> حجز موعد / إضافة خدمة
+        <button 
+          style={{ background: 'var(--erp-primary)', color: 'white', border: 'none', borderRadius: '50px', padding: '10px 25px', fontWeight: 'bold', display: 'flex', alignItems: 'center', boxShadow: '0 4px 10px rgba(67, 24, 255, 0.2)', cursor: 'pointer' }}
+          onClick={() => setIsModalOpen(true)}
+        >
+          <CalendarPlus size={18} style={{ marginLeft: '8px' }} /> حجز موعد / إضافة خدمة
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '70% 30%', gap: '20px', minHeight: '600px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
         
-        {/* FullCalendar Container */}
-        <div className="erp-card" style={{ padding: '20px' }}>
-          <style>{`
-            .fc-theme-standard td, .fc-theme-standard th { border-color: var(--erp-border); }
-            .fc-col-header-cell { background-color: rgba(255,255,255,0.05); padding: 10px 0; border-bottom: 2px solid var(--erp-border) !important; }
-            .fc-col-header-cell-cushion { color: var(--erp-text-muted); font-weight: 700; text-decoration: none; }
-            .fc-daygrid-day-number { color: var(--erp-text-main); font-weight: bold; text-decoration: none; }
-            .fc .fc-daygrid-day.fc-day-today { background-color: rgba(157, 78, 221, 0.1); }
-            .fc-daygrid-day:hover { background-color: rgba(255,255,255,0.02); cursor: pointer; }
-            .fc-event { border: none !important; border-radius: 6px !important; padding: 4px; margin-bottom: 4px; font-weight: bold; cursor: pointer; }
-            .fc-toolbar-title { color: var(--erp-text-main); font-weight: bold; }
-            .fc-button-primary { background-color: rgba(255,255,255,0.1) !important; border-color: var(--erp-border) !important; color: white !important; }
-            .fc-button-active { background-color: var(--erp-primary) !important; border-color: var(--erp-primary) !important; }
-          `}</style>
-          
-          <FullCalendar
-            plugins={[ dayGridPlugin, interactionPlugin ]}
-            initialView="dayGridMonth"
-            locale={ar}
-            events={calendarEvents}
-            dateClick={handleDateClick}
-            eventClick={handleEventClick}
-            height="auto"
-            headerToolbar={{
-              right: 'dayGridMonth',
-              center: 'title',
-              left: 'prev,next today'
-            }}
-          />
+        {/* FullCalendar Box */}
+        <div style={{ flex: '1 1 65%', minWidth: '400px' }}>
+          <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '25px', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid var(--erp-primary)', minHeight: '600px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', marginBottom: '10px', fontSize: '0.85rem', fontWeight: 'bold' }}>
+              <span style={{ color: 'var(--erp-primary)' }}>● مجدول</span>
+              <span style={{ color: 'var(--erp-success)' }}>● منتهي</span>
+              <span style={{ color: 'var(--erp-text-muted)' }}>● يوم الجمعة (إجازة)</span>
+            </div>
+            
+            <FullCalendar
+              plugins={[ dayGridPlugin, interactionPlugin, timeGridPlugin ]}
+              initialView="dayGridMonth"
+              locale={ar}
+              events={calendarEvents}
+              dateClick={handleDateClick}
+              eventClick={handleEventClick}
+              height="auto"
+              headerToolbar={{
+                right: 'dayGridMonth,timeGridWeek',
+                center: 'title',
+                left: 'prev,next today'
+              }}
+              dayCellClassNames={(arg) => {
+                let classes = [];
+                if (arg.date.getDay() === 5) classes.push('fc-day-fri');
+                if (format(arg.date, 'yyyy-MM-dd') === selectedDate) classes.push('selected-day-highlight');
+                return classes;
+              }}
+            />
+          </div>
         </div>
 
         {/* Daily Bookings Sidebar */}
-        <div className="erp-card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ textAlign: 'center', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid var(--erp-border)' }}>
-            <div style={{ background: 'rgba(157, 78, 221, 0.1)', color: 'var(--erp-primary)', padding: '8px 20px', borderRadius: '50px', display: 'inline-block', fontWeight: 'bold', marginBottom: '15px' }}>
-              جدول يوم: {format(new Date(selectedDate), 'EEEE, d MMMM yyyy', { locale: ar })}
+        <div style={{ flex: '1 1 30%', minWidth: '300px' }}>
+          <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid #1e293b', height: '100%' }}>
+            
+            <div style={{ padding: '25px 25px 0 25px', textAlign: 'center' }}>
+              <div style={{ background: 'rgba(67, 24, 255, 0.1)', color: 'var(--erp-primary)', display: 'inline-block', borderRadius: '50px', padding: '8px 25px', marginBottom: '15px', boxShadow: '0 2px 5px rgba(67,24,255,0.05)' }}>
+                <i className="fas fa-calendar-day me-1"></i> جدول يوم: <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{format(new Date(selectedDate), 'EEEE, d MMMM yyyy', { locale: ar })}</span>
+              </div>
+              <h5 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', margin: 0 }}>قائمة جلسات التصوير</h5>
+              <hr style={{ opacity: 0.1, marginTop: '20px', marginBottom: 0 }} />
             </div>
-            <h4 style={{ margin: 0, fontWeight: 'bold' }}>قائمة جلسات التصوير</h4>
-          </div>
 
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {dailyBookings.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 0', opacity: 0.5 }}>
-                <Clock size={48} style={{ marginBottom: '15px', color: 'var(--erp-text-muted)' }} />
-                <h5>يوم هادئ!</h5>
-                <p>لا توجد جلسات تصوير مجدولة.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {dailyBookings.map(b => (
-                  <div key={b.id} style={{ borderRight: `4px solid ${getClientColor(b.client_name)}`, background: 'rgba(255,255,255,0.03)', padding: '15px', borderRadius: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <span style={{ color: getClientColor(b.client_name), fontWeight: 'bold', fontFamily: 'monospace' }}>
-                        <Clock size={14} style={{ display: 'inline', marginRight: '5px' }} />
-                        {b.start_time} - {b.end_time}
-                      </span>
-                      <span style={{ background: 'rgba(52, 152, 219, 0.2)', color: '#3498db', padding: '2px 8px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                        {b.status || 'مؤكد'}
-                      </span>
-                    </div>
-                    <h5 style={{ margin: '0 0 10px 0', fontWeight: 'bold' }}>{b.client_name}</h5>
-                    <span style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '20px', fontSize: '0.8rem' }}>
-                      {b.service}
-                    </span>
+            <div style={{ padding: '25px', overflowY: 'auto', flexGrow: 1, maxHeight: '600px' }}>
+              {dailyBookings.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                  <div style={{ background: 'var(--erp-bg)', borderRadius: '50%', display: 'inline-flex', justifyContent: 'center', alignItems: 'center', width: '80px', height: '80px', marginBottom: '15px' }}>
+                    <Clock size={32} color="var(--erp-text-muted)" style={{ opacity: 0.5 }} />
                   </div>
-                ))}
-              </div>
-            )}
+                  <h6 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)' }}>يوم هادئ!</h6>
+                  <p style={{ color: 'var(--erp-text-muted)', fontSize: '0.85rem' }}>لا توجد جلسات تصوير مجدولة.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  {dailyBookings.map(b => (
+                    <div key={b.id} className="timeline-card" style={{ padding: '15px', borderRadius: '12px', borderRightColor: getClientColor(b.client_name), opacity: b.status === 'منتهي' ? 0.6 : 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <div className="timeline-time" style={{ color: getClientColor(b.client_name), fontFamily: 'monospace' }}>
+                          <Clock size={14} style={{ display: 'inline', marginLeft: '5px' }} />
+                          {b.start_time}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {b.status === 'منتهي' ? (
+                            <span style={{ background: 'var(--erp-success)', color: 'white', padding: '2px 8px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>منتهي</span>
+                          ) : (
+                            <span style={{ background: 'var(--erp-primary)', color: 'white', padding: '2px 8px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>مجدول</span>
+                          )}
+                          {isAdmin && (
+                            <Trash2 size={16} className="admin-delete-btn" onClick={() => handleEventClick({ event: { extendedProps: { booking_id: b.id, time: `${b.start_time}`, status: b.status }, title: b.client_name } })} />
+                          )}
+                        </div>
+                      </div>
+                      <h5 className="timeline-client" style={{ marginBottom: '10px', marginTop: 0 }}>{b.client_name}</h5>
+                      <span className="timeline-service">{b.service}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
-
       </div>
 
       {/* Complex Booking Modal */}
       {isModalOpen && (
-        <div className="erp-modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="erp-modal-content" style={{ width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', paddingBottom: '15px', borderBottom: '1px solid var(--erp-border)' }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <CalendarPlus color="var(--erp-primary)" /> تسجيل حجز جديد
-              </h3>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X /></button>
+        <div className="erp-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1050, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)' }} onClick={() => setIsModalOpen(false)}>
+          <div style={{ background: 'var(--erp-surface)', width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '25px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: 'none' }} onClick={e => e.stopPropagation()}>
+            
+            <div style={{ background: '#1e293b', color: 'white', padding: '25px', borderTopLeftRadius: '25px', borderTopRightRadius: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h5 style={{ margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                <CalendarPlus color="var(--erp-warning)" size={24} style={{ marginLeft: '10px' }} /> تسجيل موعد أو شراء خدمة
+              </h5>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={24} /></button>
             </div>
 
-            <form onSubmit={handleSaveBooking} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <form onSubmit={handleSaveBooking} style={{ padding: '25px' }}>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '25px' }}>
                 <div>
-                  <label className="erp-label">اسم العميل</label>
-                  <select className="erp-input" value={newBooking.client_name} onChange={handleClientChange} required>
-                    <option value="">-- اختر العميل --</option>
-                    {clients.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                  </select>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>اسم العميل</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <select value={newBooking.client_name} onChange={handleClientChange} required style={{ flex: 1, background: 'var(--erp-bg)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
+                      <option value="" disabled>-- اختر العميل --</option>
+                      {clients.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                    <input type="color" value={newBooking.color} onChange={e => setNewBooking({...newBooking, color: e.target.value})} style={{ width: '50px', border: 'none', padding: '0', borderRadius: '10px', height: '48px', cursor: 'pointer' }} title="لون العميل" />
+                  </div>
                 </div>
                 
                 <div>
-                  <label className="erp-label">التصنيف الرئيسي</label>
-                  <select className="erp-input" value={newBooking.category} onChange={handleCategoryChange} required>
-                    <option value="">-- التصنيف --</option>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>التصنيف الرئيسي</label>
+                  <select value={newBooking.category} onChange={handleCategoryChange} required style={{ width: '100%', background: 'var(--erp-bg)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-primary)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
+                    <option value="" disabled>-- التصنيف --</option>
                     <option value="تصوير بالساعة">تصوير بالساعة</option>
                     <option value="باقة يومية">باقات يومية</option>
                     <option value="باقة شهرية">باقات شهرية</option>
@@ -318,9 +409,9 @@ const ERPBookings = () => {
                 </div>
 
                 <div>
-                  <label className="erp-label">اسم الخدمة</label>
-                  <select className="erp-input" value={newBooking.service} onChange={handleServiceChange} required disabled={!newBooking.category}>
-                    <option value="">-- اختر الخدمة --</option>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>اسم الخدمة</label>
+                  <select value={newBooking.service} onChange={handleServiceChange} required disabled={!newBooking.category} style={{ width: '100%', background: 'var(--erp-bg)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
+                    <option value="" disabled>-- اختر الخدمة --</option>
                     {services.filter(s => s.category === newBooking.category).map(s => (
                       <option key={s.name} value={s.name}>{s.name}</option>
                     ))}
@@ -328,95 +419,127 @@ const ERPBookings = () => {
                 </div>
               </div>
 
-              {(newBooking.category === 'باقة ريلز' || newBooking.category === 'خدمة إضافية') && (
-                <div style={{ background: 'rgba(241, 196, 15, 0.1)', border: '1px solid rgba(241, 196, 15, 0.3)', padding: '15px', borderRadius: '12px' }}>
-                  <label className="erp-label" style={{ color: '#f1c40f' }}>موعد التسليم المتفق عليه</label>
-                  <input type="date" className="erp-input" style={{ borderColor: '#f1c40f' }} value={newBooking.delivery_date} onChange={e => setNewBooking({...newBooking, delivery_date: e.target.value})} required />
+              <hr style={{ opacity: 0.1, margin: '20px 0' }} />
+
+              {showDelivery && (
+                <div style={{ background: 'rgba(67, 24, 255, 0.05)', padding: '20px', borderRadius: '15px', border: '1px solid rgba(67, 24, 255, 0.2)', marginBottom: '20px', display: 'flex', alignItems: 'center' }}>
+                  <input type="checkbox" id="schedExtraCb" checked={newBooking.schedule_extra} onChange={e => setNewBooking({...newBooking, schedule_extra: e.target.checked})} style={{ transform: 'scale(1.5)', marginLeft: '15px', cursor: 'pointer' }} />
+                  <label htmlFor="schedExtraCb" style={{ fontWeight: 'bold', color: 'var(--erp-primary)', cursor: 'pointer', margin: 0 }}>تحديد موعد للخدمة الإضافية/الريلز في التقويم الآن</label>
                 </div>
               )}
 
-              {/* Dynamic Dates Container */}
-              <div style={{ border: '1px solid var(--erp-border)', padding: '20px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <label className="erp-label" style={{ margin: 0 }}>مواعيد الجلسات (يمكن إضافة أكثر من يوم)</label>
-                  <button type="button" onClick={addDateRow} style={{ background: 'rgba(157, 78, 221, 0.2)', color: 'var(--erp-primary)', border: 'none', padding: '5px 15px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>
-                    + إضافة يوم جديد
-                  </button>
-                </div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  {newBooking.dates.map((dRow, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px' }}>
-                      <div style={{ flex: 1 }}>
-                        <label className="erp-label" style={{ fontSize: '0.8rem' }}>التاريخ</label>
-                        <input type="date" className="erp-input" value={dRow.date} onChange={(e) => updateDateRow(idx, 'date', e.target.value)} required />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="erp-label" style={{ fontSize: '0.8rem' }}>من الساعة</label>
-                        <input type="time" className="erp-input" value={dRow.start_time} onChange={(e) => updateDateRow(idx, 'start_time', e.target.value)} required />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="erp-label" style={{ fontSize: '0.8rem' }}>إلى الساعة</label>
-                        <input type="time" className="erp-input" value={dRow.end_time} onChange={(e) => updateDateRow(idx, 'end_time', e.target.value)} required />
-                      </div>
-                      {newBooking.dates.length > 1 && (
-                        <button type="button" onClick={() => removeDateRow(idx)} style={{ background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', border: 'none', width: '40px', height: '40px', borderRadius: '8px', cursor: 'pointer' }}>
+              {showCalendar && (
+                <div style={{ marginBottom: '25px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-primary)', margin: 0 }}>
+                      <Pointer size={14} style={{ display: 'inline', marginLeft: '5px' }} /> اضغط على اليوم في التقويم لإضافته
+                    </label>
+                  </div>
+                  
+                  <div style={{ border: '1px solid var(--erp-border)', borderRadius: '15px', padding: '10px', background: 'var(--erp-surface)', marginBottom: '20px' }}>
+                    <FullCalendar
+                      plugins={[ dayGridPlugin, interactionPlugin ]}
+                      initialView="dayGridMonth"
+                      locale={ar}
+                      events={calendarEvents}
+                      height={350}
+                      headerToolbar={{ left: 'prev,next', center: 'title', right: 'today' }}
+                      dateClick={(info) => addDateRow(info.dateStr)}
+                      dayCellClassNames={(arg) => arg.date.getDay() === 5 ? ['fc-day-fri'] : []}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {newBooking.dates.map((dRow, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', background: 'var(--erp-surface)', padding: '15px', borderRadius: '15px', border: '1px solid var(--erp-border)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>تاريخ الجلسة</label>
+                          <input type="date" value={dRow.date} onChange={(e) => updateDateRow(idx, 'date', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', color: 'var(--erp-primary)', fontWeight: 'bold' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>من الساعة</label>
+                          <input type="time" value={dRow.start_time} onChange={(e) => updateDateRow(idx, 'start_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>إلى الساعة</label>
+                          <input type="time" value={dRow.end_time} onChange={(e) => updateDateRow(idx, 'end_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
+                        </div>
+                        <button type="button" onClick={() => removeDateRow(idx)} style={{ background: 'var(--erp-bg)', color: 'var(--erp-danger)', border: 'none', width: '42px', height: '42px', borderRadius: '50%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                           <Trash2 size={18} />
                         </button>
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {showDelivery && (
+                <div style={{ background: 'rgba(255, 193, 7, 0.1)', padding: '20px', borderRadius: '15px', border: '1px solid rgba(255, 193, 7, 0.3)', marginBottom: '25px' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
+                    <Truck size={16} style={{ marginLeft: '8px' }} /> موعد التسليم المتفق عليه
+                  </label>
+                  <input type="date" value={newBooking.delivery_date} onChange={e => setNewBooking({...newBooking, delivery_date: e.target.value})} required style={{ width: '100%', border: 'none', background: 'var(--erp-surface)', padding: '12px', borderRadius: '10px', fontWeight: 'bold', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }} />
+                </div>
+              )}
 
               {/* Finance Box */}
-              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--erp-border)', padding: '20px', borderRadius: '12px' }}>
-                <h4 style={{ margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <DollarSign color="#2ecc71" /> تفاصيل الحساب والدفع
-                </h4>
+              <div style={{ background: 'var(--erp-bg)', border: '1px solid var(--erp-border)', padding: '25px', borderRadius: '20px', marginBottom: '25px' }}>
+                <h6 style={{ margin: '0 0 20px 0', fontWeight: 'bold', color: 'var(--erp-text-main)', display: 'flex', alignItems: 'center' }}>
+                  <DollarSign color="var(--erp-primary)" size={20} style={{ marginLeft: '10px' }} /> تفاصيل الحساب والدفع
+                </h6>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginBottom: '15px' }}>
                   <div>
-                    <label className="erp-label" style={{ fontSize: '0.8rem' }}>السعر الأساسي</label>
-                    <input type="number" className="erp-input" value={newBooking.base_price} readOnly style={{ opacity: 0.7 }} />
+                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>السعر الأساسي</label>
+                    <div style={{ display: 'flex', background: 'var(--erp-surface)', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
+                      <input type="number" value={newBooking.base_price} readOnly style={{ flex: 1, border: 'none', padding: '10px', textAlign: 'center', fontWeight: 'bold', color: 'var(--erp-text-main)', background: 'transparent' }} />
+                      <span style={{ padding: '10px', color: 'var(--erp-text-muted)', background: 'var(--erp-surface)' }}>ج.م</span>
+                    </div>
                   </div>
                   <div>
-                    <label className="erp-label" style={{ fontSize: '0.8rem', color: '#e74c3c' }}>الخصم</label>
-                    <input type="number" className="erp-input" value={newBooking.discount} onChange={e => setNewBooking({...newBooking, discount: Number(e.target.value)})} min="0" style={{ borderColor: 'rgba(231, 76, 60, 0.5)' }} />
+                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--erp-danger)', marginBottom: '5px', display: 'block' }}>قيمة الخصم</label>
+                    <div style={{ display: 'flex', background: 'rgba(220, 53, 69, 0.1)', borderRadius: '10px', overflow: 'hidden' }}>
+                      <input type="number" value={newBooking.discount} onChange={e => setNewBooking({...newBooking, discount: Number(e.target.value)})} min="0" style={{ flex: 1, border: 'none', padding: '10px', textAlign: 'center', fontWeight: 'bold', color: 'var(--erp-danger)', background: 'transparent' }} />
+                      <span style={{ padding: '10px', color: 'var(--erp-danger)' }}>ج.م</span>
+                    </div>
                   </div>
                   <div>
-                    <label className="erp-label" style={{ fontSize: '0.8rem', color: '#2ecc71' }}>المدفوع الآن</label>
-                    <input type="number" className="erp-input" value={newBooking.paid} onChange={e => setNewBooking({...newBooking, paid: Number(e.target.value)})} min="0" style={{ borderColor: 'rgba(46, 204, 113, 0.5)' }} />
+                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--erp-success)', marginBottom: '5px', display: 'block' }}>المدفوع الآن</label>
+                    <div style={{ display: 'flex', background: 'rgba(25, 135, 84, 0.1)', borderRadius: '10px', overflow: 'hidden' }}>
+                      <input type="number" value={newBooking.paid} onChange={e => setNewBooking({...newBooking, paid: Number(e.target.value)})} min="0" style={{ flex: 1, border: 'none', padding: '10px', textAlign: 'center', fontWeight: 'bold', color: 'var(--erp-success)', background: 'transparent' }} />
+                      <span style={{ padding: '10px', color: 'var(--erp-success)' }}>ج.م</span>
+                    </div>
                   </div>
                   <div>
-                    <label className="erp-label" style={{ fontSize: '0.8rem', color: 'var(--erp-primary)' }}>المتبقي</label>
-                    <input type="number" className="erp-input" value={remainingPrice} readOnly style={{ fontWeight: 'bold' }} />
+                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--erp-primary)', marginBottom: '5px', display: 'block' }}>المتبقي للدفع</label>
+                    <div style={{ display: 'flex', background: 'var(--erp-surface)', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
+                      <input type="number" value={remainingPrice} readOnly style={{ flex: 1, border: 'none', padding: '10px', textAlign: 'center', fontWeight: 'bold', color: 'var(--erp-primary)', background: 'transparent' }} />
+                      <span style={{ padding: '10px', color: 'var(--erp-text-muted)', background: 'var(--erp-surface)' }}>ج.م</span>
+                    </div>
                   </div>
                 </div>
 
-                <input type="text" className="erp-input" value={newBooking.discount_reason} onChange={e => setNewBooking({...newBooking, discount_reason: e.target.value})} placeholder="سبب الخصم (إن وجد)..." />
+                <input type="text" value={newBooking.discount_reason} onChange={e => setNewBooking({...newBooking, discount_reason: e.target.value})} placeholder="سبب الخصم (إن وجد)... مثال: عرض خاص، تعويض..." style={{ width: '100%', border: 'none', background: 'var(--erp-surface)', padding: '12px', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '25px' }}>
                 <div>
-                  <label className="erp-label">طريقة الدفع (للخزينة)</label>
-                  <select className="erp-input" value={newBooking.payment_method} onChange={e => setNewBooking({...newBooking, payment_method: e.target.value})}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>إيداع الدفعة في (خزينة)</label>
+                  <select value={newBooking.payment_method} onChange={e => setNewBooking({...newBooking, payment_method: e.target.value})} style={{ width: '100%', background: 'var(--erp-surface)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
                     <option value="كاش">كاش</option>
                     <option value="فودافون كاش">فودافون كاش</option>
                     <option value="انستاباي">إنستاباي</option>
                   </select>
                 </div>
                 <div>
-                  <label className="erp-label">ملاحظات إضافية</label>
-                  <input type="text" className="erp-input" value={newBooking.notes} onChange={e => setNewBooking({...newBooking, notes: e.target.value})} placeholder="اكتب أي تفاصيل هنا..." />
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>ملاحظات إضافية للموعد</label>
+                  <input type="text" value={newBooking.notes} onChange={e => setNewBooking({...newBooking, notes: e.target.value})} placeholder="اكتب هنا أي تفاصيل إضافية..." style={{ width: '100%', border: 'none', background: 'var(--erp-surface)', padding: '12px', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }} />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                <button type="submit" className="erp-btn-primary" style={{ flex: 1, padding: '15px', fontSize: '1.1rem' }}>
-                  تسجيل الحجز في النظام
-                </button>
-              </div>
+              <button type="submit" style={{ width: '100%', background: '#1e293b', color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 10px 20px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'transform 0.2s' }}>
+                اعتماد وتسجيل في النظام <CheckCircle size={20} style={{ marginRight: '10px' }} />
+              </button>
 
             </form>
           </div>
