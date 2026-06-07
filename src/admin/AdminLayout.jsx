@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type } from 'lucide-react';
+import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import './AdminLayout.css';
 
@@ -46,6 +46,10 @@ const AdminLayout = () => {
           <NavLink to="/adminmt/contact" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Type size={20} />
             بيانات التواصل
+          </NavLink>
+          <NavLink to="/adminmt/offers" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+            <Tag size={20} />
+            إدارة العروض
           </NavLink>
           <NavLink to="/adminmt/settings" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Settings size={20} />

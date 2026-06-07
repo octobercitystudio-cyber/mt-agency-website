@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Calendar, Clock, CreditCard, ChevronRight, ChevronLeft, CheckCircle, Clock3, X } from 'lucide-react';
+import { Calendar, Clock, CreditCard, ChevronRight, ChevronLeft, CheckCircle, Clock3, X, Tag } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isAfter, startOfWeek, endOfWeek } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { useData } from '../store/DataContext';
 import './ClientDashboard.css';
 
 const ClientDashboard = () => {
@@ -14,6 +15,7 @@ const ClientDashboard = () => {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { siteData } = useData();
   
   const [activeTab, setActiveTab] = useState('home');
   const [rescheduleModal, setRescheduleModal] = useState({ isOpen: false, booking: null, date: '', time: '' });
@@ -216,6 +218,9 @@ const ClientDashboard = () => {
           </button>
           <button className={`nav-btn ${activeTab === 'finance' ? 'active' : ''}`} onClick={() => setActiveTab('finance')}>
             <span className="icon">💳</span> الحالة المادية
+          </button>
+          <button className={`nav-btn ${activeTab === 'offers' ? 'active' : ''}`} onClick={() => setActiveTab('offers')}>
+            <span className="icon"><Tag size={18}/></span> العروض
           </button>
         </nav>
       </aside>
@@ -431,6 +436,32 @@ const ClientDashboard = () => {
                   </div>
                </div>
             </div>
+          )}
+
+          {activeTab === 'offers' && (
+            <div className="offers-tab">
+               <div className="mt-card premium-glass">
+                  <div className="card-header">
+                    <h3><Tag size={20}/> أحدث العروض والخصومات</h3>
+                  </div>
+                  <div className="card-body">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+                      {siteData?.offers?.filter(o => o.is_active).map(offer => (
+                        <div key={offer.id} style={{ background: 'linear-gradient(135deg, rgba(157, 78, 221, 0.1), rgba(0, 0, 0, 0))', border: '1px solid var(--color-vibrant-purple)', borderRadius: '16px', padding: '2rem', position: 'relative', overflow: 'hidden' }}>
+                          <div style={{ position: 'absolute', top: '-15px', right: '-15px', background: 'var(--color-vibrant-purple)', color: '#fff', padding: '30px 40px 10px', transform: 'rotate(45deg)', fontWeight: 'bold' }}>{offer.discount}</div>
+                          <h4 style={{ fontSize: '1.4rem', color: '#fff', marginBottom: '1rem', width: '80%' }}>{offer.title}</h4>
+                          <p style={{ color: '#c0c0c0', lineHeight: '1.6' }}>{offer.desc}</p>
+                          <button className="btn-modern-primary" style={{ marginTop: '1.5rem', width: '100%' }}>استفد من العرض الآن</button>
+                        </div>
+                      ))}
+                      {(!siteData?.offers || siteData.offers.filter(o => o.is_active).length === 0) && (
+                        <p style={{ textAlign: 'center', color: '#8c8c8c', width: '100%' }}>لا توجد عروض متاحة حالياً.</p>
+                      )}
+                    </div>
+                  </div>
+               </div>
+            </div>
+          )}
 
         </div>
       </main>

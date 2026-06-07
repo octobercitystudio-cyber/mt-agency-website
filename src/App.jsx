@@ -9,6 +9,7 @@ import AdminAbout from './admin/AdminAbout';
 import AdminPortfolio from './admin/AdminPortfolio';
 import AdminStudio from './admin/AdminStudio';
 import AdminContact from './admin/AdminContact';
+import AdminOffers from './admin/AdminOffers';
 import ClientDashboard from './pages/ClientDashboard';
 import { DataProvider, useData } from './store/DataContext';
 import { useLocation } from 'react-router-dom';
@@ -58,6 +59,8 @@ function App() {
             <Route path="portfolio" element={<AdminPortfolio />} />
             <Route path="studio" element={<AdminStudio />} />
             <Route path="contact" element={<AdminContact />} />
+            <Route path="offers" element={<AdminOffers />} />
+            <Route path="settings" element={<div style={{padding: '2rem'}}>إعدادات عامة قيد التطوير...</div>} />
             <Route path="*" element={<div style={{padding: '2rem'}}>قريباً سيتم إضافة هذه الصفحة...</div>} />
           </Route>
         </Routes>
