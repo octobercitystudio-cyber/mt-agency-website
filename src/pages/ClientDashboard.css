@@ -653,6 +653,8 @@
   grid-template-columns: repeat(7, 1fr);
   gap: 10px;
   text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
 }
 
 .calendar-day-header {
