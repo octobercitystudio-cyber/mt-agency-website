@@ -192,9 +192,6 @@ const ClientDashboard = () => {
           <button className={`nav-btn ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>
             <span className="icon">🏠</span> الرئيسية
           </button>
-          <button className={`nav-btn ${activeTab === 'consumption' ? 'active' : ''}`} onClick={() => setActiveTab('consumption')}>
-            <span className="icon">📊</span> الاستهلاك
-          </button>
           <button className={`nav-btn ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>
             <span className="icon">📅</span> المواعيد
           </button>
@@ -311,18 +308,6 @@ const ClientDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'consumption' && (
-            <div className="consumption-tab">
-              <div className="mt-card premium-glass">
-                <div className="card-header">
-                  <h3><Clock size={20}/> تفاصيل الاستهلاك</h3>
-                </div>
-                <div className="card-body">
-                  <p className="text-silver">تم نقل الرسوم البيانية الاستهلاكية إلى الصفحة الرئيسية لتوضيح كافة التفاصيل.</p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {activeTab === 'schedule' && (
             <div className="schedule-tab">
