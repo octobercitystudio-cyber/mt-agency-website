@@ -11,6 +11,7 @@ const ClientDashboard = () => {
   const [client, setClient] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [services, setServices] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -20,6 +21,7 @@ const ClientDashboard = () => {
   const [timeFilter, setTimeFilter] = useState('all');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [dayModal, setDayModal] = useState({ isOpen: false, date: null, bookingsForDay: [] });
+  const [paymentModal, setPaymentModal] = useState({ isOpen: false, amount: '', file: null });
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -54,6 +56,14 @@ const ClientDashboard = () => {
         .select('*');
         
       setServices(servicesData || []);
+
+      const { data: paymentsData } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('client_name', clientData.name)
+        .order('id', { ascending: false });
+      
+      setPayments(paymentsData || []);
     } catch (err) {
       setError('حدث خطأ في الاتصال بالخادم.');
     }
@@ -352,33 +362,20 @@ const ClientDashboard = () => {
                         <div 
                           key={idx} 
                           className={`calendar-cell ${isSelectedMonth ? '' : 'disabled'} ${hasBooking ? 'has-booking' : ''}`}
-                          onClick={() => hasBooking && setDayModal({ isOpen: true, date: day, bookingsForDay: dayBookings })}
-                        >
-                          <span className="day-number">{format(day, 'd')}</span>
-                          {hasBooking && <div className="booking-dot"></div>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'finance' && primaryPackage && (
+                      {activeTab === 'finance' && primaryPackage && (
             <div className="finance-tab">
-               <div className="mt-card premium-glass">
+               <div className="mt-card premium-glass mb-4">
                   <div className="card-header">
-                    <h3><CreditCard size={20}/> الحالة المادية</h3>
+                    <h3><CreditCard size={20}/> الرسوم البيانية للحالة المادية</h3>
                   </div>
-                  <div className="card-body">
-                    <div className="finance-row">
-                      <div className="finance-box">
+                  <div className="card-body" style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center' }}>
+                    <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      <div className="finance-box" style={{ background: 'rgba(255,255,255,0.05)' }}>
                         <span>إجمالي التكلفة</span>
                         <strong>{cost} ج</strong>
                       </div>
                       <div className="finance-box box-paid">
-                        <span>المدفوع</span>
+                        <span>المدفوع الكلي</span>
                         <strong>{primaryPackage.paid} ج</strong>
                       </div>
                       <div className="finance-box box-debt">
@@ -386,13 +383,55 @@ const ClientDashboard = () => {
                         <strong>{remainingCost} ج</strong>
                       </div>
                     </div>
-                    {remainingCost > 0 && (
-                      <button className="btn-modern-primary w-100 mt-4">سداد الدفعة المتبقية ورفع الإيصال</button>
-                    )}
+                    <div style={{ flex: '1 1 300px', height: '250px', position: 'relative' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie 
+                            data={[{name: 'المدفوع', value: parseFloat(primaryPackage.paid) || 0}, {name: 'المتبقي', value: remainingCost > 0 ? remainingCost : 0}]} 
+                            innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none"
+                          >
+                            <Cell fill="#2ed573" />
+                            <Cell fill="#ff4757" />
+                          </Pie>
+                          <Tooltip contentStyle={{backgroundColor: '#1e142e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px'}}/>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+               </div>
+
+               <div className="mt-card premium-glass">
+                  <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3>سجل الدفعات السابقة</h3>
+                    <button className="btn-modern-primary" style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem' }} onClick={() => setPaymentModal({ isOpen: true, amount: '', file: null })}>
+                      + إضافة مبلغ مالي
+                    </button>
+                  </div>
+                  <div className="table-responsive">
+                    <table className="mt-table">
+                      <thead>
+                        <tr>
+                          <th>التاريخ</th>
+                          <th>المبلغ</th>
+                          <th>الحالة</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payments.length > 0 ? payments.map((p, i) => (
+                          <tr key={i}>
+                            <td dir="ltr">{new Date(p.created_at).toLocaleDateString('ar-EG')}</td>
+                            <td className="text-neon"><strong>{p.amount} ج</strong></td>
+                            <td><span className="status-badge badge-green">مكتمل</span></td>
+                          </tr>
+                        )) : (
+                          <tr><td colSpan="3" style={{ textAlign: 'center', padding: '2rem', color: '#8c8c8c' }}>لم يتم تسجيل دفعات بعد</td></tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                </div>
             </div>
-          )}
+
         </div>
       </main>
 
@@ -438,6 +477,34 @@ const ClientDashboard = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add Payment Modal */}
+      {paymentModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content premium-glass">
+            <h3>إضافة دفعة مالية</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              setPayments([{ amount: paymentModal.amount, created_at: new Date().toISOString() }, ...payments]);
+              setPaymentModal({ isOpen: false, amount: '', file: null });
+              alert('تم رفع الإيصال بانتظار المراجعة من الإدارة!');
+            }}>
+              <div className="form-group">
+                <label>المبلغ (جنية):</label>
+                <input type="number" required value={paymentModal.amount} onChange={e => setPaymentModal({...paymentModal, amount: e.target.value})} placeholder="مثال: 1500" />
+              </div>
+              <div className="form-group">
+                <label>إيصال التحويل (صورة الاسكرين):</label>
+                <input type="file" accept="image/*" required onChange={e => setPaymentModal({...paymentModal, file: e.target.files[0]})} style={{ padding: '0.5rem' }} />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-cancel" onClick={() => setPaymentModal({ isOpen: false, amount: '', file: null })}>إلغاء</button>
+                <button type="submit" className="btn-modern-primary">تأكيد ورفع</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
