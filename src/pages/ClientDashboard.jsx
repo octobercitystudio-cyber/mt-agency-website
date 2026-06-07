@@ -172,9 +172,9 @@ const ClientDashboard = () => {
     const bDate = new Date(b.date);
     
     if (timeFilter === 'last_shoot') {
-      const pastBookings = bookings.filter(bk => new Date(bk.date) <= now).sort((a,b) => new Date(b.date) - new Date(a.date));
-      if(pastBookings.length === 0) return false;
-      return isSameDay(bDate, new Date(pastBookings[0].date));
+      const pastShoots = bookings.filter(bk => bk.actual_hours && bk.actual_hours > 0).sort((a,b) => new Date(b.date) - new Date(a.date));
+      if(pastShoots.length === 0) return false;
+      return isSameDay(bDate, new Date(pastShoots[0].date));
     }
     
     if (timeFilter === 'week') {
