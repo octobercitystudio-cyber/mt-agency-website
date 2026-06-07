@@ -29,12 +29,40 @@ const ERPClients = () => {
   const [financeMethod, setFinanceMethod] = useState('كاش');
   const [whatsappMsg, setWhatsappMsg] = useState('');
 
+  // Active Packages Data
+  const [activePackages, setActivePackages] = useState([]);
+  const [systemServices, setSystemServices] = useState([]);
+
   // Bulk Edit State
   const [selectedIds, setSelectedIds] = useState([]);
 
   useEffect(() => {
     fetchClients();
+    fetchServices();
   }, []);
+
+  const fetchServices = async () => {
+    const { data } = await supabase.from('services').select('*');
+    if (data) setSystemServices(data);
+  };
+
+  useEffect(() => {
+    if (selectedClient) {
+      fetchActivePackages(selectedClient.name);
+    } else {
+      setActivePackages([]);
+    }
+  }, [selectedClient]);
+
+  const fetchActivePackages = async (clientName) => {
+    const { data } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('client_name', clientName)
+      .eq('status', 'نشط')
+      .order('id', { ascending: false });
+    if (data) setActivePackages(data);
+  };
 
   const fetchClients = async () => {
     setLoading(true);
@@ -350,8 +378,65 @@ const ERPClients = () => {
                 </div>
               )}
 
+              {/* Active Packages Cards */}
+              {activePackages.length > 0 && (
+                <div style={{ marginTop: '10px' }}>
+                  <h5 style={{ color: 'var(--erp-text-muted)', fontWeight: 'bold', margin: '0 0 10px 0' }}>الباقات والخدمات النشطة</h5>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    {activePackages.map(pkg => {
+                      const serviceDef = systemServices.find(s => s.name === pkg.service) || {};
+                      const totalHours = serviceDef.total_hours || 0;
+                      const totalReels = serviceDef.total_reels || 0;
+                      const hoursPercent = totalHours > 0 ? Math.min(100, (pkg.actual_hours / totalHours) * 100) : 0;
+                      const reelsPercent = totalReels > 0 ? Math.min(100, (pkg.actual_reels / totalReels) * 100) : 0;
+                      
+                      return (
+                        <div key={pkg.id} style={{ background: 'var(--erp-surface)', border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '15px', position: 'relative', overflow: 'hidden' }}>
+                          <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: '4px', background: 'var(--erp-primary)' }}></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <h6 style={{ fontWeight: 'bold', color: 'var(--erp-primary)', margin: 0 }}>{pkg.service}</h6>
+                            <span style={{ fontSize: '0.8rem', background: 'rgba(52, 152, 219, 0.1)', color: '#3498db', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>نشط</span>
+                          </div>
+                          
+                          {totalHours > 0 && (
+                            <div style={{ marginBottom: '10px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>
+                                <span>الساعات المستخدمة</span>
+                                <span><strong style={{ color: 'var(--erp-text-main)' }}>{pkg.actual_hours || 0}</strong> / {totalHours} ساعة</span>
+                              </div>
+                              <div style={{ background: 'var(--erp-border)', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{ background: hoursPercent >= 100 ? '#e74c3c' : 'var(--erp-primary)', height: '100%', width: `${hoursPercent}%`, transition: 'width 0.5s ease' }}></div>
+                              </div>
+                            </div>
+                          )}
+
+                          {totalReels > 0 && (
+                            <div style={{ marginBottom: '10px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>
+                                <span>الريلز المصورة</span>
+                                <span><strong style={{ color: 'var(--erp-text-main)' }}>{pkg.actual_reels || 0}</strong> / {totalReels} فيديو</span>
+                              </div>
+                              <div style={{ background: 'var(--erp-border)', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{ background: reelsPercent >= 100 ? '#e74c3c' : '#2ecc71', height: '100%', width: `${reelsPercent}%`, transition: 'width 0.5s ease' }}></div>
+                              </div>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '15px', marginTop: '10px', fontSize: '0.85rem', color: 'var(--erp-text-muted)' }}>
+                            {(pkg.custom_expiry || pkg.delivery_date) && (
+                              <div>📅 <strong>انتهاء/تسليم:</strong> <span style={{ color: '#e74c3c', direction: 'ltr', display: 'inline-block' }}>{pkg.custom_expiry || pkg.delivery_date}</span></div>
+                            )}
+                            <div>💰 <strong>المدفوع:</strong> <span style={{ color: '#2ecc71' }}>{pkg.payment} ج</span></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* History Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: activePackages.length > 0 ? '10px' : '20px' }}>
                 <h5 style={{ color: 'var(--erp-text-muted)', fontWeight: 'bold', margin: '0 0 5px 0' }}>السجلات التاريخية</h5>
                 <button onClick={() => openHistory('packages')} style={{ background: 'transparent', border: '1px solid var(--erp-border)', color: 'var(--erp-text-main)', padding: '12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold' }}>
                   <History color="var(--erp-primary)" /> سجل الخدمات المنتهية
