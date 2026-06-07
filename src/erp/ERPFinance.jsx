@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { DollarSign, PlusCircle, Trash2, Calendar, Wallet, TrendingUp, TrendingDown, ArrowRightLeft, Users, RefreshCw, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Star, Banknote, Smartphone, Send, UserCheck, Edit, Pen, Receipt, HandCoins, Undo, Scale, Info } from 'lucide-react';
 import { format, parseISO, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
@@ -78,7 +77,6 @@ const ERPFinance = () => {
       const isCurrentMonth = t.date && t.date.startsWith(selectedMonth);
 
       if (isCurrentMonth) {
-        // Month Income & Expense (for Net Profit)
         if (['إيراد', 'سداد سلفة', 'تحويل وارد'].includes(t.type)) {
           if (['إيراد', 'سداد سلفة'].includes(t.type)) total_inc += amt;
           incomes.push(t);
@@ -88,7 +86,6 @@ const ERPFinance = () => {
         }
       }
 
-      // Vault Balances (Global)
       const method = t.method || 'كاش';
       if (balances[method] === undefined) balances[method] = 0;
 
@@ -100,7 +97,6 @@ const ERPFinance = () => {
         balances[method] -= amt;
       }
 
-      // Partner Dues (Global)
       if (t.entity === 'اشرف') {
         if (['مصروف', 'سداد سلفة'].includes(t.type)) ashraf_e1 += amt;
         if (['سداد مستحقات', 'سحب سلفة'].includes(t.type)) ashraf_e2 += amt;
@@ -114,7 +110,6 @@ const ERPFinance = () => {
     const ashraf_due = (ashraf_e1 - ashraf_e2) + safeFloat(appConfig['partner_اشرف_adj'] || 0);
     const marwa_due = (marwa_e1 - marwa_e2) + safeFloat(appConfig['partner_مروة_adj'] || 0);
 
-    // Merge old instapay balances if needed
     const final_instapay = balances['انستاباي'] + balances['إنستاباي (InstaPay)'] + balances['تحويل بنكي'];
 
     return { 
@@ -127,7 +122,6 @@ const ERPFinance = () => {
 
   const { total_inc, total_exp, net_profit, balances, ashraf_due, marwa_due, incomes, expenses } = calculations;
 
-  // Handlers
   const handleAddTransaction = async (e) => {
     e.preventDefault();
     const { error } = await supabase.from('finance').insert([{
@@ -252,7 +246,6 @@ const ERPFinance = () => {
     setSelectedMonth(format(newDate, 'yyyy-MM'));
   };
 
-  // Open Modal Helpers
   const openSettleModal = (partner, maxDue) => {
     setSettleForm({ ...settleForm, partner, amount: maxDue > 0 ? maxDue : '' });
     setModalState(s => ({...s, settleDues: true}));
@@ -286,8 +279,6 @@ const ERPFinance = () => {
         .table-container::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
         
         .month-selector { background: white; border: 1px solid #e2e8f0; border-radius: 50px; padding: 5px; display: inline-flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
-        .month-selector input[type="month"] { border: none; background: transparent; font-weight: 700; color: #2b3674; outline: none; cursor: pointer; text-align: center; }
-        .month-selector input[type="month"]::-webkit-calendar-picker-indicator { display: none; }
         
         .gradient-primary { background: linear-gradient(135deg, #4318ff 0%, #868cff 100%); color: white; }
         .gradient-success { background: linear-gradient(135deg, #10b981 0%, #34d399 100%); color: white; }
@@ -307,34 +298,37 @@ const ERPFinance = () => {
         .due-row:hover td { background-color: #fef3c7 !important; transform: scale(0.99); }
       `}</style>
 
+      {/* Floating Undo Button on Top Left */}
+      <div className="d-flex justify-content-end mb-3">
+        <button className="btn btn-sm no-print shadow-sm" style={{ border: '1px dashed #dc3545', background: '#fff5f5', color: '#dc3545', borderRadius: '50px', padding: '8px 15px', fontWeight: 'bold' }}>
+          <i className="fas fa-undo me-1"></i> تراجع عن آخر عملية
+        </button>
+      </div>
+
       {/* Header Area */}
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
         <div>
           <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>
-            <TrendingUp className="me-2" style={{ color: 'var(--erp-primary)', display: 'inline' }} /> الإدارة المالية
+            الإدارة المالية <i className="fas fa-chart-line ms-2" style={{ color: 'var(--erp-primary)' }}></i>
           </h3>
           <p className="small m-0 mt-1" style={{ color: 'var(--erp-text-muted)' }}>نظرة شاملة على الإيرادات والمصروفات الخاصة بالشركة.</p>
         </div>
         
         <div className="d-flex flex-wrap align-items-center justify-content-center gap-3">
           <div className="month-selector">
-            <button onClick={() => changeMonth(1)} className="btn btn-sm btn-light rounded-circle" style={{ color: 'var(--erp-primary)' }}><ChevronRight size={18} /></button>
-            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="m-0 px-2" />
-            <button onClick={() => changeMonth(-1)} className="btn btn-sm btn-light rounded-circle" style={{ color: 'var(--erp-primary)' }}><ChevronLeft size={18} /></button>
+            <button onClick={() => changeMonth(1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-right"></i></button>
+            <span className="m-0 px-4 fw-bold" style={{ color: '#2b3674' }}>{selectedMonth}</span>
+            <button onClick={() => changeMonth(-1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-left"></i></button>
           </div>
-          
-          <button className="btn btn-sm no-print me-auto shadow-sm" style={{ border: '1px dashed #dc3545', background: '#fff5f5', color: '#dc3545', borderRadius: '50px', padding: '8px 15px', fontWeight: 'bold' }}>
-            <Undo size={16} className="me-1 d-inline" /> تراجع عن آخر عملية
-          </button>
           
           <button className="btn btn-dark rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" onClick={() => window.print()}>
             <i className="fas fa-print me-2"></i> طباعة
           </button>
           <button className="btn btn-info text-dark rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" onClick={() => setModalState({...modalState, transfer: true})}>
-            <ArrowRightLeft size={18} className="me-2" /> تحويل رصيد
+            <i className="fas fa-exchange-alt me-2"></i> تحويل رصيد
           </button>
           <button className="btn rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" style={{ background: 'var(--erp-primary)', color: 'white' }} onClick={() => setModalState({...modalState, addTransaction: true})}>
-            <PlusCircle size={18} className="me-2" /> عملية مالية
+            <i className="fas fa-plus-circle me-2"></i> عملية مالية
           </button>
         </div>
       </div>
@@ -343,7 +337,7 @@ const ERPFinance = () => {
       <div className="row g-4 mb-4">
         <div className="col-md-4">
           <div className="card border-0 rounded-4 p-4 h-100 gradient-success shadow-sm wallet-card position-relative overflow-hidden">
-            <ArrowUp className="position-absolute end-0 top-0 mt-3 me-3 opacity-25" size={80} />
+            <i className="fas fa-arrow-up position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '80px', transform: 'scaleX(-1)' }}></i>
             <div className="position-relative z-1">
               <p className="mb-1 fw-bold opacity-75">إيرادات شهر ({format(parseISO(`${selectedMonth}-01`), 'MM-yyyy')})</p>
               <h2 className="fw-bold m-0">{total_inc.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
@@ -352,7 +346,7 @@ const ERPFinance = () => {
         </div>
         <div className="col-md-4">
           <div className="card border-0 rounded-4 p-4 h-100 gradient-danger shadow-sm wallet-card position-relative overflow-hidden">
-            <ArrowDown className="position-absolute end-0 top-0 mt-3 me-3 opacity-25" size={80} />
+            <i className="fas fa-arrow-down position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '80px', transform: 'scaleX(-1)' }}></i>
             <div className="position-relative z-1">
               <p className="mb-1 fw-bold opacity-75">مصروفات شهر ({format(parseISO(`${selectedMonth}-01`), 'MM-yyyy')})</p>
               <h2 className="fw-bold m-0">{total_exp.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
@@ -361,7 +355,7 @@ const ERPFinance = () => {
         </div>
         <div className="col-md-4">
           <div className="card border-0 rounded-4 p-4 h-100 gradient-primary shadow-sm wallet-card position-relative overflow-hidden">
-            <Star className="position-absolute end-0 top-0 mt-3 me-3 opacity-25" size={80} />
+            <i className="fas fa-star position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '80px' }}></i>
             <div className="position-relative z-1">
               <p className="mb-1 fw-bold opacity-75">صافي الأرباح للشهر</p>
               <h2 className="fw-bold m-0">{net_profit.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
@@ -372,16 +366,16 @@ const ERPFinance = () => {
 
       {/* Vault Balances */}
       <h5 className="fw-bold mb-3" style={{ color: 'var(--erp-text-main)' }}>
-        <Wallet className="me-2" style={{ color: 'var(--erp-text-muted)', display: 'inline' }} /> أرصدة الخزائن الحالية (تراكمي)
+        <i className="fas fa-wallet ms-2 text-muted"></i> أرصدة الخزائن الحالية (تراكمي)
       </h5>
       <div className="row g-4 mb-4">
         <div className="col-md-4">
           <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-start mb-3">
               <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', padding: '15px', borderRadius: '50%' }}>
-                <Banknote size={24} />
+                <i className="fas fa-money-bill-wave fs-4"></i>
               </div>
-              {isAdmin && <button className="btn btn-sm btn-light text-primary rounded-circle no-print" title="تسوية الرصيد"><Pen size={14} /></button>}
+              {isAdmin && <button className="btn btn-sm btn-light text-primary rounded-circle no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>صندوق الكاش (النقدية)</p>
             <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.cash.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
@@ -391,9 +385,9 @@ const ERPFinance = () => {
           <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-start mb-3">
               <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', padding: '15px', borderRadius: '50%' }}>
-                <Smartphone size={24} />
+                <i className="fas fa-mobile-alt fs-4"></i>
               </div>
-              {isAdmin && <button className="btn btn-sm btn-light text-danger rounded-circle no-print" title="تسوية الرصيد"><Pen size={14} /></button>}
+              {isAdmin && <button className="btn btn-sm btn-light text-danger rounded-circle no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>محفظة فودافون كاش</p>
             <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.vodafone.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
@@ -403,9 +397,9 @@ const ERPFinance = () => {
           <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-start mb-3">
               <div style={{ background: '#f4f0ff', color: '#6f42c1', padding: '15px', borderRadius: '50%' }}>
-                <Send size={24} />
+                <i className="fas fa-paper-plane fs-4"></i>
               </div>
-              {isAdmin && <button className="btn btn-sm btn-light rounded-circle no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><Pen size={14} /></button>}
+              {isAdmin && <button className="btn btn-sm btn-light rounded-circle no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><i className="fas fa-pen"></i></button>}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>حساب البنك (InstaPay)</p>
             <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.instapay.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
@@ -423,12 +417,12 @@ const ERPFinance = () => {
             <div className="card border-0 shadow-sm rounded-4 p-3 d-flex flex-row align-items-center justify-content-between wallet-card" style={{ background: 'var(--erp-surface)' }}>
               <div className="d-flex align-items-center">
                 <div style={{ background: 'var(--erp-bg)', padding: '15px', borderRadius: '50%', marginRight: '15px' }}>
-                  <i className="fas fa-user" style={{ color: 'var(--erp-text-main)', fontSize: '20px' }}></i>
+                  <i className="fas fa-user fs-5 text-dark"></i>
                 </div>
                 <div>
                   <h6 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>
                     {partner.name}
-                    {isAdmin && <button className="btn btn-sm btn-link p-0 ms-2" style={{ color: 'var(--erp-primary)' }} onClick={() => openAdjustPartnerModal(partner.key, partner.due)}><Edit size={14} /></button>}
+                    {isAdmin && <button className="btn btn-sm btn-link p-0 ms-2" style={{ color: 'var(--erp-primary)' }} onClick={() => openAdjustPartnerModal(partner.key, partner.due)}><i className="fas fa-edit"></i></button>}
                   </h6>
                   <small style={{ color: 'var(--erp-text-muted)' }}>مستحقات متأخرة أو سلف (تراكمية)</small>
                 </div>
@@ -454,7 +448,7 @@ const ERPFinance = () => {
         {/* Incomes */}
         <div className="col-xl-6">
           <div className="d-flex justify-content-between align-items-center mb-3 px-2">
-            <h5 className="fw-bold m-0" style={{ color: 'var(--erp-success)' }}><ArrowDown size={18} className="me-2 d-inline" /> سجل الواردات (إيرادات)</h5>
+            <h5 className="fw-bold m-0" style={{ color: 'var(--erp-success)' }}><i className="fas fa-arrow-down me-2"></i> سجل الواردات (إيرادات)</h5>
             <span className="badge rounded-pill shadow-sm py-2 px-3" style={{ background: 'var(--erp-success)', color: 'white' }}>{incomes.length} عملية</span>
           </div>
           <div className="card border-0 shadow-sm rounded-4 overflow-hidden h-100 bg-income-container">
@@ -487,8 +481,8 @@ const ERPFinance = () => {
                           <span className="fw-bold fs-6 d-block" style={{ color: 'var(--erp-success)' }}>+{i.amount.toLocaleString()} ج</span>
                           {isAdmin && (
                             <div className="mt-2 d-flex gap-2 justify-content-center">
-                              <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><Edit size={14} /></button>
-                              <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(i.id)} title="حذف"><Trash2 size={14} /></button>
+                              <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><i className="fas fa-edit"></i></button>
+                              <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(i.id)} title="حذف"><i className="fas fa-trash"></i></button>
                             </div>
                           )}
                         </td>
@@ -505,7 +499,7 @@ const ERPFinance = () => {
         {/* Expenses */}
         <div className="col-xl-6">
           <div className="d-flex justify-content-between align-items-center mb-3 px-2">
-            <h5 className="fw-bold m-0" style={{ color: 'var(--erp-danger)' }}><ArrowUp size={18} className="me-2 d-inline" /> سجل الصادر (مصروفات)</h5>
+            <h5 className="fw-bold m-0" style={{ color: 'var(--erp-danger)' }}><i className="fas fa-arrow-up me-2"></i> سجل الصادر (مصروفات)</h5>
             <span className="badge rounded-pill shadow-sm py-2 px-3" style={{ background: 'var(--erp-danger)', color: 'white' }}>{expenses.length} عملية</span>
           </div>
           <div className="card border-0 shadow-sm rounded-4 overflow-hidden h-100 bg-expense-container">
@@ -542,8 +536,8 @@ const ERPFinance = () => {
                           <span className="fw-bold fs-6 d-block" style={{ color: e.type === 'سداد مستحقات' ? 'var(--erp-text-main)' : 'var(--erp-danger)' }}>-{e.amount.toLocaleString()} ج</span>
                           {isAdmin && (
                             <div className="mt-2 d-flex gap-2 justify-content-center">
-                              <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><Edit size={14} /></button>
-                              <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(e.id)} title="حذف"><Trash2 size={14} /></button>
+                              <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><i className="fas fa-edit"></i></button>
+                              <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(e.id)} title="حذف"><i className="fas fa-trash"></i></button>
                             </div>
                           )}
                         </td>
@@ -565,7 +559,7 @@ const ERPFinance = () => {
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, addTransaction: false})}>
           <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><Receipt className="me-2" /> تسجيل عملية مالية</h5>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-file-invoice-dollar me-2"></i> تسجيل عملية مالية</h5>
             </div>
             <form onSubmit={handleAddTransaction} className="p-4 bg-white">
               <div className="row g-3">
@@ -615,7 +609,7 @@ const ERPFinance = () => {
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, transfer: false})}>
           <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header border-0 p-4" style={{ background: '#0dcaf0', color: '#000' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><ArrowRightLeft className="me-2" /> تحويل رصيد بين المحافظ</h5>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-exchange-alt me-2"></i> تحويل رصيد بين المحافظ</h5>
             </div>
             <form onSubmit={handleTransfer} className="p-4 bg-white">
               <div className="row g-3">
@@ -655,7 +649,7 @@ const ERPFinance = () => {
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, settleDues: false})}>
           <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-success)', color: 'white' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><HandCoins className="me-2" /> سداد مستحقات شريك</h5>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-hand-holding-usd me-2"></i> سداد مستحقات شريك</h5>
             </div>
             <form onSubmit={handleSettle} className="p-4 bg-white text-center">
               <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سداد لـ أ. {settleForm.partner}</h5>
@@ -684,7 +678,7 @@ const ERPFinance = () => {
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, advance: false})}>
           <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-danger)', color: 'white' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><HandCoins className="me-2" /> سحب سلفة للشريك</h5>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-hand-holding-usd me-2"></i> سحب سلفة للشريك</h5>
             </div>
             <form onSubmit={handleAdvance} className="p-4 bg-white text-center">
               <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سلفة لـ أ. {advanceForm.partner}</h5>
@@ -714,7 +708,7 @@ const ERPFinance = () => {
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, payAdvance: false})}>
           <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><Undo className="me-2" /> سداد سلفة الشريك</h5>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-undo me-2"></i> سداد سلفة الشريك</h5>
             </div>
             <form onSubmit={handlePayAdvance} className="p-4 bg-white text-center">
               <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سداد من أ. {payAdvanceForm.partner}</h5>
@@ -743,7 +737,7 @@ const ERPFinance = () => {
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, adjustPartner: false})}>
           <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header border-0 p-4" style={{ background: '#1e293b', color: 'white' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><Scale className="me-2" style={{ color: 'var(--erp-warning)' }} /> تعديل إداري لمستحقات الشريك</h5>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-balance-scale me-2 text-warning"></i> تعديل إداري لمستحقات الشريك</h5>
             </div>
             <form onSubmit={handleAdjustDue} className="p-4 bg-white text-center">
               <div className="p-3 rounded-4 mb-4 border" style={{ background: 'var(--erp-bg)' }}>
@@ -755,7 +749,7 @@ const ERPFinance = () => {
                 <input type="number" step="0.01" className="form-control border-0 py-3 fs-2 fw-bold text-center rounded-4" style={{ background: 'rgba(255, 193, 7, 0.2)', color: '#000' }} value={adjustDueForm.new_due} onChange={e => setAdjustDueForm({...adjustDueForm, new_due: e.target.value})} required placeholder="مثال: 0 لتصفير الحساب" />
               </div>
               <div className="alert border-0 rounded-4 small fw-bold mb-4 text-start" style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#856404' }}>
-                <Info className="me-1 d-inline" size={16} /> سيتم إنشاء عملية "تسوية إدارية" خفية لضبط الدفاتر بحيث يصبح الرصيد مساوياً للرقم الجديد.
+                <i className="fas fa-info-circle me-1"></i> سيتم إنشاء عملية "تسوية إدارية" خفية لضبط الدفاتر بحيث يصبح الرصيد مساوياً للرقم الجديد.
               </div>
               <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow" style={{ background: '#1e293b', color: 'white' }}>اعتماد الرصيد الجديد</button>
             </form>
