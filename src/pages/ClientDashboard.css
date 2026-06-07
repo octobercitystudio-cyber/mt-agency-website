@@ -646,3 +646,77 @@
 .package-title-bar h3 {
   font-size: 1.5rem;
 }
+
+/* Custom Calendar Grid */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  text-align: center;
+}
+
+.calendar-day-header {
+  color: #8c8c8c;
+  font-size: 0.9rem;
+  font-weight: bold;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  margin-bottom: 10px;
+}
+
+.calendar-cell {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #e0e0e0;
+}
+
+.calendar-cell:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+}
+
+.calendar-cell.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: transparent;
+  border-color: transparent;
+}
+
+.calendar-cell.has-booking {
+  background: rgba(157, 78, 221, 0.15);
+  border-color: var(--color-vibrant-purple);
+  color: #fff;
+  font-weight: bold;
+}
+
+.calendar-cell.has-booking:hover {
+  background: var(--color-vibrant-purple);
+  box-shadow: 0 5px 15px rgba(157, 78, 221, 0.4);
+}
+
+.day-number {
+  font-size: 1.1rem;
+}
+
+.booking-dot {
+  position: absolute;
+  bottom: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-neon-purple);
+  box-shadow: 0 0 5px var(--color-neon-purple);
+}
+
+.calendar-cell.has-booking:hover .booking-dot {
+  background: #fff;
+  box-shadow: 0 0 5px #fff;
+}

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Calendar, Clock, CreditCard, ChevronRight, CheckCircle, Clock3 } from 'lucide-react';
+import { Calendar, Clock, CreditCard, ChevronRight, ChevronLeft, CheckCircle, Clock3, X } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isAfter, startOfWeek, endOfWeek } from 'date-fns';
+import { ar } from 'date-fns/locale';
 import './ClientDashboard.css';
 
 const ClientDashboard = () => {
@@ -16,6 +18,8 @@ const ClientDashboard = () => {
   const [rescheduleModal, setRescheduleModal] = useState({ isOpen: false, booking: null, date: '', time: '' });
   const [pendingRequests, setPendingRequests] = useState([]); // Simulate database for pending requests
   const [timeFilter, setTimeFilter] = useState('all');
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [dayModal, setDayModal] = useState({ isOpen: false, date: null, bookingsForDay: [] });
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -181,6 +185,11 @@ const ClientDashboard = () => {
     hours: b.actual_hours || 0
   })).reverse();
 
+  // Calculate Next Appointment
+  const nextAppointment = [...bookings]
+    .filter(b => isAfter(new Date(b.date), new Date()) || isSameDay(new Date(b.date), new Date()))
+    .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+
   return (
     <div className="mt-dashboard">
       {/* Sidebar */}
@@ -308,55 +317,49 @@ const ClientDashboard = () => {
             </div>
           )}
 
-
           {activeTab === 'schedule' && (
             <div className="schedule-tab">
+              {/* Next Appointment Hero */}
+              <div className="mt-card premium-glass mb-4 glow-purple" style={{ textAlign: 'center', padding: '2rem' }}>
+                <h3 style={{ color: '#8c8c8c', margin: '0 0 0.5rem', fontSize: '1.2rem' }}>الموعد القادم</h3>
+                {nextAppointment ? (
+                  <div>
+                    <strong style={{ fontSize: '2rem', color: '#fff', display: 'block' }}>{getDayName(nextAppointment.date)}</strong>
+                    <span style={{ fontSize: '1.2rem', color: 'var(--color-neon-purple)' }} dir="ltr">{nextAppointment.start_time} - {nextAppointment.end_time}</span>
+                  </div>
+                ) : (
+                  <strong style={{ fontSize: '1.5rem', color: '#fff' }}>لا توجد مواعيد قادمة</strong>
+                )}
+              </div>
+
+              {/* Calendar Grid */}
               <div className="mt-card premium-glass">
-                <div className="card-header">
-                  <h3>جدول المواعيد وتغييرها</h3>
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="btn-action"><ChevronRight size={20}/></button>
+                  <h3 style={{ margin: 0, fontSize: '1.5rem', color: '#fff' }}>{format(currentMonth, 'MMMM yyyy', { locale: ar })}</h3>
+                  <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="btn-action"><ChevronLeft size={20}/></button>
                 </div>
-                <div className="table-responsive">
-                  <table className="mt-table">
-                    <thead>
-                      <tr>
-                        <th>اليوم والتاريخ</th>
-                        <th>وقت الجلسة</th>
-                        <th>الباقة (الخدمة)</th>
-                        <th>حالة الموعد</th>
-                        <th>إجراءات</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bookings.map(b => {
-                        const isPending = pendingRequests.some(pr => pr.id === b.id);
-                        return (
-                          <tr key={b.id}>
-                            <td>{getDayName(b.date)}</td>
-                            <td dir="ltr">{b.start_time} - {b.end_time}</td>
-                            <td>{b.service}</td>
-                            <td>
-                              {isPending ? (
-                                <span className="status-badge badge-pending"><Clock3 size={14}/> في انتظار المراجعة</span>
-                              ) : b.status === 'ملغي' ? (
-                                <span className="status-badge badge-red">ملغي</span>
-                              ) : (
-                                <span className="status-badge badge-green"><CheckCircle size={14}/> {b.status}</span>
-                              )}
-                            </td>
-                            <td>
-                              <button 
-                                className="btn-action" 
-                                disabled={isPending || b.status === 'ملغي'}
-                                onClick={() => setRescheduleModal({ isOpen: true, booking: b, date: '', time: '' })}
-                              >
-                                تغيير الموعد
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="card-body">
+                  <div className="calendar-grid">
+                    {['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'].map((day, i) => (
+                      <div key={i} className="calendar-day-header">{day}</div>
+                    ))}
+                    {eachDayOfInterval({ start: startOfWeek(startOfMonth(currentMonth), {weekStartsOn: 0}), end: endOfWeek(endOfMonth(currentMonth), {weekStartsOn: 0}) }).map((day, idx) => {
+                      const dayBookings = bookings.filter(b => isSameDay(new Date(b.date), day));
+                      const isSelectedMonth = isSameMonth(day, currentMonth);
+                      const hasBooking = dayBookings.length > 0;
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`calendar-cell ${isSelectedMonth ? '' : 'disabled'} ${hasBooking ? 'has-booking' : ''}`}
+                          onClick={() => hasBooking && setDayModal({ isOpen: true, date: day, bookingsForDay: dayBookings })}
+                        >
+                          <span className="day-number">{format(day, 'd')}</span>
+                          {hasBooking && <div className="booking-dot"></div>}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -398,7 +401,7 @@ const ClientDashboard = () => {
         <div className="modal-overlay">
           <div className="modal-content premium-glass">
             <h3>تغيير موعد الجلسة</h3>
-            <p>الجلسة الحالية: {rescheduleModal.booking.date} ({rescheduleModal.booking.start_time})</p>
+            <p>الجلسة الحالية: {rescheduleModal.booking.date} (<span dir="ltr">{rescheduleModal.booking.start_time}</span>)</p>
             <form onSubmit={submitReschedule}>
               <div className="form-group">
                 <label>التاريخ المقترح:</label>
@@ -413,6 +416,28 @@ const ClientDashboard = () => {
                 <button type="submit" className="btn-modern-primary">إرسال طلب التغيير</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Day Details Modal */}
+      {dayModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content premium-glass">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0, color: '#fff' }}>تفاصيل موعد {format(dayModal.date, 'EEEE d MMMM', { locale: ar })}</h3>
+              <button className="btn-action" onClick={() => setDayModal({ isOpen: false, date: null, bookingsForDay: [] })} style={{ padding: '0.3rem', borderRadius: '50%' }}><X size={20}/></button>
+            </div>
+            {dayModal.bookingsForDay.map(b => (
+              <div key={b.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: '16px', marginBottom: '1rem' }}>
+                <p style={{ margin: '0 0 0.5rem', color: '#fff', fontSize: '1.3rem', fontWeight: 'bold' }}>الساعة: <span className="text-neon" dir="ltr">{b.start_time} - {b.end_time}</span></p>
+                <p style={{ margin: '0 0 1.5rem', color: '#8c8c8c' }}>الباقة: {b.service}</p>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button className="btn-modern-primary" style={{ flex: 1, padding: '0.8rem', fontSize: '1rem' }} onClick={() => { setDayModal({...dayModal, isOpen: false}); setRescheduleModal({ isOpen: true, booking: b, date: '', time: '' }); }}>تغيير الموعد</button>
+                  <button className="btn-cancel" style={{ flex: 1, padding: '0.8rem', fontSize: '1rem', background: 'rgba(255,71,87,0.1)', color: '#ff4757', borderColor: 'rgba(255,71,87,0.3)' }} onClick={() => { setPendingRequests([...pendingRequests, {id: b.id, cancel: true}]); setDayModal({...dayModal, isOpen: false}); }}>إلغاء الموعد</button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
