@@ -13,7 +13,7 @@ const UnifiedLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { login } = useData();
+  const { loginErp } = useData();
   const navigate = useNavigate();
 
   const handleTeacherLogin = async (e) => {
@@ -44,8 +44,8 @@ const UnifiedLogin = () => {
 
   const handleAdminLogin = (e) => {
     e.preventDefault();
-    if (login(username, password)) {
-      navigate('/adminmt');
+    if (loginErp(username, password)) {
+      navigate('/erp');
     } else {
       setError('اسم المستخدم أو كلمة المرور غير صحيحة');
     }

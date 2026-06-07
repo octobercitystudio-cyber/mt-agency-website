@@ -89,6 +89,10 @@ export const DataProvider = ({ children }) => {
     return localStorage.getItem('mt_admin_auth') === 'true';
   });
 
+  const [isErpAuth, setIsErpAuth] = useState(() => {
+    return localStorage.getItem('mt_erp_auth') === 'true';
+  });
+
   useEffect(() => {
     localStorage.setItem('mt_agency_data_v5', JSON.stringify(siteData));
   }, [siteData]);
@@ -112,13 +116,30 @@ export const DataProvider = ({ children }) => {
     localStorage.removeItem('mt_admin_auth');
   };
 
+  const loginErp = (username, password) => {
+    if (username === 'admin' && password === 'admin123') {
+      setIsErpAuth(true);
+      localStorage.setItem('mt_erp_auth', 'true');
+      return true;
+    }
+    return false;
+  };
+
+  const logoutErp = () => {
+    setIsErpAuth(false);
+    localStorage.removeItem('mt_erp_auth');
+  };
+
   return (
     <DataContext.Provider value={{ 
       siteData, 
       updateSection, 
       isAdminAuth, 
       login, 
-      logout 
+      logout,
+      isErpAuth,
+      loginErp,
+      logoutErp
     }}>
       {children}
     </DataContext.Provider>

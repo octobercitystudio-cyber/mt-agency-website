@@ -3,7 +3,12 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import UnifiedLogin from './pages/UnifiedLogin';
 import AdminLayout from './admin/AdminLayout';
+import AdminLogin from './admin/AdminLogin';
 import AdminServices from './admin/AdminServices';
+import ERPLayout from './erp/ERPLayout';
+import ERPClients from './erp/ERPClients';
+import ERPBookings from './erp/ERPBookings';
+import ERPFinance from './erp/ERPFinance';
 import AdminHero from './admin/AdminHero';
 import AdminAbout from './admin/AdminAbout';
 import AdminPortfolio from './admin/AdminPortfolio';
@@ -18,6 +23,12 @@ import { useLocation } from 'react-router-dom';
 const ProtectedRoute = ({ children }) => {
   const { isAdminAuth } = useData();
   if (!isAdminAuth) return <Navigate to="/adminmt/login" replace />;
+  return children;
+};
+
+const ErpProtectedRoute = ({ children }) => {
+  const { isErpAuth } = useData();
+  if (!isErpAuth) return <Navigate to="/login" replace />;
   return children;
 };
 
@@ -44,7 +55,20 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<UnifiedLogin />} />
           <Route path="/dashboard" element={<ClientDashboard />} />
-          <Route path="/adminmt/login" element={<Navigate to="/login" replace />} />
+          <Route path="/adminmt/login" element={<AdminLogin />} />
+          <Route 
+            path="/erp/*" 
+            element={
+              <ErpProtectedRoute>
+                <ERPLayout />
+              </ErpProtectedRoute>
+            }
+          >
+            <Route index element={<Navigate to="clients" replace />} />
+            <Route path="clients" element={<ERPClients />} />
+            <Route path="bookings" element={<ERPBookings />} />
+            <Route path="finance" element={<ERPFinance />} />
+          </Route>
           <Route 
             path="/adminmt/*" 
             element={
