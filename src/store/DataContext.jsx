@@ -64,7 +64,11 @@ const defaultData = {
   },
   offers: [
     { id: 1, title: 'خصم 20% على باقة 50 ساعة', discount: '20%', desc: 'احجز الآن واستفد من الخصم لفترة محدودة على باقة الـ 50 ساعة التصوير.', is_active: true }
-  ]
+  ],
+  adminCredentials: {
+    username: 'admin',
+    password: 'admin123'
+  }
 };
 
 const DataContext = createContext();
@@ -102,8 +106,8 @@ export const DataProvider = ({ children }) => {
   };
 
   const login = (username, password) => {
-    // Simple mock auth for demonstration
-    if (username === 'admin' && password === 'admin123') {
+    const creds = siteData.adminCredentials || { username: 'admin', password: 'admin123' };
+    if (username === creds.username && password === creds.password) {
       setIsAdminAuth(true);
       localStorage.setItem('mt_admin_auth', 'true');
       return true;
@@ -117,7 +121,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const loginErp = (username, password) => {
-    if (username === 'admin' && password === 'admin123') {
+    if (username === 'octobercitystudio@gmail.com' && password === 'Octcitystd@2019') {
       setIsErpAuth(true);
       localStorage.setItem('mt_erp_auth', 'true');
       return true;
