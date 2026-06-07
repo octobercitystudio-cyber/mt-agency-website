@@ -563,22 +563,27 @@
 
 /* Hero Stats Grid - Premium Glass Widgets */
 .hero-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.5rem;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
 }
 
 .stat-card {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1.5rem;
-  border-radius: 20px;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.2rem 1rem;
+  border-radius: 16px;
   background: rgba(20, 15, 30, 0.6);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.05);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  min-width: 150px;
 }
 
 .stat-card:hover {
@@ -589,28 +594,32 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 50px;
-  height: 50px;
-  border-radius: 14px;
+  width: 45px;
+  height: 45px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   color: #fff;
+  flex-shrink: 0;
 }
 
 .stat-info {
   display: flex;
   flex-direction: column;
+  text-align: right;
 }
 
 .stat-label {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #8c8c8c;
   margin-bottom: 0.2rem;
+  white-space: nowrap;
 }
 
 .stat-value {
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: 800;
   color: #fff;
+  white-space: nowrap;
 }
 
 /* Glow Effects for Cards */
