@@ -5,9 +5,11 @@ import { Calendar, Clock, CreditCard, ChevronRight, ChevronLeft, CheckCircle, Cl
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isAfter, startOfWeek, endOfWeek } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useData } from '../store/DataContext';
+import { useNavigate } from 'react-router-dom';
 import './ClientDashboard.css';
 
 const ClientDashboard = () => {
+  const navigate = useNavigate();
   const [phone, setPhone] = useState('');
   const [client, setClient] = useState(null);
   const [bookings, setBookings] = useState([]);
@@ -25,57 +27,65 @@ const ClientDashboard = () => {
   const [dayModal, setDayModal] = useState({ isOpen: false, date: null, bookingsForDay: [] });
   const [paymentModal, setPaymentModal] = useState({ isOpen: false, amount: '', file: null });
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      const { data: clientData, error: clientError } = await supabase
-        .from('clients')
-        .select('*')
-        .or(`phone1.eq.${phone},phone2.eq.${phone}`)
-        .single();
-
-      if (clientError || !clientData) {
-        setError('رقم الهاتف غير مسجل لدينا. يرجى التأكد من الرقم.');
-        setLoading(false);
-        return;
-      }
-
-      setClient(clientData);
-
-      const { data: bookingsData } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('client_name', clientData.name)
-        .order('id', { ascending: false });
-
-      setBookings(bookingsData || []);
-
-      const { data: servicesData } = await supabase
-        .from('services')
-        .select('*');
-        
-      setServices(servicesData || []);
-
-      const { data: paymentsData } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('client_name', clientData.name)
-        .order('id', { ascending: false });
-      
-      setPayments(paymentsData || []);
-    } catch (err) {
-      setError('حدث خطأ في الاتصال بالخادم.');
+  useEffect(() => {
+    const savedPhone = localStorage.getItem('mt_client_phone');
+    if (!savedPhone) {
+      navigate('/login');
+      return;
     }
-    setLoading(false);
-  };
+
+    const fetchClientData = async () => {
+      setLoading(true);
+      try {
+        const { data: clientData, error: clientError } = await supabase
+          .from('clients')
+          .select('*')
+          .or(`phone1.eq.${savedPhone},phone2.eq.${savedPhone}`)
+          .single();
+
+        if (clientError || !clientData) {
+          localStorage.removeItem('mt_client_phone');
+          navigate('/login');
+          return;
+        }
+
+        setClient(clientData);
+
+        const { data: bookingsData } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('client_name', clientData.name)
+          .order('id', { ascending: false });
+
+        setBookings(bookingsData || []);
+
+        const { data: servicesData } = await supabase
+          .from('services')
+          .select('*');
+          
+        setServices(servicesData || []);
+
+        const { data: paymentsData } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('client_name', clientData.name)
+          .order('id', { ascending: false });
+        
+        setPayments(paymentsData || []);
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+      }
+      setLoading(false);
+    };
+
+    fetchClientData();
+  }, [navigate]);
 
   const handleLogout = () => {
     setClient(null);
     setBookings([]);
-    setPhone('');
+    localStorage.removeItem('mt_client_phone');
+    navigate('/login');
   };
 
   const submitReschedule = (e) => {
@@ -84,31 +94,11 @@ const ClientDashboard = () => {
     setRescheduleModal({ isOpen: false, booking: null, date: '', time: '' });
   };
 
-  if (!client) {
-    return (
-      <div className="modern-login-container">
-        <div className="modern-login-box">
-          <div className="brand-logo">MT Agency</div>
-          <h2>بوابة المعلمين 🎓</h2>
-          <p>أدخل رقم الهاتف للوصول للوحة التحكم الخاصة بك</p>
-          <form onSubmit={handleLogin}>
-            <input 
-              type="tel" 
-              placeholder="رقم الهاتف المسجل..." 
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              dir="ltr"
-            />
-            {error && <p className="error-msg">{error}</p>}
-            <button type="submit" className="btn-modern-primary" disabled={loading}>
-              {loading ? 'جاري التحقق...' : 'دخول'}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
+  if (loading && !client) {
+    return <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'var(--bg-dark)'}}>جاري تحميل لوحة التحكم...</div>;
   }
+
+  if (!client) return null;
 
   // Format Helpers
   const formatTime = (decimalHours) => {

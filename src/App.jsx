@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
+import UnifiedLogin from './pages/UnifiedLogin';
 import AdminLayout from './admin/AdminLayout';
-import AdminLogin from './admin/AdminLogin';
 import AdminServices from './admin/AdminServices';
 import AdminHero from './admin/AdminHero';
 import AdminAbout from './admin/AdminAbout';
@@ -42,8 +42,9 @@ function App() {
         <ScrollToTop />
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<UnifiedLogin />} />
           <Route path="/dashboard" element={<ClientDashboard />} />
-          <Route path="/adminmt/login" element={<AdminLogin />} />
+          <Route path="/adminmt/login" element={<Navigate to="/login" replace />} />
           <Route 
             path="/adminmt/*" 
             element={
