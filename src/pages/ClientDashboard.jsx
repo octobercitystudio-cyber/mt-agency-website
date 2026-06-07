@@ -367,7 +367,20 @@ const ClientDashboard = () => {
                         <div 
                           key={idx} 
                           className={`calendar-cell ${isSelectedMonth ? '' : 'disabled'} ${hasBooking ? 'has-booking' : ''}`}
-                      {activeTab === 'finance' && primaryPackage && (
+                          onClick={() => hasBooking && setDayModal({ isOpen: true, date: day, bookingsForDay: dayBookings })}
+                        >
+                          <span className="day-number">{format(day, 'd')}</span>
+                          {hasBooking && <div className="booking-dot"></div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'finance' && primaryPackage && (
             <div className="finance-tab">
                <div className="mt-card premium-glass mb-4">
                   <div className="card-header">
