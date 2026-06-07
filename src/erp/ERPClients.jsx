@@ -113,11 +113,25 @@ const ERPClients = () => {
     
     Object.values(pkgMap).forEach(pkg => {
       const sDef = systemServices.find(s => s.name === pkg.service);
-      if (!sDef) return;
       
-      const totalHours = parseFloat(sDef.total_hours) || 0;
-      const totalReels = parseInt(sDef.total_reels) || 0;
-      const price = pkg.custom_price > -1 ? pkg.custom_price : parseFloat(sDef.price) || 0;
+      let totalHours = 0;
+      let totalReels = 0;
+      let price = pkg.custom_price > -1 ? pkg.custom_price : 0;
+      
+      if (sDef) {
+        totalHours = parseFloat(sDef.total_hours) || 0;
+        totalReels = parseInt(sDef.total_reels) || 0;
+        if (price === 0) price = parseFloat(sDef.price) || 0;
+      } else {
+        // Fallback: extract hours or reels from the service name if missing from systemServices
+        const name = pkg.service || '';
+        const hoursMatch = name.match(/(\d+)\s*ساعة/);
+        if (hoursMatch) totalHours = parseInt(hoursMatch[1]);
+        
+        const reelsMatch = name.match(/(\d+)\s*فيديو/);
+        if (reelsMatch) totalReels = parseInt(reelsMatch[1]);
+      }
+      
       const remainingPaid = price - pkg.paid;
       
       // A package is active if they haven't used all hours/reels OR they still owe money, OR they just booked it
