@@ -16,15 +16,6 @@ const ERPLayout = () => {
 
   return (
     <div className="erp-layout">
-      {/* Mobile Toggle Button */}
-      <div className="admin-mobile-header d-lg-none" style={{display: 'flex', justifyContent: 'space-between', padding: '15px', background: 'var(--erp-surface)', borderBottom: '1px solid #e2e8f0', width: '100%', position: 'fixed', top: 0, zIndex: 1030}}>
-        <div style={{fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--erp-text-main)'}}>
-          MT <span style={{color: 'var(--erp-primary)'}}>Agency</span>
-        </div>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{background: 'transparent', border: 'none', color: 'var(--erp-text-main)'}}>
-          <Menu size={24} />
-        </button>
-      </div>
 
       {/* Sidebar Overlay */}
       {sidebarOpen && (
@@ -81,7 +72,7 @@ const ERPLayout = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="erp-main" style={{marginTop: sidebarOpen ? '60px' : '0'}}>
+      <div className="erp-main" style={{marginTop: '0'}}>
         <Outlet />
       </div>
     </div>
