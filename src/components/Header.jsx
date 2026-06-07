@@ -83,9 +83,6 @@ const Header = () => {
           <Link to="/login" className="btn-secondary login-btn" onClick={() => setIsMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <User size={16} /> تسجيل الدخول
           </Link>
-          <a href="#contact" className="btn-primary quote-btn" onClick={() => setIsMenuOpen(false)}>
-            {t('header.getQuote')}
-          </a>
         </div>
       </div>
     </div>
