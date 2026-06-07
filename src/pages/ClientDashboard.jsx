@@ -168,14 +168,17 @@ const ClientDashboard = () => {
           <h1>MT Dashboard</h1>
         </div>
         <nav className="sidebar-nav">
-          <button className={`nav-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
-            <span className="icon">📊</span> نظرة عامة
+          <button className={`nav-btn ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>
+            <span className="icon">🏠</span> الرئيسية
+          </button>
+          <button className={`nav-btn ${activeTab === 'consumption' ? 'active' : ''}`} onClick={() => setActiveTab('consumption')}>
+            <span className="icon">📊</span> الاستهلاك
           </button>
           <button className={`nav-btn ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>
-            <span className="icon">📅</span> المواعيد والجدول
+            <span className="icon">📅</span> المواعيد
           </button>
           <button className={`nav-btn ${activeTab === 'finance' ? 'active' : ''}`} onClick={() => setActiveTab('finance')}>
-            <span className="icon">💳</span> الماليات والفواتير
+            <span className="icon">💳</span> الحالة المادية
           </button>
         </nav>
       </aside>
@@ -187,85 +190,63 @@ const ClientDashboard = () => {
             <h2>مرحباً بك، أ. {client.name} ✨</h2>
             <p>جاهز لجلسة التصوير القادمة؟</p>
           </div>
-          <button className="btn-logout" onClick={handleLogout}>تسجيل خروج</button>
+          <div className="header-actions" style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
+            <button className="btn-notification" style={{background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--color-silver)', padding: '0.8rem', borderRadius: '50%', cursor: 'pointer', position: 'relative'}}>
+              <span className="icon" style={{fontSize: '1.2rem'}}>🔔</span>
+              {pendingRequests.length > 0 && <span style={{position: 'absolute', top: '-5px', right: '-5px', background: '#ff4757', color: '#fff', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '50%'}}>{pendingRequests.length}</span>}
+            </button>
+            <button className="btn-logout" onClick={handleLogout}>تسجيل خروج</button>
+          </div>
         </header>
 
         <div className="content-wrapper">
-          {activeTab === 'overview' && primaryPackage && (
-            <div className="overview-tab">
-              <div className="cards-grid">
-                
-                {/* Package Details Card */}
-                <div className="mt-card premium-glass">
-                  <div className="card-header">
-                    <h3><Calendar size={20}/> تفاصيل الباقة الحالية</h3>
-                    <span className="badge-glow">{primaryPackage.name}</span>
+          {activeTab === 'home' && primaryPackage && (
+            <div className="home-tab">
+              <div className="mt-card premium-glass">
+                <div className="card-header">
+                  <h3><Calendar size={20}/> تفاصيل الباقة الحالية</h3>
+                  <span className="badge-glow">{primaryPackage.name}</span>
+                </div>
+                <div className="card-body package-split">
+                  <div className="package-info">
+                    <div className="info-item">
+                      <span className="label">إجمالي الساعات:</span>
+                      <span className="value">{formatTime(totalHours)}</span>
+                    </div>
+                    <div className="info-item">
+                      <span className="label">المستخدم:</span>
+                      <span className="value text-neon">{formatTime(primaryPackage.usedHours)}</span>
+                    </div>
+                    <div className="info-item">
+                      <span className="label">المتبقي:</span>
+                      <span className="value text-silver">{formatTime(remainingHours)}</span>
+                    </div>
+                    <div className="info-item mt-2">
+                      <span className="label">الصلاحية:</span>
+                      <span className="value">{primaryPackage.latestExpiry || 'غير محدد'}</span>
+                    </div>
                   </div>
-                  <div className="card-body package-split">
-                    <div className="package-info">
-                      <div className="info-item">
-                        <span className="label">إجمالي الساعات:</span>
-                        <span className="value">{formatTime(totalHours)}</span>
-                      </div>
-                      <div className="info-item">
-                        <span className="label">المستخدم:</span>
-                        <span className="value text-neon">{formatTime(primaryPackage.usedHours)}</span>
-                      </div>
-                      <div className="info-item">
-                        <span className="label">المتبقي:</span>
-                        <span className="value text-silver">{formatTime(remainingHours)}</span>
-                      </div>
-                      <div className="info-item mt-2">
-                        <span className="label">الصلاحية:</span>
-                        <span className="value">{primaryPackage.latestExpiry || 'غير محدد'}</span>
-                      </div>
+                  <div className="package-chart">
+                    <div className="chart-center-text">
+                      <strong>{Math.round(progressPercent)}%</strong>
+                      <span>مستهلك</span>
                     </div>
-                    <div className="package-chart">
-                      <div className="chart-center-text">
-                        <strong>{Math.round(progressPercent)}%</strong>
-                        <span>مستهلك</span>
-                      </div>
-                      <ResponsiveContainer width={120} height={120}>
-                        <PieChart>
-                          <Pie data={pieData} innerRadius={45} outerRadius={60} paddingAngle={5} dataKey="value" stroke="none">
-                            {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <ResponsiveContainer width={120} height={120}>
+                      <PieChart>
+                        <Pie data={pieData} innerRadius={45} outerRadius={60} paddingAngle={5} dataKey="value" stroke="none">
+                          {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
-
-                {/* Financial Status Card */}
-                <div className="mt-card premium-glass">
-                  <div className="card-header">
-                    <h3><CreditCard size={20}/> الحالة المادية</h3>
-                  </div>
-                  <div className="card-body">
-                    <div className="finance-row">
-                      <div className="finance-box">
-                        <span>إجمالي التكلفة</span>
-                        <strong>{cost} ج</strong>
-                      </div>
-                      <div className="finance-box box-paid">
-                        <span>المدفوع</span>
-                        <strong>{primaryPackage.paid} ج</strong>
-                      </div>
-                      <div className="finance-box box-debt">
-                        <span>المتبقي</span>
-                        <strong>{remainingCost} ج</strong>
-                      </div>
-                    </div>
-                    {remainingCost > 0 && (
-                      <button className="btn-modern-primary w-100 mt-4">سداد الدفعة المتبقية ورفع الإيصال</button>
-                    )}
-                  </div>
-                </div>
-
               </div>
+            </div>
+          )}
 
-              {/* Chart Section */}
-              <div className="mt-card premium-glass mt-4">
+          {activeTab === 'consumption' && (
+            <div className="consumption-tab">
+              <div className="mt-card premium-glass">
                 <div className="card-header">
                   <h3><Clock size={20}/> معدل استهلاك الساعات (آخر 5 جلسات)</h3>
                 </div>
@@ -343,14 +324,30 @@ const ClientDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'finance' && (
+          {activeTab === 'finance' && primaryPackage && (
             <div className="finance-tab">
                <div className="mt-card premium-glass">
                   <div className="card-header">
-                    <h3>سجل المدفوعات وتفاصيل الحساب</h3>
+                    <h3><CreditCard size={20}/> الحالة المادية</h3>
                   </div>
                   <div className="card-body">
-                    <p className="text-silver">هنا يمكنك مراجعة كافة الفواتير وإيصالات الدفع المرتبطة بحسابك.</p>
+                    <div className="finance-row">
+                      <div className="finance-box">
+                        <span>إجمالي التكلفة</span>
+                        <strong>{cost} ج</strong>
+                      </div>
+                      <div className="finance-box box-paid">
+                        <span>المدفوع</span>
+                        <strong>{primaryPackage.paid} ج</strong>
+                      </div>
+                      <div className="finance-box box-debt">
+                        <span>المتبقي</span>
+                        <strong>{remainingCost} ج</strong>
+                      </div>
+                    </div>
+                    {remainingCost > 0 && (
+                      <button className="btn-modern-primary w-100 mt-4">سداد الدفعة المتبقية ورفع الإيصال</button>
+                    )}
                   </div>
                </div>
             </div>
