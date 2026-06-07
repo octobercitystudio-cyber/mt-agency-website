@@ -478,8 +478,8 @@ const ClientDashboard = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
                       {siteData?.offers?.filter(o => o.is_active).map(offer => (
                         <div key={offer.id} style={{ background: 'linear-gradient(135deg, rgba(157, 78, 221, 0.1), rgba(0, 0, 0, 0))', border: '1px solid var(--color-vibrant-purple)', borderRadius: '16px', padding: '2rem', position: 'relative', overflow: 'hidden' }}>
-                          <div style={{ position: 'absolute', top: '-15px', right: '-15px', background: 'var(--color-vibrant-purple)', color: '#fff', padding: '30px 40px 10px', transform: 'rotate(45deg)', fontWeight: 'bold' }}>{offer.discount}</div>
-                          <h4 style={{ fontSize: '1.4rem', color: '#fff', marginBottom: '1rem', width: '80%' }}>{offer.title}</h4>
+                          <div style={{ position: 'absolute', top: '-15px', left: '-20px', background: 'var(--color-vibrant-purple)', color: '#fff', padding: '30px 40px 10px', transform: 'rotate(-45deg)', fontWeight: 'bold', zIndex: 1, textAlign: 'center' }}>{offer.discount}</div>
+                          <h4 style={{ fontSize: '1.4rem', color: '#fff', marginBottom: '1rem', width: '100%', paddingLeft: '60px' }}>{offer.title}</h4>
                           <p style={{ color: '#c0c0c0', lineHeight: '1.6' }}>{offer.desc}</p>
                           <button className="btn-modern-primary" style={{ marginTop: '1.5rem', width: '100%' }}>استفد من العرض الآن</button>
                         </div>
