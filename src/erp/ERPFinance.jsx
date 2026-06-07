@@ -287,6 +287,7 @@ const ERPFinance = () => {
         
         .month-selector { background: white; border: 1px solid #e2e8f0; border-radius: 50px; padding: 5px; display: inline-flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
         .month-selector input[type="month"] { border: none; background: transparent; font-weight: 700; color: #2b3674; outline: none; cursor: pointer; text-align: center; }
+        .month-selector input[type="month"]::-webkit-calendar-picker-indicator { display: none; }
         
         .gradient-primary { background: linear-gradient(135deg, #4318ff 0%, #868cff 100%); color: white; }
         .gradient-success { background: linear-gradient(135deg, #10b981 0%, #34d399 100%); color: white; }
@@ -344,7 +345,7 @@ const ERPFinance = () => {
           <div className="card border-0 rounded-4 p-4 h-100 gradient-success shadow-sm wallet-card position-relative overflow-hidden">
             <ArrowUp className="position-absolute end-0 top-0 mt-3 me-3 opacity-25" size={80} />
             <div className="position-relative z-1">
-              <p className="mb-1 fw-bold opacity-75">إيرادات شهر ({format(parseISO(`${selectedMonth}-01`), 'MMMM', { locale: ar })})</p>
+              <p className="mb-1 fw-bold opacity-75">إيرادات شهر ({format(parseISO(`${selectedMonth}-01`), 'MM-yyyy')})</p>
               <h2 className="fw-bold m-0">{total_inc.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
             </div>
           </div>
@@ -353,7 +354,7 @@ const ERPFinance = () => {
           <div className="card border-0 rounded-4 p-4 h-100 gradient-danger shadow-sm wallet-card position-relative overflow-hidden">
             <ArrowDown className="position-absolute end-0 top-0 mt-3 me-3 opacity-25" size={80} />
             <div className="position-relative z-1">
-              <p className="mb-1 fw-bold opacity-75">مصروفات شهر ({format(parseISO(`${selectedMonth}-01`), 'MMMM', { locale: ar })})</p>
+              <p className="mb-1 fw-bold opacity-75">مصروفات شهر ({format(parseISO(`${selectedMonth}-01`), 'MM-yyyy')})</p>
               <h2 className="fw-bold m-0">{total_exp.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
             </div>
           </div>
@@ -422,7 +423,7 @@ const ERPFinance = () => {
             <div className="card border-0 shadow-sm rounded-4 p-3 d-flex flex-row align-items-center justify-content-between wallet-card" style={{ background: 'var(--erp-surface)' }}>
               <div className="d-flex align-items-center">
                 <div style={{ background: 'var(--erp-bg)', padding: '15px', borderRadius: '50%', marginRight: '15px' }}>
-                  <UserCheck size={20} style={{ color: 'var(--erp-text-main)' }} />
+                  <i className="fas fa-user" style={{ color: 'var(--erp-text-main)', fontSize: '20px' }}></i>
                 </div>
                 <div>
                   <h6 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>
