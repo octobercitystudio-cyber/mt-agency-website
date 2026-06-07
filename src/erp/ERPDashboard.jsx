@@ -3,8 +3,7 @@ import { supabase } from '../supabaseClient';
 import { Package, Truck, DollarSign, TrendingUp, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
-// Using the dark admin styles as requested
-import '../admin/AdminLayout.css';
+import './ERPLayout.css';
 
 const ERPDashboard = () => {
   const [stats, setStats] = useState({
@@ -204,9 +203,9 @@ const ERPDashboard = () => {
   };
 
   return (
-    <div className="admin-section">
+    <div style={{ padding: '24px' }}>
       {/* Top Banner exactly like the screenshot */}
-      <div style={{ background: 'var(--color-vibrant-purple)', borderRadius: '20px', padding: '30px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', boxShadow: '0 10px 30px rgba(157, 78, 221, 0.3)' }}>
+      <div style={{ background: 'var(--color-vibrant-purple)', borderRadius: '20px', padding: '30px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', boxShadow: 'var(--erp-shadow)' }}>
         <div>
           <div style={{ background: 'rgba(255,255,255,0.2)', padding: '5px 15px', borderRadius: '50px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '15px' }}>
             ⚡ نظام الإدارة الذكي
@@ -230,9 +229,9 @@ const ERPDashboard = () => {
 
       {/* 4 Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        <div className="admin-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="erp-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
           <div>
-            <p style={{ color: '#8c8c8c', margin: '0 0 10px 0', fontSize: '1rem', fontWeight: 'bold' }}>باقات نشطة</p>
+            <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 10px 0', fontSize: '1rem', fontWeight: 'bold' }}>باقات نشطة</p>
             <h3 style={{ margin: 0, fontSize: '2rem', color: '#fff' }}>{loading ? '...' : stats.activePackages}</h3>
           </div>
           <div style={{ background: 'rgba(52, 152, 219, 0.2)', padding: '15px', borderRadius: '50%', color: '#3498db' }}>
@@ -240,7 +239,7 @@ const ERPDashboard = () => {
           </div>
         </div>
 
-        <div className="admin-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="erp-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
           <div>
             <p style={{ color: '#8c8c8c', margin: '0 0 10px 0', fontSize: '1rem', fontWeight: 'bold' }}>تسليمات (أسبوع)</p>
             <h3 style={{ margin: 0, fontSize: '2rem', color: '#fff' }}>{loading ? '...' : stats.weekDeliveries}</h3>
@@ -250,9 +249,9 @@ const ERPDashboard = () => {
           </div>
         </div>
 
-        <div className="admin-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="erp-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
           <div>
-            <p style={{ color: '#8c8c8c', margin: '0 0 10px 0', fontSize: '1rem', fontWeight: 'bold' }}>مستحقات السوق</p>
+            <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 10px 0', fontSize: '1rem', fontWeight: 'bold' }}>مستحقات السوق</p>
             <h3 style={{ margin: 0, fontSize: '2rem', color: '#f1c40f' }}>{loading ? '...' : stats.marketDues.toLocaleString()}</h3>
           </div>
           <div style={{ background: 'rgba(241, 196, 15, 0.2)', padding: '15px', borderRadius: '50%', color: '#f1c40f' }}>
@@ -260,9 +259,9 @@ const ERPDashboard = () => {
           </div>
         </div>
 
-        <div className="admin-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="erp-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
           <div>
-            <p style={{ color: '#8c8c8c', margin: '0 0 10px 0', fontSize: '1rem', fontWeight: 'bold' }}>صافي الربح</p>
+            <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 10px 0', fontSize: '1rem', fontWeight: 'bold' }}>صافي الربح</p>
             <h3 style={{ margin: 0, fontSize: '2rem', color: '#2ecc71' }}>{loading ? '...' : stats.netProfit.toLocaleString()}</h3>
           </div>
           <div style={{ background: 'rgba(46, 204, 113, 0.2)', padding: '15px', borderRadius: '50%', color: '#2ecc71' }}>
@@ -272,10 +271,10 @@ const ERPDashboard = () => {
       </div>
 
       {/* Bookings Tables (Today & Tomorrow) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '30px' }}>
         
         {/* Tomorrow Bookings */}
-        <div className="admin-card">
+        <div className="erp-card" style={{ marginBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '2px solid rgba(52, 152, 219, 0.5)', paddingBottom: '10px' }}>
             <Calendar size={24} color="#3498db" />
             <h3 style={{ margin: 0, color: '#fff' }}>مواعيد غداً</h3>
@@ -306,7 +305,7 @@ const ERPDashboard = () => {
         </div>
 
         {/* Today Bookings */}
-        <div className="admin-card">
+        <div className="erp-card" style={{ marginBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '2px solid rgba(157, 78, 221, 0.5)', paddingBottom: '10px' }}>
             <Calendar size={24} color="var(--color-vibrant-purple)" />
             <h3 style={{ margin: 0, color: '#fff' }}>مواعيد اليوم</h3>
@@ -345,13 +344,13 @@ const ERPDashboard = () => {
       </div>
 
       {/* Due Tasks & Reminders */}
-      <div className="admin-card" style={{ borderTop: '4px solid #f1c40f' }}>
+      <div className="erp-card" style={{ borderTop: '4px solid #f1c40f' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <AlertCircle size={24} color="#f1c40f" />
             <h3 style={{ margin: 0, color: '#fff' }}>مهام والتزامات مستحقة الآن</h3>
           </div>
-          <button className="btn-modern" style={{ background: '#f1c40f', color: '#000', fontWeight: 'bold', padding: '8px 20px', borderRadius: '50px' }}>
+          <button className="erp-btn-primary" style={{ background: '#f1c40f', color: '#000', fontWeight: 'bold' }}>
             إدارة المهام
           </button>
         </div>
