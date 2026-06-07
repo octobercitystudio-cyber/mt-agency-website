@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserPlus, Edit, Trash2, Search, Phone } from 'lucide-react';
-// CSS is handled in ERPLayout.css
+import '../admin/AdminLayout.css';
 
 const ERPClients = () => {
   const [clients, setClients] = useState([]);
@@ -86,67 +86,67 @@ const ERPClients = () => {
   );
 
   return (
-    <div>
-      <div className="erp-header">
+    <div className="admin-section">
+      <div className="admin-header">
         <div>
           <h2>إدارة العملاء</h2>
           <p>قاعدة بيانات العملاء المشتركين والمعلمين.</p>
         </div>
-        <button className="erp-btn-primary" onClick={openAddModal}>
+        <button className="btn-primary" onClick={openAddModal}>
           <UserPlus size={18} /> إضافة عميل جديد
         </button>
       </div>
 
-      <div className="erp-card">
+      <div className="admin-card">
         <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
           <div style={{ position: 'relative', flex: 1 }}>
-            <Search size={18} style={{ position: 'absolute', right: '15px', top: '15px', color: 'var(--erp-text-muted)' }} />
+            <Search size={18} style={{ position: 'absolute', right: '15px', top: '15px', color: '#8c8c8c' }} />
             <input 
               type="text" 
               placeholder="ابحث عن عميل بالاسم أو رقم الهاتف..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="erp-input"
+              className="admin-input"
               style={{ paddingRight: '45px' }}
             />
           </div>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--erp-text-muted)' }}>جاري تحميل العملاء...</div>
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#8c8c8c' }}>جاري تحميل العملاء...</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table className="erp-table">
+            <table style={{ width: '100%', borderCollapse: 'collapse', color: '#fff' }}>
               <thead>
-                <tr>
-                  <th style={{ textAlign: 'right' }}>الاسم</th>
-                  <th style={{ textAlign: 'right' }}>الوظيفة</th>
-                  <th style={{ textAlign: 'right' }}>الهاتف الأساسي</th>
-                  <th style={{ textAlign: 'right' }}>الهاتف البديل</th>
-                  <th style={{ textAlign: 'center' }}>المديونية</th>
-                  <th style={{ textAlign: 'center' }}>إجراءات</th>
+                <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <th style={{ padding: '15px', textAlign: 'right' }}>الاسم</th>
+                  <th style={{ padding: '15px', textAlign: 'right' }}>الوظيفة</th>
+                  <th style={{ padding: '15px', textAlign: 'right' }}>الهاتف الأساسي</th>
+                  <th style={{ padding: '15px', textAlign: 'right' }}>الهاتف البديل</th>
+                  <th style={{ padding: '15px', textAlign: 'center' }}>المديونية</th>
+                  <th style={{ padding: '15px', textAlign: 'center' }}>إجراءات</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredClients.map(client => (
-                  <tr key={client.id}>
-                    <td>
+                  <tr key={client.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '15px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ width: '15px', height: '15px', borderRadius: '50%', background: client.color || '#9d4edd' }}></div>
                         {client.name}
                       </div>
                     </td>
-                    <td style={{ color: 'var(--erp-text-muted)' }}>{client.job || '-'}</td>
-                    <td dir="ltr" align="right">{client.phone1}</td>
-                    <td style={{ color: 'var(--erp-text-muted)' }} dir="ltr" align="right">{client.phone2 || '-'}</td>
-                    <td style={{ textAlign: 'center', color: client.debt > 0 ? '#ef4444' : '#2ecc71', fontWeight: 'bold' }}>
+                    <td style={{ padding: '15px', color: '#c0c0c0' }}>{client.job || '-'}</td>
+                    <td style={{ padding: '15px' }} dir="ltr" align="right">{client.phone1}</td>
+                    <td style={{ padding: '15px', color: '#c0c0c0' }} dir="ltr" align="right">{client.phone2 || '-'}</td>
+                    <td style={{ padding: '15px', textAlign: 'center', color: client.debt > 0 ? '#ff4d4d' : '#00ff00' }}>
                       {client.debt} ج.م
                     </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button onClick={() => openEditModal(client)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', marginLeft: '10px' }}>
+                    <td style={{ padding: '15px', textAlign: 'center' }}>
+                      <button onClick={() => openEditModal(client)} style={{ background: 'transparent', border: 'none', color: '#3498db', cursor: 'pointer', marginLeft: '10px' }}>
                         <Edit size={18} />
                       </button>
-                      <button onClick={() => deleteClient(client.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                      <button onClick={() => deleteClient(client.id)} style={{ background: 'transparent', border: 'none', color: '#e74c3c', cursor: 'pointer' }}>
                         <Trash2 size={18} />
                       </button>
                     </td>
@@ -154,7 +154,7 @@ const ERPClients = () => {
                 ))}
                 {filteredClients.length === 0 && (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--erp-text-muted)' }}>لا يوجد عملاء مطابقين للبحث.</td>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: '#8c8c8c' }}>لا يوجد عملاء مطابقين للبحث.</td>
                   </tr>
                 )}
               </tbody>
@@ -165,35 +165,35 @@ const ERPClients = () => {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="erp-modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()}>
-            <h3>{isEditing ? 'تعديل بيانات العميل' : 'إضافة عميل جديد'}</h3>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div className="admin-card" style={{ width: '90%', maxWidth: '500px', background: 'var(--bg-dark)' }}>
+            <h3 style={{ marginBottom: '20px' }}>{isEditing ? 'تعديل بيانات العميل' : 'إضافة عميل جديد'}</h3>
             <form onSubmit={handleSaveClient} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <div>
-                <label className="erp-label">اسم العميل</label>
-                <input type="text" className="erp-input" value={currentClient.name} onChange={e => setCurrentClient({...currentClient, name: e.target.value})} required />
+                <label style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>اسم العميل</label>
+                <input type="text" className="admin-input" value={currentClient.name} onChange={e => setCurrentClient({...currentClient, name: e.target.value})} required />
               </div>
               <div>
-                <label className="erp-label">الوظيفة / التخصص</label>
-                <input type="text" className="erp-input" value={currentClient.job} onChange={e => setCurrentClient({...currentClient, job: e.target.value})} placeholder="مثال: مدرس فيزياء" />
+                <label style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>الوظيفة / التخصص</label>
+                <input type="text" className="admin-input" value={currentClient.job} onChange={e => setCurrentClient({...currentClient, job: e.target.value})} placeholder="مثال: مدرس فيزياء" />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div>
-                  <label className="erp-label">الهاتف الأساسي</label>
-                  <input type="tel" className="erp-input" value={currentClient.phone1} onChange={e => setCurrentClient({...currentClient, phone1: e.target.value})} dir="ltr" required />
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>الهاتف الأساسي</label>
+                  <input type="tel" className="admin-input" value={currentClient.phone1} onChange={e => setCurrentClient({...currentClient, phone1: e.target.value})} dir="ltr" required />
                 </div>
                 <div>
-                  <label className="erp-label">الهاتف البديل (اختياري)</label>
-                  <input type="tel" className="erp-input" value={currentClient.phone2} onChange={e => setCurrentClient({...currentClient, phone2: e.target.value})} dir="ltr" />
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>الهاتف البديل (اختياري)</label>
+                  <input type="tel" className="admin-input" value={currentClient.phone2} onChange={e => setCurrentClient({...currentClient, phone2: e.target.value})} dir="ltr" />
                 </div>
               </div>
               <div>
-                <label className="erp-label">اللون المميز (للتقويم)</label>
-                <input type="color" value={currentClient.color} onChange={e => setCurrentClient({...currentClient, color: e.target.value})} style={{ width: '100%', height: '40px', borderRadius: '8px', cursor: 'pointer', border: '1px solid #e2e8f0' }} />
+                <label style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>اللون المميز (للتقويم)</label>
+                <input type="color" value={currentClient.color} onChange={e => setCurrentClient({...currentClient, color: e.target.value})} style={{ width: '100%', height: '40px', borderRadius: '8px', cursor: 'pointer' }} />
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <button type="submit" className="erp-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{isEditing ? 'حفظ التعديلات' : 'إضافة العميل'}</button>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="erp-btn-danger" style={{ flex: 1, justifyContent: 'center' }}>إلغاء</button>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }}>{isEditing ? 'حفظ التعديلات' : 'إضافة العميل'}</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1 }}>إلغاء</button>
               </div>
             </form>
           </div>

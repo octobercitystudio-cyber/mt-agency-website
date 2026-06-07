@@ -6,6 +6,7 @@ import AdminLayout from './admin/AdminLayout';
 import AdminLogin from './admin/AdminLogin';
 import AdminServices from './admin/AdminServices';
 import ERPLayout from './erp/ERPLayout';
+import ERPDashboard from './erp/ERPDashboard';
 import ERPClients from './erp/ERPClients';
 import ERPBookings from './erp/ERPBookings';
 import ERPFinance from './erp/ERPFinance';
@@ -65,7 +66,7 @@ function App() {
               </ErpProtectedRoute>
             }
           >
-            <Route index element={<Navigate to="clients" replace />} />
+            <Route index element={<ERPDashboard />} />
             <Route path="clients" element={<ERPClients />} />
             <Route path="bookings" element={<ERPBookings />} />
             <Route path="finance" element={<ERPFinance />} />
