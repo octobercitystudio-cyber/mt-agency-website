@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, User } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import './Header.css';
 
 const Header = () => {
@@ -78,7 +79,10 @@ const Header = () => {
           </header>
         </div>
 
-        <div className="top-bar-left">
+        <div className="top-bar-left" style={{ display: 'flex', gap: '10px' }}>
+          <Link to="/login" className="btn-secondary login-btn" onClick={() => setIsMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <User size={16} /> تسجيل الدخول
+          </Link>
           <a href="#contact" className="btn-primary quote-btn" onClick={() => setIsMenuOpen(false)}>
             {t('header.getQuote')}
           </a>
