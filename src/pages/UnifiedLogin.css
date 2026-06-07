@@ -3,6 +3,12 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  width: 100vw;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  box-sizing: border-box;
   background: var(--bg-dark);
   background-image: var(--bg-gradient);
   font-family: 'Tajawal', sans-serif;
