@@ -206,9 +206,9 @@ const ERPClients = () => {
       const { data, error } = await supabase.from('bookings').select('*').eq('client_name', selectedClient.name).order('id', { ascending: false });
       if (!error && data) {
         if (type === 'packages') {
-          setHistoryData(data.filter(b => b.status === 'منتهي' || b.status === 'نشط' || b.status === 'مغلق'));
+          setHistoryData(data.filter(b => b.status === 'منتهي' || b.status === 'مؤرشف'));
         } else {
-          setHistoryData(data);
+          setHistoryData(data.filter(b => b.status !== 'دفعة'));
         }
       }
     }
@@ -465,7 +465,7 @@ const ERPClients = () => {
                           )}
 
                           {remainingPaid > 0 && (
-                            <button onClick={() => { setFinanceMethod('كاش'); setIsFinanceModalOpen(true); }} style={{ width: '100%', background: '#ffc107', color: '#000', color: '#000', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '8px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
+                            <button onClick={() => { setFinanceMethod('كاش'); setIsFinanceModalOpen(true); }} style={{ width: '100%', background: '#ffc107', color: '#000', border: 'none', padding: '10px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '8px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
                               <Wallet size={18} /> سداد المتبقي
                             </button>
                           )}
@@ -595,10 +595,13 @@ const ERPClients = () => {
                         </>
                       ) : (
                         <>
-                          <th style={{ padding: '15px', borderBottom: '1px solid #dee2e6' }}>التاريخ</th>
-                          <th style={{ padding: '15px', borderBottom: '1px solid #dee2e6' }}>الخدمة</th>
-                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>الحالة</th>
-                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>المبلغ/المدفوع</th>
+                          <th style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>التاريخ</th>
+                          <th style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>الخدمة</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>ساعات</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>ريلز</th>
+                          <th style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>البيان</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>الحالة</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>المدفوع</th>
                         </>
                       )}
                     </tr>
@@ -615,9 +618,12 @@ const ERPClients = () => {
                           </>
                         ) : (
                           <>
-                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', direction: 'ltr', textAlign: 'right' }}>{row.date}</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6' }}>{row.service}</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', direction: 'ltr', textAlign: 'right' }}>{row.date}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>{row.service}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.actual_hours > 0 ? row.actual_hours : '-'}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.actual_reels > 0 ? row.actual_reels : '-'}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', fontSize: '0.85rem', color: 'var(--erp-text-muted)' }}>{row.detail}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center' }}>
                               <span style={{ padding: '6px 12px', borderRadius: '0.5rem', background: row.status === 'منتهي' ? 'rgba(220, 53, 69, 0.15)' : 'rgba(13, 202, 240, 0.15)', color: row.status === 'منتهي' ? '#ff6b6b' : '#3bc9db', fontSize: '0.85rem', fontWeight: 'bold' }}>
                                 {row.status || 'مؤكد'}
                               </span>
