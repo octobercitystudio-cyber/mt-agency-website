@@ -1,8 +1,8 @@
 .unified-login-container {
   height: 100vh;
   display: flex;
-  justifyContent: center;
-  alignItems: center;
+  justify-content: center;
+  align-items: center;
   background: var(--bg-dark);
   background-image: var(--bg-gradient);
   font-family: 'Tajawal', sans-serif;
