@@ -170,11 +170,23 @@ const ClientDashboard = () => {
   const filteredBookings = bookings.filter(b => {
     if (timeFilter === 'all') return true;
     const bDate = new Date(b.date);
-    const diffTime = Math.abs(now - bDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    if (timeFilter === 'month') return diffDays <= 30;
-    if (timeFilter === 'week') return diffDays <= 7;
-    if (timeFilter === 'day') return diffDays <= 1;
+    
+    if (timeFilter === 'last_shoot') {
+      const pastBookings = bookings.filter(bk => new Date(bk.date) <= now).sort((a,b) => new Date(b.date) - new Date(a.date));
+      if(pastBookings.length === 0) return false;
+      return isSameDay(bDate, new Date(pastBookings[0].date));
+    }
+    
+    if (timeFilter === 'week') {
+      const weekStart = startOfWeek(now, { weekStartsOn: 6 });
+      const weekEndMs = weekStart.getTime() + (5 * 24 * 60 * 60 * 1000);
+      return bDate.getTime() >= weekStart.getTime() && bDate.getTime() <= weekEndMs;
+    }
+    
+    if (timeFilter === 'month') {
+      return isSameMonth(bDate, now);
+    }
+
     return true;
   });
 
@@ -284,10 +296,10 @@ const ClientDashboard = () => {
 
               {/* Time Filters */}
               <div className="time-filters-container mb-4">
+                <button className={`filter-btn ${timeFilter === 'last_shoot' ? 'active' : ''}`} onClick={() => setTimeFilter('last_shoot')}>اخر موعد تصوير</button>
+                <button className={`filter-btn ${timeFilter === 'week' ? 'active' : ''}`} onClick={() => setTimeFilter('week')}>اخر اسبوع</button>
+                <button className={`filter-btn ${timeFilter === 'month' ? 'active' : ''}`} onClick={() => setTimeFilter('month')}>اخر شهر</button>
                 <button className={`filter-btn ${timeFilter === 'all' ? 'active' : ''}`} onClick={() => setTimeFilter('all')}>مدة الباقة كاملة</button>
-                <button className={`filter-btn ${timeFilter === 'month' ? 'active' : ''}`} onClick={() => setTimeFilter('month')}>آخر شهر</button>
-                <button className={`filter-btn ${timeFilter === 'week' ? 'active' : ''}`} onClick={() => setTimeFilter('week')}>آخر أسبوع</button>
-                <button className={`filter-btn ${timeFilter === 'day' ? 'active' : ''}`} onClick={() => setTimeFilter('day')}>آخر يوم</button>
               </div>
 
               {/* Massive Consumption Chart Section */}
