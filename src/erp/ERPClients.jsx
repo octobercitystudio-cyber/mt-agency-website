@@ -55,13 +55,88 @@ const ERPClients = () => {
   }, [selectedClient]);
 
   const fetchActivePackages = async (clientName) => {
-    const { data } = await supabase
+    // 1. Fetch all bookings for this client
+    const { data: allBookings, error } = await supabase
       .from('bookings')
       .select('*')
-      .eq('client_name', clientName)
-      .eq('status', 'نشط')
-      .order('id', { ascending: false });
-    if (data) setActivePackages(data);
+      .eq('client_name', clientName);
+      
+    if (error || !allBookings) {
+      setActivePackages([]);
+      return;
+    }
+
+    // 2. Aggregate data per service (ignoring archived)
+    const pkgMap = {};
+    
+    allBookings.forEach(b => {
+      // Ignore archived packages from old history
+      if (b.service && b.service.includes('(مؤرشف)')) return;
+      
+      const sName = b.service;
+      if (!pkgMap[sName]) {
+        pkgMap[sName] = {
+          service: sName,
+          used_hours: 0,
+          used_reels: 0,
+          paid: 0,
+          custom_price: -1,
+          custom_expiry: '',
+          delivery_date: '',
+          discount: 0
+        };
+      }
+      
+      // Calculate Used Hours (any status except دفعة)
+      if (b.status !== 'دفعة') {
+        pkgMap[sName].used_hours += (parseFloat(b.actual_hours) || 0);
+      }
+      
+      // Calculate Used Reels (منتهي or مؤرشف status)
+      if (b.status === 'منتهي' || b.status === 'مؤرشف' || b.status === 'نشط') {
+        pkgMap[sName].used_reels += (parseInt(b.actual_reels) || 0);
+      }
+      
+      // Calculate Paid amount (status === دفعة)
+      if (b.status === 'دفعة') {
+        pkgMap[sName].paid += (parseFloat(b.payment) || 0);
+      }
+
+      // Capture custom expiry or delivery date from the latest row that has it
+      if (b.custom_expiry) pkgMap[sName].custom_expiry = b.custom_expiry;
+      if (b.delivery_date) pkgMap[sName].delivery_date = b.delivery_date;
+      if (parseFloat(b.custom_price) > -1) pkgMap[sName].custom_price = parseFloat(b.custom_price);
+    });
+
+    // 3. Match with system services and filter active ones
+    const activeList = [];
+    
+    Object.values(pkgMap).forEach(pkg => {
+      const sDef = systemServices.find(s => s.name === pkg.service);
+      if (!sDef) return;
+      
+      const totalHours = parseFloat(sDef.total_hours) || 0;
+      const totalReels = parseInt(sDef.total_reels) || 0;
+      const price = pkg.custom_price > -1 ? pkg.custom_price : parseFloat(sDef.price) || 0;
+      const remainingPaid = price - pkg.paid;
+      
+      // A package is active if they haven't used all hours/reels OR they still owe money, OR they just booked it
+      const hasRemainingHours = totalHours > 0 && pkg.used_hours < totalHours;
+      const hasRemainingReels = totalReels > 0 && pkg.used_reels < totalReels;
+      const owesMoney = remainingPaid > 0;
+      const isJustBooked = pkg.used_hours === 0 && pkg.used_reels === 0;
+      
+      if (hasRemainingHours || hasRemainingReels || owesMoney || isJustBooked) {
+        activeList.push({
+          ...pkg,
+          total_hours: totalHours,
+          total_reels: totalReels,
+          price: price
+        });
+      }
+    });
+
+    setActivePackages(activeList);
   };
 
   const fetchClients = async () => {
@@ -383,15 +458,14 @@ const ERPClients = () => {
                 <div style={{ marginTop: '10px' }}>
                   <h5 style={{ color: 'var(--erp-text-muted)', fontWeight: 'bold', margin: '0 0 10px 0' }}>الباقات والخدمات النشطة</h5>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    {activePackages.map(pkg => {
-                      const serviceDef = systemServices.find(s => s.name === pkg.service) || {};
-                      const totalHours = serviceDef.total_hours || 0;
-                      const totalReels = serviceDef.total_reels || 0;
-                      const hoursPercent = totalHours > 0 ? Math.min(100, (pkg.actual_hours / totalHours) * 100) : 0;
-                      const reelsPercent = totalReels > 0 ? Math.min(100, (pkg.actual_reels / totalReels) * 100) : 0;
+                    {activePackages.map((pkg, idx) => {
+                      const totalHours = pkg.total_hours;
+                      const totalReels = pkg.total_reels;
+                      const hoursPercent = totalHours > 0 ? Math.min(100, (pkg.used_hours / totalHours) * 100) : 0;
+                      const reelsPercent = totalReels > 0 ? Math.min(100, (pkg.used_reels / totalReels) * 100) : 0;
                       
                       return (
-                        <div key={pkg.id} style={{ background: 'var(--erp-surface)', border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '15px', position: 'relative', overflow: 'hidden' }}>
+                        <div key={idx} style={{ background: 'var(--erp-surface)', border: '1px solid var(--erp-border)', borderRadius: '12px', padding: '15px', position: 'relative', overflow: 'hidden' }}>
                           <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: '4px', background: 'var(--erp-primary)' }}></div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                             <h6 style={{ fontWeight: 'bold', color: 'var(--erp-primary)', margin: 0 }}>{pkg.service}</h6>
@@ -402,7 +476,7 @@ const ERPClients = () => {
                             <div style={{ marginBottom: '10px' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>
                                 <span>الساعات المستخدمة</span>
-                                <span><strong style={{ color: 'var(--erp-text-main)' }}>{pkg.actual_hours || 0}</strong> / {totalHours} ساعة</span>
+                                <span><strong style={{ color: 'var(--erp-text-main)' }}>{pkg.used_hours}</strong> / {totalHours} ساعة</span>
                               </div>
                               <div style={{ background: 'var(--erp-border)', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
                                 <div style={{ background: hoursPercent >= 100 ? '#e74c3c' : 'var(--erp-primary)', height: '100%', width: `${hoursPercent}%`, transition: 'width 0.5s ease' }}></div>
@@ -414,7 +488,7 @@ const ERPClients = () => {
                             <div style={{ marginBottom: '10px' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginBottom: '5px' }}>
                                 <span>الريلز المصورة</span>
-                                <span><strong style={{ color: 'var(--erp-text-main)' }}>{pkg.actual_reels || 0}</strong> / {totalReels} فيديو</span>
+                                <span><strong style={{ color: 'var(--erp-text-main)' }}>{pkg.used_reels}</strong> / {totalReels} فيديو</span>
                               </div>
                               <div style={{ background: 'var(--erp-border)', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
                                 <div style={{ background: reelsPercent >= 100 ? '#e74c3c' : '#2ecc71', height: '100%', width: `${reelsPercent}%`, transition: 'width 0.5s ease' }}></div>
@@ -426,7 +500,7 @@ const ERPClients = () => {
                             {(pkg.custom_expiry || pkg.delivery_date) && (
                               <div>📅 <strong>انتهاء/تسليم:</strong> <span style={{ color: '#e74c3c', direction: 'ltr', display: 'inline-block' }}>{pkg.custom_expiry || pkg.delivery_date}</span></div>
                             )}
-                            <div>💰 <strong>المدفوع:</strong> <span style={{ color: '#2ecc71' }}>{pkg.payment} ج</span></div>
+                            <div>💰 <strong>المدفوع:</strong> <span style={{ color: '#2ecc71' }}>{pkg.paid} ج</span> من {pkg.price} ج</div>
                           </div>
                         </div>
                       );
