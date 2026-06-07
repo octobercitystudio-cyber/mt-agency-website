@@ -273,7 +273,7 @@ const ERPClients = () => {
         <div style={{ background: 'var(--erp-surface)', borderRadius: '1rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
-              <thead style={{ position: 'sticky', top: 0, background: 'rgba(0,0,0,0.2)', zIndex: 10 }}>
+              <thead style={{ position: 'sticky', top: 0, background: 'var(--erp-bg)', zIndex: 10 }}>
                 <tr>
                   <th style={{ padding: '15px 25px', borderBottom: '1px solid #dee2e6', width: '40px' }}>
                     <input type="checkbox" checked={selectedIds.length === filteredClients.length && filteredClients.length > 0} onChange={toggleSelectAll} style={{ transform: 'scale(1.3)', cursor: 'pointer' }} />
@@ -295,7 +295,7 @@ const ERPClients = () => {
                         borderRight: isSelected ? '4px solid #4318ff' : '4px solid transparent',
                         boxShadow: isSelected ? 'inset 0 0 15px rgba(67, 24, 255, 0.05)' : 'none'
                       }}
-                      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'rgba(0,0,0,0.2)'; }}
+                      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = 'var(--erp-bg)'; }}
                       onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
                     >
                       <td style={{ padding: '15px 25px', borderBottom: '1px solid #dee2e6' }} onClick={e => e.stopPropagation()}>
@@ -351,17 +351,17 @@ const ERPClients = () => {
                 <h4 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', margin: '0 0 15px 0' }}>{selectedClient.name}</h4>
                 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  <span style={{ background: 'rgba(255, 193, 7, 0.15)', color: '#fcc419', border: '1px solid #ffecb5', padding: '8px 16px', borderRadius: '50px', fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
+                  <span style={{ background: 'rgba(255, 193, 7, 0.15)', color: '#ffc107', border: '1px solid #ffecb5', padding: '8px 16px', borderRadius: '50px', fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
                     ⭐ رصيد النقاط: <span style={{ color: '#dc3545' }}>{selectedClient.points || 0}</span>
                   </span>
                   {(selectedClient.credit > 0) && (
-                    <span style={{ background: 'rgba(25, 135, 84, 0.15)', color: '#51cf66', border: '1px solid #badbcc', padding: '8px 16px', borderRadius: '50px', fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
+                    <span style={{ background: 'rgba(25, 135, 84, 0.15)', color: '#198754', border: '1px solid #badbcc', padding: '8px 16px', borderRadius: '50px', fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
                       💰 رصيد بالشركة: {selectedClient.credit || 0} ج.م
                     </span>
                   )}
                 </div>
                 
-                <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '1rem', border: '1px solid #dee2e6', overflowX: 'auto', marginTop: '20px' }}>
+                <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', background: 'var(--erp-bg)', padding: '10px', borderRadius: '1rem', border: '1px solid #dee2e6', overflowX: 'auto', marginTop: '20px' }}>
                   <button onClick={() => navigate('/erp/bookings')} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <CalendarPlus size={20} /> <span style={{ fontSize: '0.8rem' }}>حجز جديد</span>
                   </button>
@@ -383,7 +383,7 @@ const ERPClients = () => {
 
               {selectedClient.debt > 0 && (
                 <div style={{ background: 'rgba(220, 53, 69, 0.15)', border: '1px solid #f5c2c7', padding: '15px', borderRadius: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-                  <span style={{ color: '#ff6b6b', fontWeight: 'bold', fontSize: '0.9rem' }}>إجمالي المديونية المتأخرة المستحقة:</span>
+                  <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '0.9rem' }}>إجمالي المديونية المتأخرة المستحقة:</span>
                   <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '1.25rem', margin: 0 }}>{selectedClient.debt} ج</span>
                 </div>
               )}
@@ -410,15 +410,15 @@ const ERPClients = () => {
                           {/* Stats 3 Boxes */}
                           {totalHours > 0 && (
                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>المتبقي</div>
                                 <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1.1rem', direction: 'rtl' }}>{formatHours(remHours)}</div>
                               </div>
-                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>المستخدم</div>
                                 <div style={{ fontWeight: 'bold', color: '#0d6efd', fontSize: '1.1rem', direction: 'rtl' }}>{formatHours(pkg.used_hours)}</div>
                               </div>
-                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>الباقة</div>
                                 <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.1rem', direction: 'rtl' }}>{totalHours} س</div>
                               </div>
@@ -427,15 +427,15 @@ const ERPClients = () => {
 
                           {totalReels > 0 && (
                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>المتبقي</div>
                                 <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1.1rem' }}>{remReels} ريل</div>
                               </div>
-                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>المستخدم</div>
                                 <div style={{ fontWeight: 'bold', color: '#0d6efd', fontSize: '1.1rem' }}>{pkg.used_reels} ريل</div>
                               </div>
-                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                              <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>الباقة</div>
                                 <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.1rem' }}>{totalReels} ريل</div>
                               </div>
@@ -445,14 +445,14 @@ const ERPClients = () => {
                           {/* Finance 3 Boxes */}
                           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                             <div style={{ flex: 1, background: 'rgba(220, 53, 69, 0.15)', borderRadius: '10px', padding: '12px 5px', textAlign: 'center', border: '1px solid #f5c2c7' }}>
-                              <div style={{ fontSize: '0.8rem', color: '#ff6b6b', marginBottom: '2px', fontWeight: 'bold' }}>المتبقي</div>
+                              <div style={{ fontSize: '0.8rem', color: '#dc3545', marginBottom: '2px', fontWeight: 'bold' }}>المتبقي</div>
                               <div style={{ fontWeight: 'bold', color: '#dc3545', fontSize: '1rem' }}>{remainingPaid} ج</div>
                             </div>
                             <div style={{ flex: 1, background: 'rgba(25, 135, 84, 0.15)', borderRadius: '10px', padding: '12px 5px', textAlign: 'center', border: '1px solid #badbcc' }}>
-                              <div style={{ fontSize: '0.8rem', color: '#51cf66', marginBottom: '2px', fontWeight: 'bold' }}>المدفوع</div>
+                              <div style={{ fontSize: '0.8rem', color: '#198754', marginBottom: '2px', fontWeight: 'bold' }}>المدفوع</div>
                               <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1rem' }}>{pkg.paid} ج</div>
                             </div>
-                            <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '10px', padding: '12px 5px', textAlign: 'center', background: 'rgba(0,0,0,0.2)' }}>
+                            <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '10px', padding: '12px 5px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                               <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '2px', fontWeight: 'bold' }}>التكلفة</div>
                               <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1rem' }}>{pkg.price} ج</div>
                             </div>
@@ -460,7 +460,7 @@ const ERPClients = () => {
 
                           {pkg.discount > 0 && (
                             <div style={{ background: 'rgba(220, 53, 69, 0.15)', borderRadius: '10px', padding: '10px', textAlign: 'center', marginBottom: '15px', border: '1px solid #f5c2c7' }}>
-                              <div style={{ fontWeight: 'bold', color: '#ff6b6b', fontSize: '0.9rem' }}><Tag size={14} style={{ verticalAlign: 'middle', marginLeft: '5px' }} />الخصم: {pkg.discount} ج.م</div>
+                              <div style={{ fontWeight: 'bold', color: '#dc3545', fontSize: '0.9rem' }}><Tag size={14} style={{ verticalAlign: 'middle', marginLeft: '5px' }} />الخصم: {pkg.discount} ج.م</div>
                             </div>
                           )}
 
@@ -498,18 +498,18 @@ const ERPClients = () => {
       {/* 1. Client Modal */}
       {isClientModalOpen && (
         <div className="erp-modal-overlay" onClick={() => setIsClientModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{ background: '#111111',  maxWidth: '500px', borderRadius: '1.5rem', padding: '30px', border: 'none', boxShadow: '0 1rem 3rem rgba(0,0,0,.175)' }}>
+          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '500px', borderRadius: '1.5rem', padding: '30px', border: 'none', boxShadow: '0 1rem 3rem rgba(0,0,0,.175)' }}>
             <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '25px', color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
               <UserPlus color="#ffc107" /> {isEditing ? 'تعديل بيانات العميل' : 'تسجيل عميل جديد'}
             </h4>
             <form onSubmit={handleSaveClient} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الاسم بالكامل</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'rgba(0,0,0,0.2)', fontWeight: 'bold' }} value={currentClient.name} onChange={e => setCurrentClient({...currentClient, name: e.target.value})} required /></div>
+              <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الاسم بالكامل</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentClient.name} onChange={e => setCurrentClient({...currentClient, name: e.target.value})} required /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>واتساب (أساسي)</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'rgba(25, 135, 84, 0.15)', color: '#198754', fontWeight: 'bold' }} value={currentClient.phone1} onChange={e => setCurrentClient({...currentClient, phone1: e.target.value})} required /></div>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>رقم ثانٍ (اختياري)</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'rgba(0,0,0,0.2)' }} value={currentClient.phone2} onChange={e => setCurrentClient({...currentClient, phone2: e.target.value})} /></div>
+                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>رقم ثانٍ (اختياري)</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.phone2} onChange={e => setCurrentClient({...currentClient, phone2: e.target.value})} /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الوظيفة / ملاحظة</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'rgba(0,0,0,0.2)' }} value={currentClient.job} onChange={e => setCurrentClient({...currentClient, job: e.target.value})} /></div>
+                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الوظيفة / ملاحظة</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.job} onChange={e => setCurrentClient({...currentClient, job: e.target.value})} /></div>
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>اللون</label><input type="color" style={{ width: '100%', padding: '5px', borderRadius: '0.5rem', border: 'none', height: '45px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }} value={currentClient.color} onChange={e => setCurrentClient({...currentClient, color: e.target.value})} /></div>
               </div>
               <button type="submit" style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: isEditing ? 'var(--erp-text-main)' : '#0d6efd', color: 'var(--erp-surface)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '15px', boxShadow: '0 .5rem 1rem rgba(0,0,0,.15)' }}>{isEditing ? 'تحديث البيانات' : 'حفظ العميل'}</button>
@@ -521,7 +521,7 @@ const ERPClients = () => {
       {/* 2. Finance Modal */}
       {isFinanceModalOpen && selectedClient && (
         <div className="erp-modal-overlay" onClick={() => setIsFinanceModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{ background: '#111111',  maxWidth: '450px', borderRadius: '1.5rem', padding: '0', border: 'none', overflow: 'hidden' }}>
+          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '450px', borderRadius: '1.5rem', padding: '0', border: 'none', overflow: 'hidden' }}>
             <div style={{ background: financeAction === 'deposit' ? '#0dcaf0' : '#ffc107', padding: '25px', textAlign: 'center' }}>
               <h4 style={{ margin: 0, fontWeight: 'bold', color: 'var(--erp-text-main)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
                 <Wallet /> {financeAction === 'deposit' ? 'إيداع رصيد مالي للعميل بالشركة' : 'سداد دفعة من المديونية'}
@@ -531,11 +531,11 @@ const ERPClients = () => {
               <form onSubmit={handleFinanceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ textAlign: 'right' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>المبلغ (ج.م)</label>
-                  <input type="number" value={financeAmount} onChange={e => setFinanceAmount(Number(e.target.value))} required min="1" style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: financeAction === 'deposit' ? 'rgba(13, 202, 240, 0.15)' : 'rgba(25, 135, 84, 0.15)', color: financeAction === 'deposit' ? '#3bc9db' : '#51cf66', fontSize: '2rem', textAlign: 'center', fontWeight: 'bold' }} />
+                  <input type="number" value={financeAmount} onChange={e => setFinanceAmount(Number(e.target.value))} required min="1" style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: financeAction === 'deposit' ? 'rgba(13, 202, 240, 0.15)' : 'rgba(25, 135, 84, 0.15)', color: financeAction === 'deposit' ? '#0dcaf0' : '#198754', fontSize: '2rem', textAlign: 'center', fontWeight: 'bold' }} />
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>طريقة السداد / الخزينة</label>
-                  <select value={financeMethod} onChange={e => setFinanceMethod(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '1rem', border: 'none', background: 'rgba(0,0,0,0.2)', fontWeight: 'bold' }}>
+                  <select value={financeMethod} onChange={e => setFinanceMethod(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '1rem', border: 'none', background: 'var(--erp-bg)', fontWeight: 'bold' }}>
                     <option value="كاش">كاش</option>
                     <option value="فودافون كاش">فودافون كاش</option>
                     <option value="انستاباي">إنستاباي</option>
@@ -551,13 +551,13 @@ const ERPClients = () => {
       {/* 3. WhatsApp Modal */}
       {isWhatsAppModalOpen && selectedClient && (
         <div className="erp-modal-overlay" onClick={() => setIsWhatsAppModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{ background: '#111111',  maxWidth: '600px', borderRadius: '1.5rem', padding: 0, overflow: 'hidden' }}>
+          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '600px', borderRadius: '1.5rem', padding: 0, overflow: 'hidden' }}>
             <div style={{ background: '#198754', color: '#fff', padding: '25px', color: 'var(--erp-surface)' }}>
               <h4 style={{ margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <MessageCircle /> معاينة وإرسال التقرير
               </h4>
             </div>
-            <div style={{ padding: '30px', background: 'rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '30px', background: 'var(--erp-bg)' }}>
               <textarea style={{ width: '100%', padding: '20px', borderRadius: '1rem', border: 'none', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', resize: 'none', minHeight: '200px', fontWeight: 'bold', color: 'var(--erp-text-main)', lineHeight: '1.6' }} value={whatsappMsg} onChange={e => setWhatsappMsg(e.target.value)}></textarea>
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button onClick={() => { navigator.clipboard.writeText(whatsappMsg); alert('تم النسخ!'); }} style={{ flex: 1, padding: '12px', borderRadius: '50rem', border: '1px solid #dee2e6', background: 'var(--erp-surface)', color: 'var(--erp-text-main)', fontWeight: 'bold', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>نسخ النص</button>
@@ -571,7 +571,7 @@ const ERPClients = () => {
       {/* 4. History Modal */}
       {isHistoryModalOpen && selectedClient && (
         <div className="erp-modal-overlay" onClick={() => setIsHistoryModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{ background: '#111111',  maxWidth: '800px', width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', borderRadius: '1.5rem', padding: '30px' }}>
+          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '800px', width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', borderRadius: '1.5rem', padding: '30px' }}>
             <h4 style={{ marginBottom: '25px', color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
               {historyType === 'packages' ? 'سجل الخدمات والباقات' : historyType === 'bookings' ? 'سجل مواعيد التصوير' : 'سجل الدفعات والمعاملات المالية'} 
               {' '} - {selectedClient.name}
@@ -584,7 +584,7 @@ const ERPClients = () => {
                 <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--erp-text-muted)' }}>لا توجد سجلات.</div>
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
-                  <thead style={{ position: 'sticky', top: 0, background: 'rgba(0,0,0,0.2)', zIndex: 10 }}>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--erp-bg)', zIndex: 10 }}>
                     <tr>
                       {historyType === 'finance' ? (
                         <>
@@ -624,7 +624,7 @@ const ERPClients = () => {
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.actual_reels > 0 ? row.actual_reels : '-'}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', fontSize: '0.85rem', color: 'var(--erp-text-muted)' }}>{row.detail}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center' }}>
-                              <span style={{ padding: '6px 12px', borderRadius: '0.5rem', background: row.status === 'منتهي' ? 'rgba(220, 53, 69, 0.15)' : 'rgba(13, 202, 240, 0.15)', color: row.status === 'منتهي' ? '#ff6b6b' : '#3bc9db', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                              <span style={{ padding: '6px 12px', borderRadius: '0.5rem', background: row.status === 'منتهي' ? 'rgba(220, 53, 69, 0.15)' : 'rgba(13, 202, 240, 0.15)', color: row.status === 'منتهي' ? '#dc3545' : '#0dcaf0', fontSize: '0.85rem', fontWeight: 'bold' }}>
                                 {row.status || 'مؤكد'}
                               </span>
                             </td>
@@ -638,7 +638,7 @@ const ERPClients = () => {
               )}
             </div>
             
-            <button onClick={() => setIsHistoryModalOpen(false)} style={{ width: '100%', marginTop: '20px', padding: '15px', borderRadius: '1rem', border: 'none', background: 'rgba(255,255,255,0.1)', color: 'var(--erp-text-main)', fontWeight: 'bold', cursor: 'pointer' }}>
+            <button onClick={() => setIsHistoryModalOpen(false)} style={{ width: '100%', marginTop: '20px', padding: '15px', borderRadius: '1rem', border: 'none', background: 'var(--erp-border)', color: 'var(--erp-text-main)', fontWeight: 'bold', cursor: 'pointer' }}>
               إغلاق
             </button>
           </div>

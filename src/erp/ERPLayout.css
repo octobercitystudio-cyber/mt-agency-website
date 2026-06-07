@@ -1,20 +1,20 @@
 :root {
-    --erp-bg: #0a0a0a;
-    --erp-surface: rgba(255, 255, 255, 0.05);
-    --erp-text-main: #ffffff;
-    --erp-text-muted: #8c8c8c;
-    --erp-border: rgba(255, 255, 255, 0.1);
-    --erp-primary: #9d4edd;
-    --erp-primary-hover: #7a28cb;
-    --erp-primary-gradient: linear-gradient(135deg, #9d4edd 0%, #7a28cb 100%);
-    --erp-success: #2ecc71;
-    --erp-warning: #f1c40f;
-    --erp-danger: #e74c3c;
-    --erp-sidebar-bg: rgba(0, 0, 0, 0.2);
-    --erp-sidebar-hover: rgba(157, 78, 221, 0.2);
-    --erp-sidebar-text-inactive: #8c8c8c;
+    --erp-bg: #f4f7fe;
+    --erp-surface: #ffffff;
+    --erp-text-main: #2b3674;
+    --erp-text-muted: #a3aed1;
+    --erp-border: #e2e8f0;
+    --erp-primary: #4318ff;
+    --erp-primary-hover: #3311db;
+    --erp-primary-gradient: linear-gradient(135deg, #4318ff 0%, #3311db 100%);
+    --erp-success: #198754;
+    --erp-warning: #ffc107;
+    --erp-danger: #dc3545;
+    --erp-sidebar-bg: #ffffff;
+    --erp-sidebar-hover: #f4f7fe;
+    --erp-sidebar-text-inactive: #a3aed1;
     --erp-sidebar-width: 260px;
-    --erp-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --erp-shadow: 0 5px 15px rgba(67, 24, 255, 0.05);
 }
 
 .erp-layout {
