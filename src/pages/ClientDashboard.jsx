@@ -223,6 +223,44 @@ const ClientDashboard = () => {
         <div className="content-wrapper">
           {activeTab === 'home' && primaryPackage && (
             <div className="home-tab">
+              {/* Package Title Bar */}
+              <div className="package-title-bar mb-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 style={{ margin: 0, color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}><Calendar size={24}/> تفاصيل الباقة الإجمالية</h3>
+                <span className="badge-glow" style={{ fontSize: '1.1rem', padding: '0.6rem 1.5rem' }}>{primaryPackage.name}</span>
+              </div>
+
+              {/* Hero Stats Grid */}
+              <div className="hero-stats-grid mb-4">
+                <div className="stat-card premium-glass glow-purple">
+                  <div className="stat-icon"><Clock size={28} /></div>
+                  <div className="stat-info">
+                    <span className="stat-label">إجمالي الساعات</span>
+                    <strong className="stat-value">{formatTime(totalHours)}</strong>
+                  </div>
+                </div>
+                <div className="stat-card premium-glass glow-neon">
+                  <div className="stat-icon"><CheckCircle size={28} /></div>
+                  <div className="stat-info">
+                    <span className="stat-label">المستخدم الكلي</span>
+                    <strong className="stat-value text-neon">{formatTime(primaryPackage.usedHours)}</strong>
+                  </div>
+                </div>
+                <div className="stat-card premium-glass glow-silver">
+                  <div className="stat-icon"><Clock3 size={28} /></div>
+                  <div className="stat-info">
+                    <span className="stat-label">المتبقي الكلي</span>
+                    <strong className="stat-value text-silver">{formatTime(remainingHours)}</strong>
+                  </div>
+                </div>
+                <div className="stat-card premium-glass glow-border">
+                  <div className="stat-icon"><Calendar size={28} /></div>
+                  <div className="stat-info">
+                    <span className="stat-label">الصلاحية</span>
+                    <strong className="stat-value" style={{fontSize: '1rem'}}>{primaryPackage.latestExpiry || 'غير محدد'}</strong>
+                  </div>
+                </div>
+              </div>
+
               {/* Time Filters */}
               <div className="time-filters-container mb-4">
                 <button className={`filter-btn ${timeFilter === 'all' ? 'active' : ''}`} onClick={() => setTimeFilter('all')}>مدة الباقة كاملة</button>
@@ -267,33 +305,6 @@ const ClientDashboard = () => {
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-card premium-glass">
-                <div className="card-header">
-                  <h3><Calendar size={20}/> تفاصيل الباقة الإجمالية</h3>
-                  <span className="badge-glow">{primaryPackage.name}</span>
-                </div>
-                <div className="card-body package-split">
-                  <div className="package-info" style={{width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: '2rem'}}>
-                    <div className="info-item" style={{flex: 1}}>
-                      <span className="label">إجمالي الساعات:</span>
-                      <span className="value">{formatTime(totalHours)}</span>
-                    </div>
-                    <div className="info-item" style={{flex: 1}}>
-                      <span className="label">المستخدم الكلي:</span>
-                      <span className="value text-neon">{formatTime(primaryPackage.usedHours)}</span>
-                    </div>
-                    <div className="info-item" style={{flex: 1}}>
-                      <span className="label">المتبقي الكلي:</span>
-                      <span className="value text-silver">{formatTime(remainingHours)}</span>
-                    </div>
-                    <div className="info-item" style={{flex: 1}}>
-                      <span className="label">الصلاحية:</span>
-                      <span className="value">{primaryPackage.latestExpiry || 'غير محدد'}</span>
-                    </div>
                   </div>
                 </div>
               </div>

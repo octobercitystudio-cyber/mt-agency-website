@@ -556,5 +556,83 @@
   }
   .finance-row {
     flex-direction: column;
-  }
+}
+
+/* Helper Utilities */
+.mb-4 { margin-bottom: 2rem; }
+
+/* Hero Stats Grid - Premium Glass Widgets */
+.hero-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: rgba(20, 15, 30, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+}
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: #8c8c8c;
+  margin-bottom: 0.2rem;
+}
+
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* Glow Effects for Cards */
+.glow-purple {
+  box-shadow: inset 0 0 20px rgba(157, 78, 221, 0.1);
+}
+.glow-purple .stat-icon { background: rgba(157, 78, 221, 0.2); color: var(--color-vibrant-purple); }
+
+.glow-neon {
+  box-shadow: inset 0 0 20px rgba(198, 120, 255, 0.1);
+}
+.glow-neon .stat-icon { background: rgba(198, 120, 255, 0.2); color: var(--color-neon-purple); }
+
+.glow-silver {
+  box-shadow: inset 0 0 20px rgba(224, 224, 224, 0.05);
+}
+.glow-silver .stat-icon { background: rgba(224, 224, 224, 0.1); color: var(--color-silver); }
+
+.glow-border {
+  border-bottom: 3px solid var(--color-vibrant-purple);
+}
+
+.package-title-bar h3 {
+  font-size: 1.5rem;
 }
