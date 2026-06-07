@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
-import { DollarSign, PlusCircle, Trash2, Search, Calendar, Wallet, TrendingUp, TrendingDown, ArrowRightLeft, Users, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DollarSign, PlusCircle, Trash2, Calendar, Wallet, TrendingUp, TrendingDown, ArrowRightLeft, Users, RefreshCw, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Star, Banknote, Smartphone, Send, UserCheck, Edit, Pen, Receipt, HandCoins, Undo, Scale, Info } from 'lucide-react';
 import { format, parseISO, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
@@ -8,25 +8,29 @@ const ERPFinance = () => {
   const [allTransactions, setAllTransactions] = useState([]);
   const [appConfig, setAppConfig] = useState({});
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
-  
+  const isAdmin = true; // Hardcoded based on the template logic
+
   // Modals States
-  const [isTxModalOpen, setIsTxModalOpen] = useState(false);
-  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
-  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
-  const [isAdjustDueModalOpen, setIsAdjustDueModalOpen] = useState(false);
+  const [modalState, setModalState] = useState({
+    transfer: false,
+    addTransaction: false,
+    settleDues: false,
+    advance: false,
+    payAdvance: false,
+    adjustPartner: false
+  });
 
   // Form States
   const [txForm, setTxForm] = useState({ type: 'إيراد', amount: '', method: 'كاش', detail: '', date: format(new Date(), 'yyyy-MM-dd'), entity: 'الشركة' });
   const [transferForm, setTransferForm] = useState({ from_method: 'كاش', to_method: 'فودافون كاش', amount: '', date: format(new Date(), 'yyyy-MM-dd'), note: '' });
   const [settleForm, setSettleForm] = useState({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
-  const [advanceForm, setAdvanceForm] = useState({ type: 'سحب سلفة', partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
-  const [adjustDueForm, setAdjustDueForm] = useState({ partner: 'اشرف', new_due: '' });
+  const [advanceForm, setAdvanceForm] = useState({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
+  const [payAdvanceForm, setPayAdvanceForm] = useState({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
+  const [adjustDueForm, setAdjustDueForm] = useState({ partner: 'اشرف', new_due: '', current_due: 0 });
 
-  const methodsList = ['كاش', 'فودافون كاش', 'إنستاباي (InstaPay)', 'تحويل بنكي'];
+  const methodsList = ['كاش', 'فودافون كاش', 'انستاباي'];
   const partnersList = ['اشرف', 'مروة'];
 
   useEffect(() => {
@@ -64,29 +68,29 @@ const ERPFinance = () => {
     let marwa_e1 = 0;
     let marwa_e2 = 0;
     
-    const balances = { 'كاش': 0, 'فودافون كاش': 0, 'إنستاباي (InstaPay)': 0, 'تحويل بنكي': 0 };
+    const balances = { 'كاش': 0, 'فودافون كاش': 0, 'انستاباي': 0, 'إنستاباي (InstaPay)': 0, 'تحويل بنكي': 0 };
 
-    // Month filter transactions
-    const monthTransactions = [];
+    const incomes = [];
+    const expenses = [];
 
     allTransactions.forEach(t => {
       const amt = safeFloat(t.amount);
       const isCurrentMonth = t.date && t.date.startsWith(selectedMonth);
 
       if (isCurrentMonth) {
-        monthTransactions.push(t);
-        
         // Month Income & Expense (for Net Profit)
-        if (['إيراد', 'سداد سلفة'].includes(t.type)) {
-          total_inc += amt;
-        } else if (['مصروف', 'سحب سلفة'].includes(t.type)) {
-          total_exp += amt;
+        if (['إيراد', 'سداد سلفة', 'تحويل وارد'].includes(t.type)) {
+          if (['إيراد', 'سداد سلفة'].includes(t.type)) total_inc += amt;
+          incomes.push(t);
+        } else if (['مصروف', 'تحويل صادر', 'سحب سلفة', 'سداد مستحقات'].includes(t.type)) {
+          if (['مصروف', 'سحب سلفة'].includes(t.type)) total_exp += amt;
+          expenses.push(t);
         }
       }
 
       // Vault Balances (Global)
       const method = t.method || 'كاش';
-      if (!balances[method]) balances[method] = 0;
+      if (balances[method] === undefined) balances[method] = 0;
 
       if (['إيراد', 'سداد سلفة', 'تحويل وارد'].includes(t.type)) {
         balances[method] += amt;
@@ -110,15 +114,18 @@ const ERPFinance = () => {
     const ashraf_due = (ashraf_e1 - ashraf_e2) + safeFloat(appConfig['partner_اشرف_adj'] || 0);
     const marwa_due = (marwa_e1 - marwa_e2) + safeFloat(appConfig['partner_مروة_adj'] || 0);
 
-    return { total_inc, total_exp, net_profit, balances, ashraf_due, marwa_due, monthTransactions };
+    // Merge old instapay balances if needed
+    const final_instapay = balances['انستاباي'] + balances['إنستاباي (InstaPay)'] + balances['تحويل بنكي'];
+
+    return { 
+      total_inc, total_exp, net_profit, 
+      balances: { cash: balances['كاش'], vodafone: balances['فودافون كاش'], instapay: final_instapay }, 
+      ashraf_due, marwa_due, 
+      incomes, expenses 
+    };
   }, [allTransactions, appConfig, selectedMonth]);
 
-  const { total_inc, total_exp, net_profit, balances, ashraf_due, marwa_due, monthTransactions } = calculations;
-
-  const filteredTransactions = monthTransactions.filter(t => 
-    t.detail?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    t.entity?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const { total_inc, total_exp, net_profit, balances, ashraf_due, marwa_due, incomes, expenses } = calculations;
 
   // Handlers
   const handleAddTransaction = async (e) => {
@@ -133,7 +140,7 @@ const ERPFinance = () => {
     }]);
 
     if (!error) {
-      setIsTxModalOpen(false);
+      setModalState(s => ({...s, addTransaction: false}));
       setTxForm({ type: 'إيراد', amount: '', method: 'كاش', detail: '', date: format(new Date(), 'yyyy-MM-dd'), entity: 'الشركة' });
       fetchData();
     } else {
@@ -152,19 +159,17 @@ const ERPFinance = () => {
     const detailOut = `تحويل صادر إلى ${transferForm.to_method}${note}`;
     const detailIn = `تحويل وارد من ${transferForm.from_method}${note}`;
 
-    const { error: err1 } = await supabase.from('finance').insert([{ type: 'تحويل صادر', amount: amt, method: transferForm.from_method, detail: detailOut, date: transferForm.date, entity: 'الشركة' }]);
-    const { error: err2 } = await supabase.from('finance').insert([{ type: 'تحويل وارد', amount: amt, method: transferForm.to_method, detail: detailIn, date: transferForm.date, entity: 'الشركة' }]);
+    await supabase.from('finance').insert([{ type: 'تحويل صادر', amount: amt, method: transferForm.from_method, detail: detailOut, date: transferForm.date, entity: 'الشركة' }]);
+    await supabase.from('finance').insert([{ type: 'تحويل وارد', amount: amt, method: transferForm.to_method, detail: detailIn, date: transferForm.date, entity: 'الشركة' }]);
 
-    if (!err1 && !err2) {
-      setIsTransferModalOpen(false);
-      setTransferForm({ from_method: 'كاش', to_method: 'فودافون كاش', amount: '', date: format(new Date(), 'yyyy-MM-dd'), note: '' });
-      fetchData();
-    }
+    setModalState(s => ({...s, transfer: false}));
+    setTransferForm({ from_method: 'كاش', to_method: 'فودافون كاش', amount: '', date: format(new Date(), 'yyyy-MM-dd'), note: '' });
+    fetchData();
   };
 
   const handleSettle = async (e) => {
     e.preventDefault();
-    const { error } = await supabase.from('finance').insert([{
+    await supabase.from('finance').insert([{
       type: 'سداد مستحقات',
       amount: safeFloat(settleForm.amount),
       method: settleForm.method,
@@ -172,29 +177,39 @@ const ERPFinance = () => {
       date: settleForm.date,
       entity: settleForm.partner
     }]);
-    if (!error) {
-      setIsSettleModalOpen(false);
-      setSettleForm({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
-      fetchData();
-    }
+    setModalState(s => ({...s, settleDues: false}));
+    setSettleForm({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
+    fetchData();
   };
 
   const handleAdvance = async (e) => {
     e.preventDefault();
-    const detail = advanceForm.type === 'سحب سلفة' ? `سحب سلفة لـ أ. ${advanceForm.partner}` : `سداد سلفة من أ. ${advanceForm.partner}`;
-    const { error } = await supabase.from('finance').insert([{
-      type: advanceForm.type,
+    await supabase.from('finance').insert([{
+      type: 'سحب سلفة',
       amount: safeFloat(advanceForm.amount),
       method: advanceForm.method,
-      detail: detail,
+      detail: `سحب سلفة لـ أ. ${advanceForm.partner}`,
       date: advanceForm.date,
       entity: advanceForm.partner
     }]);
-    if (!error) {
-      setIsAdvanceModalOpen(false);
-      setAdvanceForm({ type: 'سحب سلفة', partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
-      fetchData();
-    }
+    setModalState(s => ({...s, advance: false}));
+    setAdvanceForm({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
+    fetchData();
+  };
+
+  const handlePayAdvance = async (e) => {
+    e.preventDefault();
+    await supabase.from('finance').insert([{
+      type: 'سداد سلفة',
+      amount: safeFloat(payAdvanceForm.amount),
+      method: payAdvanceForm.method,
+      detail: `سداد سلفة من أ. ${payAdvanceForm.partner}`,
+      date: payAdvanceForm.date,
+      entity: payAdvanceForm.partner
+    }]);
+    setModalState(s => ({...s, payAdvance: false}));
+    setPayAdvanceForm({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
+    fetchData();
   };
 
   const handleAdjustDue = async (e) => {
@@ -202,7 +217,6 @@ const ERPFinance = () => {
     const partner = adjustDueForm.partner;
     const new_due = safeFloat(adjustDueForm.new_due);
     
-    // Recalculate base due
     let e1 = 0, e2 = 0;
     allTransactions.forEach(t => {
       if (t.entity === partner) {
@@ -215,26 +229,20 @@ const ERPFinance = () => {
     const adj_key = `partner_${partner}_adj`;
 
     const exists = appConfig[adj_key] !== undefined;
-    let error;
     if (exists) {
-      const res = await supabase.from('app_config').update({ value: new_adj.toString() }).eq('key', adj_key);
-      error = res.error;
+      await supabase.from('app_config').update({ value: new_adj.toString() }).eq('key', adj_key);
     } else {
-      const res = await supabase.from('app_config').insert([{ key: adj_key, value: new_adj.toString() }]);
-      error = res.error;
+      await supabase.from('app_config').insert([{ key: adj_key, value: new_adj.toString() }]);
     }
 
-    if (!error) {
-      setIsAdjustDueModalOpen(false);
-      setAdjustDueForm({ partner: 'اشرف', new_due: '' });
-      fetchData();
-    }
+    setModalState(s => ({...s, adjustPartner: false}));
+    fetchData();
   };
 
   const deleteTransaction = async (id) => {
     if (window.confirm('هل أنت متأكد من حذف هذا السجل المالي؟')) {
-      const { error } = await supabase.from('finance').delete().eq('id', id);
-      if (!error) fetchData();
+      await supabase.from('finance').delete().eq('id', id);
+      fetchData();
     }
   };
 
@@ -244,345 +252,499 @@ const ERPFinance = () => {
     setSelectedMonth(format(newDate, 'yyyy-MM'));
   };
 
-  const getTypeStyle = (type) => {
-    if (['إيراد', 'سداد سلفة', 'تحويل وارد'].includes(type)) return { bg: '#d1e7dd', color: '#0f5132' };
-    if (['مصروف', 'تحويل صادر', 'سحب سلفة', 'سداد مستحقات'].includes(type)) return { bg: '#f8d7da', color: '#842029' };
-    return { bg: '#e2e3e5', color: '#41464b' };
+  // Open Modal Helpers
+  const openSettleModal = (partner, maxDue) => {
+    setSettleForm({ ...settleForm, partner, amount: maxDue > 0 ? maxDue : '' });
+    setModalState(s => ({...s, settleDues: true}));
+  };
+
+  const openAdvanceModal = (partner) => {
+    setAdvanceForm({ ...advanceForm, partner });
+    setModalState(s => ({...s, advance: true}));
+  };
+
+  const openPayAdvanceModal = (partner, maxAdv) => {
+    setPayAdvanceForm({ ...payAdvanceForm, partner, amount: maxAdv > 0 ? maxAdv : '' });
+    setModalState(s => ({...s, payAdvance: true}));
+  };
+
+  const openAdjustPartnerModal = (partner, currentDue) => {
+    setAdjustDueForm({ partner, new_due: '', current_due: currentDue });
+    setModalState(s => ({...s, adjustPartner: true}));
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--erp-text-muted)' }}>جاري تحميل الحسابات...</div>;
 
   return (
-    <div>
-      {/* Header and Month Controls */}
-      <div className="erp-header">
-        <div>
-          <h2>الإدارة المالية للشركة</h2>
-          <p>إدارة الخزائن، الشركاء، المديونيات والأرباح</p>
-        </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={() => changeMonth(-1)} style={{ background: 'var(--erp-surface)', border: '1px solid var(--erp-border)', padding: '10px', borderRadius: '10px', cursor: 'pointer' }}>
-            <ChevronRight size={18} />
-          </button>
-          <div style={{ background: 'var(--erp-primary)', color: 'white', padding: '10px 20px', borderRadius: '10px', fontWeight: 'bold' }}>
-            {format(parseISO(`${selectedMonth}-01`), 'MMMM yyyy', { locale: ar })}
-          </div>
-          <button onClick={() => changeMonth(1)} style={{ background: 'var(--erp-surface)', border: '1px solid var(--erp-border)', padding: '10px', borderRadius: '10px', cursor: 'pointer' }}>
-            <ChevronLeft size={18} />
-          </button>
-        </div>
-      </div>
+    <div className="container-fluid p-0 animate__animated animate__fadeIn">
+      <style>{`
+        .wallet-card { transition: all 0.3s ease; border: 1px solid rgba(0,0,0,0.05); }
+        .wallet-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.1) !important; }
+        
+        .table-container { overflow: auto; max-height: 500px; padding-top: 5px; }
+        .table-container::-webkit-scrollbar { width: 6px; height: 6px; } 
+        .table-container::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        
+        .month-selector { background: white; border: 1px solid #e2e8f0; border-radius: 50px; padding: 5px; display: inline-flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .month-selector input[type="month"] { border: none; background: transparent; font-weight: 700; color: #2b3674; outline: none; cursor: pointer; text-align: center; }
+        
+        .gradient-primary { background: linear-gradient(135deg, #4318ff 0%, #868cff 100%); color: white; }
+        .gradient-success { background: linear-gradient(135deg, #10b981 0%, #34d399 100%); color: white; }
+        .gradient-danger { background: linear-gradient(135deg, #ef4444 0%, #f87171 100%); color: white; }
 
-      {/* Global Financial Summaries (Current Month) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '20px' }}>
-        <div className="erp-card" style={{ display: 'flex', alignItems: 'center', gap: '15px', background: 'linear-gradient(135deg, #2ecc71 0%, #27ae60 100%)', color: 'white' }}>
-          <div style={{ background: 'rgba(255, 255, 255, 0.2)', padding: '15px', borderRadius: '12px' }}><TrendingUp size={30} /></div>
-          <div>
-            <p style={{ margin: 0, opacity: 0.8, fontWeight: 'bold' }}>صافي الأرباح (للشهر)</p>
-            <h3 style={{ margin: '5px 0 0 0', fontSize: '1.8rem' }}>{net_profit.toLocaleString()} ج.م</h3>
-          </div>
+        .bg-income-container { background-color: #f7fdf9 !important; border: 1px solid #dcfce7 !important; }
+        .table-income tbody tr td { background-color: #e8faed !important; border-bottom: 6px solid #f7fdf9 !important; transition: all 0.2s ease; }
+        .table-income tbody tr:hover td { background-color: #d1f4dc !important; transform: scale(0.99); }
+        .thead-income th { background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important; color: #ffffff !important; border: none !important; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); }
+
+        .bg-expense-container { background-color: #fff9f9 !important; border: 1px solid #fee2e2 !important; }
+        .table-expense tbody tr td { background-color: #ffefef !important; border-bottom: 6px solid #fff9f9 !important; transition: all 0.2s ease; }
+        .table-expense tbody tr:hover td { background-color: #ffe0e0 !important; transform: scale(0.99); }
+        .thead-expense th { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important; color: #ffffff !important; border: none !important; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2); }
+
+        .due-row td { background-color: #fffbeb !important; border-bottom: 6px solid #fff9f9 !important; transition: all 0.2s ease; }
+        .due-row:hover td { background-color: #fef3c7 !important; transform: scale(0.99); }
+      `}</style>
+
+      {/* Header Area */}
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
+        <div>
+          <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>
+            <TrendingUp className="me-2" style={{ color: 'var(--erp-primary)', display: 'inline' }} /> الإدارة المالية
+          </h3>
+          <p className="small m-0 mt-1" style={{ color: 'var(--erp-text-muted)' }}>نظرة شاملة على الإيرادات والمصروفات الخاصة بالشركة.</p>
         </div>
         
-        <div className="erp-card" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ background: 'rgba(52, 152, 219, 0.1)', padding: '15px', borderRadius: '12px', color: '#3498db' }}><DollarSign size={30} /></div>
-          <div>
-            <p style={{ color: 'var(--erp-text-muted)', margin: 0, fontWeight: 'bold' }}>إجمالي الإيرادات (للشهر)</p>
-            <h3 style={{ margin: '5px 0 0 0', fontSize: '1.8rem', color: 'var(--erp-text-main)' }}>{total_inc.toLocaleString()} ج.م</h3>
+        <div className="d-flex flex-wrap align-items-center justify-content-center gap-3">
+          <div className="month-selector">
+            <button onClick={() => changeMonth(1)} className="btn btn-sm btn-light rounded-circle" style={{ color: 'var(--erp-primary)' }}><ChevronRight size={18} /></button>
+            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="m-0 px-2" />
+            <button onClick={() => changeMonth(-1)} className="btn btn-sm btn-light rounded-circle" style={{ color: 'var(--erp-primary)' }}><ChevronLeft size={18} /></button>
+          </div>
+          
+          <button className="btn btn-info text-dark rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" onClick={() => setModalState({...modalState, transfer: true})}>
+            <ArrowRightLeft size={18} className="me-2" /> تحويل رصيد
+          </button>
+          <button className="btn rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" style={{ background: 'var(--erp-primary)', color: 'white' }} onClick={() => setModalState({...modalState, addTransaction: true})}>
+            <PlusCircle size={18} className="me-2" /> عملية مالية
+          </button>
+        </div>
+      </div>
+
+      {/* Overview Cards */}
+      <div className="row g-4 mb-4">
+        <div className="col-md-4">
+          <div className="card border-0 rounded-4 p-4 h-100 gradient-success shadow-sm wallet-card position-relative overflow-hidden">
+            <ArrowUp className="position-absolute end-0 top-0 mt-3 me-3 opacity-25" size={80} />
+            <div className="position-relative z-1">
+              <p className="mb-1 fw-bold opacity-75">إيرادات شهر ({format(parseISO(`${selectedMonth}-01`), 'MMMM', { locale: ar })})</p>
+              <h2 className="fw-bold m-0">{total_inc.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
+            </div>
           </div>
         </div>
-
-        <div className="erp-card" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ background: 'rgba(231, 76, 60, 0.1)', padding: '15px', borderRadius: '12px', color: '#e74c3c' }}><TrendingDown size={30} /></div>
-          <div>
-            <p style={{ color: 'var(--erp-text-muted)', margin: 0, fontWeight: 'bold' }}>إجمالي المصروفات (للشهر)</p>
-            <h3 style={{ margin: '5px 0 0 0', fontSize: '1.8rem', color: 'var(--erp-text-main)' }}>{total_exp.toLocaleString()} ج.م</h3>
+        <div className="col-md-4">
+          <div className="card border-0 rounded-4 p-4 h-100 gradient-danger shadow-sm wallet-card position-relative overflow-hidden">
+            <ArrowDown className="position-absolute end-0 top-0 mt-3 me-3 opacity-25" size={80} />
+            <div className="position-relative z-1">
+              <p className="mb-1 fw-bold opacity-75">مصروفات شهر ({format(parseISO(`${selectedMonth}-01`), 'MMMM', { locale: ar })})</p>
+              <h2 className="fw-bold m-0">{total_exp.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div className="card border-0 rounded-4 p-4 h-100 gradient-primary shadow-sm wallet-card position-relative overflow-hidden">
+            <Star className="position-absolute end-0 top-0 mt-3 me-3 opacity-25" size={80} />
+            <div className="position-relative z-1">
+              <p className="mb-1 fw-bold opacity-75">صافي الأرباح للشهر</p>
+              <h2 className="fw-bold m-0">{net_profit.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Vault Balances and Partner Dues */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        {/* Vault Balances */}
-        <div className="erp-card">
-          <h4 style={{ marginBottom: '15px', color: 'var(--erp-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Wallet size={20} /> أرصدة الخزائن (الفعلية)
-          </h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #dee2e6' }}>
-              <strong style={{ color: '#212529' }}>كاش (نقدي)</strong>
-              <strong style={{ color: balances['كاش'] >= 0 ? '#198754' : '#dc3545', direction: 'ltr' }}>{balances['كاش']?.toLocaleString()} ج</strong>
+      {/* Vault Balances */}
+      <h5 className="fw-bold mb-3" style={{ color: 'var(--erp-text-main)' }}>
+        <Wallet className="me-2" style={{ color: 'var(--erp-text-muted)', display: 'inline' }} /> أرصدة الخزائن الحالية (تراكمي)
+      </h5>
+      <div className="row g-4 mb-4">
+        <div className="col-md-4">
+          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card" style={{ background: 'var(--erp-surface)' }}>
+            <div className="d-flex justify-content-between align-items-start mb-3">
+              <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', padding: '15px', borderRadius: '50%' }}>
+                <Banknote size={24} />
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #dee2e6' }}>
-              <strong style={{ color: '#212529' }}>فودافون كاش</strong>
-              <strong style={{ color: balances['فودافون كاش'] >= 0 ? '#198754' : '#dc3545', direction: 'ltr' }}>{balances['فودافون كاش']?.toLocaleString()} ج</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #dee2e6' }}>
-              <strong style={{ color: '#212529' }}>إنستاباي (InstaPay)</strong>
-              <strong style={{ color: balances['إنستاباي (InstaPay)'] >= 0 ? '#198754' : '#dc3545', direction: 'ltr' }}>{balances['إنستاباي (InstaPay)']?.toLocaleString()} ج</strong>
-            </div>
+            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>صندوق الكاش (النقدية)</p>
+            <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.cash.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
           </div>
         </div>
-
-        {/* Partner Dues */}
-        <div className="erp-card">
-          <h4 style={{ marginBottom: '15px', color: 'var(--erp-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Users size={20} /> مستحقات الشركاء المتبقية
-          </h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(52, 152, 219, 0.05)', borderRadius: '10px', border: '1px solid rgba(52, 152, 219, 0.2)' }}>
-              <strong style={{ color: '#0d6efd' }}>أشرف السيد</strong>
-              <strong style={{ color: ashraf_due >= 0 ? '#198754' : '#dc3545', direction: 'ltr' }}>{ashraf_due.toLocaleString()} ج</strong>
+        <div className="col-md-4">
+          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card" style={{ background: 'var(--erp-surface)' }}>
+            <div className="d-flex justify-content-between align-items-start mb-3">
+              <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', padding: '15px', borderRadius: '50%' }}>
+                <Smartphone size={24} />
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: 'rgba(155, 89, 182, 0.05)', borderRadius: '10px', border: '1px solid rgba(155, 89, 182, 0.2)' }}>
-              <strong style={{ color: '#6f42c1' }}>مروة أسامة</strong>
-              <strong style={{ color: marwa_due >= 0 ? '#198754' : '#dc3545', direction: 'ltr' }}>{marwa_due.toLocaleString()} ج</strong>
+            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>محفظة فودافون كاش</p>
+            <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.vodafone.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card" style={{ background: 'var(--erp-surface)' }}>
+            <div className="d-flex justify-content-between align-items-start mb-3">
+              <div style={{ background: '#f4f0ff', color: '#6f42c1', padding: '15px', borderRadius: '50%' }}>
+                <Send size={24} />
+              </div>
             </div>
-            <button onClick={() => setIsAdjustDueModalOpen(true)} style={{ marginTop: '10px', background: 'var(--erp-surface)', color: 'var(--erp-text-main)', border: '1px dashed var(--erp-border)', padding: '10px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>
-              تعديل يدوي لمستحقات الشركاء
-            </button>
+            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>حساب البنك (InstaPay)</p>
+            <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.instapay.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
           </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
-        <button className="erp-btn-primary" onClick={() => setIsTxModalOpen(true)}><PlusCircle size={18} /> عملية مالية (إيراد/مصروف)</button>
-        <button style={{ background: '#0dcaf0', color: '#000', padding: '10px 20px', borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }} onClick={() => setIsTransferModalOpen(true)}><ArrowRightLeft size={18} /> تحويل بين المحافظ</button>
-        <button style={{ background: '#198754', color: '#fff', padding: '10px 20px', borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }} onClick={() => setIsSettleModalOpen(true)}><DollarSign size={18} /> سداد مستحقات شريك</button>
-        <button style={{ background: '#ffc107', color: '#000', padding: '10px 20px', borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', gap: '8px', alignItems: 'center' }} onClick={() => setIsAdvanceModalOpen(true)}><RefreshCw size={18} /> سحب / سداد سلفة</button>
+      {/* Partners Dues */}
+      <div className="row g-4 mb-4">
+        {[
+          { name: 'أ. أشرف', key: 'اشرف', due: ashraf_due },
+          { name: 'أ. مروة', key: 'مروة', due: marwa_due }
+        ].map(partner => (
+          <div className="col-md-6" key={partner.key}>
+            <div className="card border-0 shadow-sm rounded-4 p-3 d-flex flex-row align-items-center justify-content-between wallet-card" style={{ background: 'var(--erp-surface)' }}>
+              <div className="d-flex align-items-center">
+                <div style={{ background: 'var(--erp-bg)', padding: '15px', borderRadius: '50%', marginRight: '15px' }}>
+                  <UserCheck size={20} style={{ color: 'var(--erp-text-main)' }} />
+                </div>
+                <div>
+                  <h6 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>
+                    {partner.name}
+                    {isAdmin && <button className="btn btn-sm btn-link p-0 ms-2" style={{ color: 'var(--erp-primary)' }} onClick={() => openAdjustPartnerModal(partner.key, partner.due)}><Edit size={14} /></button>}
+                  </h6>
+                  <small style={{ color: 'var(--erp-text-muted)' }}>مستحقات متأخرة أو سلف (تراكمية)</small>
+                </div>
+              </div>
+              <div className="text-end">
+                {partner.due > 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-success)' }}>له: {partner.due.toLocaleString()} <small className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج</small></h5>}
+                {partner.due < 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-danger)' }}>عليه: {(partner.due * -1).toLocaleString()} <small className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج</small></h5>}
+                {partner.due === 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-text-muted)' }}>0 <small className="fs-6">ج</small></h5>}
+                
+                <div className="d-flex gap-1 justify-content-end mt-2">
+                  <button className="btn btn-sm rounded-pill px-3 fw-bold" style={{ border: '1px solid var(--erp-danger)', color: 'var(--erp-danger)' }} onClick={() => openAdvanceModal(partner.key)}>سحب سلفة</button>
+                  {partner.due > 0 && <button className="btn btn-sm rounded-pill px-3 fw-bold" style={{ border: '1px solid var(--erp-success)', color: 'var(--erp-success)' }} onClick={() => openSettleModal(partner.key, partner.due)}>سداد له</button>}
+                  {partner.due < 0 && <button className="btn btn-sm rounded-pill px-3 fw-bold" style={{ border: '1px solid var(--erp-primary)', color: 'var(--erp-primary)' }} onClick={() => openPayAdvanceModal(partner.key, partner.due * -1)}>سداد السلفة</button>}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Transactions Table */}
-      <div className="erp-card">
-        <div style={{ position: 'relative', marginBottom: '20px' }}>
-          <Search size={18} style={{ position: 'absolute', right: '15px', top: '15px', color: 'var(--erp-text-muted)' }} />
-          <input type="text" placeholder="ابحث في السجلات..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="erp-input" style={{ paddingRight: '45px' }} />
-        </div>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table className="erp-table">
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'right' }}>التاريخ</th>
-                <th style={{ textAlign: 'center' }}>النوع</th>
-                <th style={{ textAlign: 'center' }}>المبلغ</th>
-                <th style={{ textAlign: 'right' }}>الخزنة / المحفظة</th>
-                <th style={{ textAlign: 'right' }}>التفاصيل والملاحظات</th>
-                <th style={{ textAlign: 'right' }}>الجهة</th>
-                <th style={{ textAlign: 'center' }}>إجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTransactions.map(tx => {
-                const style = getTypeStyle(tx.type);
-                return (
-                  <tr key={tx.id}>
-                    <td style={{ whiteSpace: 'nowrap' }}><Calendar size={14} style={{ marginLeft: '5px', verticalAlign: 'middle', color: 'var(--erp-text-muted)' }} /> {tx.date}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span style={{ background: style.bg, color: style.color, padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 'bold' }}>{tx.type}</span>
-                    </td>
-                    <td style={{ textAlign: 'center', fontWeight: 'bold', direction: 'ltr' }}>{tx.amount?.toLocaleString()} ج.م</td>
-                    <td style={{ color: 'var(--erp-text-muted)' }}>{tx.method}</td>
-                    <td style={{ color: 'var(--erp-text-muted)', maxWidth: '300px', whiteSpace: 'normal' }}>{tx.detail || '-'}</td>
-                    <td style={{ color: 'var(--erp-text-muted)' }}>{tx.entity}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button onClick={() => deleteTransaction(tx.id)} style={{ background: 'transparent', border: 'none', color: '#dc3545', cursor: 'pointer' }} title="حذف السجل"><Trash2 size={18} /></button>
-                    </td>
+      {/* Transaction Tables */}
+      <div className="row g-4">
+        {/* Incomes */}
+        <div className="col-xl-6">
+          <div className="d-flex justify-content-between align-items-center mb-3 px-2">
+            <h5 className="fw-bold m-0" style={{ color: 'var(--erp-success)' }}><ArrowDown size={18} className="me-2 d-inline" /> سجل الواردات (إيرادات)</h5>
+            <span className="badge rounded-pill shadow-sm py-2 px-3" style={{ background: 'var(--erp-success)', color: 'white' }}>{incomes.length} عملية</span>
+          </div>
+          <div className="card border-0 shadow-sm rounded-4 overflow-hidden h-100 bg-income-container">
+            <div className="card-body p-2 table-container">
+              <table className="table table-borderless align-middle m-0 table-income text-center" style={{ whiteSpace: 'nowrap' }}>
+                <thead className="sticky-top thead-income">
+                  <tr>
+                    <th className="small fw-bold py-3 rounded-start-3">التاريخ</th>
+                    <th className="small fw-bold py-3">المعاملة</th>
+                    <th className="small fw-bold py-3">النوع/المحفظة</th>
+                    <th className="small fw-bold py-3 rounded-end-3">المبلغ</th>
                   </tr>
-                );
-              })}
-              {filteredTransactions.length === 0 && (
-                <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--erp-text-muted)' }}>لا توجد حركات مالية مسجلة في هذا الشهر.</td></tr>
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {incomes.map(i => {
+                    const dayName = format(parseISO(i.date), 'EEEE', { locale: ar });
+                    return (
+                      <tr key={i.id}>
+                        <td className="rounded-start-3">
+                          <span className="d-block fw-bold mb-1" style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem' }}>{dayName}</span>
+                          <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>{i.date}</span>
+                        </td>
+                        <td><span className="fw-bold small" style={{ color: 'var(--erp-text-main)' }}>{i.detail}</span></td>
+                        <td>
+                          {i.type === 'سداد سلفة' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-primary)', color: 'white', borderColor: 'var(--erp-primary)' }}>{i.entity} (سداد سلفة)</span>}
+                          {i.type === 'تحويل وارد' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#0dcaf0', color: '#000', borderColor: '#0dcaf0' }}>{i.method} (تحويل وارد)</span>}
+                          {['إيراد'].includes(i.type) && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-success)', borderColor: 'var(--erp-success)' }}>{i.method}</span>}
+                        </td>
+                        <td className="rounded-end-3">
+                          <span className="fw-bold fs-6 d-block" style={{ color: 'var(--erp-success)' }}>+{i.amount.toLocaleString()} ج</span>
+                          {isAdmin && (
+                            <div className="mt-2 d-flex gap-2 justify-content-center">
+                              <button className="btn btn-sm btn-light border py-0 px-2" style={{ color: 'var(--erp-danger)' }} onClick={() => deleteTransaction(i.id)}><Trash2 size={14} /></button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {incomes.length === 0 && <tr><td colSpan="4" className="text-center py-5 fw-bold" style={{ color: 'var(--erp-success)', opacity: 0.5 }}>لا توجد إيرادات.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Expenses */}
+        <div className="col-xl-6">
+          <div className="d-flex justify-content-between align-items-center mb-3 px-2">
+            <h5 className="fw-bold m-0" style={{ color: 'var(--erp-danger)' }}><ArrowUp size={18} className="me-2 d-inline" /> سجل الصادر (مصروفات)</h5>
+            <span className="badge rounded-pill shadow-sm py-2 px-3" style={{ background: 'var(--erp-danger)', color: 'white' }}>{expenses.length} عملية</span>
+          </div>
+          <div className="card border-0 shadow-sm rounded-4 overflow-hidden h-100 bg-expense-container">
+            <div className="card-body p-2 table-container">
+              <table className="table table-borderless align-middle m-0 table-expense text-center" style={{ whiteSpace: 'nowrap' }}>
+                <thead className="sticky-top thead-expense">
+                  <tr>
+                    <th className="small fw-bold py-3 rounded-start-3">التاريخ</th>
+                    <th className="small fw-bold py-3">المعاملة</th>
+                    <th className="small fw-bold py-3">وسيلة الدفع</th>
+                    <th className="small fw-bold py-3">الجهة</th>
+                    <th className="small fw-bold py-3 rounded-end-3">المبلغ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map(e => {
+                    const dayName = format(parseISO(e.date), 'EEEE', { locale: ar });
+                    const isDue = ['سداد مستحقات', 'سحب سلفة'].includes(e.type);
+                    return (
+                      <tr key={e.id} className={isDue ? 'due-row' : ''}>
+                        <td className="rounded-start-3">
+                          <span className="d-block fw-bold mb-1" style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem' }}>{dayName}</span>
+                          <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>{e.date}</span>
+                        </td>
+                        <td><span className="fw-bold small" style={{ color: 'var(--erp-text-main)' }}>{e.detail}</span></td>
+                        <td><span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-danger)', borderColor: 'var(--erp-danger)' }}>{e.method}</span></td>
+                        <td>
+                          {e.type === 'سداد مستحقات' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#ffc107', color: '#000', borderColor: '#ffc107' }}>{e.entity} (سداد مستحقات)</span>}
+                          {e.type === 'سحب سلفة' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-danger)', color: 'white', borderColor: 'var(--erp-danger)' }}>{e.entity} (سحب سلفة)</span>}
+                          {e.type === 'تحويل صادر' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#0dcaf0', color: '#000', borderColor: '#0dcaf0' }}>تحويل محفظة</span>}
+                          {['مصروف'].includes(e.type) && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-danger)', borderColor: 'var(--erp-danger)' }}>{e.entity}</span>}
+                        </td>
+                        <td className="rounded-end-3">
+                          <span className="fw-bold fs-6 d-block" style={{ color: e.type === 'سداد مستحقات' ? 'var(--erp-text-main)' : 'var(--erp-danger)' }}>-{e.amount.toLocaleString()} ج</span>
+                          {isAdmin && (
+                            <div className="mt-2 d-flex gap-2 justify-content-center">
+                              <button className="btn btn-sm btn-light border py-0 px-2" style={{ color: 'var(--erp-danger)' }} onClick={() => deleteTransaction(e.id)}><Trash2 size={14} /></button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {expenses.length === 0 && <tr><td colSpan="5" className="text-center py-5 fw-bold" style={{ color: 'var(--erp-danger)', opacity: 0.5 }}>لا توجد مصروفات.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* --- MODALS --- */}
       
       {/* 1. Transaction Modal */}
-      {isTxModalOpen && (
-        <div className="erp-modal-overlay" onClick={() => setIsTxModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()}>
-            <h3>تسجيل عملية مالية</h3>
-            <form onSubmit={handleAddTransaction} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">النوع</label>
-                  <select className="erp-input" value={txForm.type} onChange={e => setTxForm({...txForm, type: e.target.value})} required>
-                    <option value="إيراد">إيراد (+)</option>
-                    <option value="مصروف">مصروف (-)</option>
+      {modalState.addTransaction && (
+        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, addTransaction: false})}>
+          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><Receipt className="me-2" /> تسجيل عملية مالية</h5>
+            </div>
+            <form onSubmit={handleAddTransaction} className="p-4 bg-white">
+              <div className="row g-3">
+                <div className="col-md-6">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>نوع العملية</label>
+                  <select className="form-select border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={txForm.type} onChange={e => setTxForm({...txForm, type: e.target.value})} required>
+                    <option value="إيراد" style={{ color: 'var(--erp-success)' }}>إيراد (+)</option>
+                    <option value="مصروف" style={{ color: 'var(--erp-danger)' }}>مصروف (-)</option>
                   </select>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">المبلغ</label>
-                  <input type="number" step="0.01" className="erp-input" value={txForm.amount} onChange={e => setTxForm({...txForm, amount: e.target.value})} required />
+                <div className="col-md-6">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ العملية</label>
+                  <input type="date" className="form-control border-0" style={{ background: 'var(--erp-bg)' }} value={txForm.date} onChange={e => setTxForm({...txForm, date: e.target.value})} required />
                 </div>
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">طريقة الدفع (الخزنة)</label>
-                  <select className="erp-input" value={txForm.method} onChange={e => setTxForm({...txForm, method: e.target.value})} required>
+                <div className="col-md-6">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>المبلغ</label>
+                  <input type="number" step="0.01" className="form-control border-0 fw-bold text-center" style={{ background: 'var(--erp-bg)' }} value={txForm.amount} onChange={e => setTxForm({...txForm, amount: e.target.value})} required />
+                </div>
+                <div className="col-md-6">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>الخزينة (طريقة الدفع)</label>
+                  <select className="form-select border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={txForm.method} onChange={e => setTxForm({...txForm, method: e.target.value})} required>
                     {methodsList.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">التاريخ</label>
-                  <input type="date" className="erp-input" value={txForm.date} onChange={e => setTxForm({...txForm, date: e.target.value})} required />
+                {txForm.type === 'مصروف' && (
+                  <div className="col-12 mt-3 animate__animated animate__fadeIn">
+                    <label className="small fw-bold mb-1" style={{ color: 'var(--erp-danger)' }}>دُفع بواسطة (الجهة)</label>
+                    <select className="form-select border-0 fw-bold" style={{ background: 'rgba(220, 53, 69, 0.1)', color: 'var(--erp-danger)' }} value={txForm.entity} onChange={e => setTxForm({...txForm, entity: e.target.value})} required>
+                      <option value="الشركة">من خزينة الشركة</option>
+                      {partnersList.map(p => <option key={p} value={p}>أ. {p} (من ماله الخاص)</option>)}
+                    </select>
+                  </div>
+                )}
+                <div className="col-12 mt-3">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>البيان والتفاصيل</label>
+                  <input type="text" className="form-control border-0 py-2" style={{ background: 'var(--erp-bg)' }} value={txForm.detail} onChange={e => setTxForm({...txForm, detail: e.target.value})} placeholder="مثال: فاتورة إنترنت، دفعة حجز..." required />
                 </div>
               </div>
-              <div>
-                <label className="erp-label">تفاصيل العملية / ملاحظات</label>
-                <input type="text" className="erp-input" value={txForm.detail} onChange={e => setTxForm({...txForm, detail: e.target.value})} required />
-              </div>
-              {txForm.type === 'مصروف' && (
-                <div>
-                  <label className="erp-label">الجهة التابع لها المصروف</label>
-                  <select className="erp-input" value={txForm.entity} onChange={e => setTxForm({...txForm, entity: e.target.value})} required>
-                    <option value="الشركة">الشركة (مصاريف تشغيل)</option>
-                    {partnersList.map(p => <option key={p} value={p}>أ. {p}</option>)}
-                  </select>
-                </div>
-              )}
-              <button type="submit" className="erp-btn-primary" style={{ marginTop: '10px' }}>حفظ العملية</button>
+              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>اعتماد وحفظ</button>
             </form>
           </div>
         </div>
       )}
 
       {/* 2. Transfer Modal */}
-      {isTransferModalOpen && (
-        <div className="erp-modal-overlay" onClick={() => setIsTransferModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()}>
-            <h3>تحويل رصيد بين المحافظ</h3>
-            <form onSubmit={handleTransfer} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">من محفظة (صادر)</label>
-                  <select className="erp-input" value={transferForm.from_method} onChange={e => setTransferForm({...transferForm, from_method: e.target.value})} required>
+      {modalState.transfer && (
+        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, transfer: false})}>
+          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header border-0 p-4" style={{ background: '#0dcaf0', color: '#000' }}>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><ArrowRightLeft className="me-2" /> تحويل رصيد بين المحافظ</h5>
+            </div>
+            <form onSubmit={handleTransfer} className="p-4 bg-white">
+              <div className="row g-3">
+                <div className="col-md-6">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>من محفظة (تُسحب منها)</label>
+                  <select className="form-select border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={transferForm.from_method} onChange={e => setTransferForm({...transferForm, from_method: e.target.value})} required>
                     {methodsList.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
-                <ArrowRightLeft size={24} style={{ color: 'var(--erp-text-muted)', marginBottom: '10px' }} />
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">إلى محفظة (وارد)</label>
-                  <select className="erp-input" value={transferForm.to_method} onChange={e => setTransferForm({...transferForm, to_method: e.target.value})} required>
+                <div className="col-md-6">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>إلى محفظة (تُضاف إليها)</label>
+                  <select className="form-select border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={transferForm.to_method} onChange={e => setTransferForm({...transferForm, to_method: e.target.value})} required>
                     {methodsList.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
+                <div className="col-md-6">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>المبلغ المحول (ج.م)</label>
+                  <input type="number" step="0.01" className="form-control border-0 fw-bold text-center fs-5" style={{ background: 'var(--erp-bg)', color: 'var(--erp-primary)' }} value={transferForm.amount} onChange={e => setTransferForm({...transferForm, amount: e.target.value})} required />
+                </div>
+                <div className="col-md-6">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ التحويل</label>
+                  <input type="date" className="form-control border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={transferForm.date} onChange={e => setTransferForm({...transferForm, date: e.target.value})} required />
+                </div>
+                <div className="col-12 mt-3">
+                  <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>ملاحظات (اختياري)</label>
+                  <input type="text" className="form-control border-0 py-2" style={{ background: 'var(--erp-bg)' }} value={transferForm.note} onChange={e => setTransferForm({...transferForm, note: e.target.value})} placeholder="السبب..." />
+                </div>
               </div>
-              <div>
-                <label className="erp-label">المبلغ</label>
-                <input type="number" step="0.01" className="erp-input" value={transferForm.amount} onChange={e => setTransferForm({...transferForm, amount: e.target.value})} required />
-              </div>
-              <div>
-                <label className="erp-label">التاريخ</label>
-                <input type="date" className="erp-input" value={transferForm.date} onChange={e => setTransferForm({...transferForm, date: e.target.value})} required />
-              </div>
-              <div>
-                <label className="erp-label">ملاحظات التحويل</label>
-                <input type="text" className="erp-input" value={transferForm.note} onChange={e => setTransferForm({...transferForm, note: e.target.value})} />
-              </div>
-              <button type="submit" className="erp-btn-primary" style={{ marginTop: '10px', background: '#0dcaf0', color: '#000' }}>تنفيذ التحويل</button>
+              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-4" style={{ background: '#0dcaf0', color: '#000' }}>تأكيد التحويل</button>
             </form>
           </div>
         </div>
       )}
 
       {/* 3. Settle Dues Modal */}
-      {isSettleModalOpen && (
-        <div className="erp-modal-overlay" onClick={() => setIsSettleModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()}>
-            <h3>سداد مستحقات شريك</h3>
-            <form onSubmit={handleSettle} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div>
-                <label className="erp-label">الشريك المستفيد</label>
-                <select className="erp-input" value={settleForm.partner} onChange={e => setSettleForm({...settleForm, partner: e.target.value})} required>
-                  {partnersList.map(p => <option key={p} value={p}>أ. {p}</option>)}
+      {modalState.settleDues && (
+        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, settleDues: false})}>
+          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-success)', color: 'white' }}>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><HandCoins className="me-2" /> سداد مستحقات شريك</h5>
+            </div>
+            <form onSubmit={handleSettle} className="p-4 bg-white text-center">
+              <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سداد لـ أ. {settleForm.partner}</h5>
+              <div className="mb-3 text-start mt-4">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ المعاملة</label>
+                <input type="date" className="form-control border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={settleForm.date} onChange={e => setSettleForm({...settleForm, date: e.target.value})} required />
+              </div>
+              <div className="mb-3 text-start">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>المبلغ المراد سداده الآن</label>
+                <input type="number" step="0.01" className="form-control border-0 py-3 fs-3 fw-bold text-center rounded-4" style={{ background: 'rgba(25, 135, 84, 0.1)', color: 'var(--erp-success)' }} value={settleForm.amount} onChange={e => setSettleForm({...settleForm, amount: e.target.value})} required />
+              </div>
+              <div className="mb-3 text-start">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>سحب المبلغ من خزينة:</label>
+                <select className="form-select border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={settleForm.method} onChange={e => setSettleForm({...settleForm, method: e.target.value})} required>
+                  {methodsList.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">المبلغ المسدد</label>
-                  <input type="number" step="0.01" className="erp-input" value={settleForm.amount} onChange={e => setSettleForm({...settleForm, amount: e.target.value})} required />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">طريقة السداد</label>
-                  <select className="erp-input" value={settleForm.method} onChange={e => setSettleForm({...settleForm, method: e.target.value})} required>
-                    {methodsList.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="erp-label">التاريخ</label>
-                <input type="date" className="erp-input" value={settleForm.date} onChange={e => setSettleForm({...settleForm, date: e.target.value})} required />
-              </div>
-              <button type="submit" className="erp-btn-primary" style={{ marginTop: '10px', background: '#198754' }}>تسجيل السداد</button>
+              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-3" style={{ background: 'var(--erp-success)', color: 'white' }}>تأكيد السداد</button>
             </form>
           </div>
         </div>
       )}
 
       {/* 4. Advance Modal */}
-      {isAdvanceModalOpen && (
-        <div className="erp-modal-overlay" onClick={() => setIsAdvanceModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()}>
-            <h3>السلف الإدارية</h3>
-            <form onSubmit={handleAdvance} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div>
-                <label className="erp-label">نوع العملية</label>
-                <select className="erp-input" value={advanceForm.type} onChange={e => setAdvanceForm({...advanceForm, type: e.target.value})} required>
-                  <option value="سحب سلفة">سحب سلفة (خروج نقدية)</option>
-                  <option value="سداد سلفة">سداد سلفة (دخول نقدية)</option>
+      {modalState.advance && (
+        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, advance: false})}>
+          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-danger)', color: 'white' }}>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><HandCoins className="me-2" /> سحب سلفة للشريك</h5>
+            </div>
+            <form onSubmit={handleAdvance} className="p-4 bg-white text-center">
+              <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سلفة لـ أ. {advanceForm.partner}</h5>
+              <p className="small mb-3" style={{ color: 'var(--erp-text-muted)' }}>هذا المبلغ سيتحول لمديونية شخصية على الشريك وسيخصم من أرباحه مستقبلاً.</p>
+              <div className="mb-3 text-start mt-4">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ المعاملة</label>
+                <input type="date" className="form-control border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={advanceForm.date} onChange={e => setAdvanceForm({...advanceForm, date: e.target.value})} required />
+              </div>
+              <div className="mb-3 text-start">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>المبلغ المراد سحبه كسلفة</label>
+                <input type="number" step="0.01" className="form-control border-0 py-3 fs-3 fw-bold text-center rounded-4" style={{ background: 'rgba(220, 53, 69, 0.1)', color: 'var(--erp-danger)' }} value={advanceForm.amount} onChange={e => setAdvanceForm({...advanceForm, amount: e.target.value})} required />
+              </div>
+              <div className="mb-3 text-start">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>سحب المبلغ من خزينة:</label>
+                <select className="form-select border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={advanceForm.method} onChange={e => setAdvanceForm({...advanceForm, method: e.target.value})} required>
+                  {methodsList.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="erp-label">الشريك المعني</label>
-                <select className="erp-input" value={advanceForm.partner} onChange={e => setAdvanceForm({...advanceForm, partner: e.target.value})} required>
-                  {partnersList.map(p => <option key={p} value={p}>أ. {p}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">المبلغ</label>
-                  <input type="number" step="0.01" className="erp-input" value={advanceForm.amount} onChange={e => setAdvanceForm({...advanceForm, amount: e.target.value})} required />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label className="erp-label">طريقة الدفع/الاستلام</label>
-                  <select className="erp-input" value={advanceForm.method} onChange={e => setAdvanceForm({...advanceForm, method: e.target.value})} required>
-                    {methodsList.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="erp-label">التاريخ</label>
-                <input type="date" className="erp-input" value={advanceForm.date} onChange={e => setAdvanceForm({...advanceForm, date: e.target.value})} required />
-              </div>
-              <button type="submit" className="erp-btn-primary" style={{ marginTop: '10px', background: '#ffc107', color: '#000' }}>تسجيل السلفة</button>
+              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-3" style={{ background: 'var(--erp-danger)', color: 'white' }}>تأكيد سحب السلفة</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* 5. Adjust Partner Due Modal */}
-      {isAdjustDueModalOpen && (
-        <div className="erp-modal-overlay" onClick={() => setIsAdjustDueModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()}>
-            <h3>تعديل يدوي لمستحقات شريك</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)' }}>هذا الإجراء سيقوم بحفظ فارق تسوية في الإعدادات ولن يؤثر على أرصدة الخزائن.</p>
-            <form onSubmit={handleAdjustDue} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div>
-                <label className="erp-label">الشريك</label>
-                <select className="erp-input" value={adjustDueForm.partner} onChange={e => setAdjustDueForm({...adjustDueForm, partner: e.target.value})} required>
-                  {partnersList.map(p => <option key={p} value={p}>أ. {p}</option>)}
+      {/* 5. Pay Advance Modal */}
+      {modalState.payAdvance && (
+        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, payAdvance: false})}>
+          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><Undo className="me-2" /> سداد سلفة الشريك</h5>
+            </div>
+            <form onSubmit={handlePayAdvance} className="p-4 bg-white text-center">
+              <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سداد من أ. {payAdvanceForm.partner}</h5>
+              <div className="mb-3 text-start mt-4">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ المعاملة</label>
+                <input type="date" className="form-control border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={payAdvanceForm.date} onChange={e => setPayAdvanceForm({...payAdvanceForm, date: e.target.value})} required />
+              </div>
+              <div className="mb-3 text-start">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>المبلغ المراد سداده الآن لخزينة الشركة</label>
+                <input type="number" step="0.01" className="form-control border-0 py-3 fs-3 fw-bold text-center rounded-4" style={{ background: 'rgba(67, 24, 255, 0.1)', color: 'var(--erp-primary)' }} value={payAdvanceForm.amount} onChange={e => setPayAdvanceForm({...payAdvanceForm, amount: e.target.value})} required />
+              </div>
+              <div className="mb-3 text-start">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>إيداع المبلغ في خزينة:</label>
+                <select className="form-select border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={payAdvanceForm.method} onChange={e => setPayAdvanceForm({...payAdvanceForm, method: e.target.value})} required>
+                  {methodsList.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="erp-label">المستحق النهائي الجديد (ج.م)</label>
-                <input type="number" step="0.01" className="erp-input" value={adjustDueForm.new_due} onChange={e => setAdjustDueForm({...adjustDueForm, new_due: e.target.value})} required />
+              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-3" style={{ background: 'var(--erp-primary)', color: 'white' }}>تأكيد السداد والخزينة</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Adjust Partner Due Modal (Admin Only) */}
+      {modalState.adjustPartner && isAdmin && (
+        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, adjustPartner: false})}>
+          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header border-0 p-4" style={{ background: '#1e293b', color: 'white' }}>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><Scale className="me-2" style={{ color: 'var(--erp-warning)' }} /> تعديل إداري لمستحقات الشريك</h5>
+            </div>
+            <form onSubmit={handleAdjustDue} className="p-4 bg-white text-center">
+              <div className="p-3 rounded-4 mb-4 border" style={{ background: 'var(--erp-bg)' }}>
+                <small className="fw-bold block" style={{ color: 'var(--erp-text-muted)' }}>الرصيد الحالي المُسجل لـ (<span style={{ color: 'var(--erp-primary)' }}>أ. {adjustDueForm.partner}</span>)</small>
+                <h3 className="fw-bold m-0 mt-1" style={{ color: 'var(--erp-text-main)' }}>{adjustDueForm.current_due.toLocaleString()} ج.م</h3>
               </div>
-              <button type="submit" className="erp-btn-primary" style={{ marginTop: '10px', background: 'var(--erp-primary)' }}>حفظ التعديل</button>
+              <div className="mb-4 text-start">
+                <label className="small fw-bold mb-2" style={{ color: 'var(--erp-text-main)' }}>المبلغ الجديد الصحيح (للمستحقات) بالموجب أو السالب:</label>
+                <input type="number" step="0.01" className="form-control border-0 py-3 fs-2 fw-bold text-center rounded-4" style={{ background: 'rgba(255, 193, 7, 0.2)', color: '#000' }} value={adjustDueForm.new_due} onChange={e => setAdjustDueForm({...adjustDueForm, new_due: e.target.value})} required placeholder="مثال: 0 لتصفير الحساب" />
+              </div>
+              <div className="alert border-0 rounded-4 small fw-bold mb-4 text-start" style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#856404' }}>
+                <Info className="me-1 d-inline" size={16} /> سيتم إنشاء عملية "تسوية إدارية" خفية لضبط الدفاتر بحيث يصبح الرصيد مساوياً للرقم الجديد.
+              </div>
+              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow" style={{ background: '#1e293b', color: 'white' }}>اعتماد الرصيد الجديد</button>
             </form>
           </div>
         </div>
