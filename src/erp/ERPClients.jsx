@@ -15,6 +15,12 @@ const ERPClients = () => {
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isFinanceModalOpen, setIsFinanceModalOpen] = useState(false); // For both Deposit and Pay Debt
   
+  // History Modals
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historyType, setHistoryType] = useState('bookings'); // 'packages' | 'bookings' | 'finance'
+  const [historyData, setHistoryData] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  
   // Modal states
   const [isEditing, setIsEditing] = useState(false);
   const [currentClient, setCurrentClient] = useState({ name: '', phone1: '', phone2: '', job: '', color: '#9d4edd', debt: 0, points: 0 });
@@ -124,6 +130,41 @@ const ERPClients = () => {
     const msg = `أهلاً بك أستاذ/ة ${selectedClient.name}،\n\nنود إعلامكم بآخر تحديثات حسابكم لدينا:\nالمديونية: ${selectedClient.debt || 0} ج.م\nالنقاط: ${selectedClient.points || 0}\n\nشكراً لثقتكم بنا.`;
     setWhatsappMsg(msg);
     setIsWhatsAppModalOpen(true);
+  };
+
+  const openHistory = async (type) => {
+    if (!selectedClient) return;
+    setHistoryType(type);
+    setIsHistoryModalOpen(true);
+    setHistoryLoading(true);
+    setHistoryData([]);
+
+    if (type === 'finance') {
+      const { data, error } = await supabase
+        .from('finance')
+        .select('*')
+        .ilike('detail', `%${selectedClient.name}%`)
+        .order('id', { ascending: false });
+      if (!error && data) setHistoryData(data);
+    } else {
+      // both packages and bookings are in the 'bookings' table
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('client_name', selectedClient.name)
+        .order('id', { ascending: false });
+        
+      if (!error && data) {
+        if (type === 'packages') {
+          // Filter out normal bookings, only show packages/services
+          // In the original system, packages are identified by category or status
+          setHistoryData(data.filter(b => b.status === 'منتهي' || b.status === 'نشط' || b.status === 'مغلق'));
+        } else {
+          setHistoryData(data);
+        }
+      }
+    }
+    setHistoryLoading(false);
   };
 
   const toggleSelectAll = (e) => {
@@ -312,13 +353,13 @@ const ERPClients = () => {
               {/* History Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
                 <h5 style={{ color: 'var(--erp-text-muted)', fontWeight: 'bold', margin: '0 0 5px 0' }}>السجلات التاريخية</h5>
-                <button style={{ background: 'transparent', border: '1px solid var(--erp-border)', color: 'var(--erp-text-main)', padding: '12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold' }}>
+                <button onClick={() => openHistory('packages')} style={{ background: 'transparent', border: '1px solid var(--erp-border)', color: 'var(--erp-text-main)', padding: '12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold' }}>
                   <History color="var(--erp-primary)" /> سجل الخدمات المنتهية
                 </button>
-                <button style={{ background: 'transparent', border: '1px solid var(--erp-border)', color: 'var(--erp-text-main)', padding: '12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold' }}>
+                <button onClick={() => openHistory('bookings')} style={{ background: 'transparent', border: '1px solid var(--erp-border)', color: 'var(--erp-text-main)', padding: '12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold' }}>
                   <CalendarPlus color="#3498db" /> سجل مواعيد التصوير
                 </button>
-                <button style={{ background: 'transparent', border: '1px solid var(--erp-border)', color: 'var(--erp-text-main)', padding: '12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold' }}>
+                <button onClick={() => openHistory('finance')} style={{ background: 'transparent', border: '1px solid var(--erp-border)', color: 'var(--erp-text-main)', padding: '12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold' }}>
                   <FileText color="#2ecc71" /> سجل الدفعات النقدية
                 </button>
               </div>
@@ -395,6 +436,77 @@ const ERPClients = () => {
               <button onClick={() => { navigator.clipboard.writeText(whatsappMsg); alert('تم النسخ!'); }} className="erp-btn-primary" style={{ flex: 1, background: 'transparent', border: '1px solid var(--erp-border)', color: 'var(--erp-text-main)' }}>نسخ النص</button>
               <button onClick={() => window.open(`https://wa.me/2${selectedClient.phone1}?text=${encodeURIComponent(whatsappMsg)}`, '_blank')} className="erp-btn-primary" style={{ flex: 2, background: '#2ecc71', color: '#000' }}>إرسال عبر واتساب الآن</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. History Modal */}
+      {isHistoryModalOpen && selectedClient && (
+        <div className="erp-modal-overlay" onClick={() => setIsHistoryModalOpen(false)}>
+          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ marginBottom: '20px', color: 'var(--erp-primary)' }}>
+              {historyType === 'packages' ? 'سجل الخدمات والباقات' : historyType === 'bookings' ? 'سجل مواعيد التصوير' : 'سجل الدفعات والمعاملات المالية'} 
+              {' '} - {selectedClient.name}
+            </h3>
+            
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {historyLoading ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--erp-text-muted)' }}>جاري تحميل السجلات...</div>
+              ) : historyData.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--erp-text-muted)' }}>لا توجد سجلات مطابقة لهذا العميل. (تأكد من تشغيل ملف SQL في Supabase)</div>
+              ) : (
+                <table className="erp-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--erp-surface)', zIndex: 10 }}>
+                    <tr>
+                      {historyType === 'finance' ? (
+                        <>
+                          <th style={{ padding: '15px', textAlign: 'right', borderBottom: '2px solid var(--erp-border)' }}>التاريخ</th>
+                          <th style={{ padding: '15px', textAlign: 'right', borderBottom: '2px solid var(--erp-border)' }}>البيان</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '2px solid var(--erp-border)' }}>المبلغ</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '2px solid var(--erp-border)' }}>الطريقة</th>
+                        </>
+                      ) : (
+                        <>
+                          <th style={{ padding: '15px', textAlign: 'right', borderBottom: '2px solid var(--erp-border)' }}>التاريخ</th>
+                          <th style={{ padding: '15px', textAlign: 'right', borderBottom: '2px solid var(--erp-border)' }}>الخدمة</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '2px solid var(--erp-border)' }}>الحالة</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '2px solid var(--erp-border)' }}>المبلغ/المدفوع</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyData.map(row => (
+                      <tr key={row.id}>
+                        {historyType === 'finance' ? (
+                          <>
+                            <td style={{ padding: '12px', borderBottom: '1px solid var(--erp-border)', direction: 'ltr', textAlign: 'right' }}>{row.date}</td>
+                            <td style={{ padding: '12px', borderBottom: '1px solid var(--erp-border)' }}>{row.detail}</td>
+                            <td style={{ padding: '12px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold', color: row.type === 'وارد' ? '#2ecc71' : '#e74c3c' }}>{row.amount} ج</td>
+                            <td style={{ padding: '12px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center' }}>{row.method}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td style={{ padding: '12px', borderBottom: '1px solid var(--erp-border)', direction: 'ltr', textAlign: 'right' }}>{row.date}</td>
+                            <td style={{ padding: '12px', borderBottom: '1px solid var(--erp-border)' }}>{row.service}</td>
+                            <td style={{ padding: '12px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center' }}>
+                              <span style={{ padding: '4px 8px', borderRadius: '4px', background: row.status === 'منتهي' ? '#e74c3c20' : '#3498db20', color: row.status === 'منتهي' ? '#e74c3c' : '#3498db', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                                {row.status || 'مؤكد'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.payment || 0} ج</td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            
+            <button className="erp-btn-primary" onClick={() => setIsHistoryModalOpen(false)} style={{ marginTop: '20px', padding: '12px' }}>
+              إغلاق
+            </button>
           </div>
         </div>
       )}
