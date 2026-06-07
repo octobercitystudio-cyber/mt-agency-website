@@ -1,0 +1,287 @@
+:root { 
+    --erp-primary: #4318ff; 
+    --erp-primary-gradient: linear-gradient(135deg, #4318ff 0%, #868cff 100%); 
+    --erp-background: #f4f7fe; 
+    --erp-surface: #ffffff; 
+    --erp-text-main: #2b3674; 
+    --erp-text-muted: #838fb9; 
+    --erp-sidebar-bg: #e9edf7; 
+    --erp-sidebar-hover: #dbeafe; 
+    --erp-sidebar-text-inactive: #57649c; 
+    --erp-sidebar-width: 290px; 
+}
+
+.erp-layout {
+    background-color: var(--erp-background);
+    color: var(--erp-text-main);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, 'Tajawal';
+    min-height: 100vh;
+    display: flex;
+    direction: rtl;
+}
+
+.erp-sidebar {
+    background: var(--erp-sidebar-bg);
+    height: 100vh;
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: var(--erp-sidebar-width);
+    padding: 12px 20px 25px 20px;
+    border-left: 1px solid rgba(0,0,0,0.03);
+    display: flex;
+    flex-direction: column;
+    z-index: 1040;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: -2px 0 15px rgba(0,0,0,0.01);
+}
+
+.erp-main {
+    margin-right: var(--erp-sidebar-width);
+    padding: 30px;
+    min-height: 100vh;
+    flex: 1;
+    transition: margin-right 0.4s ease;
+    background-color: var(--erp-background);
+}
+
+.erp-brand-container {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.erp-user-card {
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(0,0,0,0.03);
+    border-radius: 20px;
+    padding: 12px 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 30px;
+    transition: 0.3s;
+}
+
+.erp-user-avatar {
+    width: 45px;
+    height: 45px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    background: var(--erp-primary-gradient);
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2rem;
+    box-shadow: 0 4px 10px rgba(67, 24, 255, 0.2);
+}
+
+.erp-nav-menu {
+    flex-grow: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 5px;
+}
+
+.erp-nav-item {
+    margin-bottom: 8px;
+    list-style: none;
+}
+
+.erp-nav-link {
+    color: var(--erp-sidebar-text-inactive);
+    font-weight: 700;
+    padding: 14px 18px;
+    border-radius: 16px;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.erp-nav-link svg {
+    margin-left: 12px;
+    transition: 0.3s;
+    color: var(--erp-text-muted);
+}
+
+.erp-nav-link:hover {
+    color: var(--erp-primary);
+    background: var(--erp-sidebar-hover);
+    transform: translateX(-5px);
+}
+
+.erp-nav-link:hover svg {
+    transform: scale(1.1);
+    color: var(--erp-primary);
+}
+
+.erp-nav-link.active {
+    background: var(--erp-primary-gradient);
+    color: white !important;
+    box-shadow: 0 8px 16px rgba(67, 24, 255, 0.2);
+    transform: translateX(-5px);
+}
+
+.erp-nav-link.active svg {
+    color: white !important;
+}
+
+.erp-card {
+    background: var(--erp-surface);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 5px 14px rgba(0,0,0,0.05);
+    margin-bottom: 24px;
+    border: none;
+}
+
+.erp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.erp-header h2 {
+    color: var(--erp-text-main);
+    font-weight: 800;
+    margin: 0 0 5px 0;
+    font-size: 1.8rem;
+}
+
+.erp-header p {
+    color: var(--erp-text-muted);
+    margin: 0;
+    font-weight: 500;
+}
+
+.erp-btn-primary {
+    background: var(--erp-primary-gradient);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(67, 24, 255, 0.2);
+}
+
+.erp-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(67, 24, 255, 0.3);
+}
+
+.erp-btn-danger {
+    background-color: #fef2f2;
+    color: #ef4444;
+    border: 1px solid #fecaca;
+    border-radius: 50px;
+    padding: 8px 15px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+
+.erp-btn-danger:hover {
+    background-color: #ef4444;
+    color: #ffffff;
+    transform: scale(1.05);
+}
+
+.erp-input {
+    width: 100%;
+    padding: 12px 15px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: var(--erp-background);
+    color: var(--erp-text-main);
+    font-weight: 500;
+    transition: all 0.3s;
+    outline: none;
+}
+
+.erp-input:focus {
+    border-color: var(--erp-primary);
+    box-shadow: 0 0 0 3px rgba(67, 24, 255, 0.1);
+}
+
+.erp-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.erp-table th {
+    color: var(--erp-text-muted);
+    font-weight: 700;
+    padding: 15px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.erp-table td {
+    padding: 15px;
+    color: var(--erp-text-main);
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 600;
+}
+
+.erp-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(3px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.erp-modal-content {
+    background: var(--erp-surface);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    padding: 30px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.erp-modal-content h3 {
+    color: var(--erp-text-main);
+    font-weight: 800;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.erp-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--erp-text-main);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 992px) {
+    .erp-sidebar {
+        transform: translateX(100%);
+        width: 300px;
+    }
+    .erp-sidebar.show {
+        transform: translateX(0);
+    }
+    .erp-main {
+        margin-right: 0;
+        padding: 20px;
+    }
+}
