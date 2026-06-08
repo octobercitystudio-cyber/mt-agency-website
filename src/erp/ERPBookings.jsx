@@ -8,7 +8,7 @@ import { ar } from 'date-fns/locale';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import timeGridPlugin from '@fullcalendar/timeGrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
 
 const ERPBookings = () => {
   const [bookings, setBookings] = useState([]);
