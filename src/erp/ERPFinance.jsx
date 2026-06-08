@@ -375,7 +375,12 @@ const ERPFinance = () => {
               <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', padding: '15px', borderRadius: '50%' }}>
                 <i className="fas fa-money-bill-wave fs-4"></i>
               </div>
-              {isAdmin && <button className="btn btn-sm btn-light text-primary rounded-circle no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>}
+              {isAdmin && (
+                <div className="d-flex gap-1">
+                  <button className="btn btn-sm btn-light text-secondary rounded-circle no-print" title="عرض السجل"><i className="fas fa-eye"></i></button>
+                  <button className="btn btn-sm btn-light text-primary rounded-circle no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
+                </div>
+              )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>صندوق الكاش (النقدية)</p>
             <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.cash.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
@@ -387,7 +392,12 @@ const ERPFinance = () => {
               <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', padding: '15px', borderRadius: '50%' }}>
                 <i className="fas fa-mobile-alt fs-4"></i>
               </div>
-              {isAdmin && <button className="btn btn-sm btn-light text-danger rounded-circle no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>}
+              {isAdmin && (
+                <div className="d-flex gap-1">
+                  <button className="btn btn-sm btn-light text-secondary rounded-circle no-print" title="عرض السجل"><i className="fas fa-eye"></i></button>
+                  <button className="btn btn-sm btn-light text-danger rounded-circle no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
+                </div>
+              )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>محفظة فودافون كاش</p>
             <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.vodafone.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
@@ -399,7 +409,12 @@ const ERPFinance = () => {
               <div style={{ background: '#f4f0ff', color: '#6f42c1', padding: '15px', borderRadius: '50%' }}>
                 <i className="fas fa-paper-plane fs-4"></i>
               </div>
-              {isAdmin && <button className="btn btn-sm btn-light rounded-circle no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><i className="fas fa-pen"></i></button>}
+              {isAdmin && (
+                <div className="d-flex gap-1">
+                  <button className="btn btn-sm btn-light text-secondary rounded-circle no-print" title="عرض السجل"><i className="fas fa-eye"></i></button>
+                  <button className="btn btn-sm btn-light rounded-circle no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
+                </div>
+              )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>حساب البنك (InstaPay)</p>
             <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.instapay.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
