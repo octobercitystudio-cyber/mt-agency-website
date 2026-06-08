@@ -105,11 +105,7 @@ const ERPLayout = () => {
 
       {/* Main Content Area */}
       <div className="erp-main" style={{marginTop: '0'}}>
-        <div className="erp-top-navbar-desktop no-print">
-          <button className="btn-undo-action" onClick={() => { if(window.confirm('هل أنت متأكد من التراجع عن آخر عملية في البرنامج بالكامل؟')) alert('سيتم التراجع قريباً'); }}>
-            <RotateCcw size={16} /> تراجع عن أخر عملية
-          </button>
-        </div>
+
         <Outlet />
       </div>
     </div>
