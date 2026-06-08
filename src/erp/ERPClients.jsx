@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserPlus, Edit, Trash2, Search, Phone, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText, Camera, Calendar, Tag, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import ERPAddBookingModal from './ERPAddBookingModal';
 
 const ERPClients = () => {
   const navigate = useNavigate();
@@ -12,6 +13,8 @@ const ERPClients = () => {
   
   // Modals
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [isAddBookingModalOpen, setIsAddBookingModalOpen] = useState(false);
+  const [bookingClientName, setBookingClientName] = useState('');
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isFinanceModalOpen, setIsFinanceModalOpen] = useState(false);
   
@@ -307,19 +310,21 @@ const ERPClients = () => {
                             {client.name.charAt(0)}
                           </div>
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.05rem' }}>{client.name}</div>
-                              <button onClick={(e) => { e.stopPropagation(); navigate('/erp/bookings', { state: { openAddModalFor: client.name } }); }} style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff', border: '1px solid rgba(67, 24, 255, 0.2)', padding: '3px 10px', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}>
-                                <CalendarPlus size={14} /> حجز / إضافة
-                              </button>
-                            </div>
+                            <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.05rem' }}>{client.name}</div>
                             <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginTop: '2px' }}>{client.job || 'لا يوجد وظيفة مسجلة'}</div>
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', direction: 'ltr', textAlign: 'right' }}>
-                        <div style={{ fontWeight: 'bold', color: '#4318ff', fontSize: '0.9rem' }}>{client.phone1}</div>
-                        {client.phone2 && <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)' }}>{client.phone2}</div>}
+                      <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px' }}>
+                          <div style={{ direction: 'ltr', textAlign: 'right' }}>
+                            <div style={{ fontWeight: 'bold', color: '#4318ff', fontSize: '0.9rem' }}>{client.phone1}</div>
+                            {client.phone2 && <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)' }}>{client.phone2}</div>}
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff', border: '1px solid rgba(67, 24, 255, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            <CalendarPlus size={16} /> حجز / إضافة
+                          </button>
+                        </div>
                       </td>
                       <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
@@ -649,6 +654,13 @@ const ERPClients = () => {
           </div>
         </div>
       )}
+
+      {/* New Add Booking Modal from ERPClients */}
+      <ERPAddBookingModal 
+        isOpen={isAddBookingModalOpen} 
+        onClose={() => setIsAddBookingModalOpen(false)} 
+        prefilledClientName={bookingClientName} 
+      />
 
     </div>
   );
