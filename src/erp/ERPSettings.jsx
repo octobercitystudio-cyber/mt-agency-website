@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Cropper from 'cropperjs';
-import 'cropperjs/dist/cropper.css';
 
 const ERPSettings = () => {
   // Dummy Data State (Simulation of backend data)
