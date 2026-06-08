@@ -222,7 +222,7 @@ const ERPBookings = () => {
   const showCalendar = !showDelivery || newBooking.schedule_extra;
 
   return (
-    <div className="animate__animated animate__fadeIn">
+    <div>
       <style>{`
         .fc-theme-standard td, .fc-theme-standard th { border-color: var(--erp-border); }
         .fc-theme-standard .fc-scrollgrid { border: none; }

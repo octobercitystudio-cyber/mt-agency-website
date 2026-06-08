@@ -137,7 +137,7 @@ const ERPDashboard = () => {
   };
 
   return (
-    <div style={{ padding: '0' }} className="container-fluid animate__animated animate__fadeIn">
+    <div style={{ padding: '0' }} className="container-fluid">
       
       {/* Top Banner exactly like the light aesthetic */}
       <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '30px', border: '1px solid var(--erp-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', boxShadow: 'var(--erp-shadow)' }}>

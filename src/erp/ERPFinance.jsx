@@ -269,7 +269,7 @@ const ERPFinance = () => {
   if (loading) return <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--erp-text-muted)' }}>جاري تحميل الحسابات...</div>;
 
   return (
-    <div className="container-fluid p-0 animate__animated animate__fadeIn">
+    <div className="container-fluid p-0">
       <style>{`
         .wallet-card { transition: all 0.3s ease; border: 1px solid rgba(0,0,0,0.05); }
         .wallet-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.1) !important; }

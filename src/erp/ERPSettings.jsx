@@ -120,7 +120,8 @@ const ERPSettings = () => {
   };
 
   return (
-    <div className="container-fluid p-0 animate__animated animate__fadeIn pb-5" style={{ background: '#f8f9fc', minHeight: '100vh', padding: '20px' }}>
+    <>
+      <div className="container-fluid p-0 animate__animated animate__fadeIn pb-5" style={{ background: '#f8f9fc', minHeight: '100vh', padding: '20px' }}>
       <style>{`
         .setting-section { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); padding: 30px; margin-bottom: 30px; border: 1px solid #f1f5f9; }
         
@@ -481,6 +482,8 @@ const ERPSettings = () => {
         </div>
       </div>
 
+      </div>
+
       {/* CROP MODAL (Controlled by React State for Cropper logic) */}
       {isCropModalOpen && (
         <div className="erp-modal-overlay" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }} onClick={() => setIsCropModalOpen(false)}>
@@ -670,8 +673,7 @@ const ERPSettings = () => {
           </form>
         </div>
       </div>
-
-    </div>
+    </>
   );
 };
 

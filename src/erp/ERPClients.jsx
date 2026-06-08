@@ -231,7 +231,7 @@ const ERPClients = () => {
   );
 
   return (
-    <div style={{ animation: 'fadeIn 0.5s ease-in-out' }}>
+    <div>
       {/* Header and Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
         <div>
