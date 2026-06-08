@@ -10,6 +10,7 @@ import ERPDashboard from './erp/ERPDashboard';
 import ERPClients from './erp/ERPClients';
 import ERPBookings from './erp/ERPBookings';
 import ERPFinance from './erp/ERPFinance';
+import ERPSettings from './erp/ERPSettings';
 import AdminHero from './admin/AdminHero';
 import AdminAbout from './admin/AdminAbout';
 import AdminPortfolio from './admin/AdminPortfolio';
@@ -70,6 +71,7 @@ function App() {
             <Route path="clients" element={<ERPClients />} />
             <Route path="bookings" element={<ERPBookings />} />
             <Route path="finance" element={<ERPFinance />} />
+            <Route path="settings" element={<ERPSettings />} />
           </Route>
           <Route 
             path="/adminmt/*" 
