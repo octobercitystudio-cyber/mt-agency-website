@@ -230,8 +230,43 @@ const ERPClients = () => {
       const { data, error } = await supabase.from('bookings').select('*').eq('client_name', selectedClient.name).order('id', { ascending: false });
       if (!error && data) {
         if (type === 'packages') {
-          // Packages are usually created with "إنشاء باقة" in notes, or have a custom_price > 0 and no actual_hours, or status is 'نشط'/'مؤرشف'
-          setHistoryData(data.filter(b => (b.notes && b.notes.includes('إنشاء باقة')) || b.status === 'نشط' || b.status === 'مؤرشف' || (b.custom_price > 0 && b.actual_hours === 0)));
+          // Group by service to build package summary cards
+          const packagesMap = {};
+          data.forEach(b => {
+            if (!b.service) return;
+            const cleanName = b.service.replace('(مؤرشف)', '').trim();
+            if (!packagesMap[cleanName]) {
+              packagesMap[cleanName] = {
+                id: b.id,
+                serviceName: cleanName,
+                date: b.date,
+                custom_price: b.custom_price > 0 ? b.custom_price : 0,
+                discount: b.discount || 0,
+                discount_reason: b.discount_reason || '',
+                total_paid: 0,
+                is_archived: b.service.includes('مؤرشف') || b.status === 'مؤرشف'
+              };
+            }
+            // Capture creation attributes
+            if (b.custom_price > 0) {
+              if (new Date(b.date) < new Date(packagesMap[cleanName].date)) {
+                packagesMap[cleanName].date = b.date;
+              }
+              if (b.custom_price > packagesMap[cleanName].custom_price) {
+                packagesMap[cleanName].custom_price = b.custom_price;
+                packagesMap[cleanName].discount = b.discount || 0;
+                packagesMap[cleanName].discount_reason = b.discount_reason || '';
+              }
+            }
+            packagesMap[cleanName].total_paid += Number(b.payment || 0);
+            if (b.service.includes('مؤرشف') || b.status === 'مؤرشف') {
+               packagesMap[cleanName].is_archived = true;
+            }
+          });
+          
+          const packagesList = Object.values(packagesMap).filter(p => p.custom_price > 0);
+          packagesList.sort((a, b) => new Date(b.date) - new Date(a.date));
+          setHistoryData(packagesList);
         } else {
           // Photography appointments are bookings with actual_hours > 0 or start_time/end_time
           setHistoryData(data.filter(b => b.actual_hours > 0 || (b.start_time && b.start_time !== '')));
@@ -512,7 +547,7 @@ const ERPClients = () => {
               {/* History Section */}
               <div style={{ display: 'flex', gap: '10px', marginTop: '30px' }}>
                 <button onClick={() => openHistory('packages')} style={{ flex: 1, background: 'transparent', border: '1px solid #dee2e6', padding: '15px', borderRadius: '1rem', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer', transition: '0.2s' }}>
-                  <History size={24} color="#6c757d" /> <span style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem' }}>سجل الباقات</span>
+                  <History size={24} color="#6c757d" /> <span style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem', textAlign: 'center' }}>سجل الباقات والخدمات المنتهية</span>
                 </button>
                 <button onClick={() => openHistory('bookings')} style={{ flex: 1, background: 'transparent', border: '1px solid #dee2e6', padding: '15px', borderRadius: '1rem', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer', transition: '0.2s' }}>
                   <CalendarPlus size={24} color="#0d6efd" /> <span style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem' }}>مواعيد التصوير</span>
@@ -606,15 +641,63 @@ const ERPClients = () => {
         <div className="erp-modal-overlay" onClick={() => setIsHistoryModalOpen(false)}>
           <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '800px', width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', borderRadius: '1.5rem', padding: '30px' }}>
             <h4 style={{ marginBottom: '25px', color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
-              {historyType === 'packages' ? 'سجل الخدمات والباقات' : historyType === 'bookings' ? 'سجل مواعيد التصوير' : 'سجل الدفعات والمعاملات المالية'} 
+              {historyType === 'packages' ? 'سجل الباقات والخدمات المنتهية' : historyType === 'bookings' ? 'سجل مواعيد التصوير' : 'سجل الدفعات والمعاملات المالية'} 
               {' '} - {selectedClient.name}
             </h4>
             
-            <div style={{ overflowY: 'auto', flex: 1, border: '1px solid #dee2e6', borderRadius: '1rem' }}>
+            <div style={{ overflowY: 'auto', flex: 1, border: historyType === 'packages' ? 'none' : '1px solid #dee2e6', borderRadius: '1rem' }}>
               {historyLoading ? (
                 <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--erp-text-muted)' }}>جاري تحميل السجلات...</div>
               ) : historyData.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--erp-text-muted)' }}>لا توجد سجلات.</div>
+              ) : historyType === 'packages' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', padding: '5px' }}>
+                  {historyData.map(pkg => {
+                    const price = pkg.custom_price;
+                    const discount = pkg.discount;
+                    const paid = pkg.total_paid;
+                    const remaining = price - discount - paid;
+                    const isArchived = pkg.is_archived;
+                    
+                    const dateObj = new Date(pkg.date);
+                    const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                    const dayName = days[dateObj.getDay()];
+                    const formattedDate = `${dayName} ${dateObj.getDate().toString().padStart(2, '0')}-${(dateObj.getMonth() + 1).toString().padStart(2, '0')}-${dateObj.getFullYear()}`;
+
+                    return (
+                      <div key={pkg.id} style={{ background: 'var(--erp-bg)', border: '1px solid #dee2e6', borderRadius: '1rem', padding: '20px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexDirection: 'row-reverse' }}>
+                          <h5 style={{ margin: 0, fontWeight: 'bold', color: 'var(--erp-text-main)' }}>{pkg.serviceName}</h5>
+                          <span style={{ padding: '5px 15px', borderRadius: '50rem', background: isArchived ? '#6c757d' : '#198754', color: '#fff', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                            {isArchived ? 'مؤرشفة (منتهية)' : 'نشطة'}
+                          </span>
+                        </div>
+                        <div style={{ textAlign: 'right', marginBottom: '15px', color: 'var(--erp-text-muted)', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                          <Calendar size={16} style={{ marginLeft: '5px', verticalAlign: 'middle' }} />
+                          تاريخ الاشتراك: {formattedDate}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', textAlign: 'center', marginBottom: '15px', direction: 'rtl' }}>
+                          <div style={{ border: '1px solid #dee2e6', borderRadius: '0.5rem', padding: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', background: 'var(--erp-surface)' }}>
+                            السعر: {price}
+                          </div>
+                          <div style={{ border: '1px solid #dee2e6', borderRadius: '0.5rem', padding: '10px', fontWeight: 'bold', color: '#198754', background: 'var(--erp-surface)' }}>
+                            المدفوع: {paid}
+                          </div>
+                          <div style={{ border: '1px solid #dee2e6', borderRadius: '0.5rem', padding: '10px', fontWeight: 'bold', color: remaining > 0 ? '#dc3545' : '#198754', background: 'var(--erp-surface)' }}>
+                            المتبقي: {remaining}
+                          </div>
+                        </div>
+                        {discount > 0 && (
+                          <div style={{ background: 'rgba(220, 53, 69, 0.15)', color: '#dc3545', borderRadius: '0.5rem', padding: '15px', textAlign: 'center', fontWeight: 'bold' }}>
+                            <Tag size={18} style={{ marginLeft: '5px', verticalAlign: 'middle' }} />
+                            خصم: {discount} ج.م
+                            {pkg.discount_reason && <div style={{ fontSize: '0.85rem', marginTop: '5px', fontWeight: 'normal' }}>({pkg.discount_reason})</div>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
                   <thead style={{ position: 'sticky', top: 0, background: 'var(--erp-bg)', zIndex: 10 }}>
