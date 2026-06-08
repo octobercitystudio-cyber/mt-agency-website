@@ -67,11 +67,6 @@ const ERPLayout = () => {
             </NavLink>
           </li>
           <li className="erp-nav-item">
-            <NavLink to="/erp/finance" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <DollarSign size={20} /> الخزينة والحسابات
-            </NavLink>
-          </li>
-          <li className="erp-nav-item">
             <NavLink to="/erp/reminders" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
               <ClipboardList size={20} /> المهام والتذكيرات
             </NavLink>
