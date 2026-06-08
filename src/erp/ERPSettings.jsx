@@ -588,11 +588,12 @@ const ERPSettings = () => {
                 const a = document.createElement('a'); a.href = dataStr; a.download = "erp_backup.json"; a.click();
               }}><i className="fas fa-download me-1"></i> تحميل نسخة (JSON)</button>
             </div>
-            <form onSubmit={e => { e.preventDefault(); alert('خاصية استعادة البيانات متاحة في النسخة الكاملة للمطور.'); }} className="mt-3 p-3 bg-danger-subtle rounded-4 border border-danger border-opacity-25">
-              <label className="small fw-bold text-danger mb-2"><i className="fas fa-exclamation-triangle"></i> استعادة نسخة (سيمسح الحالي):</label>
-              <input type="file" className="form-control mb-2 bg-white border-0" accept=".db" required />
-              <button type="submit" className="btn btn-danger w-100 rounded-pill py-2 fw-bold" onClick={(e) => { if(!window.confirm('تحذير خطير: هل أنت متأكد من استبدال قاعدة البيانات؟')) e.preventDefault(); }}><i className="fas fa-sync-alt me-1"></i> استعادة</button>
-            </form>
+            <div className="mt-3 p-3 bg-primary-subtle rounded-4 border border-primary border-opacity-25">
+              <label className="small fw-bold text-primary mb-2"><i className="fas fa-cloud"></i> النسخ الاحتياطي التلقائي (Cloud)</label>
+              <p className="small mb-0 text-dark">
+                قاعدة بيانات النظام الآن سحابية وموزعة عبر عدة خوادم (Supabase)، مما يعني أن بياناتك في أمان تام ولا يمكن فقدانها حتى لو تعطل جهازك. لم تعد بحاجة لرفع أو استعادة ملفات .db يدوياً.
+              </p>
+            </div>
           </div>
         </div>
 
