@@ -122,55 +122,82 @@ const ERPSettings = () => {
   return (
     <div className="container-fluid p-0 animate__animated animate__fadeIn pb-5">
       <style>{`
-        .nav-tabs .nav-link { color: #64748b !important; font-weight: 700; border: none; border-bottom: 3px solid transparent; padding: 12px 20px; transition: 0.3s; }
-        .nav-tabs .nav-link.active { color: #4318ff !important; border-bottom: 3px solid #4318ff !important; background: transparent !important; }
-        .nav-tabs .nav-link:hover:not(.active) { border-bottom: 3px solid #cbd5e1 !important; color: #4318ff !important; }
+        .nav-tabs { border-bottom: 1px solid #e2e8f0; gap: 10px; justify-content: flex-start; padding-bottom: 10px; margin-bottom: 20px; }
+        .nav-tabs .nav-item { margin-bottom: 0; }
+        .nav-tabs .nav-link { 
+          color: #64748b !important; 
+          font-weight: 700; 
+          border: 1px solid transparent; 
+          border-radius: 12px; 
+          padding: 10px 24px; 
+          transition: all 0.3s ease; 
+          background: transparent;
+        }
+        .nav-tabs .nav-link.active { 
+          color: #4318ff !important; 
+          border: 1px solid rgba(67,24,255,0.3) !important; 
+          background: #ffffff !important; 
+          box-shadow: 0 4px 15px rgba(67,24,255,0.08) !important; 
+        }
+        .nav-tabs .nav-link:hover:not(.active) { 
+          color: #4318ff !important; 
+          background: #f8fafc;
+        }
         
-        .setting-section { background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); padding: 25px; margin-bottom: 30px; }
-        .section-title { font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; }
-        .table-hover tbody tr { transition: all 0.2s ease; }
+        .setting-section { background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); padding: 25px; margin-bottom: 30px; border: 1px solid rgba(0,0,0,0.02); }
+        .section-title { font-weight: 800; color: #1e293b; margin-bottom: 25px; display: flex; align-items: center; justify-content: space-between; }
+        
+        .table-hover tbody tr { transition: all 0.2s ease; border-bottom: 1px solid #f1f5f9; }
+        .table-hover tbody tr:last-child { border-bottom: none; }
         .table-hover tbody tr:hover { background-color: #f8fafc; }
-        .action-btn { width: 35px; height: 35px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; transition: 0.2s; }
-        .action-btn:hover { transform: scale(1.1); }
+        
+        .action-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; transition: 0.2s; font-size: 0.9rem; }
+        .action-btn:hover { transform: translateY(-2px); }
+        .btn-edit-action { background: #f0f7ff; color: #0d6efd; border: 1px solid #cce3ff; }
+        .btn-edit-action:hover { background: #0d6efd; color: white; border-color: #0d6efd; }
+        .btn-delete-action { background: #fff0f0; color: #dc3545; border: 1px solid #ffcaca; }
+        .btn-delete-action:hover { background: #dc3545; color: white; border-color: #dc3545; }
         
         .cropper-container { width: 100%; max-height: 60vh; background-color: #e9ecef; border-radius: 12px; overflow: hidden; }
       `}</style>
 
-      <div className="mb-4">
+      <div className="mb-4 d-none">
         <h3 className="fw-bold text-dark m-0"><i className="fas fa-cogs text-primary me-2"></i> لوحة التحكم وإعدادات النظام</h3>
         <p className="text-muted small mt-1">قم بإدارة باقاتك، المستخدمين، نظام النقاط والنسخ الاحتياطي من هنا.</p>
       </div>
 
       <div className="setting-section" id="servicesSection">
-        <div className="section-title">
-          <span><i className="fas fa-layer-group text-warning me-2"></i> قائمة الخدمات والباقات</span>
-          <button className="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addServiceModal">
+        <div className="section-title border-bottom pb-4 mb-4">
+          <span className="fs-5"><i className="fas fa-layer-group text-warning me-2"></i> قائمة الخدمات والباقات</span>
+          <button className="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-sm" style={{background: '#0d6efd'}} data-bs-toggle="modal" data-bs-target="#addServiceModal">
             <i className="fas fa-plus me-1"></i> إضافة خدمة / باقة جديدة
           </button>
         </div>
 
-        <ul className="nav nav-tabs mb-4" id="servicesTabs" role="tablist">
-          <li className="nav-item" role="presentation"><button className="nav-link active" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#hourly" type="button" role="tab"><i className="fas fa-stopwatch me-1"></i> التصوير بالساعة</button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab"><i className="fas fa-sun me-1"></i> الباقات اليومية</button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab"><i className="fas fa-calendar-alt me-1"></i> الباقات الشهرية</button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="others-tab" data-bs-toggle="tab" data-bs-target="#others" type="button" role="tab"><i className="fas fa-star me-1"></i> الخدمات والريلز</button></li>
+        <ul className="nav nav-tabs border-0 gap-2 mb-4" id="servicesTabs" role="tablist">
+          <li className="nav-item" role="presentation"><button className="nav-link active" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#hourly" type="button" role="tab">التصوير بالساعة</button></li>
+          <li className="nav-item" role="presentation"><button className="nav-link" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab"><i className="fas fa-cog me-1 opacity-50"></i> الباقات اليومية</button></li>
+          <li className="nav-item" role="presentation"><button className="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab"><i className="fas fa-calendar-alt me-1 opacity-50"></i> الباقات الشهرية</button></li>
+          <li className="nav-item" role="presentation"><button className="nav-link" id="others-tab" data-bs-toggle="tab" data-bs-target="#others" type="button" role="tab"><i className="fas fa-star me-1 opacity-50"></i> الخدمات والريلز</button></li>
         </ul>
 
         <div className="tab-content" id="servicesTabsContent">
           {/* Hourly */}
           <div className="tab-pane fade show active" id="hourly" role="tabpanel">
             <div className="table-responsive">
-              <table className="table table-hover align-middle text-center mb-0">
-                <thead className="bg-light"><tr><th className="py-3 text-muted small fw-bold">اسم الخدمة</th><th className="py-3 text-muted small fw-bold">الساعات</th><th className="py-3 text-muted small fw-bold">السعر (ج.م)</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
+              <table className="table table-hover table-borderless align-middle text-center mb-0">
+                <thead><tr style={{borderBottom: '1px solid #e2e8f0'}}><th className="py-3 text-muted small fw-bold">اسم الخدمة</th><th className="py-3 text-muted small fw-bold">الساعات</th><th className="py-3 text-muted small fw-bold">السعر (ج.م)</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
                 <tbody>
                   {services.filter(s => s.category === 'تصوير بالساعة').map(s => (
                     <tr key={s.id}>
-                      <td className="py-3 fw-bold text-dark">{s.name}</td>
-                      <td className="py-3 fw-bold text-primary">{s.total_hours} س</td>
-                      <td className="py-3 fw-bold text-success">{s.price}</td>
-                      <td className="py-3">
-                        <button className="btn btn-light text-primary border action-btn me-1" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
-                        <button className="btn btn-light text-danger border action-btn" onClick={() => window.confirm('حذف الخدمة نهائياً؟')} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                      <td className="py-4 fw-bold text-dark">{s.name}</td>
+                      <td className="py-4 fw-bold text-primary">{s.total_hours} س</td>
+                      <td className="py-4 fw-bold text-success">{s.price.toFixed(1)}</td>
+                      <td className="py-4">
+                        <div className="d-flex gap-2 justify-content-center">
+                          <button className="btn action-btn btn-delete-action" onClick={() => window.confirm('حذف الخدمة نهائياً؟')} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -182,20 +209,22 @@ const ERPSettings = () => {
           {/* Daily */}
           <div className="tab-pane fade" id="daily" role="tabpanel">
             <div className="table-responsive">
-              <table className="table table-hover align-middle text-center mb-0">
-                <thead className="bg-light"><tr><th className="py-3 text-muted small fw-bold">اسم الباقة</th><th className="py-3 text-muted small fw-bold">تفاصيل الباقة</th><th className="py-3 text-muted small fw-bold">الصلاحية</th><th className="py-3 text-muted small fw-bold">السعر (ج.م)</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
+              <table className="table table-hover table-borderless align-middle text-center mb-0">
+                <thead><tr style={{borderBottom: '1px solid #e2e8f0'}}><th className="py-3 text-muted small fw-bold">اسم الباقة</th><th className="py-3 text-muted small fw-bold">تفاصيل الباقة</th><th className="py-3 text-muted small fw-bold">الصلاحية</th><th className="py-3 text-muted small fw-bold">السعر (ج.م)</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
                 <tbody>
                   {services.filter(s => s.category === 'باقة يومية').map(s => (
                     <tr key={s.id}>
-                      <td className="py-3 fw-bold text-dark">{s.name}</td>
-                      <td className="py-3 fw-bold text-primary">
+                      <td className="py-4 fw-bold text-dark">{s.name}</td>
+                      <td className="py-4 fw-bold text-primary">
                         {s.total_hours} س <br/>
                         {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
                       </td>
-                      <td className="py-3 fw-bold text-muted">{s.validity_days} يوم</td><td className="py-3 fw-bold text-success">{s.price}</td>
-                      <td className="py-3">
-                        <button className="btn btn-light text-primary border action-btn me-1" onClick={() => openEditModal(s)}><i className="fas fa-edit"></i></button>
-                        <button className="btn btn-light text-danger border action-btn" onClick={() => window.confirm('حذف الباقة نهائياً؟')}><i className="fas fa-trash-alt"></i></button>
+                      <td className="py-4 fw-bold text-muted">{s.validity_days} يوم</td><td className="py-4 fw-bold text-success">{s.price.toFixed(1)}</td>
+                      <td className="py-4">
+                        <div className="d-flex gap-2 justify-content-center">
+                          <button className="btn action-btn btn-delete-action" onClick={() => window.confirm('حذف الباقة نهائياً؟')} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -207,20 +236,22 @@ const ERPSettings = () => {
           {/* Monthly */}
           <div className="tab-pane fade" id="monthly" role="tabpanel">
             <div className="table-responsive">
-              <table className="table table-hover align-middle text-center mb-0">
-                <thead className="bg-light"><tr><th className="py-3 text-muted small fw-bold">اسم الباقة</th><th className="py-3 text-muted small fw-bold">تفاصيل الباقة</th><th className="py-3 text-muted small fw-bold">الصلاحية</th><th className="py-3 text-muted small fw-bold">السعر (ج.م)</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
+              <table className="table table-hover table-borderless align-middle text-center mb-0">
+                <thead><tr style={{borderBottom: '1px solid #e2e8f0'}}><th className="py-3 text-muted small fw-bold">اسم الباقة</th><th className="py-3 text-muted small fw-bold">تفاصيل الباقة</th><th className="py-3 text-muted small fw-bold">الصلاحية</th><th className="py-3 text-muted small fw-bold">السعر (ج.م)</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
                 <tbody>
                   {services.filter(s => s.category === 'باقة شهرية').map(s => (
                     <tr key={s.id}>
-                      <td className="py-3 fw-bold text-dark">{s.name}</td>
-                      <td className="py-3 fw-bold text-primary">
+                      <td className="py-4 fw-bold text-dark">{s.name}</td>
+                      <td className="py-4 fw-bold text-primary">
                         {s.total_hours} س <br/>
                         {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
                       </td>
-                      <td className="py-3 fw-bold text-muted">{s.validity_days} يوم</td><td className="py-3 fw-bold text-success">{s.price}</td>
-                      <td className="py-3">
-                        <button className="btn btn-light text-primary border action-btn me-1" onClick={() => openEditModal(s)}><i className="fas fa-edit"></i></button>
-                        <button className="btn btn-light text-danger border action-btn" onClick={() => window.confirm('حذف الباقة نهائياً؟')}><i className="fas fa-trash-alt"></i></button>
+                      <td className="py-4 fw-bold text-muted">{s.validity_days} يوم</td><td className="py-4 fw-bold text-success">{s.price.toFixed(1)}</td>
+                      <td className="py-4">
+                        <div className="d-flex gap-2 justify-content-center">
+                          <button className="btn action-btn btn-delete-action" onClick={() => window.confirm('حذف الباقة نهائياً؟')} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -232,18 +263,20 @@ const ERPSettings = () => {
           {/* Others */}
           <div className="tab-pane fade" id="others" role="tabpanel">
             <div className="table-responsive">
-              <table className="table table-hover align-middle text-center mb-0">
-                <thead className="bg-light"><tr><th className="py-3 text-muted small fw-bold">اسم الخدمة</th><th className="py-3 text-muted small fw-bold">التصنيف</th><th className="py-3 text-muted small fw-bold">التفاصيل</th><th className="py-3 text-muted small fw-bold">السعر (ج.م)</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
+              <table className="table table-hover table-borderless align-middle text-center mb-0">
+                <thead><tr style={{borderBottom: '1px solid #e2e8f0'}}><th className="py-3 text-muted small fw-bold">اسم الخدمة</th><th className="py-3 text-muted small fw-bold">التصنيف</th><th className="py-3 text-muted small fw-bold">التفاصيل</th><th className="py-3 text-muted small fw-bold">السعر (ج.م)</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
                 <tbody>
                   {services.filter(s => s.category === 'خدمة إضافية' || s.category === 'باقة ريلز').map(s => (
                     <tr key={s.id}>
-                      <td className="py-3 fw-bold text-dark">{s.name}</td>
-                      <td className="py-3"><span className="badge bg-secondary-subtle text-secondary border rounded-pill">{s.category}</span></td>
-                      <td className="py-3 fw-bold text-muted">{s.category === 'باقة ريلز' ? `${s.total_reels} فيديو` : '-'}</td>
-                      <td className="py-3 fw-bold text-success">{s.price}</td>
-                      <td className="py-3">
-                        <button className="btn btn-light text-primary border action-btn me-1" onClick={() => openEditModal(s)}><i className="fas fa-edit"></i></button>
-                        <button className="btn btn-light text-danger border action-btn" onClick={() => window.confirm('حذف الخدمة نهائياً؟')}><i className="fas fa-trash-alt"></i></button>
+                      <td className="py-4 fw-bold text-dark">{s.name}</td>
+                      <td className="py-4"><span className="badge bg-secondary-subtle text-secondary border rounded-pill">{s.category}</span></td>
+                      <td className="py-4 fw-bold text-muted">{s.category === 'باقة ريلز' ? `${s.total_reels} فيديو` : '-'}</td>
+                      <td className="py-4 fw-bold text-success">{s.price.toFixed(1)}</td>
+                      <td className="py-4">
+                        <div className="d-flex gap-2 justify-content-center">
+                          <button className="btn action-btn btn-delete-action" onClick={() => window.confirm('حذف الخدمة نهائياً؟')} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
