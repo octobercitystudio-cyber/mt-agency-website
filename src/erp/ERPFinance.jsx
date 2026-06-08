@@ -28,6 +28,7 @@ const ERPFinance = () => {
   const [advanceForm, setAdvanceForm] = useState({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
   const [payAdvanceForm, setPayAdvanceForm] = useState({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
   const [adjustDueForm, setAdjustDueForm] = useState({ partner: 'اشرف', new_due: '', current_due: 0 });
+  const [adjustWalletForm, setAdjustWalletForm] = useState({ method: '', new_balance: '', current_balance: 0 });
 
   const methodsList = ['كاش', 'فودافون كاش', 'انستاباي'];
   const partnersList = ['اشرف', 'مروة'];
@@ -233,6 +234,39 @@ const ERPFinance = () => {
     fetchData();
   };
 
+  const handleAdjustWallet = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    
+    const method = adjustWalletForm.method;
+    const new_bal = safeFloat(adjustWalletForm.new_balance);
+    const curr_bal = adjustWalletForm.current_balance;
+    const diff = new_bal - curr_bal;
+    
+    if (diff === 0) {
+      setModalState(s => ({...s, adjustWallet: false}));
+      return;
+    }
+    
+    const adminNote = prompt('اكتب ملاحظة لعملية التسوية (اختياري):', 'تسوية إدارية');
+    const detailText = adminNote ? `تسوية إدارية: ${adminNote}` : 'تسوية إدارية';
+    
+    const type = diff > 0 ? 'إيراد' : 'مصروف';
+    const amount = Math.abs(diff);
+    
+    await supabase.from('finance').insert([{
+      type: type,
+      amount: amount,
+      method: method,
+      detail: detailText,
+      date: format(new Date(), 'yyyy-MM-dd'),
+      entity: 'الشركة'
+    }]);
+    
+    setModalState(s => ({...s, adjustWallet: false}));
+    fetchData();
+  };
+
   const deleteTransaction = async (id) => {
     if (window.confirm('هل أنت متأكد من حذف هذا السجل المالي؟')) {
       await supabase.from('finance').delete().eq('id', id);
@@ -264,6 +298,11 @@ const ERPFinance = () => {
   const openAdjustPartnerModal = (partner, currentDue) => {
     setAdjustDueForm({ partner, new_due: '', current_due: currentDue });
     setModalState(s => ({...s, adjustPartner: true}));
+  };
+
+  const openAdjustWalletModal = (method, currentBalance) => {
+    setAdjustWalletForm({ method, new_balance: '', current_balance: currentBalance });
+    setModalState(s => ({...s, adjustWallet: true}));
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--erp-text-muted)' }}>جاري تحميل الحسابات...</div>;
@@ -371,12 +410,12 @@ const ERPFinance = () => {
       <div className="row g-4 mb-4">
         <div className="col-md-4">
           <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
-            <div className="d-flex justify-content-between align-items-start mb-3">
+            <div className="d-flex justify-content-between align-items-center mb-3">
               <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-money-bill-wave fs-4"></i>
               </div>
               {isAdmin && (
-                <button className="btn btn-link p-0 text-primary no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
+                <button className="btn btn-link p-0 text-primary no-print" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('كاش', balances.cash)}><i className="fas fa-pen"></i></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>صندوق الكاش (النقدية)</p>
@@ -385,12 +424,12 @@ const ERPFinance = () => {
         </div>
         <div className="col-md-4">
           <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
-            <div className="d-flex justify-content-between align-items-start mb-3">
+            <div className="d-flex justify-content-between align-items-center mb-3">
               <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-mobile-alt fs-4"></i>
               </div>
               {isAdmin && (
-                <button className="btn btn-link p-0 text-danger no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
+                <button className="btn btn-link p-0 text-danger no-print" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('فودافون كاش', balances.vodafone)}><i className="fas fa-pen"></i></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>محفظة فودافون كاش</p>
@@ -399,7 +438,7 @@ const ERPFinance = () => {
         </div>
         <div className="col-md-4">
           <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
-            <div className="d-flex justify-content-between align-items-start mb-3">
+            <div className="d-flex justify-content-between align-items-center mb-3">
               <div style={{ background: '#f4f0ff', color: '#6f42c1', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-paper-plane fs-4"></i>
               </div>
@@ -758,6 +797,35 @@ const ERPFinance = () => {
                 <i className="fas fa-info-circle me-1"></i> سيتم إنشاء عملية "تسوية إدارية" خفية لضبط الدفاتر بحيث يصبح الرصيد مساوياً للرقم الجديد.
               </div>
               <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow" style={{ background: '#1e293b', color: 'white' }}>اعتماد الرصيد الجديد</button>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* 7. Adjust Wallet Modal (Admin Only) */}
+      {modalState.adjustWallet && isAdmin && (
+        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, adjustWallet: false})}>
+          <div className="erp-modal-content rounded-5 border-0 shadow-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header bg-dark text-white border-0 p-4 rounded-top-5">
+              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-sliders-h me-2"></i> تسوية إدارية لخزينة ({adjustWalletForm.method})</h5>
+              <button type="button" className="btn-close btn-close-white" onClick={() => setModalState({...modalState, adjustWallet: false})}></button>
+            </div>
+            <form onSubmit={handleAdjustWallet} className="p-4 bg-white text-center">
+              
+              <div className="mb-4">
+                <small className="fw-bold block" style={{ color: 'var(--erp-text-muted)' }}>الرصيد الحالي المُسجل</small>
+                <h3 className="fw-bold m-0 mt-1" style={{ color: 'var(--erp-text-main)' }}>{adjustWalletForm.current_balance.toLocaleString()} ج.م</h3>
+              </div>
+              
+              <div className="mb-4 text-start">
+                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>الرصيد الفعلي الجديد</label>
+                <input type="number" step="0.01" className="form-control border-0 py-3 fs-2 fw-bold text-center rounded-4" style={{ background: 'rgba(255, 193, 7, 0.2)', color: '#000' }} value={adjustWalletForm.new_balance} onChange={e => setAdjustWalletForm({...adjustWalletForm, new_balance: e.target.value})} required placeholder="مثال: 5000" />
+              </div>
+
+              <div className="alert alert-info text-start mb-0 p-3 rounded-4 border-0 bg-opacity-10" style={{ fontSize: '0.85rem' }}>
+                <i className="fas fa-info-circle me-1"></i> سيتم إنشاء عملية "تسوية إدارية" إما كإيراد أو مصروف لضبط الدفاتر بحيث يصبح الرصيد مساوياً للرقم الجديد.
+              </div>
+
+              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-4" style={{ background: '#000', color: 'white' }}>حفظ التعديل الدفتري</button>
             </form>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, ShieldAlert, Truck, Pointer } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { useLocation } from 'react-router-dom';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
@@ -11,6 +12,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import timeGridPlugin from '@fullcalendar/timegrid';
 
 const ERPBookings = () => {
+  const location = useLocation();
   const [bookings, setBookings] = useState([]);
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
@@ -20,6 +22,19 @@ const ERPBookings = () => {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBookingDetails, setSelectedBookingDetails] = useState(null);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (location.state?.openAddModalFor && clients.length > 0 && services.length > 0) {
+      setNewBooking(prev => ({ ...prev, client_name: location.state.openAddModalFor }));
+      setIsModalOpen(true);
+      // Clean up state so it doesn't reopen on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, clients, services]);
 
   const isAdmin = localStorage.getItem('erp_role') === 'مدير';
   const [newBooking, setNewBooking] = useState({
@@ -150,6 +165,21 @@ const ERPBookings = () => {
   const handleSaveBooking = async (e) => {
     e.preventDefault();
     
+    // Validation: Cannot book a new photography service if they already have an active one
+    const photoCategories = ['تصوير بالساعة', 'باقة يومية', 'باقة شهرية'];
+    if (photoCategories.includes(newBooking.category)) {
+      const hasActivePhoto = bookings.some(b => {
+        if (b.client_name !== newBooking.client_name || b.status === 'دفعة' || b.service.includes('مؤرشف')) return false;
+        const bSrv = services.find(s => s.name === b.service);
+        return bSrv && photoCategories.includes(bSrv.category);
+      });
+
+      if (hasActivePhoto) {
+        alert('لا يمكن حجز خدمة تصوير جديدة، العميل مشترك بالفعل في خدمة تصوير نشطة!');
+        return;
+      }
+    }
+
     const needsDates = newBooking.category !== 'باقة ريلز' && newBooking.category !== 'خدمة إضافية' || newBooking.schedule_extra;
     if (needsDates && newBooking.dates.length === 0) {
       alert('يجب تحديد موعد واحد على الأقل في التقويم أو عن طريق الضغط مرتين على اليوم المختار');
@@ -554,8 +584,6 @@ const ERPBookings = () => {
                 اعتماد وتسجيل في النظام <CheckCircle size={20} style={{ marginRight: '10px' }} />
               </button>
 
-            </form>
-          </div>
             </form>
           </div>
         </div>

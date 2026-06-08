@@ -11,6 +11,8 @@ import ERPClients from './erp/ERPClients';
 import ERPBookings from './erp/ERPBookings';
 import ERPFinance from './erp/ERPFinance';
 import ERPSettings from './erp/ERPSettings';
+import ERPReminders from './erp/ERPReminders';
+import ERPOfferGenerator from './erp/ERPOfferGenerator';
 import AdminHero from './admin/AdminHero';
 import AdminAbout from './admin/AdminAbout';
 import AdminPortfolio from './admin/AdminPortfolio';
@@ -72,6 +74,8 @@ function App() {
             <Route path="bookings" element={<ERPBookings />} />
             <Route path="finance" element={<ERPFinance />} />
             <Route path="settings" element={<ERPSettings />} />
+            <Route path="reminders" element={<ERPReminders />} />
+            <Route path="offer-generator" element={<ERPOfferGenerator />} />
           </Route>
           <Route 
             path="/adminmt/*" 

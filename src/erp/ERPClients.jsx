@@ -307,8 +307,13 @@ const ERPClients = () => {
                             {client.name.charAt(0)}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.05rem' }}>{client.name}</div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)' }}>{client.job || 'لا يوجد وظيفة مسجلة'}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.05rem' }}>{client.name}</div>
+                              <button onClick={(e) => { e.stopPropagation(); navigate('/erp/bookings', { state: { openAddModalFor: client.name } }); }} style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff', border: '1px solid rgba(67, 24, 255, 0.2)', padding: '3px 10px', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}>
+                                <CalendarPlus size={14} /> حجز / إضافة
+                              </button>
+                            </div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginTop: '2px' }}>{client.job || 'لا يوجد وظيفة مسجلة'}</div>
                           </div>
                         </div>
                       </td>

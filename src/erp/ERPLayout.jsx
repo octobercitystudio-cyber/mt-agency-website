@@ -2,12 +2,17 @@ import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, RotateCcw } from 'lucide-react';
 import { useData } from '../store/DataContext';
+import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
 import './ERPLayout.css';
 
 const ERPLayout = () => {
   const { logoutErp } = useData();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const { alerts, dismissAlert } = useGlobalAlerts();
+  
+  const unreadCount = alerts.length;
 
   const handleLogout = () => {
     logoutErp();
@@ -83,8 +88,13 @@ const ERPLayout = () => {
 
         <div style={{marginTop: 'auto', paddingTop: '15px', borderTop: '1px solid rgba(0,0,0,0.03)'}}>
           <div className="erp-nav-item mb-1">
-            <button className="erp-nav-link erp-nav-alert-btn" style={{width: '100%', border: '1px solid rgba(255, 152, 0, 0.2)', background: 'rgba(255, 193, 7, 0.1)', color: '#ff9800', justifyContent: 'flex-start'}}>
+            <button className="erp-nav-link erp-nav-alert-btn position-relative" onClick={() => setNotificationsOpen(true)} style={{width: '100%', border: '1px solid rgba(255, 152, 0, 0.2)', background: 'rgba(255, 193, 7, 0.1)', color: '#ff9800', justifyContent: 'flex-start'}}>
               <Bell size={20} style={{color: '#ff9800'}} /> مركز الإشعارات
+              {unreadCount > 0 && (
+                <span className="position-absolute top-50 translate-middle-y badge rounded-pill bg-danger" style={{left: '15px'}}>
+                  {unreadCount}
+                </span>
+              )}
             </button>
           </div>
           <div className="erp-nav-item mb-1">
@@ -103,9 +113,15 @@ const ERPLayout = () => {
 
       {/* Main Content Area */}
       <div className="erp-main" style={{marginTop: '0'}}>
-
         <Outlet />
       </div>
+
+      <NotificationsOffcanvas 
+        isOpen={notificationsOpen} 
+        onClose={() => setNotificationsOpen(false)} 
+        alerts={alerts} 
+        onDismiss={dismissAlert} 
+      />
     </div>
   );
 };

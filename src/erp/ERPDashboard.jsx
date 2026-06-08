@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { Package, Truck, DollarSign, TrendingUp, Calendar, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import ERPTimerWidget from './ERPTimerWidget';
 import './ERPLayout.css';
 
 const ERPDashboard = () => {
@@ -160,6 +161,7 @@ const ERPDashboard = () => {
           </div>
         </div>
       </div>
+      <ERPTimerWidget />
 
       {/* 4 Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
