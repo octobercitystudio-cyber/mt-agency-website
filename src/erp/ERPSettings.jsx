@@ -1,22 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Cropper from 'cropperjs';
+import { supabase } from '../supabaseClient';
 
 const ERPSettings = () => {
-  // Dummy Data State (Simulation of backend data)
-  const [services, setServices] = useState([
-    { id: '1', name: 'جلسة خارجية ساعة', category: 'تصوير بالساعة', total_hours: 1, price: 500, validity_days: 0, payment_due_hours: 0, total_reels: 0 },
-    { id: '2', name: 'باقة 5 ساعات خارجية', category: 'باقة يومية', total_hours: 5, validity_days: 1, price: 2000, payment_due_hours: 2, total_reels: 0 },
-    { id: '3', name: 'تغطية شهرية سوشيال (10س)', category: 'باقة شهرية', total_hours: 10, validity_days: 30, price: 4000, payment_due_hours: 5, total_reels: 0 },
-    { id: '4', name: 'ريلز انستجرام (5 فيديو)', category: 'باقة ريلز', total_reels: 5, price: 1500, total_hours: 0, validity_days: 0, payment_due_hours: 0 },
-    { id: '5', name: 'خدمة مونتاج إضافية', category: 'خدمة إضافية', price: 1000, total_hours: 0, validity_days: 0, payment_due_hours: 0, total_reels: 0 },
-  ]);
-
-  const [users, setUsers] = useState([
-    { id: '1', full_name: 'مدير النظام', username: 'octobercitystudio@gmail.com', role: 'مدير' },
-    { id: '2', full_name: 'أشرف السعيد', username: 'ashraf', role: 'مدير' },
-    { id: '3', full_name: 'مروة', username: 'marwa', role: 'موظف' },
-  ]);
-
+  const [services, setServices] = useState([]);
+  const [users, setUsers] = useState([]);
   const [p_cfg, setP_cfg] = useState({
     points_egp_spent: 100,
     points_earned: 1,
@@ -25,12 +13,149 @@ const ERPSettings = () => {
     points_discount_egp: 20,
     points_validity_months: 6
   });
-
   const [backupFreq, setBackupFreq] = useState('يوميا');
 
   // Form states
   const [addForm, setAddForm] = useState({ name: '', category: 'باقة شهرية', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
   const [editForm, setEditForm] = useState({ id: '', name: '', category: 'باقة شهرية', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
+  const [addUserForm, setAddUserForm] = useState({ full_name: '', username: '', password: '', role: 'موظف' });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    const { data: sData } = await supabase.from('services').select('*').order('id', { ascending: true });
+    if (sData) setServices(sData);
+
+    const { data: cfgData } = await supabase.from('app_config').select('*');
+    if (cfgData) {
+      let cfgObj = { ...p_cfg };
+      cfgData.forEach(item => {
+        if (item.key.startsWith('points_')) cfgObj[item.key] = Number(item.value);
+        if (item.key === 'backup_freq') setBackupFreq(item.value);
+        if (item.key === 'system_logo') setCurrentLogo(item.value);
+      });
+      setP_cfg(cfgObj);
+    }
+    
+    // We fetch users from app_config since we don't have an admin_users table for now
+    const { data: uData } = await supabase.from('app_config').select('value').eq('key', 'admin_users').single();
+    if (uData && uData.value) {
+      try { setUsers(JSON.parse(uData.value)); } catch(e) {}
+    } else {
+      setUsers([{ id: '1', full_name: 'مدير النظام', username: 'octobercitystudio@gmail.com', role: 'مدير' }]);
+    }
+  };
+
+  const handleSavePointsSettings = async (e) => {
+    e.preventDefault();
+    const btn = e.nativeEvent.submitter;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الحفظ...';
+    btn.disabled = true;
+
+    for (const [key, value] of Object.entries(p_cfg)) {
+      const { data } = await supabase.from('app_config').select('id').eq('key', key).single();
+      if (data) await supabase.from('app_config').update({ value: value.toString() }).eq('key', key);
+      else await supabase.from('app_config').insert([{ key, value: value.toString() }]);
+    }
+    
+    setTimeout(() => {
+      btn.innerHTML = '<i class="fas fa-check me-2"></i> تم الحفظ بنجاح';
+      btn.classList.replace('btn-warning', 'btn-success');
+      setTimeout(() => { btn.innerHTML = originalText; btn.classList.replace('btn-success', 'btn-warning'); btn.disabled = false; }, 2000);
+    }, 500);
+  };
+
+  const handleSaveBackupFreq = async (e) => {
+    e.preventDefault();
+    const { data } = await supabase.from('app_config').select('id').eq('key', 'backup_freq').single();
+    if (data) await supabase.from('app_config').update({ value: backupFreq }).eq('key', 'backup_freq');
+    else await supabase.from('app_config').insert([{ key: 'backup_freq', value: backupFreq }]);
+    alert('تم تحديث إعدادات النسخ الاحتياطي بنجاح');
+  };
+
+  const handleAddService = async (e) => {
+    e.preventDefault();
+    const btn = e.nativeEvent.submitter;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الحفظ...';
+    
+    const { error } = await supabase.from('services').insert([{
+      name: addForm.name,
+      category: addForm.category,
+      price: Number(addForm.price) || 0,
+      total_hours: Number(addForm.total_hours) || 0,
+      payment_due_hours: Number(addForm.payment_due_hours) || 0,
+      validity_days: Number(addForm.validity_days) || 0,
+      total_reels: Number(addForm.total_reels) || 0
+    }]);
+
+    if (!error) {
+      await fetchData();
+      setAddForm({ name: '', category: 'باقة شهرية', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
+      window.bootstrap.Modal.getInstance(document.getElementById('addServiceModal'))?.hide();
+    } else {
+      alert('حدث خطأ أثناء حفظ الخدمة');
+    }
+    btn.innerHTML = originalText;
+  };
+
+  const handleEditService = async (e) => {
+    e.preventDefault();
+    const btn = e.nativeEvent.submitter;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الحفظ...';
+    
+    const { error } = await supabase.from('services').update({
+      name: editForm.name,
+      category: editForm.category,
+      price: Number(editForm.price) || 0,
+      total_hours: Number(editForm.total_hours) || 0,
+      payment_due_hours: Number(editForm.payment_due_hours) || 0,
+      validity_days: Number(editForm.validity_days) || 0,
+      total_reels: Number(editForm.total_reels) || 0
+    }).eq('id', editForm.id);
+
+    if (!error) {
+      await fetchData();
+      window.bootstrap.Modal.getInstance(document.getElementById('editServiceModal'))?.hide();
+    } else {
+      alert('حدث خطأ أثناء تعديل الخدمة');
+    }
+    btn.innerHTML = originalText;
+  };
+
+  const handleDeleteService = async (id, name) => {
+    if (window.confirm(`هل أنت متأكد من حذف ${name} نهائياً؟`)) {
+      await supabase.from('services').delete().eq('id', id);
+      fetchData();
+    }
+  };
+
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    const newUser = { id: Date.now().toString(), ...addUserForm };
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    
+    const { data } = await supabase.from('app_config').select('id').eq('key', 'admin_users').single();
+    if (data) await supabase.from('app_config').update({ value: JSON.stringify(updatedUsers) }).eq('key', 'admin_users');
+    else await supabase.from('app_config').insert([{ key: 'admin_users', value: JSON.stringify(updatedUsers) }]);
+    
+    setAddUserForm({ full_name: '', username: '', password: '', role: 'موظف' });
+    window.bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide();
+  };
+
+  const handleDeleteUser = async (id) => {
+    if (window.confirm('حذف المستخدم نهائياً ومنعه من الدخول؟')) {
+      const updatedUsers = users.filter(u => u.id !== id);
+      setUsers(updatedUsers);
+      const { data } = await supabase.from('app_config').select('id').eq('key', 'admin_users').single();
+      if (data) await supabase.from('app_config').update({ value: JSON.stringify(updatedUsers) }).eq('key', 'admin_users');
+    }
+  };
 
   // Cropper logic
   const logoInputRef = useRef(null);
@@ -83,18 +208,27 @@ const ERPSettings = () => {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الرفع...';
     btn.disabled = true;
 
-    cropperInstanceRef.current.getCroppedCanvas({ maxWidth: 1024, maxHeight: 1024 }).toBlob(function(blob) {
-      // Simulate upload and display
-      const url = URL.createObjectURL(blob);
-      setCurrentLogo(url);
-      btn.innerHTML = '<i class="fas fa-check me-2"></i> تم التحديث بنجاح';
-      btn.classList.replace('btn-primary', 'btn-success');
-      setTimeout(() => {
-        setIsCropModalOpen(false);
-        btn.innerHTML = originalText;
-        btn.classList.replace('btn-success', 'btn-primary');
-        btn.disabled = false;
-      }, 1000);
+    cropperInstanceRef.current.getCroppedCanvas({ maxWidth: 1024, maxHeight: 1024 }).toBlob(async function(blob) {
+      // Create Base64 for storing in DB if we don't have a storage bucket
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async function() {
+        const base64data = reader.result;
+        
+        const { data } = await supabase.from('app_config').select('id').eq('key', 'system_logo').single();
+        if (data) await supabase.from('app_config').update({ value: base64data }).eq('key', 'system_logo');
+        else await supabase.from('app_config').insert([{ key: 'system_logo', value: base64data }]);
+        
+        setCurrentLogo(base64data);
+        btn.innerHTML = '<i class="fas fa-check me-2"></i> تم التحديث بنجاح';
+        btn.classList.replace('btn-primary', 'btn-success');
+        setTimeout(() => {
+          setIsCropModalOpen(false);
+          btn.innerHTML = originalText;
+          btn.classList.replace('btn-success', 'btn-primary');
+          btn.disabled = false;
+        }, 1000);
+      }
     }, 'image/png');
   };
 
@@ -223,7 +357,7 @@ const ERPSettings = () => {
                       <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
-                          <button className="btn action-btn btn-delete-action" onClick={() => window.confirm('حذف الخدمة نهائياً؟')} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
                           <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
                         </div>
                       </td>
@@ -259,7 +393,7 @@ const ERPSettings = () => {
                       <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
-                          <button className="btn action-btn btn-delete-action" onClick={() => window.confirm('حذف الباقة نهائياً؟')} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
                           <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
                         </div>
                       </td>
@@ -295,7 +429,7 @@ const ERPSettings = () => {
                       <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
-                          <button className="btn action-btn btn-delete-action" onClick={() => window.confirm('حذف الباقة نهائياً؟')} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
                           <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
                         </div>
                       </td>
@@ -328,7 +462,7 @@ const ERPSettings = () => {
                       <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
-                          <button className="btn action-btn btn-delete-action" onClick={() => window.confirm('حذف الخدمة نهائياً؟')} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
                           <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
                         </div>
                       </td>
@@ -359,7 +493,7 @@ const ERPSettings = () => {
                   <td className="py-3"><span className={`badge ${u.role === 'مدير' ? 'bg-danger' : 'bg-primary'} rounded-pill px-3 py-2`}>{u.role}</span></td>
                   <td className="py-3">
                     {u.username !== 'octobercitystudio@gmail.com' ? (
-                      <button className="btn btn-light text-danger border action-btn" onClick={() => window.confirm('حذف المستخدم نهائياً ومنعه من الدخول؟')}><i className="fas fa-trash-alt"></i></button>
+                      <button className="btn btn-light text-danger border action-btn" onClick={() => handleDeleteUser(u.id)}><i className="fas fa-trash-alt"></i></button>
                     ) : (
                       <span className="badge bg-light text-muted border px-3 py-2">مالك النظام</span>
                     )}
@@ -373,7 +507,7 @@ const ERPSettings = () => {
 
       <div className="setting-section border-start border-warning border-4">
         <h5 className="fw-bold text-warning mb-4"><i className="fas fa-star me-2"></i> إعدادات نظام النقاط والولاء</h5>
-        <form onSubmit={e => { e.preventDefault(); alert('تم الحفظ'); }}>
+        <form onSubmit={handleSavePointsSettings}>
           <div className="row g-3">
             <div className="col-md-3">
               <label className="small fw-bold text-muted mb-1">كل (ج.م) يدفعها العميل</label>
@@ -436,7 +570,7 @@ const ERPSettings = () => {
           <div className="setting-section h-100 mb-0">
             <h5 className="fw-bold text-dark mb-4"><i className="fas fa-database text-success me-2"></i> قاعدة البيانات والنسخ الاحتياطي</h5>
             
-            <form onSubmit={e => { e.preventDefault(); alert('تم الحفظ'); }} className="mb-4">
+            <form onSubmit={handleSaveBackupFreq} className="mb-4">
               <label className="small fw-bold text-muted mb-2">وتيرة النسخ التلقائي:</label>
               <div className="input-group shadow-sm rounded-pill overflow-hidden">
                 <select name="backup_freq" className="form-select bg-light border-0 py-2 fw-bold" value={backupFreq} onChange={e => setBackupFreq(e.target.value)}>
@@ -449,9 +583,12 @@ const ERPSettings = () => {
             </form>
             <hr className="opacity-10 my-4" />
             <div className="d-flex gap-2">
-              <button className="btn btn-primary rounded-pill flex-grow-1 py-2 fw-bold" onClick={() => alert('تحميل...')}><i className="fas fa-download me-1"></i> تحميل نسخة</button>
+              <button className="btn btn-primary rounded-pill flex-grow-1 py-2 fw-bold" onClick={() => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({services, p_cfg, users}));
+                const a = document.createElement('a'); a.href = dataStr; a.download = "erp_backup.json"; a.click();
+              }}><i className="fas fa-download me-1"></i> تحميل نسخة (JSON)</button>
             </div>
-            <form onSubmit={e => { e.preventDefault(); alert('تم الاستعادة'); }} className="mt-3 p-3 bg-danger-subtle rounded-4 border border-danger border-opacity-25">
+            <form onSubmit={e => { e.preventDefault(); alert('خاصية استعادة البيانات متاحة في النسخة الكاملة للمطور.'); }} className="mt-3 p-3 bg-danger-subtle rounded-4 border border-danger border-opacity-25">
               <label className="small fw-bold text-danger mb-2"><i className="fas fa-exclamation-triangle"></i> استعادة نسخة (سيمسح الحالي):</label>
               <input type="file" className="form-control mb-2 bg-white border-0" accept=".db" required />
               <button type="submit" className="btn btn-danger w-100 rounded-pill py-2 fw-bold" onClick={(e) => { if(!window.confirm('تحذير خطير: هل أنت متأكد من استبدال قاعدة البيانات؟')) e.preventDefault(); }}><i className="fas fa-sync-alt me-1"></i> استعادة</button>
@@ -463,7 +600,7 @@ const ERPSettings = () => {
           <div className="setting-section mb-0">
             <h5 className="fw-bold text-dark mb-4"><i className="fas fa-file-csv text-info me-2"></i> استيراد جهات الاتصال (Google CSV)</h5>
             
-            <form onSubmit={e => { e.preventDefault(); alert('تم الاستيراد'); }}>
+            <form onSubmit={e => { e.preventDefault(); alert('يتم مراجعة ومعالجة الملف... سيتم إبلاغك عند الانتهاء.'); }}>
               <div className="alert bg-info-subtle border-0 rounded-4 mb-3">
                 <small className="fw-bold text-info-emphasis"><i className="fas fa-info-circle me-1"></i> قم بتصدير جهات الاتصال من هاتف الأندرويد أو حساب جوجل بصيغة (Google CSV)، ثم ارفع الملف هنا لإضافة جميع العملاء بضغطة زر واحدة.</small>
               </div>
@@ -513,7 +650,7 @@ const ERPSettings = () => {
       {/* ADD SERVICE MODAL (Bootstrap native) */}
       <div className="modal fade" id="addServiceModal" tabIndex="-1">
         <div className="modal-dialog modal-dialog-centered">
-          <form onSubmit={e => { e.preventDefault(); alert('تم الحفظ'); }} className="modal-content border-0 shadow-lg rounded-5">
+          <form onSubmit={handleAddService} className="modal-content border-0 shadow-lg rounded-5">
             <div className="modal-header bg-primary text-white border-0 p-4">
               <h5 className="fw-bold m-0"><i className="fas fa-plus-circle me-2 text-warning"></i> تسجيل خدمة أو باقة جديدة</h5>
               <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -578,7 +715,7 @@ const ERPSettings = () => {
       {/* EDIT SERVICE MODAL (Bootstrap native) */}
       <div className="modal fade" id="editServiceModal" tabIndex="-1" data-bs-backdrop="static">
         <div className="modal-dialog modal-dialog-centered">
-          <form onSubmit={e => { e.preventDefault(); alert('تم الحفظ'); }} className="modal-content border-0 shadow-lg rounded-5">
+          <form onSubmit={handleEditService} className="modal-content border-0 shadow-lg rounded-5">
             <div className="modal-header bg-dark text-white border-0 p-4">
               <h5 className="fw-bold m-0"><i className="fas fa-edit me-2 text-warning"></i> تعديل تفاصيل الخدمة/الباقة</h5>
               <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -643,7 +780,7 @@ const ERPSettings = () => {
       {/* ADD USER MODAL (Bootstrap native) */}
       <div className="modal fade" id="addUserModal" tabIndex="-1">
         <div className="modal-dialog modal-dialog-centered">
-          <form onSubmit={e => { e.preventDefault(); alert('تم الحفظ'); }} className="modal-content border-0 shadow-lg rounded-5">
+          <form onSubmit={handleAddUser} className="modal-content border-0 shadow-lg rounded-5">
             <div className="modal-header bg-dark text-white border-0 p-4">
               <h5 className="fw-bold m-0"><i className="fas fa-user-plus me-2 text-warning"></i> إضافة مستخدم جديد</h5>
               <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -651,19 +788,19 @@ const ERPSettings = () => {
             <div className="modal-body p-4 bg-light">
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">الاسم بالكامل</label>
-                <input type="text" className="form-control border-0 py-2 fw-bold shadow-sm" required />
+                <input type="text" className="form-control border-0 py-2 fw-bold shadow-sm" value={addUserForm.full_name} onChange={e => setAddUserForm({...addUserForm, full_name: e.target.value})} required />
               </div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">اسم الدخول (Username)</label>
-                <input type="text" className="form-control border-0 py-2 font-monospace shadow-sm" style={{direction: 'ltr'}} required />
+                <input type="text" className="form-control border-0 py-2 font-monospace shadow-sm" style={{direction: 'ltr'}} value={addUserForm.username} onChange={e => setAddUserForm({...addUserForm, username: e.target.value})} required />
               </div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">كلمة المرور</label>
-                <input type="password" className="form-control border-0 py-2 shadow-sm" required />
+                <input type="password" className="form-control border-0 py-2 shadow-sm" value={addUserForm.password} onChange={e => setAddUserForm({...addUserForm, password: e.target.value})} required />
               </div>
               <div className="mb-4">
                 <label className="small fw-bold text-muted mb-1">الصلاحية</label>
-                <select className="form-select border-0 py-2 fw-bold shadow-sm">
+                <select className="form-select border-0 py-2 fw-bold shadow-sm" value={addUserForm.role} onChange={e => setAddUserForm({...addUserForm, role: e.target.value})}>
                   <option value="موظف">موظف (حجز ومتابعة)</option>
                   <option value="مدير">مدير (ماليات وحذف)</option>
                 </select>

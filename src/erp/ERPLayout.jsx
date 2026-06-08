@@ -20,9 +20,7 @@ const ERPLayout = () => {
       <div className="erp-mobile-header">
         <h4 style={{fontWeight: 'bold', margin: 0, color: 'var(--erp-text-main)'}}>Multi Task <span style={{color: 'var(--erp-primary)'}}>Agency</span></h4>
         <div style={{display: 'flex', gap: '8px'}}>
-          <button className="erp-mobile-undo-btn" onClick={() => { if(window.confirm('هل أنت متأكد من التراجع عن آخر عملية؟')) alert('سيتم التراجع قريباً'); }}>
-            <RotateCcw size={16} />
-          </button>
+
           <button className="erp-mobile-toggle-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
             <Menu size={20} color="var(--erp-text-main)" />
           </button>

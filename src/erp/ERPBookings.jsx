@@ -19,9 +19,9 @@ const ERPBookings = () => {
   // UI State
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const isAdmin = true; // Hardcoded to true for owner based on their template
-  
-  // Modal Form State
+  const [selectedBookingDetails, setSelectedBookingDetails] = useState(null);
+
+  const isAdmin = localStorage.getItem('erp_role') === 'مدير';
   const [newBooking, setNewBooking] = useState({
     client_name: '',
     color: '#4318ff',
@@ -81,22 +81,35 @@ const ERPBookings = () => {
 
   const handleEventClick = (info) => {
     const bId = info.event.extendedProps.booking_id;
-    const client = info.event.title;
-    const status = info.event.extendedProps.status === 'منتهي' ? '(منتهي)' : '(مجدول)';
-    const time = info.event.extendedProps.time;
-    
-    if (isAdmin) {
-      if (window.confirm(`العميل: ${client} ${status}\nالتوقيت: ${time}\n\nبصفتك المالك (مدير النظام)، هل تريد حذف هذا الموعد نهائياً من التقويم والسجلات؟`)) {
-        deleteBooking(bId);
-      }
+    const fullBooking = bookings.find(b => b.id === bId);
+    if (fullBooking) {
+      setSelectedBookingDetails(fullBooking);
+      const modal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('bookingDetailsModal'));
+      modal.show();
     } else {
-      alert(`العميل: ${client} ${status}\nالتوقيت: ${time}`);
+      alert('لم يتم العثور على تفاصيل الحجز، برجاء تحديث الصفحة.');
+    }
+  };
+
+  const handleCompleteBooking = async () => {
+    if (!selectedBookingDetails) return;
+    if (window.confirm('تأكيد إتمام الموعد؟ سيتم تغيير الحالة إلى "منتهي".')) {
+      const { error } = await supabase.from('bookings').update({ status: 'منتهي' }).eq('id', selectedBookingDetails.id);
+      if (!error) {
+        fetchData();
+        window.bootstrap.Modal.getInstance(document.getElementById('bookingDetailsModal'))?.hide();
+      }
     }
   };
 
   const deleteBooking = async (id) => {
-    const { error } = await supabase.from('bookings').delete().eq('id', id);
-    if (!error) fetchData();
+    if (window.confirm('بصفتك المالك (مدير النظام)، هل تريد حذف هذا الموعد نهائياً من التقويم والسجلات؟')) {
+      const { error } = await supabase.from('bookings').delete().eq('id', id);
+      if (!error) {
+        fetchData();
+        window.bootstrap.Modal.getInstance(document.getElementById('bookingDetailsModal'))?.hide();
+      }
+    }
   };
 
   const addDateRow = (dateStr = format(new Date(), 'yyyy-MM-dd')) => {
@@ -543,8 +556,99 @@ const ERPBookings = () => {
 
             </form>
           </div>
+            </form>
+          </div>
         </div>
       )}
+
+      {/* BOOKING DETAILS MODAL */}
+      <div className="modal fade" id="bookingDetailsModal" tabIndex="-1">
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content border-0 shadow-lg rounded-5">
+            {selectedBookingDetails && (
+              <>
+                <div className="modal-header bg-dark text-white border-0 p-4">
+                  <h5 className="fw-bold m-0"><i className="fas fa-calendar-check me-2 text-warning"></i> تفاصيل الحجز</h5>
+                  <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div className="modal-body p-4 bg-light text-end" style={{ direction: 'rtl' }}>
+                  
+                  <div className="d-flex justify-content-between align-items-center mb-4">
+                    <h4 className="fw-bold text-primary m-0">{selectedBookingDetails.client_name}</h4>
+                    <span className={`badge ${selectedBookingDetails.status === 'منتهي' ? 'bg-success' : 'bg-warning text-dark'} rounded-pill px-3 py-2 fs-6`}>
+                      {selectedBookingDetails.status}
+                    </span>
+                  </div>
+
+                  <div className="row g-3 mb-4">
+                    <div className="col-6">
+                      <div className="p-3 bg-white rounded-4 border shadow-sm h-100">
+                        <small className="text-muted d-block mb-1 fw-bold">الخدمة / الباقة</small>
+                        <div className="fw-bold text-dark">{selectedBookingDetails.service}</div>
+                      </div>
+                    </div>
+                    <div className="col-6">
+                      <div className="p-3 bg-white rounded-4 border shadow-sm h-100">
+                        <small className="text-muted d-block mb-1 fw-bold">التاريخ</small>
+                        <div className="fw-bold text-dark" style={{direction: 'ltr'}}>{selectedBookingDetails.date}</div>
+                      </div>
+                    </div>
+                    <div className="col-12">
+                      <div className="p-3 bg-white rounded-4 border shadow-sm">
+                        <small className="text-muted d-block mb-1 fw-bold">التوقيت</small>
+                        <div className="fw-bold text-dark d-flex align-items-center gap-2">
+                          <span className="text-primary">{selectedBookingDetails.start_time}</span> 
+                          <i className="fas fa-arrow-left text-muted"></i> 
+                          <span className="text-danger">{selectedBookingDetails.end_time}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white rounded-4 border shadow-sm mb-4">
+                    <div className="row text-center">
+                      <div className="col-4 border-end">
+                        <small className="text-muted d-block mb-1 fw-bold">الساعات</small>
+                        <div className="fw-bold fs-5">{selectedBookingDetails.actual_hours || 0}</div>
+                      </div>
+                      <div className="col-4 border-end">
+                        <small className="text-muted d-block mb-1 fw-bold">الريلز</small>
+                        <div className="fw-bold fs-5">{selectedBookingDetails.actual_reels || 0}</div>
+                      </div>
+                      <div className="col-4">
+                        <small className="text-muted d-block mb-1 fw-bold">الدفعة</small>
+                        <div className="fw-bold fs-5 text-success">{selectedBookingDetails.payment || 0}ج</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedBookingDetails.notes && (
+                    <div className="p-3 bg-warning-subtle rounded-4 border border-warning mb-4">
+                      <small className="text-warning-emphasis d-block mb-1 fw-bold"><i className="fas fa-sticky-note me-1"></i> ملاحظات</small>
+                      <div className="fw-bold text-dark">{selectedBookingDetails.notes}</div>
+                    </div>
+                  )}
+
+                  <div className="d-flex gap-2 mt-4">
+                    {selectedBookingDetails.status !== 'منتهي' && (
+                      <button className="btn btn-success flex-grow-1 py-3 rounded-4 fw-bold" onClick={handleCompleteBooking}>
+                        <i className="fas fa-check-circle me-1"></i> إتمام الموعد (تصوير)
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button className="btn btn-outline-danger py-3 rounded-4 fw-bold px-4" onClick={() => deleteBooking(selectedBookingDetails.id)}>
+                        <i className="fas fa-trash-alt me-1"></i> حذف الموعد
+                      </button>
+                    )}
+                  </div>
+
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 };
