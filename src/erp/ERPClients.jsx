@@ -280,8 +280,8 @@ const ERPClients = () => {
           packagesList.sort((a, b) => new Date(b.date) - new Date(a.date));
           setHistoryData(packagesList);
         } else {
-          // Photography appointments are bookings with actual_hours > 0, actual_reels > 0, or start_time/end_time
-          let appointments = data.filter(b => b.actual_hours > 0 || b.actual_reels > 0 || (b.start_time && b.start_time !== ''));
+          // Photography appointments are bookings with actual_hours > 0, actual_reels > 0, or valid start_time/end_time
+          let appointments = data.filter(b => b.actual_hours > 0 || b.actual_reels > 0 || (b.start_time && b.start_time !== '' && b.start_time !== '00:00'));
           // Sort by date descending, then by id descending
           appointments.sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id);
           setHistoryData(appointments);
@@ -744,6 +744,7 @@ const ERPClients = () => {
                         <>
                           <th style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>التاريخ</th>
                           <th style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>الخدمة</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>توقيت</th>
                           <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>ساعات</th>
                           <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>ريلز</th>
                           <th style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>البيان</th>
@@ -767,6 +768,9 @@ const ERPClients = () => {
                           <>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', direction: 'ltr', textAlign: 'right' }}>{row.date}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>{row.service}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontSize: '0.85rem' }}>
+                              {(row.start_time && row.start_time !== '' && row.start_time !== '00:00') ? `${row.start_time} - ${row.end_time || '?'}` : '-'}
+                            </td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}>
                               {row.actual_hours > 0 ? (
                                 (() => {
