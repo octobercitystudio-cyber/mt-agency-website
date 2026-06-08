@@ -370,16 +370,13 @@ const ERPFinance = () => {
       </h5>
       <div className="row g-4 mb-4">
         <div className="col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card" style={{ background: 'var(--erp-surface)' }}>
+          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-start mb-3">
-              <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', padding: '15px', borderRadius: '50%' }}>
+              <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-money-bill-wave fs-4"></i>
               </div>
               {isAdmin && (
-                <div className="d-flex gap-1">
-                  <button className="btn btn-sm btn-light text-secondary rounded-circle no-print" title="عرض السجل"><i className="fas fa-eye"></i></button>
-                  <button className="btn btn-sm btn-light text-primary rounded-circle no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
-                </div>
+                <button className="btn btn-link p-0 text-primary no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>صندوق الكاش (النقدية)</p>
@@ -387,16 +384,13 @@ const ERPFinance = () => {
           </div>
         </div>
         <div className="col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card" style={{ background: 'var(--erp-surface)' }}>
+          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-start mb-3">
-              <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', padding: '15px', borderRadius: '50%' }}>
+              <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-mobile-alt fs-4"></i>
               </div>
               {isAdmin && (
-                <div className="d-flex gap-1">
-                  <button className="btn btn-sm btn-light text-secondary rounded-circle no-print" title="عرض السجل"><i className="fas fa-eye"></i></button>
-                  <button className="btn btn-sm btn-light text-danger rounded-circle no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
-                </div>
+                <button className="btn btn-link p-0 text-danger no-print" title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>محفظة فودافون كاش</p>
@@ -404,16 +398,13 @@ const ERPFinance = () => {
           </div>
         </div>
         <div className="col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card" style={{ background: 'var(--erp-surface)' }}>
+          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-start mb-3">
-              <div style={{ background: '#f4f0ff', color: '#6f42c1', padding: '15px', borderRadius: '50%' }}>
+              <div style={{ background: '#f4f0ff', color: '#6f42c1', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-paper-plane fs-4"></i>
               </div>
               {isAdmin && (
-                <div className="d-flex gap-1">
-                  <button className="btn btn-sm btn-light text-secondary rounded-circle no-print" title="عرض السجل"><i className="fas fa-eye"></i></button>
-                  <button className="btn btn-sm btn-light rounded-circle no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
-                </div>
+                <button className="btn btn-link p-0 no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>حساب البنك (InstaPay)</p>
