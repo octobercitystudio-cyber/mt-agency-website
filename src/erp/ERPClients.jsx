@@ -268,8 +268,8 @@ const ERPClients = () => {
           packagesList.sort((a, b) => new Date(b.date) - new Date(a.date));
           setHistoryData(packagesList);
         } else {
-          // Photography appointments are bookings with actual_hours > 0 or start_time/end_time
-          setHistoryData(data.filter(b => b.actual_hours > 0 || (b.start_time && b.start_time !== '')));
+          // Photography appointments are bookings with actual_hours > 0, actual_reels > 0, or start_time/end_time
+          setHistoryData(data.filter(b => b.actual_hours > 0 || b.actual_reels > 0 || (b.start_time && b.start_time !== '')));
         }
       }
     }
