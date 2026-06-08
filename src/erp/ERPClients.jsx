@@ -269,7 +269,10 @@ const ERPClients = () => {
           setHistoryData(packagesList);
         } else {
           // Photography appointments are bookings with actual_hours > 0, actual_reels > 0, or start_time/end_time
-          setHistoryData(data.filter(b => b.actual_hours > 0 || b.actual_reels > 0 || (b.start_time && b.start_time !== '')));
+          let appointments = data.filter(b => b.actual_hours > 0 || b.actual_reels > 0 || (b.start_time && b.start_time !== ''));
+          // Sort by date descending, then by id descending
+          appointments.sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id);
+          setHistoryData(appointments);
         }
       }
     }
@@ -736,8 +739,24 @@ const ERPClients = () => {
                           <>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', direction: 'ltr', textAlign: 'right' }}>{row.date}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>{row.service}</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.actual_hours > 0 ? row.actual_hours : '-'}</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.actual_reels > 0 ? row.actual_reels : '-'}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                              {row.actual_hours > 0 ? (
+                                (() => {
+                                  const h = Math.floor(row.actual_hours);
+                                  const m = Math.round((row.actual_hours - h) * 60);
+                                  if (h > 0 && m > 0) return `${h} ساعة و ${m} دقيقة`;
+                                  if (h > 0) return `${h} ساعة`;
+                                  if (m > 0) return `${m} دقيقة`;
+                                  return '-';
+                                })()
+                              ) : '-'}
+                            </td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>
+                              {(() => {
+                                const isTimePackage = row.service && (row.service.includes('ساعة') || row.service.includes('يوم') || row.service.includes('شهر'));
+                                return (!isTimePackage && row.actual_reels > 0) ? row.actual_reels : '-';
+                              })()}
+                            </td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', fontSize: '0.85rem', color: 'var(--erp-text-muted)' }}>{row.notes}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center' }}>
                               <span style={{ padding: '6px 12px', borderRadius: '0.5rem', background: row.status === 'منتهي' ? 'rgba(220, 53, 69, 0.15)' : 'rgba(13, 202, 240, 0.15)', color: row.status === 'منتهي' ? '#dc3545' : '#0dcaf0', fontSize: '0.85rem', fontWeight: 'bold' }}>
