@@ -122,9 +122,13 @@ const ERPClients = () => {
   const fetchClients = async () => {
     setLoading(true);
     const { data, error } = await supabase.from('clients').select('*').order('id', { ascending: false });
-    const { data: activeBookingsData } = await supabase.from('bookings').select('client_name').eq('status', 'نشط');
+    const { data: activeBookingsData } = await supabase.from('bookings').select('client_name, service').eq('status', 'نشط');
     if (!error && data) {
-      const activeNames = new Set(activeBookingsData?.map(b => b.client_name) || []);
+      const activeNames = new Set(
+        (activeBookingsData || [])
+          .filter(b => b.service && !b.service.includes('مؤرشف'))
+          .map(b => b.client_name)
+      );
       const enrichedData = data.map(c => ({
         ...c,
         isActive: activeNames.has(c.name)
