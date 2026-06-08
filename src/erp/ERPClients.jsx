@@ -203,15 +203,38 @@ const ERPClients = () => {
     setHistoryData([]);
 
     if (type === 'finance') {
+      // Fetch from finance where detail contains client name
       const { data, error } = await supabase.from('finance').select('*').ilike('detail', `%${selectedClient.name}%`).order('id', { ascending: false });
-      if (!error && data) setHistoryData(data);
+      
+      // Also fetch from bookings where status is 'دفعة' or payment > 0
+      const { data: bData, error: bError } = await supabase.from('bookings').select('*').eq('client_name', selectedClient.name).gt('payment', 0).order('id', { ascending: false });
+      
+      let allFinance = [];
+      if (!error && data) allFinance = [...data];
+      
+      if (!bError && bData) {
+        // Map bookings payments to look like finance records
+        const mappedBookings = bData.map(b => ({
+          id: 'b_' + b.id,
+          date: b.date,
+          detail: b.notes || 'دفعة حجز: ' + (b.service || ''),
+          amount: b.payment,
+          method: 'غير محدد',
+          type: 'إيراد'
+        }));
+        // Merge and sort
+        allFinance = [...allFinance, ...mappedBookings].sort((a, b) => new Date(b.date) - new Date(a.date));
+      }
+      setHistoryData(allFinance);
     } else {
       const { data, error } = await supabase.from('bookings').select('*').eq('client_name', selectedClient.name).order('id', { ascending: false });
       if (!error && data) {
         if (type === 'packages') {
-          setHistoryData(data.filter(b => b.status === 'منتهي' || b.status === 'مؤرشف'));
+          // Packages are usually created with "إنشاء باقة" in notes, or have a custom_price > 0 and no actual_hours, or status is 'نشط'/'مؤرشف'
+          setHistoryData(data.filter(b => (b.notes && b.notes.includes('إنشاء باقة')) || b.status === 'نشط' || b.status === 'مؤرشف' || (b.custom_price > 0 && b.actual_hours === 0)));
         } else {
-          setHistoryData(data.filter(b => b.status !== 'دفعة'));
+          // Photography appointments are bookings with actual_hours > 0 or start_time/end_time
+          setHistoryData(data.filter(b => b.actual_hours > 0 || (b.start_time && b.start_time !== '')));
         }
       }
     }
@@ -632,7 +655,7 @@ const ERPClients = () => {
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>{row.service}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.actual_hours > 0 ? row.actual_hours : '-'}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.actual_reels > 0 ? row.actual_reels : '-'}</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', fontSize: '0.85rem', color: 'var(--erp-text-muted)' }}>{row.detail}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', fontSize: '0.85rem', color: 'var(--erp-text-muted)' }}>{row.notes}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center' }}>
                               <span style={{ padding: '6px 12px', borderRadius: '0.5rem', background: row.status === 'منتهي' ? 'rgba(220, 53, 69, 0.15)' : 'rgba(13, 202, 240, 0.15)', color: row.status === 'منتهي' ? '#dc3545' : '#0dcaf0', fontSize: '0.85rem', fontWeight: 'bold' }}>
                                 {row.status || 'مؤكد'}
