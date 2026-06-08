@@ -124,8 +124,22 @@ const ERPSettings = () => {
       <style>{`
         .setting-section { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.02); padding: 30px; margin-bottom: 30px; border: 1px solid #f1f5f9; }
         
-        .nav-tabs { border-bottom: 1px solid #e2e8f0; gap: 15px; justify-content: flex-start; padding-bottom: 15px; margin-top: 20px; margin-bottom: 20px; }
-        .nav-tabs .nav-item { margin-bottom: 0; }
+        .nav-tabs { 
+          display: flex !important;
+          flex-direction: row !important;
+          flex-wrap: nowrap !important;
+          overflow-x: auto;
+          border-bottom: 1px solid #e2e8f0; 
+          gap: 15px; 
+          justify-content: flex-start; 
+          padding-bottom: 15px; 
+          margin-top: 20px; 
+          margin-bottom: 20px; 
+        }
+        .nav-tabs::-webkit-scrollbar { height: 4px; }
+        .nav-tabs::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        
+        .nav-tabs .nav-item { margin-bottom: 0; white-space: nowrap; }
         .nav-tabs .nav-link { 
           color: #64748b !important; 
           font-weight: 700; 
@@ -180,7 +194,7 @@ const ERPSettings = () => {
           </button>
         </div>
 
-        <ul className="nav nav-tabs border-0 flex-row gap-3 mb-4" id="servicesTabs" role="tablist">
+        <ul className="nav nav-tabs border-0 flex-row flex-nowrap gap-3 mb-4" id="servicesTabs" role="tablist">
           <li className="nav-item" role="presentation"><button className="nav-link active" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#hourly" type="button" role="tab">التصوير بالساعة</button></li>
           <li className="nav-item" role="presentation"><button className="nav-link" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab">الباقات اليومية <i className="fas fa-cog opacity-50"></i></button></li>
           <li className="nav-item" role="presentation"><button className="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab">الباقات الشهرية <i className="fas fa-calendar-alt opacity-50"></i></button></li>
