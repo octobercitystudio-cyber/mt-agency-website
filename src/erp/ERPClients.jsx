@@ -28,8 +28,10 @@ const ERPClients = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentClient, setCurrentClient] = useState({ name: '', phone1: '', phone2: '', job: '', color: '#4318ff', debt: 0, points: 0 });
   const [financeAction, setFinanceAction] = useState('pay_debt');
-  const [financeAmount, setFinanceAmount] = useState(0);
+  const [financeAmount, setFinanceAmount] = useState('');
   const [financeMethod, setFinanceMethod] = useState('كاش');
+  
+  const [sortBy, setSortBy] = useState('active');
   const [whatsappMsg, setWhatsappMsg] = useState('');
 
   // Active Packages Data
@@ -120,10 +122,16 @@ const ERPClients = () => {
   const fetchClients = async () => {
     setLoading(true);
     const { data, error } = await supabase.from('clients').select('*').order('id', { ascending: false });
+    const { data: activeBookingsData } = await supabase.from('bookings').select('client_name').eq('status', 'نشط');
     if (!error && data) {
-      setClients(data);
+      const activeNames = new Set(activeBookingsData?.map(b => b.client_name) || []);
+      const enrichedData = data.map(c => ({
+        ...c,
+        isActive: activeNames.has(c.name)
+      }));
+      setClients(enrichedData);
       if (selectedClient) {
-        const updated = data.find(c => c.id === selectedClient.id);
+        const updated = enrichedData.find(c => c.id === selectedClient.id);
         setSelectedClient(updated || null);
       }
     }
@@ -280,7 +288,7 @@ const ERPClients = () => {
   };
 
   const toggleSelectAll = (e) => {
-    if (e.target.checked) setSelectedIds(filteredClients.map(c => c.id));
+    if (e.target.checked) setSelectedIds(sortedClients.map(c => c.id));
     else setSelectedIds([]);
   };
 
@@ -289,10 +297,18 @@ const ERPClients = () => {
     else setSelectedIds([...selectedIds, id]);
   };
 
-  const filteredClients = clients.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (c.phone1 && c.phone1.includes(searchTerm))
+  let sortedClients = clients.filter(c => 
+    c.name.includes(searchTerm) || 
+    (c.phone1 && c.phone1.includes(searchTerm)) || 
+    (c.phone2 && c.phone2.includes(searchTerm)) || 
+    (c.job && c.job.includes(searchTerm))
   );
+
+  if (sortBy === 'active') {
+    sortedClients.sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0) || b.id - a.id);
+  } else if (sortBy === 'alpha') {
+    sortedClients.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  }
 
   return (
     <div>
@@ -324,6 +340,11 @@ const ERPClients = () => {
               <Trash2 size={18} /> حذف المحدد ({selectedIds.length}) نهائياً
             </button>
           )}
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '10px 15px', borderRadius: '50rem', border: '1px solid #dee2e6', background: 'var(--erp-surface)', color: 'var(--erp-text-main)', fontWeight: 'bold', outline: 'none', cursor: 'pointer' }}>
+            <option value="active">العملاء النشطين أولاً</option>
+            <option value="default">حسب الإضافة (الأحدث)</option>
+            <option value="alpha">أبجدياً (أ - ي)</option>
+          </select>
           <button onClick={() => { setIsEditing(false); setCurrentClient({ name: '', phone1: '', phone2: '', job: '', color: '#4318ff', debt: 0, points: 0 }); setIsClientModalOpen(true); }} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 20px', borderRadius: '50rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
             <UserPlus size={18} /> عميل جديد
           </button>
@@ -340,7 +361,7 @@ const ERPClients = () => {
               <thead style={{ position: 'sticky', top: 0, background: 'var(--erp-bg)', zIndex: 10 }}>
                 <tr>
                   <th style={{ padding: '15px 25px', borderBottom: '1px solid #dee2e6', width: '40px' }}>
-                    <input type="checkbox" checked={selectedIds.length === filteredClients.length && filteredClients.length > 0} onChange={toggleSelectAll} style={{ transform: 'scale(1.3)', cursor: 'pointer' }} />
+                    <input type="checkbox" checked={selectedIds.length === sortedClients.length && sortedClients.length > 0} onChange={toggleSelectAll} style={{ transform: 'scale(1.3)', cursor: 'pointer' }} />
                   </th>
                   <th style={{ padding: '15px', borderBottom: '1px solid #dee2e6', color: 'var(--erp-text-muted)', fontWeight: 'bold', fontSize: '0.85rem' }}>العميل</th>
                   <th style={{ padding: '15px', borderBottom: '1px solid #dee2e6', color: 'var(--erp-text-muted)', fontWeight: 'bold', fontSize: '0.85rem' }}>التواصل</th>
@@ -348,7 +369,7 @@ const ERPClients = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredClients.map(client => {
+                {sortedClients.map(client => {
                   const isSelected = selectedClient?.id === client.id;
                   return (
                     <tr key={client.id} 
@@ -371,7 +392,10 @@ const ERPClients = () => {
                             {client.name.charAt(0)}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.05rem' }}>{client.name}</div>
+                            <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {client.name}
+                              {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem' }}>نشط</span>}
+                            </div>
                             <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginTop: '2px' }}>{client.job || 'لا يوجد وظيفة مسجلة'}</div>
                           </div>
                         </div>
