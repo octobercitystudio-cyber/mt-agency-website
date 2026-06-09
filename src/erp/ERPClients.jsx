@@ -426,10 +426,10 @@ const ERPClients = () => {
                       <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px' }}>
                           <div style={{ direction: 'ltr', textAlign: 'right' }}>
-                            <div style={{ fontWeight: 'bold', color: 'var(--erp-primary)', fontSize: '0.9rem' }}>{client.phone1}</div>
-                            {client.phone2 && <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)' }}>{client.phone2}</div>}
+                            <div style={{ fontWeight: 'bold', color: '#ffffff', fontSize: '0.9rem', letterSpacing: '1px' }}>{client.phone1}</div>
+                            {client.phone2 && <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', letterSpacing: '1px' }}>{client.phone2}</div>}
                           </div>
-                          <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} style={{ background: 'rgba(67, 24, 255, 0.1)', color: 'var(--erp-primary)', border: '1px solid rgba(67, 24, 255, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                          <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', border: '1px solid rgba(255, 255, 255, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
                             <CalendarPlus size={16} /> حجز / إضافة
                           </button>
                         </div>
