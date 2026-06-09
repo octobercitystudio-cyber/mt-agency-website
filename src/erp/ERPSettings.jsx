@@ -374,7 +374,7 @@ const ERPSettings = () => {
                 <thead>
                   <tr>
                     <th className="text-end pe-4" style={{width: '30%'}}>اسم الباقة</th>
-                    <th style={{width: '20%'}}>تفاصيل الباقة</th>
+                    <th style={{width: '20%'}}>عدد الريلز</th>
                     <th style={{width: '15%'}}>الصلاحية</th>
                     <th style={{width: '20%'}}>السعر (ج.م)</th>
                     <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
@@ -385,10 +385,9 @@ const ERPSettings = () => {
                     <tr key={s.id}>
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
                       <td className="fw-bold" style={{color: '#0d6efd'}}>
-                        {s.total_hours} س <br/>
-                        {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
+                        {s.total_reels} فيديو
                       </td>
-                      <td className="fw-bold text-muted">{s.validity_days} يوم</td>
+                      <td className="fw-bold text-muted">{s.validity_days > 0 ? `${s.validity_days} يوم` : '-'}</td>
                       <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
@@ -409,22 +408,17 @@ const ERPSettings = () => {
               <table className="table table-custom table-borderless align-middle w-100 text-center">
                 <thead>
                   <tr>
-                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الباقة</th>
-                    <th style={{width: '20%'}}>تفاصيل الباقة</th>
-                    <th style={{width: '15%'}}>الصلاحية</th>
-                    <th style={{width: '20%'}}>السعر (ج.م)</th>
-                    <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
+                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الخدمة</th>
+                    <th style={{width: '20%'}}>التصنيف</th>
+                    <th style={{width: '30%'}}>السعر (ج.م)</th>
+                    <th className="text-start ps-4" style={{width: '20%'}}>إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
                   {services.filter(s => ['تصوير خارجي', 'مونتاج ديجيتال', 'خدمات منفصلة'].includes(s.category)).map(s => (
                     <tr key={s.id}>
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
-                      <td className="fw-bold" style={{color: '#0d6efd'}}>
-                        {s.total_hours} س <br/>
-                        {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
-                      </td>
-                      <td className="fw-bold text-muted">{s.validity_days} يوم</td>
+                      <td><span className="badge bg-secondary-subtle text-secondary border rounded-pill">{s.category}</span></td>
                       <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
