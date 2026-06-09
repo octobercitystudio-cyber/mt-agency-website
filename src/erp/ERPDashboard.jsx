@@ -3,7 +3,6 @@ import { supabase } from '../supabaseClient';
 import { Package, Truck, DollarSign, TrendingUp, Calendar, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import ERPTimerWidget from './ERPTimerWidget';
 import './ERPLayout.css';
 
 let globalStatsCache = null;
@@ -161,27 +160,26 @@ const ERPDashboard = () => {
     <div style={{ padding: '0' }} className="container-fluid">
       
       {/* Top Banner exactly like the light aesthetic */}
-      <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '30px', border: '1px solid var(--erp-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', boxShadow: 'var(--erp-shadow)' }}>
+      <div style={{ background: 'var(--erp-primary)', borderRadius: '15px', padding: '15px 30px', border: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: 'var(--erp-shadow)' }}>
         <div>
-          <div style={{ background: 'rgba(67, 24, 255, 0.1)', color: 'var(--erp-primary)', padding: '5px 15px', borderRadius: '50px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '15px' }}>
-            <span style={{ fontSize: '1.2rem' }}>⚡</span> نظام الإدارة الذكي
+          <div style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', padding: '4px 12px', borderRadius: '50px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '8px' }}>
+            <span style={{ fontSize: '1rem' }}>⚡</span> نظام الإدارة الذكي
           </div>
-          <h1 style={{ margin: 0, fontWeight: 800, fontSize: '2.5rem', color: 'var(--erp-text-main)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <h1 style={{ margin: 0, fontWeight: 800, fontSize: '2rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '15px' }}>
             لوحة تحكم MT Agency
           </h1>
-          <p style={{ margin: '10px 0 0 0', color: 'var(--erp-text-muted)', fontSize: '1.1rem', fontWeight: '600' }}>مرحباً بك مجدداً ! Owner - October City Studio</p>
+          <p style={{ margin: '5px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: '600' }}>مرحباً بك مجدداً ! Owner - October City Studio</p>
         </div>
-        <div style={{ background: 'var(--erp-bg)', padding: '20px 30px', borderRadius: '20px', textAlign: 'center', border: '1px solid var(--erp-border)' }}>
-          <div style={{ fontSize: '1rem', color: 'var(--erp-text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>
+        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '15px 25px', borderRadius: '15px', textAlign: 'center', border: 'none' }}>
+          <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)', marginBottom: '5px', fontWeight: 'bold' }}>
             {format(currentTime, 'EEEE, d MMMM yyyy', { locale: ar })}
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 'bold', fontFamily: 'monospace', color: 'var(--erp-primary)' }}>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold', fontFamily: 'monospace', color: '#ffffff' }}>
             {format(currentTime, 'hh:mm:ss')}
-            <span style={{ fontSize: '1.2rem', marginRight: '5px' }}>{format(currentTime, 'aa', { locale: ar })}</span>
+            <span style={{ fontSize: '1rem', marginRight: '5px' }}>{format(currentTime, 'aa', { locale: ar })}</span>
           </div>
         </div>
       </div>
-      <ERPTimerWidget />
 
       {/* 4 Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
