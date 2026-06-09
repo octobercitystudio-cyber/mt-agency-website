@@ -19,7 +19,6 @@
 
 .erp-layout {
     background-color: var(--erp-bg);
-    background-image: radial-gradient(circle at top right, rgba(157, 78, 221, 0.1) 0%, #0a0a0a 100%);
     color: var(--erp-text-main);
     font-family: 'Cairo', sans-serif, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     min-height: 100vh;
