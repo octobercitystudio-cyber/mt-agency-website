@@ -439,9 +439,6 @@ const ERPSettings = () => {
             </div>
           </div>
 
-          
-            </div>
-          </div>
         </div>
       </div>
 
