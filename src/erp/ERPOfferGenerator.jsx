@@ -73,7 +73,7 @@ const ERPOfferGenerator = () => {
       
       <div className="d-flex justify-content-between align-items-center mb-4 mt-3 px-3 no-print">
         <div>
-          <h2 className="fw-bold" style={{ color: 'var(--erp-surface)', margin: 0 }}>
+          <h2 className="fw-bold" style={{ color: '#1e293b', margin: 0 }}>
             <FileText className="me-2 text-primary" size={28} />
             إنشاء عرض سعر
           </h2>
@@ -116,7 +116,7 @@ const ERPOfferGenerator = () => {
             {/* Items Table */}
             <div className="table-responsive mb-4">
               <table className="table table-bordered border-light align-middle text-center">
-                <thead className=" text-muted">
+                <thead className="bg-light text-muted">
                   <tr>
                     <th className="py-3">م</th>
                     <th className="py-3 text-start ps-3">الخدمة / البيان</th>
@@ -172,7 +172,7 @@ const ERPOfferGenerator = () => {
             {notes && (
               <div className="mb-4">
                 <h6 className="fw-bold text-muted mb-2">ملاحظات وشروط التعاقد:</h6>
-                <div className="p-3  rounded-4 text-dark" style={{ whiteSpace: 'pre-line' }}>
+                <div className="p-3 bg-light rounded-4 text-dark" style={{ whiteSpace: 'pre-line' }}>
                   {notes}
                 </div>
               </div>
@@ -194,10 +194,10 @@ const ERPOfferGenerator = () => {
             
             <div className="mb-3">
               <label className="fw-bold text-muted small mb-1">اسم العميل</label>
-              <input type="text" className="form-control  border-0 py-2" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="اسم العميل أو الشركة" />
+              <input type="text" className="form-control bg-light border-0 py-2" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="اسم العميل أو الشركة" />
             </div>
 
-            <div className="mb-4 p-3 border rounded-4 ">
+            <div className="mb-4 p-3 border rounded-4 bg-light">
               <label className="fw-bold text-dark small mb-2 d-block">إضافة خدمة للعرض:</label>
               <div className="d-flex gap-2">
                 <select className="form-select border-0 shadow-sm flex-grow-1" value={selectedServiceId} onChange={e => setSelectedServiceId(e.target.value)}>
@@ -221,14 +221,14 @@ const ERPOfferGenerator = () => {
                   <div className="row g-2">
                     <div className="col-6">
                       <div className="input-group input-group-sm">
-                        <span className="input-group-text  border-0">السعر</span>
-                        <input type="number" className="form-control border-0  shadow-sm" value={item.price} onChange={e => updatePrice(item.id, e.target.value)} />
+                        <span className="input-group-text bg-light border-0">السعر</span>
+                        <input type="number" className="form-control border-0 bg-white shadow-sm" value={item.price} onChange={e => updatePrice(item.id, e.target.value)} />
                       </div>
                     </div>
                     <div className="col-6">
                       <div className="input-group input-group-sm">
-                        <span className="input-group-text  border-0">الكمية</span>
-                        <input type="number" className="form-control border-0  shadow-sm" value={item.quantity} onChange={e => updateQuantity(item.id, e.target.value)} />
+                        <span className="input-group-text bg-light border-0">الكمية</span>
+                        <input type="number" className="form-control border-0 bg-white shadow-sm" value={item.quantity} onChange={e => updateQuantity(item.id, e.target.value)} />
                       </div>
                     </div>
                   </div>
@@ -238,12 +238,12 @@ const ERPOfferGenerator = () => {
 
             <div className="mb-3">
               <label className="fw-bold text-muted small mb-1">خصم إضافي (ج.م)</label>
-              <input type="number" className="form-control  border-0 py-2 text-danger fw-bold" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" />
+              <input type="number" className="form-control bg-light border-0 py-2 text-danger fw-bold" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" />
             </div>
 
             <div className="mb-3">
               <label className="fw-bold text-muted small mb-1">ملاحظات العرض (تظهر للعميل)</label>
-              <textarea className="form-control  border-0 py-2" rows="3" value={notes} onChange={e => setNotes(e.target.value)} placeholder="شروط الدفع، مدة التنفيذ..."></textarea>
+              <textarea className="form-control bg-light border-0 py-2" rows="3" value={notes} onChange={e => setNotes(e.target.value)} placeholder="شروط الدفع، مدة التنفيذ..."></textarea>
             </div>
 
           </div>

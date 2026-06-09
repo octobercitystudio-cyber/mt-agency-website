@@ -200,7 +200,7 @@ const ERPDashboard = () => {
             <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 'bold' }}>تسليمات (أسبوع)</p>
             <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--erp-text-main)', fontWeight: '800' }}>{loading ? '...' : stats.weekDeliveries}</h3>
           </div>
-          <div style={{ background: 'rgba(13, 202, 240, 0.15)', padding: '15px', borderRadius: '50%', color: 'var(--erp-primary)' }}>
+          <div style={{ background: 'rgba(13, 202, 240, 0.15)', padding: '15px', borderRadius: '50%', color: '#0dcaf0' }}>
             <Truck size={28} />
           </div>
         </div>
@@ -273,7 +273,7 @@ const ERPDashboard = () => {
         {/* Tomorrow Bookings */}
         <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '0', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', borderBottom: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }}>
-            <div style={{ background: 'rgba(13, 202, 240, 0.1)', padding: '10px', borderRadius: '12px', color: 'var(--erp-primary)' }}>
+            <div style={{ background: 'rgba(13, 202, 240, 0.1)', padding: '10px', borderRadius: '12px', color: '#0dcaf0' }}>
               <Calendar size={20} />
             </div>
             <h4 style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>مواعيد غداً</h4>
@@ -296,7 +296,7 @@ const ERPDashboard = () => {
                   {tomorrowBookings.map(b => (
                     <tr key={b.id} style={{ borderBottom: '1px solid var(--erp-border)', transition: 'background 0.2s' }} className="hover-row">
                       <td style={{ padding: '15px 20px', fontWeight: 'bold' }}>{b.client_name}</td>
-                      <td style={{ padding: '15px 20px', textAlign: 'center', color: 'var(--erp-primary)', fontWeight: 'bold', direction: 'ltr' }}>{b.start_time} {Number(b.start_time.split(':')[0]) >= 12 ? 'م' : 'ص'}</td>
+                      <td style={{ padding: '15px 20px', textAlign: 'center', color: '#0dcaf0', fontWeight: 'bold', direction: 'ltr' }}>{b.start_time} {Number(b.start_time.split(':')[0]) >= 12 ? 'م' : 'ص'}</td>
                     </tr>
                   ))}
                 </tbody>

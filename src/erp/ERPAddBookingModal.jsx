@@ -15,7 +15,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
 
   const [newBooking, setNewBooking] = useState({
     client_name: prefilledClientName,
-    color: 'var(--erp-primary)',
+    color: '#4318ff',
     category: '',
     service: '',
     dates: [],
@@ -38,12 +38,12 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
         setNewBooking(prev => ({
           ...prev,
           client_name: prefilledClientName,
-          color: client?.color || 'var(--erp-primary)',
+          color: client?.color || '#4318ff',
           category: '', service: '', dates: [], paid: 0, discount: 0, discount_reason: '', base_price: 0, schedule_extra: false
         }));
       } else {
         setNewBooking({
-          client_name: '', color: 'var(--erp-primary)', category: '', service: '', dates: [], delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'فودافون كاش', notes: '', schedule_extra: false
+          client_name: '', color: '#4318ff', category: '', service: '', dates: [], delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'فودافون كاش', notes: '', schedule_extra: false
         });
       }
     }
@@ -70,7 +70,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
 
   const getClientColor = (clientName) => {
     const client = clients.find(c => c.name === clientName);
-    return client?.color || 'var(--erp-primary)';
+    return client?.color || '#4318ff';
   };
 
   const handleClientChange = (e) => {
@@ -217,7 +217,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     <div className="erp-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1050, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)' }} onClick={onClose}>
       <div style={{ background: 'var(--erp-surface)', width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '25px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: 'none' }} onClick={e => e.stopPropagation()}>
         
-        <div style={{ background: 'var(--erp-surface)', color: 'white', padding: '25px', borderTopLeftRadius: '25px', borderTopRightRadius: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: '#1e293b', color: 'white', padding: '25px', borderTopLeftRadius: '25px', borderTopRightRadius: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h5 style={{ margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
             <CalendarPlus color="var(--erp-warning)" size={24} style={{ marginLeft: '10px' }} /> تسجيل موعد أو شراء خدمة
           </h5>
@@ -384,7 +384,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
               </div>
             </div>
 
-            <button type="submit" style={{ width: '100%', background: 'var(--erp-surface)', color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 10px 20px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'transform 0.2s' }}>
+            <button type="submit" style={{ width: '100%', background: '#1e293b', color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 10px 20px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'transform 0.2s' }}>
               اعتماد وتسجيل في النظام <CheckCircle size={20} style={{ marginRight: '10px' }} />
             </button>
 
