@@ -1,20 +1,93 @@
 :root {
-    --erp-bg: #f4f7fe;
-    --erp-surface: #ffffff;
-    --erp-text-main: #2b3674;
-    --erp-text-muted: #a3aed1;
-    --erp-border: #e2e8f0;
-    --erp-primary: #4318ff;
-    --erp-primary-hover: #3311db;
-    --erp-primary-gradient: linear-gradient(135deg, #4318ff 0%, #3311db 100%);
-    --erp-success: #198754;
+    --erp-bg: #130D1A;
+    --erp-surface: rgba(28, 11, 59, 0.4);
+    --erp-text-main: #FFFFFF;
+    --erp-text-muted: #E0E0E0;
+    --erp-border: rgba(122, 40, 203, 0.3);
+    --erp-primary: #9d4edd;
+    --erp-primary-hover: #c678ff;
+    --erp-primary-gradient: linear-gradient(135deg, var(--erp-primary) 0%, var(--erp-primary-hover) 100%);
+    --erp-success: #10b981;
     --erp-warning: #ffc107;
-    --erp-danger: #dc3545;
-    --erp-sidebar-bg: #ffffff;
-    --erp-sidebar-hover: #f4f7fe;
-    --erp-sidebar-text-inactive: #a3aed1;
+    --erp-danger: #ef4444;
+    --erp-sidebar-bg: #1e142e;
+    --erp-sidebar-hover: rgba(255, 255, 255, 0.1);
+    --erp-sidebar-text-inactive: #E0E0E0;
     --erp-sidebar-width: 260px;
-    --erp-shadow: 0 5px 15px rgba(67, 24, 255, 0.05);
+    --erp-shadow: 0 8px 32px 0 rgba(122, 40, 203, 0.15);
+}
+
+/* Global Overrides for Bootstrap classes in ERP Layout */
+.erp-layout .bg-white,
+.erp-layout .bg-light,
+.erp-layout .bg-light-subtle {
+    background-color: var(--erp-surface) !important;
+}
+.erp-layout .text-dark {
+    color: var(--erp-text-main) !important;
+}
+.erp-layout .text-muted {
+    color: var(--erp-text-muted) !important;
+}
+.erp-layout .border,
+.erp-layout .border-0,
+.erp-layout .border-bottom,
+.erp-layout .border-top {
+    border-color: var(--erp-border) !important;
+}
+.erp-layout .table {
+    color: var(--erp-text-main) !important;
+}
+.erp-layout .form-control,
+.erp-layout .form-select {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: var(--erp-text-main) !important;
+    border: 1px solid var(--erp-border) !important;
+}
+.erp-layout .form-control:focus,
+.erp-layout .form-select:focus {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: var(--erp-text-main) !important;
+    box-shadow: 0 0 0 0.25rem rgba(157, 78, 221, 0.25) !important;
+    border-color: var(--erp-primary) !important;
+}
+.erp-layout .form-control::placeholder {
+    color: var(--erp-text-muted) !important;
+    opacity: 0.7;
+}
+.erp-layout .modal-content,
+.erp-modal-content {
+    background-color: var(--erp-bg) !important;
+    border: 1px solid var(--erp-border) !important;
+    box-shadow: var(--erp-shadow) !important;
+}
+.erp-layout .modal-header,
+.erp-layout .modal-footer {
+    border-color: var(--erp-border) !important;
+}
+.fc-theme-standard .fc-scrollgrid,
+.fc-theme-standard th, 
+.fc-theme-standard td {
+    border-color: var(--erp-border) !important;
+}
+.fc-col-header-cell {
+    background-color: var(--erp-surface) !important;
+    color: var(--erp-text-main) !important;
+}
+.fc-day-today {
+    background-color: rgba(157, 78, 221, 0.1) !important;
+}
+.fc-daygrid-day-number, .fc-timegrid-slot-label-cushion {
+    color: var(--erp-text-main) !important;
+}
+@media print {
+    .erp-layout, .erp-layout .bg-white, .erp-layout .bg-light, .erp-layout .modal-content, .erp-layout .form-control { 
+        background-color: #fff !important; 
+        color: #000 !important; 
+    }
+    .erp-layout .text-dark, .erp-layout .text-muted, .erp-layout .text-main, .erp-layout p, .erp-layout h1, .erp-layout h2, .erp-layout h3, .erp-layout h4, .erp-layout h5, .erp-layout h6 { 
+        color: #000 !important; 
+    }
 }
 
 .erp-layout {

@@ -331,31 +331,31 @@ const ERPFinance = () => {
         
         .table-container { overflow: auto; max-height: 500px; padding-top: 5px; }
         .table-container::-webkit-scrollbar { width: 6px; height: 6px; } 
-        .table-container::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        .table-container::-webkit-scrollbar-thumb { background-color: var(--erp-border); border-radius: 10px; }
         
-        .month-selector { background: white; border: 1px solid #e2e8f0; border-radius: 50px; padding: 5px; display: inline-flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .month-selector { background: white; border: 1px solid var(--erp-border); border-radius: 50px; padding: 5px; display: inline-flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
         
-        .gradient-primary { background: linear-gradient(135deg, #4318ff 0%, #868cff 100%); color: white; }
-        .gradient-success { background: linear-gradient(135deg, #10b981 0%, #34d399 100%); color: white; }
-        .gradient-danger { background: linear-gradient(135deg, #ef4444 0%, #f87171 100%); color: white; }
+        .gradient-primary { background: linear-gradient(135deg, var(--erp-primary) 0%, var(--erp-primary-hover) 100%); color: white; }
+        .gradient-success { background: linear-gradient(135deg, var(--erp-success) 0%, var(--erp-success) 100%); color: white; }
+        .gradient-danger { background: linear-gradient(135deg, var(--erp-danger) 0%, var(--erp-danger) 100%); color: white; }
 
-        .bg-income-container { background-color: #f7fdf9 !important; border: 1px solid #dcfce7 !important; }
-        .table-income tbody tr td { background-color: #e8faed !important; border-bottom: 6px solid #f7fdf9 !important; transition: all 0.2s ease; }
-        .table-income tbody tr:hover td { background-color: #d1f4dc !important; transform: scale(0.99); }
-        .thead-income th { background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important; color: #ffffff !important; border: none !important; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); }
+        .bg-income-container { background-color: rgba(16, 185, 129, 0.05) !important; border: 1px solid rgba(16, 185, 129, 0.2) !important; }
+        .table-income tbody tr td { background-color: rgba(16, 185, 129, 0.1) !important; border-bottom: 6px solid var(--erp-bg) !important; transition: all 0.2s ease; }
+        .table-income tbody tr:hover td { background-color: rgba(16, 185, 129, 0.15) !important; transform: scale(0.99); }
+        .thead-income th { background: linear-gradient(135deg, var(--erp-success) 0%, var(--erp-success) 100%) !important; color: var(--erp-text-main) !important; border: none !important; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); }
 
-        .bg-expense-container { background-color: #fff9f9 !important; border: 1px solid #fee2e2 !important; }
-        .table-expense tbody tr td { background-color: #ffefef !important; border-bottom: 6px solid #fff9f9 !important; transition: all 0.2s ease; }
-        .table-expense tbody tr:hover td { background-color: #ffe0e0 !important; transform: scale(0.99); }
-        .thead-expense th { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important; color: #ffffff !important; border: none !important; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2); }
+        .bg-expense-container { background-color: rgba(239, 68, 68, 0.05) !important; border: 1px solid rgba(239, 68, 68, 0.2) !important; }
+        .table-expense tbody tr td { background-color: rgba(239, 68, 68, 0.1) !important; border-bottom: 6px solid var(--erp-bg) !important; transition: all 0.2s ease; }
+        .table-expense tbody tr:hover td { background-color: rgba(239, 68, 68, 0.15) !important; transform: scale(0.99); }
+        .thead-expense th { background: linear-gradient(135deg, var(--erp-danger) 0%, var(--erp-danger) 100%) !important; color: var(--erp-text-main) !important; border: none !important; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2); }
 
-        .due-row td { background-color: #fffbeb !important; border-bottom: 6px solid #fff9f9 !important; transition: all 0.2s ease; }
-        .due-row:hover td { background-color: #fef3c7 !important; transform: scale(0.99); }
+        .due-row td { background-color: rgba(255, 193, 7, 0.05) !important; border-bottom: 6px solid var(--erp-bg) !important; transition: all 0.2s ease; }
+        .due-row:hover td { background-color: rgba(255, 193, 7, 0.1) !important; transform: scale(0.99); }
       `}</style>
 
       {/* Floating Undo Button on Top Left */}
       <div className="d-flex justify-content-end mb-3">
-        <button className="btn btn-sm no-print shadow-sm" style={{ border: '1px dashed #dc3545', background: '#fff5f5', color: '#dc3545', borderRadius: '50px', padding: '8px 15px', fontWeight: 'bold' }}>
+        <button className="btn btn-sm no-print shadow-sm" style={{ border: '1px dashed var(--erp-danger)', background: '#fff5f5', color: 'var(--erp-danger)', borderRadius: '50px', padding: '8px 15px', fontWeight: 'bold' }}>
           <i className="fas fa-undo me-1"></i> تراجع عن آخر عملية
         </button>
       </div>
@@ -372,7 +372,7 @@ const ERPFinance = () => {
         <div className="d-flex flex-wrap align-items-center justify-content-center gap-3">
           <div className="month-selector">
             <button onClick={() => changeMonth(1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-right"></i></button>
-            <span className="m-0 px-4 fw-bold" style={{ color: '#2b3674' }}>{selectedMonth}</span>
+            <span className="m-0 px-4 fw-bold" style={{ color: 'var(--erp-text-main)' }}>{selectedMonth}</span>
             <button onClick={() => changeMonth(-1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-left"></i></button>
           </div>
           
@@ -427,7 +427,7 @@ const ERPFinance = () => {
         <div className="col-md-4">
           <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: 'var(--erp-success)', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-money-bill-wave fs-4"></i>
               </div>
               {isAdmin && (
@@ -441,7 +441,7 @@ const ERPFinance = () => {
         <div className="col-md-4">
           <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: 'rgba(var(--erp-danger-rgb), 0.1)', color: 'var(--erp-danger)', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-mobile-alt fs-4"></i>
               </div>
               {isAdmin && (
@@ -455,11 +455,11 @@ const ERPFinance = () => {
         <div className="col-md-4">
           <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <div style={{ background: '#f4f0ff', color: '#6f42c1', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: 'rgba(157, 78, 221, 0.1)', color: 'var(--erp-primary)', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <i className="fas fa-paper-plane fs-4"></i>
               </div>
               {isAdmin && (
-                <button className="btn btn-link p-0 no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
+                <button className="btn btn-link p-0 no-print" style={{ color: 'var(--erp-primary)' }} title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>حساب البنك (InstaPay)</p>
@@ -535,7 +535,7 @@ const ERPFinance = () => {
                         <td><span className="fw-bold small" style={{ color: 'var(--erp-text-main)' }}>{i.detail}</span></td>
                         <td>
                           {i.type === 'سداد سلفة' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-primary)', color: 'white', borderColor: 'var(--erp-primary)' }}>{i.entity} (سداد سلفة)</span>}
-                          {i.type === 'تحويل وارد' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#0dcaf0', color: '#000', borderColor: '#0dcaf0' }}>{i.method} (تحويل وارد)</span>}
+                          {i.type === 'تحويل وارد' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-primary)', color: '#000', borderColor: 'var(--erp-primary)' }}>{i.method} (تحويل وارد)</span>}
                           {['إيراد'].includes(i.type) && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-success)', borderColor: 'var(--erp-success)' }}>{i.method}</span>}
                         </td>
                         <td className="rounded-end-3">
@@ -588,9 +588,9 @@ const ERPFinance = () => {
                         <td><span className="fw-bold small" style={{ color: 'var(--erp-text-main)' }}>{e.detail}</span></td>
                         <td><span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-danger)', borderColor: 'var(--erp-danger)' }}>{e.method}</span></td>
                         <td>
-                          {e.type === 'سداد مستحقات' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#ffc107', color: '#000', borderColor: '#ffc107' }}>{e.entity} (سداد مستحقات)</span>}
+                          {e.type === 'سداد مستحقات' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-warning)', color: '#000', borderColor: 'var(--erp-warning)' }}>{e.entity} (سداد مستحقات)</span>}
                           {e.type === 'سحب سلفة' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-danger)', color: 'white', borderColor: 'var(--erp-danger)' }}>{e.entity} (سحب سلفة)</span>}
-                          {e.type === 'تحويل صادر' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#0dcaf0', color: '#000', borderColor: '#0dcaf0' }}>تحويل محفظة</span>}
+                          {e.type === 'تحويل صادر' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-primary)', color: '#000', borderColor: 'var(--erp-primary)' }}>تحويل محفظة</span>}
                           {['مصروف'].includes(e.type) && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-danger)', borderColor: 'var(--erp-danger)' }}>{e.entity}</span>}
                         </td>
                         <td className="rounded-end-3">
@@ -622,7 +622,7 @@ const ERPFinance = () => {
             <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>
               <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-file-invoice-dollar me-2"></i> تسجيل عملية مالية</h5>
             </div>
-            <form onSubmit={handleAddTransaction} className="p-4 bg-white">
+            <form onSubmit={handleAddTransaction} className="p-4 ">
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>نوع العملية</label>
@@ -669,10 +669,10 @@ const ERPFinance = () => {
       {modalState.transfer && (
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, transfer: false})}>
           <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header border-0 p-4" style={{ background: '#0dcaf0', color: '#000' }}>
+            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: '#000' }}>
               <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-exchange-alt me-2"></i> تحويل رصيد بين المحافظ</h5>
             </div>
-            <form onSubmit={handleTransfer} className="p-4 bg-white">
+            <form onSubmit={handleTransfer} className="p-4 ">
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>من محفظة (تُسحب منها)</label>
@@ -699,7 +699,7 @@ const ERPFinance = () => {
                   <input type="text" className="form-control border-0 py-2" style={{ background: 'var(--erp-bg)' }} value={transferForm.note} onChange={e => setTransferForm({...transferForm, note: e.target.value})} placeholder="السبب..." />
                 </div>
               </div>
-              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-4" style={{ background: '#0dcaf0', color: '#000' }}>تأكيد التحويل</button>
+              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-4" style={{ background: 'var(--erp-primary)', color: '#000' }}>تأكيد التحويل</button>
             </form>
           </div>
         </div>
@@ -712,7 +712,7 @@ const ERPFinance = () => {
             <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-success)', color: 'white' }}>
               <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-hand-holding-usd me-2"></i> سداد مستحقات شريك</h5>
             </div>
-            <form onSubmit={handleSettle} className="p-4 bg-white text-center">
+            <form onSubmit={handleSettle} className="p-4  text-center">
               <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سداد لـ أ. {settleForm.partner}</h5>
               <div className="mb-3 text-start mt-4">
                 <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ المعاملة</label>
@@ -741,7 +741,7 @@ const ERPFinance = () => {
             <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-danger)', color: 'white' }}>
               <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-hand-holding-usd me-2"></i> سحب سلفة للشريك</h5>
             </div>
-            <form onSubmit={handleAdvance} className="p-4 bg-white text-center">
+            <form onSubmit={handleAdvance} className="p-4  text-center">
               <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سلفة لـ أ. {advanceForm.partner}</h5>
               <p className="small mb-3" style={{ color: 'var(--erp-text-muted)' }}>هذا المبلغ سيتحول لمديونية شخصية على الشريك وسيخصم من أرباحه مستقبلاً.</p>
               <div className="mb-3 text-start mt-4">
@@ -771,7 +771,7 @@ const ERPFinance = () => {
             <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>
               <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-undo me-2"></i> سداد سلفة الشريك</h5>
             </div>
-            <form onSubmit={handlePayAdvance} className="p-4 bg-white text-center">
+            <form onSubmit={handlePayAdvance} className="p-4  text-center">
               <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سداد من أ. {payAdvanceForm.partner}</h5>
               <div className="mb-3 text-start mt-4">
                 <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ المعاملة</label>
@@ -797,10 +797,10 @@ const ERPFinance = () => {
       {modalState.adjustPartner && isAdmin && (
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, adjustPartner: false})}>
           <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header border-0 p-4" style={{ background: '#1e293b', color: 'white' }}>
+            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-surface)', color: 'white' }}>
               <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-balance-scale me-2 text-warning"></i> تعديل إداري لمستحقات الشريك</h5>
             </div>
-            <form onSubmit={handleAdjustDue} className="p-4 bg-white text-center">
+            <form onSubmit={handleAdjustDue} className="p-4  text-center">
               <div className="p-3 rounded-4 mb-4 border" style={{ background: 'var(--erp-bg)' }}>
                 <small className="fw-bold block" style={{ color: 'var(--erp-text-muted)' }}>الرصيد الحالي المُسجل لـ (<span style={{ color: 'var(--erp-primary)' }}>أ. {adjustDueForm.partner}</span>)</small>
                 <h3 className="fw-bold m-0 mt-1" style={{ color: 'var(--erp-text-main)' }}>{adjustDueForm.current_due.toLocaleString()} ج.م</h3>
@@ -809,10 +809,10 @@ const ERPFinance = () => {
                 <label className="small fw-bold mb-2" style={{ color: 'var(--erp-text-main)' }}>المبلغ الجديد الصحيح (للمستحقات) بالموجب أو السالب:</label>
                 <input type="number" step="0.01" className="form-control border-0 py-3 fs-2 fw-bold text-center rounded-4" style={{ background: 'rgba(255, 193, 7, 0.2)', color: '#000' }} value={adjustDueForm.new_due} onChange={e => setAdjustDueForm({...adjustDueForm, new_due: e.target.value})} required placeholder="مثال: 0 لتصفير الحساب" />
               </div>
-              <div className="alert border-0 rounded-4 small fw-bold mb-4 text-start" style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#856404' }}>
+              <div className="alert border-0 rounded-4 small fw-bold mb-4 text-start" style={{ background: 'rgba(255, 193, 7, 0.1)', color: 'var(--erp-warning)' }}>
                 <i className="fas fa-info-circle me-1"></i> سيتم إنشاء عملية "تسوية إدارية" خفية لضبط الدفاتر بحيث يصبح الرصيد مساوياً للرقم الجديد.
               </div>
-              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow" style={{ background: '#1e293b', color: 'white' }}>اعتماد الرصيد الجديد</button>
+              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow" style={{ background: 'var(--erp-surface)', color: 'white' }}>اعتماد الرصيد الجديد</button>
             </form>
           </div>
         </div>
@@ -825,7 +825,7 @@ const ERPFinance = () => {
               <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-sliders-h me-2"></i> تسوية إدارية لخزينة ({adjustWalletForm.method})</h5>
               <button type="button" className="btn-close btn-close-white" onClick={() => setModalState({...modalState, adjustWallet: false})}></button>
             </div>
-            <form onSubmit={handleAdjustWallet} className="p-4 bg-white text-center">
+            <form onSubmit={handleAdjustWallet} className="p-4  text-center">
               
               <div className="mb-4">
                 <small className="fw-bold block" style={{ color: 'var(--erp-text-muted)' }}>الرصيد الحالي المُسجل</small>

@@ -264,7 +264,7 @@ const ERPSettings = () => {
           flex-direction: row !important;
           flex-wrap: nowrap !important;
           overflow-x: auto;
-          border-bottom: 1px solid #e2e8f0; 
+          border-bottom: 1px solid var(--erp-border); 
           gap: 15px; 
           justify-content: flex-start; 
           padding-bottom: 15px; 
@@ -272,7 +272,7 @@ const ERPSettings = () => {
           margin-bottom: 20px; 
         }
         .nav-tabs::-webkit-scrollbar { height: 4px; }
-        .nav-tabs::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        .nav-tabs::-webkit-scrollbar-thumb { background-color: var(--erp-border); border-radius: 4px; }
         
         .nav-tabs .nav-item { margin-bottom: 0; white-space: nowrap; }
         .nav-tabs .nav-link { 
@@ -289,18 +289,18 @@ const ERPSettings = () => {
           gap: 8px;
         }
         .nav-tabs .nav-link.active { 
-          color: #4318ff !important; 
+          color: var(--erp-primary) !important; 
           border: 1px solid rgba(67,24,255,0.4) !important; 
-          background: #ffffff !important; 
+          background: var(--erp-text-main) !important; 
           box-shadow: 0 4px 15px rgba(67,24,255,0.1) !important; 
         }
         .nav-tabs .nav-link:hover:not(.active) { 
-          color: #4318ff !important; 
+          color: var(--erp-primary) !important; 
           background: #f8fafc;
         }
         
         .table-custom { margin-bottom: 0; }
-        .table-custom thead th { border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 700; font-size: 0.9rem; padding-bottom: 15px; padding-top: 15px; }
+        .table-custom thead th { border-bottom: 1px solid var(--erp-border); color: #64748b; font-weight: 700; font-size: 0.9rem; padding-bottom: 15px; padding-top: 15px; }
         .table-custom tbody td { padding: 20px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         .table-custom tbody tr:last-child td { border-bottom: none; }
         
@@ -308,8 +308,8 @@ const ERPSettings = () => {
         .action-btn:hover { transform: translateY(-2px); }
         .btn-edit-action { background: #f0f7ff; color: #0d6efd; border: 1px solid #cce3ff; }
         .btn-edit-action:hover { background: #0d6efd; color: white; border-color: #0d6efd; }
-        .btn-delete-action { background: #fff0f0; color: #dc3545; border: 1px solid #ffcaca; }
-        .btn-delete-action:hover { background: #dc3545; color: white; border-color: #dc3545; }
+        .btn-delete-action { background: #fff0f0; color: var(--erp-danger); border: 1px solid #ffcaca; }
+        .btn-delete-action:hover { background: var(--erp-danger); color: white; border-color: var(--erp-danger); }
         
         .cropper-container { width: 100%; max-height: 60vh; background-color: #e9ecef; border-radius: 12px; overflow: hidden; }
       `}</style>
@@ -321,7 +321,7 @@ const ERPSettings = () => {
 
       <div className="setting-section" id="servicesSection">
         <div className="d-flex align-items-center justify-content-between border-bottom pb-4">
-          <h5 className="fw-bold m-0" style={{ color: '#1e293b' }}>
+          <h5 className="fw-bold m-0" style={{ color: 'var(--erp-surface)' }}>
             <i className="fas fa-layer-group text-warning ms-2"></i> قائمة الخدمات والباقات
           </h5>
           <button className="btn btn-primary rounded-pill px-4 py-2 fw-bold" style={{background: '#0d6efd', border: 'none'}} data-bs-toggle="modal" data-bs-target="#addServiceModal">
@@ -354,7 +354,7 @@ const ERPSettings = () => {
                     <tr key={s.id}>
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
                       <td className="fw-bold" style={{color: '#0d6efd'}}>{s.total_hours} س</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="fw-bold" style={{color: 'var(--erp-success)'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
                           <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
@@ -390,7 +390,7 @@ const ERPSettings = () => {
                         {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
                       </td>
                       <td className="fw-bold text-muted">{s.validity_days} يوم</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="fw-bold" style={{color: 'var(--erp-success)'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
                           <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
@@ -426,7 +426,7 @@ const ERPSettings = () => {
                         {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
                       </td>
                       <td className="fw-bold text-muted">{s.validity_days} يوم</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="fw-bold" style={{color: 'var(--erp-success)'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
                           <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
@@ -459,7 +459,7 @@ const ERPSettings = () => {
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
                       <td><span className="badge bg-secondary-subtle text-secondary border rounded-pill">{s.category}</span></td>
                       <td className="fw-bold text-muted">{s.category === 'باقة ريلز' ? `${s.total_reels} فيديو` : '-'}</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="fw-bold" style={{color: 'var(--erp-success)'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
                           <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
@@ -484,7 +484,7 @@ const ERPSettings = () => {
         </div>
         <div className="table-responsive">
           <table className="table table-hover align-middle mb-0 text-center">
-            <thead className="bg-light"><tr><th className="py-3 text-muted small fw-bold">الاسم بالكامل</th><th className="py-3 text-muted small fw-bold">اسم الدخول (Username)</th><th className="py-3 text-muted small fw-bold">الصلاحية</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
+            <thead className=""><tr><th className="py-3 text-muted small fw-bold">الاسم بالكامل</th><th className="py-3 text-muted small fw-bold">اسم الدخول (Username)</th><th className="py-3 text-muted small fw-bold">الصلاحية</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
             <tbody>
               {users.map(u => (
                 <tr key={u.id}>
@@ -495,7 +495,7 @@ const ERPSettings = () => {
                     {u.username !== 'octobercitystudio@gmail.com' ? (
                       <button className="btn btn-light text-danger border action-btn" onClick={() => handleDeleteUser(u.id)}><i className="fas fa-trash-alt"></i></button>
                     ) : (
-                      <span className="badge bg-light text-muted border px-3 py-2">مالك النظام</span>
+                      <span className="badge  text-muted border px-3 py-2">مالك النظام</span>
                     )}
                   </td>
                 </tr>
@@ -511,7 +511,7 @@ const ERPSettings = () => {
           <div className="row g-3">
             <div className="col-md-3">
               <label className="small fw-bold text-muted mb-1">كل (ج.م) يدفعها العميل</label>
-              <input type="number" name="points_egp_spent" className="form-control bg-light border-0 py-2 fw-bold text-center shadow-sm" value={p_cfg.points_egp_spent} onChange={e => setP_cfg({...p_cfg, points_egp_spent: e.target.value})} required />
+              <input type="number" name="points_egp_spent" className="form-control  border-0 py-2 fw-bold text-center shadow-sm" value={p_cfg.points_egp_spent} onChange={e => setP_cfg({...p_cfg, points_egp_spent: e.target.value})} required />
             </div>
             <div className="col-md-3">
               <label className="small fw-bold text-muted mb-1">تساوي (نقاط) مكتسبة</label>
@@ -520,15 +520,15 @@ const ERPSettings = () => {
             <div className="col-md-2">
               <label className="small fw-bold text-muted mb-1">الحد الأدنى للاستبدال</label>
               <div className="input-group shadow-sm rounded-3 overflow-hidden">
-                <input type="number" name="points_redeem_threshold" className="form-control bg-light border-0 py-2 fw-bold text-center" value={p_cfg.points_redeem_threshold} onChange={e => setP_cfg({...p_cfg, points_redeem_threshold: e.target.value})} required />
-                <span className="input-group-text border-0 bg-light small">نقطة</span>
+                <input type="number" name="points_redeem_threshold" className="form-control  border-0 py-2 fw-bold text-center" value={p_cfg.points_redeem_threshold} onChange={e => setP_cfg({...p_cfg, points_redeem_threshold: e.target.value})} required />
+                <span className="input-group-text border-0  small">نقطة</span>
               </div>
             </div>
             <div className="col-md-2">
               <label className="small fw-bold text-muted mb-1">عند الاستبدال، كل</label>
               <div className="input-group shadow-sm rounded-3 overflow-hidden">
-                <input type="number" name="points_redeem_points" className="form-control bg-light border-0 py-2 fw-bold text-center" value={p_cfg.points_redeem_points} onChange={e => setP_cfg({...p_cfg, points_redeem_points: e.target.value})} required />
-                <span className="input-group-text border-0 bg-light small">نقطة</span>
+                <input type="number" name="points_redeem_points" className="form-control  border-0 py-2 fw-bold text-center" value={p_cfg.points_redeem_points} onChange={e => setP_cfg({...p_cfg, points_redeem_points: e.target.value})} required />
+                <span className="input-group-text border-0  small">نقطة</span>
               </div>
             </div>
             <div className="col-md-2">
@@ -540,7 +540,7 @@ const ERPSettings = () => {
             </div>
             <div className="col-12 mt-3">
               <label className="small fw-bold text-muted mb-1">صلاحية النقاط (بالأشهر)</label>
-              <input type="number" name="points_validity_months" className="form-control bg-light border-0 py-2 fw-bold text-center d-inline-block shadow-sm" style={{width: '100px'}} value={p_cfg.points_validity_months} onChange={e => setP_cfg({...p_cfg, points_validity_months: e.target.value})} required />
+              <input type="number" name="points_validity_months" className="form-control  border-0 py-2 fw-bold text-center d-inline-block shadow-sm" style={{width: '100px'}} value={p_cfg.points_validity_months} onChange={e => setP_cfg({...p_cfg, points_validity_months: e.target.value})} required />
               <small className="text-primary d-inline-block ms-2 fw-bold"><i className="fas fa-info-circle"></i> اكتب (0) لجعل النقاط لا تنتهي صلاحيتها أبداً.</small>
             </div>
           </div>
@@ -555,7 +555,7 @@ const ERPSettings = () => {
           <div className="setting-section h-100 mb-0 text-center">
             <h5 className="fw-bold text-dark mb-4 text-start"><i className="fas fa-image text-primary me-2"></i> شعار النظام (Logo)</h5>
             
-            <div className="bg-light rounded-4 d-flex justify-content-center align-items-center mb-4 border border-dashed border-2" style={{height: '140px', overflow: 'hidden', position: 'relative'}}>
+            <div className=" rounded-4 d-flex justify-content-center align-items-center mb-4 border border-dashed border-2" style={{height: '140px', overflow: 'hidden', position: 'relative'}}>
               <img src={currentLogo} onError={(e) => e.target.src='https://via.placeholder.com/150?text=No+Logo'} style={{maxHeight: '110px', maxWidth: '100%'}} alt="logo" />
             </div>
             
@@ -573,7 +573,7 @@ const ERPSettings = () => {
             <form onSubmit={handleSaveBackupFreq} className="mb-4">
               <label className="small fw-bold text-muted mb-2">وتيرة النسخ التلقائي:</label>
               <div className="input-group shadow-sm rounded-pill overflow-hidden">
-                <select name="backup_freq" className="form-select bg-light border-0 py-2 fw-bold" value={backupFreq} onChange={e => setBackupFreq(e.target.value)}>
+                <select name="backup_freq" className="form-select  border-0 py-2 fw-bold" value={backupFreq} onChange={e => setBackupFreq(e.target.value)}>
                   <option value="مغلق">مغلق</option>
                   <option value="يوميا">يومياً</option>
                   <option value="اسبوعيا">أسبوعياً</option>
@@ -606,7 +606,7 @@ const ERPSettings = () => {
                 <small className="fw-bold text-info-emphasis"><i className="fas fa-info-circle me-1"></i> قم بتصدير جهات الاتصال من هاتف الأندرويد أو حساب جوجل بصيغة (Google CSV)، ثم ارفع الملف هنا لإضافة جميع العملاء بضغطة زر واحدة.</small>
               </div>
               <div className="input-group shadow-sm rounded-pill overflow-hidden mb-4">
-                <input type="file" className="form-control bg-light border-0 py-2" accept=".csv" required />
+                <input type="file" className="form-control  border-0 py-2" accept=".csv" required />
                 <button type="submit" className="btn btn-info fw-bold px-4 text-white"><i className="fas fa-file-import me-1"></i> استيراد العملاء</button>
               </div>
             </form>
@@ -626,12 +626,12 @@ const ERPSettings = () => {
       {isCropModalOpen && (
         <div className="erp-modal-overlay" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }} onClick={() => setIsCropModalOpen(false)}>
           <div className="modal-dialog modal-dialog-centered modal-lg" onClick={e => e.stopPropagation()}>
-            <div className="modal-content border-0 shadow-lg rounded-5 bg-white">
+            <div className="modal-content border-0 shadow-lg rounded-5 ">
               <div className="modal-header bg-dark text-white border-0 p-4">
                 <h5 className="fw-bold m-0"><i className="fas fa-crop-alt me-2 text-warning"></i> قص وتحديد الشعار</h5>
                 <button type="button" className="btn-close btn-close-white" onClick={() => setIsCropModalOpen(false)}></button>
               </div>
-              <div className="modal-body p-4 bg-light">
+              <div className="modal-body p-4 ">
                 <div className="alert alert-info border-0 rounded-4 mb-3 small fw-bold text-center">
                   <i className="fas fa-arrows-alt"></i> اسحب الأطراف لتحديد الجزء المهم من اللوجو وإزالة المسافات البيضاء.
                 </div>
@@ -639,7 +639,7 @@ const ERPSettings = () => {
                   <img id="imageToCrop" ref={imageToCropRef} src={imageSrc} style={{ display: 'block', maxWidth: '100%' }} alt="To crop" />
                 </div>
               </div>
-              <div className="modal-footer border-0 p-4 bg-white d-flex gap-2">
+              <div className="modal-footer border-0 p-4  d-flex gap-2">
                 <button type="button" className="btn btn-light border rounded-pill px-4 fw-bold flex-grow-1" onClick={() => setIsCropModalOpen(false)}>إلغاء</button>
                 <button type="button" className="btn btn-primary rounded-pill px-4 fw-bold shadow-sm flex-grow-1" id="btnCropAndUpload" onClick={handleCropAndUpload}><i className="fas fa-check-circle me-1"></i> قص وحفظ الشعار</button>
               </div>
@@ -656,7 +656,7 @@ const ERPSettings = () => {
               <h5 className="fw-bold m-0"><i className="fas fa-plus-circle me-2 text-warning"></i> تسجيل خدمة أو باقة جديدة</h5>
               <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div className="modal-body p-4 bg-light">
+            <div className="modal-body p-4 ">
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">اسم الباقة / الخدمة</label>
                 <input type="text" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.name} onChange={e => setAddForm({...addForm, name: e.target.value})} required />
@@ -690,7 +690,7 @@ const ERPSettings = () => {
                     <label className="small fw-bold text-muted mb-1">استحقاق الدفع بعد</label>
                     <div className="input-group shadow-sm rounded-3 overflow-hidden">
                       <input type="number" step="0.5" className="form-control border-0 py-2 fw-bold text-danger text-center" value={addForm.payment_due_hours} onChange={e => setAddForm({...addForm, payment_due_hours: e.target.value})} />
-                      <span className="input-group-text border-0 bg-white small text-muted">ساعة</span>
+                      <span className="input-group-text border-0  small text-muted">ساعة</span>
                     </div>
                   </div>
                 )}
@@ -721,7 +721,7 @@ const ERPSettings = () => {
               <h5 className="fw-bold m-0"><i className="fas fa-edit me-2 text-warning"></i> تعديل تفاصيل الخدمة/الباقة</h5>
               <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div className="modal-body p-4 bg-light">
+            <div className="modal-body p-4 ">
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">اسم الباقة / الخدمة</label>
                 <input type="text" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} required />
@@ -755,7 +755,7 @@ const ERPSettings = () => {
                     <label className="small fw-bold text-muted mb-1">استحقاق الدفع بعد</label>
                     <div className="input-group shadow-sm rounded-3 overflow-hidden">
                       <input type="number" step="0.5" className="form-control border-0 py-2 fw-bold text-danger text-center" value={editForm.payment_due_hours} onChange={e => setEditForm({...editForm, payment_due_hours: e.target.value})} />
-                      <span className="input-group-text border-0 bg-white small text-muted">ساعة</span>
+                      <span className="input-group-text border-0  small text-muted">ساعة</span>
                     </div>
                   </div>
                 )}
@@ -786,7 +786,7 @@ const ERPSettings = () => {
               <h5 className="fw-bold m-0"><i className="fas fa-user-plus me-2 text-warning"></i> إضافة مستخدم جديد</h5>
               <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div className="modal-body p-4 bg-light">
+            <div className="modal-body p-4 ">
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">الاسم بالكامل</label>
                 <input type="text" className="form-control border-0 py-2 fw-bold shadow-sm" value={addUserForm.full_name} onChange={e => setAddUserForm({...addUserForm, full_name: e.target.value})} required />

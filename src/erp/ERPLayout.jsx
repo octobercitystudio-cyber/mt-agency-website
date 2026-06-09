@@ -49,7 +49,7 @@ const ERPLayout = () => {
           </div>
           <div>
             <h6 style={{margin: 0, fontWeight: 800, fontSize: '0.95rem', color: 'var(--erp-text-main)'}}>إدارة الشركة</h6>
-            <span style={{fontSize: '0.70rem', fontWeight: 700, padding: '2px 8px', background: '#ef4444', color: 'white', borderRadius: '50px'}}>مدير النظام</span>
+            <span style={{fontSize: '0.70rem', fontWeight: 700, padding: '2px 8px', background: 'var(--erp-danger)', color: 'white', borderRadius: '50px'}}>مدير النظام</span>
           </div>
         </div>
 
@@ -105,8 +105,8 @@ const ERPLayout = () => {
           <a href="/" target="_blank" className="erp-nav-link mb-2" style={{color: 'var(--erp-text-muted)'}}>
             <Home size={20} /> عرض الموقع
           </a>
-          <button onClick={handleLogout} className="erp-nav-link" style={{width: '100%', color: '#ef4444', background: 'transparent', border: 'none', justifyContent: 'flex-start'}}>
-            <LogOut size={20} style={{color: '#ef4444'}} /> تسجيل الخروج
+          <button onClick={handleLogout} className="erp-nav-link" style={{width: '100%', color: 'var(--erp-danger)', background: 'transparent', border: 'none', justifyContent: 'flex-start'}}>
+            <LogOut size={20} style={{color: 'var(--erp-danger)'}} /> تسجيل الخروج
           </button>
         </div>
       </div>

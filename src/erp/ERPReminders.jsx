@@ -175,7 +175,7 @@ const ERPReminders = () => {
       
       <style>{`
         .hover-elevate:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.08) !important; }
-        .nav-tabs .nav-link.active { background-color: #4318ff !important; color: white !important; }
+        .nav-tabs .nav-link.active { background-color: var(--erp-primary) !important; color: white !important; }
       `}</style>
 
       <div className="d-flex justify-content-between align-items-center mb-4 mt-3 px-3">
@@ -187,12 +187,12 @@ const ERPReminders = () => {
 
       <ul className="nav nav-tabs mb-4 border-0 px-3" role="tablist">
         <li className="nav-item me-2" role="presentation">
-          <button className={`nav-link fw-bold px-4 py-2 border-0 rounded-pill shadow-sm ${activeTab === 'pending' ? 'active' : 'bg-light text-muted'}`} onClick={() => setActiveTab('pending')}>
+          <button className={`nav-link fw-bold px-4 py-2 border-0 rounded-pill shadow-sm ${activeTab === 'pending' ? 'active' : ' text-muted'}`} onClick={() => setActiveTab('pending')}>
             <i className="fas fa-clock text-warning me-1"></i> قيد الانتظار ({pendingTasks.length})
           </button>
         </li>
         <li className="nav-item" role="presentation">
-          <button className={`nav-link fw-bold px-4 py-2 border-0 rounded-pill shadow-sm ${activeTab === 'completed' ? 'active' : 'bg-light text-muted'}`} onClick={() => setActiveTab('completed')}>
+          <button className={`nav-link fw-bold px-4 py-2 border-0 rounded-pill shadow-sm ${activeTab === 'completed' ? 'active' : ' text-muted'}`} onClick={() => setActiveTab('completed')}>
             <i className="fas fa-check-circle text-success me-1"></i> المنجزة
           </button>
         </li>
@@ -206,14 +206,14 @@ const ERPReminders = () => {
                  <div className="text-center py-5"><div className="spinner-border text-primary" role="status"></div></div>
               ) : pendingTasks.length > 0 ? pendingTasks.map(t => (
                 <div key={t.id} className="col-md-6 col-lg-4">
-                  <div className={`card border-0 shadow-sm rounded-4 h-100 bg-white border-start border-4 ${t.type === 'مهمة' ? 'border-primary' : 'border-danger'} hover-elevate`} style={{transition: '0.3s'}}>
+                  <div className={`card border-0 shadow-sm rounded-4 h-100  border-start border-4 ${t.type === 'مهمة' ? 'border-primary' : 'border-danger'} hover-elevate`} style={{transition: '0.3s'}}>
                     <div className="card-body p-4 d-flex flex-column">
                       <div className="d-flex justify-content-between align-items-center mb-3">
                         <span className={`badge ${t.type === 'مهمة' ? 'bg-primary-subtle text-primary' : 'bg-danger-subtle text-danger'} rounded-pill px-3`}>{t.type}</span>
                         {t.is_recurring && <span className="text-muted small fw-bold"><i className="fas fa-sync-alt text-warning me-1"></i> تتكرر شهرياً</span>}
                       </div>
                       <h5 className="fw-bold text-dark mb-3">{t.title}</h5>
-                      <div className="bg-light p-3 rounded-3 mb-auto border border-light-subtle">
+                      <div className=" p-3 rounded-3 mb-auto border border-light-subtle">
                         <div className="small fw-bold text-dark mb-1"><i className="far fa-calendar-alt text-primary me-2"></i> الموعد المستحق:</div>
                         <div className="font-monospace text-muted ps-4 mb-2" dir="ltr" style={{textAlign: 'right'}}>{format(new Date(t.due_date), 'yyyy-MM-dd | hh:mm a')}</div>
                         
@@ -254,7 +254,7 @@ const ERPReminders = () => {
             <div className="row g-4">
               {completedTasks.map(t => (
                 <div key={t.id} className="col-md-6 col-lg-4">
-                  <div className="card border-0 shadow-sm rounded-4 h-100 bg-light opacity-75">
+                  <div className="card border-0 shadow-sm rounded-4 h-100  opacity-75">
                     <div className="card-body p-4">
                       <div className="d-flex justify-content-between align-items-center mb-3">
                         <span className="badge bg-success rounded-pill px-3"><i className="fas fa-check me-1"></i> منجزة</span>
@@ -287,7 +287,7 @@ const ERPReminders = () => {
             <div className="modal-body p-4 text-end">
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">عنوان المهمة (مثال: موعد دفع الإيجار)</label>
-                <input type="text" className="form-control bg-light border-0 py-2 fw-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required />
+                <input type="text" className="form-control  border-0 py-2 fw-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required />
               </div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">المبلغ (ج.م) - <span className="text-primary">اختياري</span></label>
@@ -296,14 +296,14 @@ const ERPReminders = () => {
               <div className="row g-3 mb-3">
                 <div className="col-md-6">
                   <label className="small fw-bold text-muted mb-1">نوع التذكير</label>
-                  <select className="form-select bg-light border-0 py-2 fw-bold" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} required>
+                  <select className="form-select  border-0 py-2 fw-bold" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} required>
                     <option value="مهمة">مهمة إدارية / تسليم</option>
                     <option value="دفع شهري">مدفوعات منتظمة (إيجار/نت)</option>
                   </select>
                 </div>
                 <div className="col-md-6">
                   <label className="small fw-bold text-muted mb-1">موعد التنبيه</label>
-                  <select className="form-select bg-light border-0 py-2 fw-bold" value={formData.notify_before} onChange={e => setFormData({...formData, notify_before: e.target.value})} required>
+                  <select className="form-select  border-0 py-2 fw-bold" value={formData.notify_before} onChange={e => setFormData({...formData, notify_before: e.target.value})} required>
                     <option value="0">في نفس الموعد</option>
                     <option value="60">قبلها بساعة</option>
                     <option value="1440">قبلها بـ 24 ساعة (يوم)</option>
@@ -314,7 +314,7 @@ const ERPReminders = () => {
               </div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">تاريخ ووقت استحقاق المهمة الفعلي</label>
-                <input type="datetime-local" className="form-control bg-white border border-primary-subtle py-2 fw-bold text-primary" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} required />
+                <input type="datetime-local" className="form-control  border border-primary-subtle py-2 fw-bold text-primary" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} required />
               </div>
               <div className="form-check form-switch bg-warning-subtle p-3 rounded-4 border border-warning border-opacity-25 mt-3 d-flex align-items-center justify-content-end gap-3 flex-row-reverse">
                 <input className="form-check-input mt-0" type="checkbox" style={{transform: 'scale(1.5)', cursor: 'pointer', margin: 0}} checked={formData.is_recurring} onChange={e => setFormData({...formData, is_recurring: e.target.checked})} />
@@ -336,10 +336,10 @@ const ERPReminders = () => {
               <h5 className="fw-bold m-0"><i className="fas fa-edit text-warning me-2"></i> تعديل التذكير</h5>
               <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div className="modal-body p-4 bg-light text-end">
+            <div className="modal-body p-4  text-end">
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">عنوان المهمة</label>
-                <input type="text" className="form-control bg-white border-0 py-2 fw-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required />
+                <input type="text" className="form-control  border-0 py-2 fw-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required />
               </div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">المبلغ (ج.م) - <span className="text-primary">اختياري</span></label>
@@ -348,14 +348,14 @@ const ERPReminders = () => {
               <div className="row g-3 mb-3">
                 <div className="col-md-6">
                   <label className="small fw-bold text-muted mb-1">نوع التذكير</label>
-                  <select className="form-select bg-white border-0 py-2 fw-bold" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} required>
+                  <select className="form-select  border-0 py-2 fw-bold" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} required>
                     <option value="مهمة">مهمة إدارية / تسليم</option>
                     <option value="دفع شهري">مدفوعات منتظمة (إيجار/نت)</option>
                   </select>
                 </div>
                 <div className="col-md-6">
                   <label className="small fw-bold text-muted mb-1">موعد التنبيه</label>
-                  <select className="form-select bg-white border-0 py-2 fw-bold" value={formData.notify_before} onChange={e => setFormData({...formData, notify_before: e.target.value})} required>
+                  <select className="form-select  border-0 py-2 fw-bold" value={formData.notify_before} onChange={e => setFormData({...formData, notify_before: e.target.value})} required>
                     <option value="0">في نفس الموعد</option>
                     <option value="60">قبلها بساعة</option>
                     <option value="1440">قبلها بـ 24 ساعة (يوم)</option>
@@ -366,14 +366,14 @@ const ERPReminders = () => {
               </div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">تاريخ ووقت الاستحقاق</label>
-                <input type="datetime-local" className="form-control bg-white border-0 py-2 fw-bold text-primary" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} required />
+                <input type="datetime-local" className="form-control  border-0 py-2 fw-bold text-primary" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} required />
               </div>
               <div className="form-check form-switch bg-warning-subtle p-3 rounded-4 border border-warning border-opacity-25 mt-3 d-flex align-items-center justify-content-end flex-row-reverse gap-3">
                 <input className="form-check-input mt-0" type="checkbox" style={{transform: 'scale(1.5)', cursor: 'pointer', margin: 0}} checked={formData.is_recurring} onChange={e => setFormData({...formData, is_recurring: e.target.checked})} />
                 <label className="form-check-label fw-bold text-dark mb-0" style={{cursor: 'pointer'}}>تكرار شهري</label>
               </div>
             </div>
-            <div className="modal-footer border-0 p-4 pt-0 bg-white text-start d-block">
+            <div className="modal-footer border-0 p-4 pt-0  text-start d-block">
               <button type="submit" className="btn btn-dark w-100 py-3 rounded-4 fw-bold shadow">تحديث البيانات</button>
             </div>
           </form>
@@ -388,10 +388,10 @@ const ERPReminders = () => {
               <h5 className="fw-bold m-0"><i className="fas fa-file-invoice-dollar me-2"></i> صرف سريع وتسكين في الحسابات</h5>
               <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div className="modal-body p-4 bg-white text-end">
+            <div className="modal-body p-4  text-end">
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">بيان المصروف</label>
-                <input type="text" className="form-control bg-light border-0 py-2 fw-bold" value={`سداد تذكير: ${payData.title}`} readOnly required />
+                <input type="text" className="form-control  border-0 py-2 fw-bold" value={`سداد تذكير: ${payData.title}`} readOnly required />
               </div>
               <div className="row g-3 mb-3">
                 <div className="col-md-6">
@@ -400,11 +400,11 @@ const ERPReminders = () => {
                 </div>
                 <div className="col-md-6">
                   <label className="small fw-bold text-muted mb-1">تاريخ المعاملة</label>
-                  <input type="date" className="form-control bg-light border-0 fw-bold" value={payData.date} onChange={e => setPayData({...payData, date: e.target.value})} required />
+                  <input type="date" className="form-control  border-0 fw-bold" value={payData.date} onChange={e => setPayData({...payData, date: e.target.value})} required />
                 </div>
                 <div className="col-md-6">
                   <label className="small fw-bold text-muted mb-1">سحب من الخزينة</label>
-                  <select className="form-select bg-light border-0 fw-bold" value={payData.method} onChange={e => setPayData({...payData, method: e.target.value})}>
+                  <select className="form-select  border-0 fw-bold" value={payData.method} onChange={e => setPayData({...payData, method: e.target.value})}>
                     <option value="كاش">كاش</option>
                     <option value="فودافون كاش">فودافون كاش</option>
                     <option value="انستاباي">إنستاباي</option>
@@ -423,7 +423,7 @@ const ERPReminders = () => {
                 <i className="fas fa-info-circle me-1"></i> سيتم تسجيل هذا المبلغ كمصروف رسمي في الدفاتر المالية فوراً!
               </div>
             </div>
-            <div className="modal-footer border-0 p-4 pt-0 bg-white text-start d-block">
+            <div className="modal-footer border-0 p-4 pt-0  text-start d-block">
               <button type="submit" className="btn btn-danger w-100 py-3 rounded-4 fw-bold shadow">تأكيد الصرف المالي</button>
             </div>
           </form>

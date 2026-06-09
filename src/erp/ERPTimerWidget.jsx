@@ -94,12 +94,12 @@ const ERPTimerWidget = () => {
   };
 
   return (
-    <div className="card border-0 shadow-sm rounded-4 mb-4" style={{ background: activeClient ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#fff', color: activeClient ? '#fff' : '#1e293b' }}>
+    <div className="card border-0 shadow-sm rounded-4 mb-4" style={{ background: activeClient ? 'linear-gradient(135deg, var(--erp-success) 0%, var(--erp-success) 100%)' : '#fff', color: activeClient ? '#fff' : 'var(--erp-surface)' }}>
       <div className="card-body p-4">
         <div className="row align-items-center">
           
           <div className="col-12 col-md-4 d-flex align-items-center mb-3 mb-md-0">
-            <div className={`rounded-circle p-3 me-3 d-flex justify-content-center align-items-center ${activeClient ? 'bg-white text-success' : 'bg-light text-primary'}`} style={{ width: '50px', height: '50px' }}>
+            <div className={`rounded-circle p-3 me-3 d-flex justify-content-center align-items-center ${activeClient ? ' text-success' : ' text-primary'}`} style={{ width: '50px', height: '50px' }}>
               <Clock size={24} />
             </div>
             <div>
@@ -111,7 +111,7 @@ const ERPTimerWidget = () => {
           <div className="col-12 col-md-4 mb-3 mb-md-0">
             {activeClient ? (
               <div className="text-center">
-                <span className="badge bg-white text-success rounded-pill px-3 py-2 mb-2 d-inline-flex align-items-center">
+                <span className="badge  text-success rounded-pill px-3 py-2 mb-2 d-inline-flex align-items-center">
                   <User size={14} className="me-1" /> جاري التصوير للعميل: {activeClient}
                 </span>
                 <div className="display-4 fw-bold" style={{ letterSpacing: '2px', fontVariantNumeric: 'tabular-nums' }}>
@@ -119,7 +119,7 @@ const ERPTimerWidget = () => {
                 </div>
               </div>
             ) : (
-              <select className="form-select border-0 bg-light p-3 rounded-4 shadow-sm fw-bold" value={selectedClient} onChange={e => setSelectedClient(e.target.value)}>
+              <select className="form-select border-0  p-3 rounded-4 shadow-sm fw-bold" value={selectedClient} onChange={e => setSelectedClient(e.target.value)}>
                 <option value="">-- اختر العميل لبدء الجلسة --</option>
                 {clients.map(c => <option key={c} value={c}>{c}</option>)}
               </select>

@@ -44,7 +44,7 @@ const ERPBookings = () => {
   const isAdmin = localStorage.getItem('erp_role') === 'مدير';
   const [newBooking, setNewBooking] = useState({
     client_name: '',
-    color: '#4318ff',
+    color: 'var(--erp-primary)',
     category: '',
     service: '',
     dates: [],
@@ -96,7 +96,7 @@ const ERPBookings = () => {
 
   const getClientColor = (clientName) => {
     const client = clients.find(c => c.name === clientName);
-    return client?.color || '#4318ff';
+    return client?.color || 'var(--erp-primary)';
   };
 
   const calendarEvents = bookings.map(b => ({
@@ -275,7 +275,7 @@ const ERPBookings = () => {
       fetchData();
       setIsModalOpen(false);
       setNewBooking({
-        client_name: '', color: '#4318ff', category: '', service: '', dates: [],
+        client_name: '', color: 'var(--erp-primary)', category: '', service: '', dates: [],
         delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'فودافون كاش', notes: '', schedule_extra: false
       });
     } else {
@@ -326,7 +326,7 @@ const ERPBookings = () => {
         .timeline-service { font-size: 0.8rem; font-weight: 700; color: var(--erp-text-muted); background: var(--erp-bg); padding: 4px 10px; border-radius: 20px; display: inline-block; }
 
         .admin-delete-btn { cursor: pointer; opacity: 0.5; transition: 0.3s; color: var(--erp-danger); }
-        .admin-delete-btn:hover { opacity: 1; transform: scale(1.2); color: #dc2626 !important; }
+        .admin-delete-btn:hover { opacity: 1; transform: scale(1.2); color: var(--erp-danger) !important; }
       `}</style>
 
       {/* Header */}
@@ -388,7 +388,7 @@ const ERPBookings = () => {
 
         {/* Daily Bookings Sidebar */}
         <div style={{ flex: '1 1 30%', minWidth: '300px' }}>
-          <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid #1e293b', height: '100%' }}>
+          <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid var(--erp-surface)', height: '100%' }}>
             
             <div style={{ padding: '25px 25px 0 25px', textAlign: 'center' }}>
               <div style={{ background: 'rgba(67, 24, 255, 0.1)', color: 'var(--erp-primary)', display: 'inline-block', borderRadius: '50px', padding: '8px 25px', marginBottom: '15px', boxShadow: '0 2px 5px rgba(67,24,255,0.05)' }}>
@@ -444,7 +444,7 @@ const ERPBookings = () => {
         <div className="erp-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1050, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)' }} onClick={() => setIsModalOpen(false)}>
           <div style={{ background: 'var(--erp-surface)', width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '25px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: 'none' }} onClick={e => e.stopPropagation()}>
             
-            <div style={{ background: '#1e293b', color: 'white', padding: '25px', borderTopLeftRadius: '25px', borderTopRightRadius: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ background: 'var(--erp-surface)', color: 'white', padding: '25px', borderTopLeftRadius: '25px', borderTopRightRadius: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h5 style={{ margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
                 <CalendarPlus color="var(--erp-warning)" size={24} style={{ marginLeft: '10px' }} /> تسجيل موعد أو شراء خدمة
               </h5>
@@ -608,7 +608,7 @@ const ERPBookings = () => {
                 </div>
               </div>
 
-              <button type="submit" style={{ width: '100%', background: '#1e293b', color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 10px 20px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'transform 0.2s' }}>
+              <button type="submit" style={{ width: '100%', background: 'var(--erp-surface)', color: 'white', border: 'none', padding: '15px', borderRadius: '15px', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 10px 20px rgba(0,0,0,0.1)', cursor: 'pointer', transition: 'transform 0.2s' }}>
                 اعتماد وتسجيل في النظام <CheckCircle size={20} style={{ marginRight: '10px' }} />
               </button>
 
@@ -627,7 +627,7 @@ const ERPBookings = () => {
                   <h5 className="fw-bold m-0"><i className="fas fa-calendar-check me-2 text-warning"></i> تفاصيل الحجز</h5>
                   <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div className="modal-body p-4 bg-light text-end" style={{ direction: 'rtl' }}>
+                <div className="modal-body p-4  text-end" style={{ direction: 'rtl' }}>
                   
                   <div className="d-flex justify-content-between align-items-center mb-4">
                     <h4 className="fw-bold text-primary m-0">{selectedBookingDetails.client_name}</h4>
@@ -638,19 +638,19 @@ const ERPBookings = () => {
 
                   <div className="row g-3 mb-4">
                     <div className="col-6">
-                      <div className="p-3 bg-white rounded-4 border shadow-sm h-100">
+                      <div className="p-3  rounded-4 border shadow-sm h-100">
                         <small className="text-muted d-block mb-1 fw-bold">الخدمة / الباقة</small>
                         <div className="fw-bold text-dark">{selectedBookingDetails.service}</div>
                       </div>
                     </div>
                     <div className="col-6">
-                      <div className="p-3 bg-white rounded-4 border shadow-sm h-100">
+                      <div className="p-3  rounded-4 border shadow-sm h-100">
                         <small className="text-muted d-block mb-1 fw-bold">التاريخ</small>
                         <div className="fw-bold text-dark" style={{direction: 'ltr'}}>{selectedBookingDetails.date}</div>
                       </div>
                     </div>
                     <div className="col-12">
-                      <div className="p-3 bg-white rounded-4 border shadow-sm">
+                      <div className="p-3  rounded-4 border shadow-sm">
                         <small className="text-muted d-block mb-1 fw-bold">التوقيت</small>
                         <div className="fw-bold text-dark d-flex align-items-center gap-2">
                           <span className="text-primary">{selectedBookingDetails.start_time}</span> 
@@ -661,7 +661,7 @@ const ERPBookings = () => {
                     </div>
                   </div>
 
-                  <div className="p-3 bg-white rounded-4 border shadow-sm mb-4">
+                  <div className="p-3  rounded-4 border shadow-sm mb-4">
                     <div className="row text-center">
                       <div className="col-4 border-end">
                         <small className="text-muted d-block mb-1 fw-bold">الساعات</small>

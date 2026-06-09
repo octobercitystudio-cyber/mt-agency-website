@@ -190,14 +190,14 @@ export const NotificationsOffcanvas = ({ isOpen, onClose, alerts, onDismiss }) =
           
           {alerts.length === 0 ? (
             <div className="text-center py-5">
-              <CheckCircle size={50} style={{color: '#10b981', opacity: 0.5, marginBottom: '15px'}} />
+              <CheckCircle size={50} style={{color: 'var(--erp-success)', opacity: 0.5, marginBottom: '15px'}} />
               <h5 className="fw-bold text-muted">لا توجد إشعارات جديدة</h5>
               <p className="text-muted mb-0">تم مراجعة كافة التنبيهات.</p>
             </div>
           ) : (
             <div className="list-group list-group-flush">
               {alerts.map((alert, idx) => (
-                <div key={`${alert.id}_${idx}`} className="list-group-item list-group-item-action p-4 border-bottom position-relative hover-bg-light transition-all">
+                <div key={`${alert.id}_${idx}`} className="list-group-item list-group-item-action p-4 border-bottom position-relative hover- transition-all">
                   <button onClick={() => onDismiss(alert.client, alert.id)} className="btn btn-sm btn-link position-absolute top-0 end-0 mt-2 me-2 text-muted p-1 hover-danger" title="تجاهل">
                     <X size={16} />
                   </button>
@@ -218,8 +218,8 @@ export const NotificationsOffcanvas = ({ isOpen, onClose, alerts, onDismiss }) =
         </div>
       </div>
       <style>{`
-        .hover-bg-light:hover { background-color: #f1f5f9 !important; }
-        .hover-danger:hover { color: #ef4444 !important; background: rgba(239, 68, 68, 0.1); border-radius: 5px; }
+        .hover-:hover { background-color: #f1f5f9 !important; }
+        .hover-danger:hover { color: var(--erp-danger) !important; background: rgba(239, 68, 68, 0.1); border-radius: 5px; }
         .transition-all { transition: all 0.2s ease-in-out; }
       `}</style>
     </>
