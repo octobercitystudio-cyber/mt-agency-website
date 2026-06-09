@@ -16,8 +16,8 @@ const ERPSettings = () => {
   const [backupFreq, setBackupFreq] = useState('يوميا');
 
   // Form states
-  const [addForm, setAddForm] = useState({ name: '', category: 'باقة ساعات', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
-  const [editForm, setEditForm] = useState({ id: '', name: '', category: 'باقة ساعات', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
+  const [addForm, setAddForm] = useState({ name: '', category: 'باقة شهرية', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
+  const [editForm, setEditForm] = useState({ id: '', name: '', category: 'باقة شهرية', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
   const [addUserForm, setAddUserForm] = useState({ full_name: '', username: '', password: '', role: 'موظف' });
 
   useEffect(() => {
@@ -94,7 +94,7 @@ const ERPSettings = () => {
 
     if (!error) {
       await fetchData();
-      setAddForm({ name: '', category: 'باقة ساعات', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
+      setAddForm({ name: '', category: 'باقة شهرية', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
       window.bootstrap.Modal.getInstance(document.getElementById('addServiceModal'))?.hide();
     } else {
       alert('حدث خطأ أثناء حفظ الخدمة');
@@ -330,9 +330,10 @@ const ERPSettings = () => {
         </div>
 
         <ul className="nav nav-tabs border-0 flex-row flex-nowrap gap-3 mb-4" id="servicesTabs" role="tablist">
-          <li className="nav-item" role="presentation"><button className="nav-link active" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#hourly" type="button" role="tab">باقات الساعات</button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab">باقات الريلز <i className="fas fa-video opacity-50"></i></button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab">تصوير ومونتاج <i className="fas fa-camera opacity-50"></i></button></li>
+          <li className="nav-item" role="presentation"><button className="nav-link active" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#hourly" type="button" role="tab">التصوير بالساعة</button></li>
+          <li className="nav-item" role="presentation"><button className="nav-link" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab">الباقات اليومية <i className="fas fa-cog opacity-50"></i></button></li>
+          <li className="nav-item" role="presentation"><button className="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab">الباقات الشهرية <i className="fas fa-calendar-alt opacity-50"></i></button></li>
+          <li className="nav-item" role="presentation"><button className="nav-link" id="others-tab" data-bs-toggle="tab" data-bs-target="#others" type="button" role="tab">الخدمات والريلز <i className="fas fa-star opacity-50"></i></button></li>
         </ul>
 
         <div className="tab-content" id="servicesTabsContent">
@@ -349,7 +350,7 @@ const ERPSettings = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {services.filter(s => s.category === 'باقة ساعات').map(s => (
+                  {services.filter(s => s.category === 'تصوير بالساعة').map(s => (
                     <tr key={s.id}>
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
                       <td className="fw-bold" style={{color: '#0d6efd'}}>{s.total_hours} س</td>
@@ -374,20 +375,21 @@ const ERPSettings = () => {
                 <thead>
                   <tr>
                     <th className="text-end pe-4" style={{width: '30%'}}>اسم الباقة</th>
-                    <th style={{width: '20%'}}>عدد الريلز</th>
+                    <th style={{width: '20%'}}>تفاصيل الباقة</th>
                     <th style={{width: '15%'}}>الصلاحية</th>
                     <th style={{width: '20%'}}>السعر (ج.م)</th>
                     <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {services.filter(s => s.category === 'باقة ريلز').map(s => (
+                  {services.filter(s => s.category === 'باقة يومية').map(s => (
                     <tr key={s.id}>
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
                       <td className="fw-bold" style={{color: '#0d6efd'}}>
-                        {s.total_reels} فيديو
+                        {s.total_hours} س <br/>
+                        {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
                       </td>
-                      <td className="fw-bold text-muted">{s.validity_days > 0 ? `${s.validity_days} يوم` : '-'}</td>
+                      <td className="fw-bold text-muted">{s.validity_days} يوم</td>
                       <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
@@ -408,17 +410,22 @@ const ERPSettings = () => {
               <table className="table table-custom table-borderless align-middle w-100 text-center">
                 <thead>
                   <tr>
-                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الخدمة</th>
-                    <th style={{width: '20%'}}>التصنيف</th>
-                    <th style={{width: '30%'}}>السعر (ج.م)</th>
-                    <th className="text-start ps-4" style={{width: '20%'}}>إجراءات</th>
+                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الباقة</th>
+                    <th style={{width: '20%'}}>تفاصيل الباقة</th>
+                    <th style={{width: '15%'}}>الصلاحية</th>
+                    <th style={{width: '20%'}}>السعر (ج.م)</th>
+                    <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {services.filter(s => ['تصوير خارجي', 'مونتاج ديجيتال', 'خدمات منفصلة'].includes(s.category)).map(s => (
+                  {services.filter(s => s.category === 'باقة شهرية').map(s => (
                     <tr key={s.id}>
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
-                      <td><span className="badge bg-secondary-subtle text-secondary border rounded-pill">{s.category}</span></td>
+                      <td className="fw-bold" style={{color: '#0d6efd'}}>
+                        {s.total_hours} س <br/>
+                        {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
+                      </td>
+                      <td className="fw-bold text-muted">{s.validity_days} يوم</td>
                       <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
@@ -433,6 +440,38 @@ const ERPSettings = () => {
             </div>
           </div>
 
+          {/* Others */}
+          <div className="tab-pane fade" id="others" role="tabpanel">
+            <div className="table-responsive">
+              <table className="table table-custom table-borderless align-middle w-100 text-center">
+                <thead>
+                  <tr>
+                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الخدمة</th>
+                    <th style={{width: '20%'}}>التصنيف</th>
+                    <th style={{width: '15%'}}>التفاصيل</th>
+                    <th style={{width: '20%'}}>السعر (ج.م)</th>
+                    <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {services.filter(s => s.category === 'خدمة إضافية' || s.category === 'باقة ريلز').map(s => (
+                    <tr key={s.id}>
+                      <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
+                      <td><span className="badge bg-secondary-subtle text-secondary border rounded-pill">{s.category}</span></td>
+                      <td className="fw-bold text-muted">{s.category === 'باقة ريلز' ? `${s.total_reels} فيديو` : '-'}</td>
+                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="text-start ps-4">
+                        <div className="d-flex gap-2 justify-content-start flex-row-reverse">
+                          <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -626,11 +665,11 @@ const ERPSettings = () => {
                 <div className="col-md-6">
                   <label className="small fw-bold text-muted mb-1">التصنيف</label>
                   <select className="form-select border-0 py-2 fw-bold shadow-sm text-primary" value={addForm.category} onChange={e => setAddForm({...addForm, category: e.target.value})} required>
-                    <option value="باقة ساعات">باقات ساعات</option>
+                    <option value="تصوير بالساعة">تصوير بالساعة</option>
+                    <option value="باقة يومية">باقات يومية</option>
+                    <option value="باقة شهرية">باقات شهرية</option>
                     <option value="باقة ريلز">باقات ريلز</option>
-                    <option value="تصوير خارجي">تصوير خارجي</option>
-                    <option value="مونتاج ديجيتال">مونتاج ديجيتال</option>
-                    <option value="خدمات منفصلة">خدمات منفصلة</option>
+                    <option value="خدمة إضافية">خدمات إضافية (جرافيك وغيرها)</option>
                   </select>
                 </div>
                 <div className="col-md-6">
@@ -691,11 +730,11 @@ const ERPSettings = () => {
                 <div className="col-md-6">
                   <label className="small fw-bold text-muted mb-1">التصنيف</label>
                   <select className="form-select border-0 py-2 fw-bold shadow-sm text-primary" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})} required>
-                    <option value="باقة ساعات">باقات ساعات</option>
+                    <option value="تصوير بالساعة">تصوير بالساعة</option>
+                    <option value="باقة يومية">باقات يومية</option>
+                    <option value="باقة شهرية">باقات شهرية</option>
                     <option value="باقة ريلز">باقات ريلز</option>
-                    <option value="تصوير خارجي">تصوير خارجي</option>
-                    <option value="مونتاج ديجيتال">مونتاج ديجيتال</option>
-                    <option value="خدمات منفصلة">خدمات منفصلة</option>
+                    <option value="خدمة إضافية">خدمات إضافية (جرافيك وغيرها)</option>
                   </select>
                 </div>
                 <div className="col-md-6">
