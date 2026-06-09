@@ -85,11 +85,11 @@ const ERPDashboard = () => {
               } else if (srv.category === 'باقة ريلز') {
                 if (Number(srv.total_reels) - g.used_r > 0) activePackages++;
               }
+              const basePrice = Number(srv.price || 0);
+              const custom = g.custom_price;
+              const price = custom > -1 ? custom : Math.max(0, basePrice - g.discount);
+              marketDues += Math.max(0, price - g.paid);
             }
-            const basePrice = Number(srv.price || 0);
-            const custom = g.custom_price;
-            const price = custom > -1 ? custom : Math.max(0, basePrice - g.discount);
-            marketDues += Math.max(0, price - g.paid);
           }
         });
       }
