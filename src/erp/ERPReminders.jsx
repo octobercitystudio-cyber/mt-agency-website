@@ -156,6 +156,7 @@ const ERPReminders = () => {
   const completedTasks = reminders.filter(t => t.status === 'completed');
 
   return (
+    <>
     <div className="container-fluid p-0 animate__animated animate__fadeIn" style={{ direction: 'rtl', minHeight: '100vh', background: '#f8f9fc', padding: '20px' }}>
       
       <style>{`
@@ -258,6 +259,8 @@ const ERPReminders = () => {
           </div>
         )}
       </div>
+
+    </div>
 
       {/* Add Task Modal */}
       <div className="modal fade" id="addTaskModal" tabIndex="-1">
@@ -413,7 +416,7 @@ const ERPReminders = () => {
         </div>
       </div>
 
-    </div>
+    </>
   );
 };
 
