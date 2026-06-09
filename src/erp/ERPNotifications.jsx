@@ -64,13 +64,28 @@ export const useGlobalAlerts = () => {
         const debt = finalPrice - usage.paid;
 
         if (debt > 0) {
-          const alertId = `due_pkg_${usage.client}_${usage.service}`;
-          if (!isDismissed(usage.client, alertId)) {
-            newAlerts.push({
-              id: alertId, client: usage.client, service: usage.service, type: 'payment',
-              msg: `مديونية مستحقة بقيمة (${debt} ج.م) للعميل.`,
-              icon: <DollarSign className="text-danger" size={18} />
-            });
+          let shouldAlertDebt = true;
+          let extraMsg = '';
+
+          // For Monthly packages, only alert if consumed hours reached the payment due threshold
+          if (srv.category === 'باقة شهرية' && srv.payment_due_hours > 0) {
+            if (usage.used_h >= srv.payment_due_hours) {
+               shouldAlertDebt = true;
+               extraMsg = ` (تجاوز ${srv.payment_due_hours} ساعات المستحقة للدفع)`;
+            } else {
+               shouldAlertDebt = false;
+            }
+          }
+
+          if (shouldAlertDebt) {
+            const alertId = `due_pkg_${usage.client}_${usage.service}`;
+            if (!isDismissed(usage.client, alertId)) {
+              newAlerts.push({
+                id: alertId, client: usage.client, service: usage.service, type: 'payment',
+                msg: `مديونية مستحقة بقيمة (${debt} ج.م)${extraMsg}`,
+                icon: <DollarSign className="text-danger" size={18} />
+              });
+            }
           }
         }
 
