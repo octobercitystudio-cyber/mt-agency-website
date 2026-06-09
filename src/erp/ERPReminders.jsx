@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { format, addMonths } from 'date-fns';
 
+let globalRemindersCache = null;
+let globalRemindersLastFetch = 0;
+
 const ERPReminders = () => {
-  const [reminders, setReminders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [reminders, setReminders] = useState(globalRemindersCache || []);
+  const [loading, setLoading] = useState(!globalRemindersCache);
   const [activeTab, setActiveTab] = useState('pending');
   const [editingId, setEditingId] = useState(null);
 
@@ -30,15 +33,26 @@ const ERPReminders = () => {
     fetchReminders();
   }, []);
 
-  const fetchReminders = async () => {
-    setLoading(true);
+  const fetchReminders = async (force = false) => {
+    if (globalRemindersCache) {
+      setReminders(globalRemindersCache);
+      setLoading(false);
+      if (!force && (Date.now() - globalRemindersLastFetch < 30000)) return;
+    } else {
+      setLoading(true);
+    }
+    
     const { data, error } = await supabase
       .from('reminders')
       .select('*')
       .order('status', { ascending: false }) 
       .order('due_date', { ascending: true });
     
-    if (data) setReminders(data);
+    if (data) {
+      setReminders(data);
+      globalRemindersCache = data;
+    }
+    globalRemindersLastFetch = Date.now();
     setLoading(false);
   };
 

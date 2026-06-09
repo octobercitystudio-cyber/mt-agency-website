@@ -11,12 +11,17 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import timeGridPlugin from '@fullcalendar/timegrid';
 
+let globalBookingsCache = null;
+let globalClientsCache = null;
+let globalServicesCache = null;
+let globalBookingsLastFetch = 0;
+
 const ERPBookings = () => {
   const location = useLocation();
-  const [bookings, setBookings] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [services, setServices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState(globalBookingsCache || []);
+  const [clients, setClients] = useState(globalClientsCache || []);
+  const [services, setServices] = useState(globalServicesCache || []);
+  const [loading, setLoading] = useState(!globalBookingsCache);
   
   // UI State
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -57,16 +62,35 @@ const ERPBookings = () => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (force = false) => {
+    if (globalBookingsCache && globalClientsCache && globalServicesCache) {
+      setBookings(globalBookingsCache);
+      setClients(globalClientsCache);
+      setServices(globalServicesCache);
+      setLoading(false);
+      if (!force && (Date.now() - globalBookingsLastFetch < 30000)) return;
+    } else {
+      setLoading(true);
+    }
+    
     const { data: bData } = await supabase.from('bookings').select('*').order('date', { ascending: false });
     const { data: cData } = await supabase.from('clients').select('name, color');
     const { data: sData } = await supabase.from('services').select('*');
 
-    if (bData) setBookings(bData);
-    if (cData) setClients(cData);
-    if (sData) setServices(sData);
+    if (bData) {
+      setBookings(bData);
+      globalBookingsCache = bData;
+    }
+    if (cData) {
+      setClients(cData);
+      globalClientsCache = cData;
+    }
+    if (sData) {
+      setServices(sData);
+      globalServicesCache = sData;
+    }
     
+    globalBookingsLastFetch = Date.now();
     setLoading(false);
   };
 

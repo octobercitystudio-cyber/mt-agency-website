@@ -4,10 +4,14 @@ import { UserPlus, Edit, Trash2, Search, Phone, Wallet, DollarSign, MessageCircl
 import { useNavigate } from 'react-router-dom';
 import ERPAddBookingModal from './ERPAddBookingModal';
 
+let globalClientsCache = null;
+let globalSystemServicesCache = null;
+let globalClientsLastFetch = 0;
+
 const ERPClients = () => {
   const navigate = useNavigate();
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [clients, setClients] = useState(globalClientsCache || []);
+  const [loading, setLoading] = useState(!globalClientsCache);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   
@@ -36,7 +40,7 @@ const ERPClients = () => {
 
   // Active Packages Data
   const [activePackages, setActivePackages] = useState([]);
-  const [systemServices, setSystemServices] = useState([]);
+  const [systemServices, setSystemServices] = useState(globalSystemServicesCache || []);
 
   // Bulk Edit State
   const [selectedIds, setSelectedIds] = useState([]);
@@ -47,8 +51,14 @@ const ERPClients = () => {
   }, []);
 
   const fetchServices = async () => {
+    if (globalSystemServicesCache) {
+      setSystemServices(globalSystemServicesCache);
+    }
     const { data } = await supabase.from('services').select('*');
-    if (data) setSystemServices(data);
+    if (data) {
+      setSystemServices(data);
+      globalSystemServicesCache = data;
+    }
   };
 
   useEffect(() => {
@@ -119,8 +129,15 @@ const ERPClients = () => {
     return res.join(" و ");
   };
 
-  const fetchClients = async () => {
-    setLoading(true);
+  const fetchClients = async (force = false) => {
+    if (globalClientsCache) {
+      setClients(globalClientsCache);
+      setLoading(false);
+      if (!force && (Date.now() - globalClientsLastFetch < 30000)) return;
+    } else {
+      setLoading(true);
+    }
+    
     const { data, error } = await supabase.from('clients').select('*').order('id', { ascending: false });
     const { data: activeBookingsData } = await supabase.from('bookings').select('client_name, service').eq('status', 'نشط');
     if (!error && data) {
@@ -134,11 +151,13 @@ const ERPClients = () => {
         isActive: activeNames.has(c.name)
       }));
       setClients(enrichedData);
+      globalClientsCache = enrichedData;
       if (selectedClient) {
         const updated = enrichedData.find(c => c.id === selectedClient.id);
         setSelectedClient(updated || null);
       }
     }
+    globalClientsLastFetch = Date.now();
     setLoading(false);
   };
 

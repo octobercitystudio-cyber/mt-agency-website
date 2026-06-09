@@ -6,17 +6,23 @@ import { ar } from 'date-fns/locale';
 import ERPTimerWidget from './ERPTimerWidget';
 import './ERPLayout.css';
 
+let globalStatsCache = null;
+let globalTodayBookingsCache = null;
+let globalTomorrowBookingsCache = null;
+let globalDueTasksCache = null;
+let globalDashboardLastFetch = 0;
+
 const ERPDashboard = () => {
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState(globalStatsCache || {
     activePackages: 0,
     weekDeliveries: 0,
     marketDues: 0,
     netProfit: 0
   });
-  const [todayBookings, setTodayBookings] = useState([]);
-  const [tomorrowBookings, setTomorrowBookings] = useState([]);
-  const [dueTasks, setDueTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [todayBookings, setTodayBookings] = useState(globalTodayBookingsCache || []);
+  const [tomorrowBookings, setTomorrowBookings] = useState(globalTomorrowBookingsCache || []);
+  const [dueTasks, setDueTasks] = useState(globalDueTasksCache || []);
+  const [loading, setLoading] = useState(!globalStatsCache);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -24,8 +30,17 @@ const ERPDashboard = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const loadDashboardData = async () => {
-    setLoading(true);
+  const loadDashboardData = async (force = false) => {
+    if (globalStatsCache && globalTodayBookingsCache && globalTomorrowBookingsCache && globalDueTasksCache) {
+      setStats(globalStatsCache);
+      setTodayBookings(globalTodayBookingsCache);
+      setTomorrowBookings(globalTomorrowBookingsCache);
+      setDueTasks(globalDueTasksCache);
+      setLoading(false);
+      if (!force && (Date.now() - globalDashboardLastFetch < 30000)) return;
+    } else {
+      setLoading(true);
+    }
     try {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       const dayOfWeek = new Date().getDay();
@@ -94,13 +109,17 @@ const ERPDashboard = () => {
         });
       }
 
-      setStats({ activePackages, weekDeliveries, marketDues, netProfit });
+      const newStats = { activePackages, weekDeliveries, marketDues, netProfit };
+      setStats(newStats);
+      globalStatsCache = newStats;
 
       // 4. Bookings
       const { data: tdyBkgs } = await supabase.from('bookings').select('*').eq('date', todayStr).neq('status', 'دفعة').neq('start_time', '').order('start_time', { ascending: true });
       const { data: tmrwBkgs } = await supabase.from('bookings').select('*').eq('date', tomorrowStr).neq('status', 'دفعة').neq('start_time', '').order('start_time', { ascending: true });
       setTodayBookings(tdyBkgs || []);
+      globalTodayBookingsCache = tdyBkgs || [];
       setTomorrowBookings(tmrwBkgs || []);
+      globalTomorrowBookingsCache = tmrwBkgs || [];
 
       // 5. Tasks
       const { data: tasksData } = await supabase.from('reminders').select('*').eq('status', 'pending').order('due_date', { ascending: true });
@@ -116,7 +135,8 @@ const ERPDashboard = () => {
         });
       }
       setDueTasks(due);
-
+      globalDueTasksCache = due;
+      globalDashboardLastFetch = Date.now();
     } catch (err) {
       console.error("Error loading dashboard data:", err);
     } finally {
