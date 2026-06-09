@@ -341,6 +341,7 @@ const ERPBookings = () => {
               plugins={[ dayGridPlugin, interactionPlugin, timeGridPlugin ]}
               initialView="dayGridMonth"
               locale={ar}
+              direction="rtl"
               firstDay={6}
               events={calendarEvents}
               dateClick={handleDateClick}
@@ -485,6 +486,7 @@ const ERPBookings = () => {
                       plugins={[ dayGridPlugin, interactionPlugin ]}
                       initialView="dayGridMonth"
                       locale={ar}
+                      direction="rtl"
                       firstDay={6}
                       events={calendarEvents}
                       height={350}

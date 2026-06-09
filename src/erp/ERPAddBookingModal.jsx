@@ -286,6 +286,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                     plugins={[ dayGridPlugin, interactionPlugin ]}
                     initialView="dayGridMonth"
                     locale={ar}
+                    direction="rtl"
                     firstDay={6}
                     events={calendarEvents}
                     height={350}
