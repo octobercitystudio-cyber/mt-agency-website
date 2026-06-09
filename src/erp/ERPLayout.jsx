@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, RotateCcw } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
+import { supabase } from '../supabaseClient';
 import './ERPLayout.css';
 
 const ERPLayout = () => {
@@ -11,8 +12,32 @@ const ERPLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { alerts, dismissAlert } = useGlobalAlerts();
+  const [isUndoing, setIsUndoing] = useState(false);
   
   const unreadCount = alerts.length;
+
+  const handleUndo = async () => {
+    if (isUndoing) return;
+    setIsUndoing(true);
+    try {
+      const { data, error } = await supabase.rpc('undo_last_action');
+      if (error) {
+        console.error('Undo error:', error);
+        alert('حدث خطأ أثناء محاولة التراجع.');
+      } else if (data && data.success) {
+        alert(data.message);
+        // Reload page to reflect changes instantly across all components
+        window.location.reload();
+      } else {
+        alert(data?.message || 'لا يوجد عمليات أخرى للتراجع عنها!');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ بالاتصال.');
+    } finally {
+      setIsUndoing(false);
+    }
+  };
 
   const handleLogout = () => {
     logoutErp();
@@ -122,6 +147,31 @@ const ERPLayout = () => {
         alerts={alerts} 
         onDismiss={dismissAlert} 
       />
+
+      {/* Floating Undo Button */}
+      <button 
+        onClick={handleUndo} 
+        disabled={isUndoing}
+        className="btn shadow" 
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '20px',
+          zIndex: 1050,
+          background: 'var(--erp-surface)',
+          color: 'var(--erp-danger)',
+          border: '2px dashed var(--erp-danger)',
+          borderRadius: '50px',
+          padding: '10px 20px',
+          fontWeight: 'bold',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}
+      >
+        <RotateCcw size={20} className={isUndoing ? "fa-spin" : ""} />
+        {isUndoing ? 'جاري التراجع...' : 'تراجع عن آخر خطوة'}
+      </button>
     </div>
   );
 };

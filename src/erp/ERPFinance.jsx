@@ -353,13 +353,6 @@ const ERPFinance = () => {
         .due-row:hover td { background-color: #fef3c7 !important; transform: scale(0.99); }
       `}</style>
 
-      {/* Floating Undo Button on Top Left */}
-      <div className="d-flex justify-content-end mb-3">
-        <button className="btn btn-sm no-print shadow-sm" style={{ border: '1px dashed #dc3545', background: '#fff5f5', color: '#dc3545', borderRadius: '50px', padding: '8px 15px', fontWeight: 'bold' }}>
-          <i className="fas fa-undo me-1"></i> تراجع عن آخر عملية
-        </button>
-      </div>
-
       {/* Header Area */}
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
         <div>
