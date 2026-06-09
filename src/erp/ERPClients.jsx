@@ -494,9 +494,11 @@ const ERPClients = () => {
                   </button>
                 </div>
                 
-                <button onClick={() => navigate('/erp/bookings')} style={{ width: '100%', background: 'var(--erp-danger)', color: '#ffffff', padding: '1.5rem', borderRadius: '1rem', fontWeight: 'bold', fontSize: '1.5rem', border: '3px solid rgba(255,255,255,0.2)', boxShadow: '0 0.5rem 1rem rgba(0,0,0,.15)', marginTop: '15px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', animation: 'pulse 2s infinite' }}>
-                  <Play fill="currentColor" /> ابدأ التصوير الآن
-                </button>
+                {activePackages.some(pkg => pkg.total_hours > 0 || pkg.total_reels > 0) && (
+                  <button onClick={() => navigate('/erp/bookings')} style={{ width: '100%', background: 'var(--erp-danger)', color: '#ffffff', padding: '1.5rem', borderRadius: '1rem', fontWeight: 'bold', fontSize: '1.5rem', border: '3px solid rgba(255,255,255,0.2)', boxShadow: '0 0.5rem 1rem rgba(0,0,0,.15)', marginTop: '15px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', animation: 'pulse 2s infinite' }}>
+                    <Play fill="currentColor" /> ابدأ التصوير الآن
+                  </button>
+                )}
               </div>
 
               {selectedClient.debt > 0 && (
