@@ -3,10 +3,14 @@ import { supabase } from '../supabaseClient';
 import { format, parseISO, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
+let globalFinanceCache = null;
+let globalConfigCache = null;
+let globalFinanceLastFetch = 0;
+
 const ERPFinance = () => {
-  const [allTransactions, setAllTransactions] = useState([]);
-  const [appConfig, setAppConfig] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [allTransactions, setAllTransactions] = useState(globalFinanceCache || []);
+  const [appConfig, setAppConfig] = useState(globalConfigCache || {});
+  const [loading, setLoading] = useState(!globalFinanceCache);
   
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const isAdmin = true; // Hardcoded based on the template logic
@@ -37,19 +41,31 @@ const ERPFinance = () => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (force = false) => {
+    if (globalFinanceCache && globalConfigCache) {
+       setAllTransactions(globalFinanceCache);
+       setAppConfig(globalConfigCache);
+       setLoading(false);
+       if (!force && (Date.now() - globalFinanceLastFetch < 30000)) return; // Cache valid for 30s
+    } else {
+       setLoading(true);
+    }
+
     const { data: fData } = await supabase.from('finance').select('*').order('date', { ascending: false }).order('id', { ascending: false });
     const { data: cData } = await supabase.from('app_config').select('*');
     
-    if (fData) setAllTransactions(fData);
-    
+    if (fData) {
+       setAllTransactions(fData);
+       globalFinanceCache = fData;
+    }
     if (cData) {
       const cfg = {};
       cData.forEach(c => cfg[c.key] = c.value);
       setAppConfig(cfg);
+      globalConfigCache = cfg;
     }
     
+    globalFinanceLastFetch = Date.now();
     setLoading(false);
   };
 
