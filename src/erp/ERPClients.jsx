@@ -140,7 +140,24 @@ const ERPClients = () => {
     
     const { data, error } = await supabase.from('clients').select('*').order('id', { ascending: false });
     const { data: activeBookingsData } = await supabase.from('bookings').select('client_name, service').eq('status', 'نشط');
+    const { data: configData } = await supabase.from('app_config').select('key, value').eq('key', 'points_validity_months');
+    const validityMonths = configData && configData[0] ? parseInt(configData[0].value) || 0 : 0;
+
     if (!error && data) {
+      if (validityMonths > 0) {
+        for (let c of data) {
+          if (c.points > 0 && c.points_updated_at) {
+            const updatedDt = new Date(c.points_updated_at);
+            updatedDt.setMonth(updatedDt.getMonth() + validityMonths);
+            if (new Date() > updatedDt) {
+              c.points = 0;
+              c.points_updated_at = new Date().toISOString().split('T')[0];
+              await supabase.from('clients').update({ points: 0, points_updated_at: c.points_updated_at }).eq('id', c.id);
+            }
+          }
+        }
+      }
+
       const activeNames = new Set(
         (activeBookingsData || [])
           .filter(b => b.service && !b.service.includes('مؤرشف'))
@@ -205,14 +222,25 @@ const ERPClients = () => {
     e.preventDefault();
     if (!selectedClient) return;
 
+    const { data: cfg } = await supabase.from('app_config').select('key, value');
+    let pSpent = 100, pEarn = 1;
+    cfg?.forEach(c => {
+      if (c.key === 'points_egp_spent') pSpent = Number(c.value) || 100;
+      if (c.key === 'points_earned') pEarn = Number(c.value) || 1;
+    });
+    
+    const pointsToAdd = Math.floor((financeAmount / pSpent) * pEarn);
+    const newPoints = (selectedClient.points || 0) + pointsToAdd;
+    const today = new Date().toISOString().split('T')[0];
+
     if (financeAction === 'pay_debt') {
       const newDebt = Math.max(0, (selectedClient.debt || 0) - financeAmount);
-      await supabase.from('clients').update({ debt: newDebt }).eq('id', selectedClient.id);
-      await supabase.from('finance').insert([{ type: 'وارد', amount: financeAmount, method: financeMethod, detail: `سداد مديونية من العميل ${selectedClient.name}`, date: new Date().toISOString().split('T')[0], entity: 'الشركة' }]);
+      await supabase.from('clients').update({ debt: newDebt, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
+      await supabase.from('finance').insert([{ type: 'إيراد', amount: financeAmount, method: financeMethod, detail: `سداد مديونية من العميل ${selectedClient.name}`, date: today, entity: 'الشركة' }]);
     } else {
       const newCredit = (selectedClient.credit || 0) + financeAmount;
-      await supabase.from('clients').update({ credit: newCredit }).eq('id', selectedClient.id);
-      await supabase.from('finance').insert([{ type: 'وارد', amount: financeAmount, method: financeMethod, detail: `إيداع رصيد للعميل ${selectedClient.name}`, date: new Date().toISOString().split('T')[0], entity: 'الشركة' }]);
+      await supabase.from('clients').update({ credit: newCredit, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
+      await supabase.from('finance').insert([{ type: 'إيراد', amount: financeAmount, method: financeMethod, detail: `إيداع رصيد للعميل ${selectedClient.name}`, date: today, entity: 'الشركة' }]);
     }
     setIsFinanceModalOpen(false);
     setFinanceAmount(0);

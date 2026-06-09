@@ -219,6 +219,19 @@ const ERPBookings = () => {
         date: format(new Date(), 'yyyy-MM-dd'),
         entity: 'الشركة'
       }]);
+
+      const { data: clientData } = await supabase.from('clients').select('id, points').eq('name', newBooking.client_name).single();
+      if (clientData) {
+        const { data: cfg } = await supabase.from('app_config').select('key, value');
+        let pSpent = 100, pEarn = 1;
+        cfg?.forEach(c => {
+          if (c.key === 'points_egp_spent') pSpent = Number(c.value) || 100;
+          if (c.key === 'points_earned') pEarn = Number(c.value) || 1;
+        });
+        const pointsToAdd = Math.floor((newBooking.paid / pSpent) * pEarn);
+        const newPoints = (clientData.points || 0) + pointsToAdd;
+        await supabase.from('clients').update({ points: newPoints, points_updated_at: new Date().toISOString().split('T')[0] }).eq('id', clientData.id);
+      }
     }
 
     let bookingsToInsert = [];
