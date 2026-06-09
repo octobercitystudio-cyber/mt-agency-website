@@ -1,6 +1,6 @@
 :root {
     --erp-bg: #f4f7fe;
-    --erp-surface: #ffffff;
+    --erp-surface: #f4f7fe;
     --erp-text-main: #2b3674;
     --erp-text-muted: #a3aed1;
     --erp-border: #e2e8f0;
@@ -10,8 +10,8 @@
     --erp-success: #198754;
     --erp-warning: #ffc107;
     --erp-danger: #dc3545;
-    --erp-sidebar-bg: #ffffff;
-    --erp-sidebar-hover: #f4f7fe;
+    --erp-sidebar-bg: #f4f7fe;
+    --erp-sidebar-hover: #e9ecef;
     --erp-sidebar-text-inactive: #a3aed1;
     --erp-sidebar-width: 260px;
     --erp-shadow: 0 5px 15px rgba(67, 24, 255, 0.05);
@@ -278,6 +278,16 @@
     font-weight: 800;
     margin-top: 0;
     margin-bottom: 20px;
+}
+
+
+
+.erp-layout .bg-white {
+    background-color: var(--erp-surface) !important;
+}
+
+.erp-layout .card {
+    background-color: var(--erp-surface) !important;
 }
 
 .erp-label {
