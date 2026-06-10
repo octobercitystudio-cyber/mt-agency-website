@@ -391,12 +391,12 @@ const ERPClients = () => {
               <Trash2 size={18} /> حذف المحدد ({selectedIds.length}) نهائياً
             </button>
           )}
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '10px 15px', borderRadius: '50rem', border: '1px solid #dee2e6', background: 'var(--erp-surface)', color: 'var(--erp-text-main)', fontWeight: 'bold', outline: 'none', cursor: 'pointer' }}>
+          <select className="mobile-hidden" value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '10px 15px', borderRadius: '50rem', border: '1px solid #dee2e6', background: 'var(--erp-surface)', color: 'var(--erp-text-main)', fontWeight: 'bold', outline: 'none', cursor: 'pointer' }}>
             <option value="active">العملاء النشطين أولاً</option>
             <option value="default">حسب الإضافة (الأحدث)</option>
             <option value="alpha">أبجدياً (أ - ي)</option>
           </select>
-          <button onClick={() => { setIsEditing(false); setCurrentClient({ name: '', phone1: '', phone2: '', job: '', color: '#4318ff', debt: 0, points: 0 }); setIsClientModalOpen(true); }} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 20px', borderRadius: '50rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
+          <button className="erp-new-client-btn" onClick={() => { setIsEditing(false); setCurrentClient({ name: '', phone1: '', phone2: '', job: '', color: '#4318ff', debt: 0, points: 0 }); setIsClientModalOpen(true); }} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 20px', borderRadius: '50rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
             <UserPlus size={18} /> عميل جديد
           </button>
         </div>
@@ -504,13 +504,13 @@ const ERPClients = () => {
                     </div>
                     <div className="mobile-client-actions">
                       <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff' }}>
-                        <CalendarPlus size={16} /> حجز
+                        <CalendarPlus size={20} />
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); setCurrentClient(client); setIsEditing(true); setIsClientModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd' }}>
-                        <Edit size={16} /> تعديل
+                        <Edit size={20} />
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); deleteClient(client.id, client.name); }} className="mobile-client-action-btn" style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545' }}>
-                        <Trash2 size={16} /> حذف
+                        <Trash2 size={20} />
                       </button>
                     </div>
                   </div>

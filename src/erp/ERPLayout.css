@@ -373,6 +373,19 @@
     .mobile-hide-empty-details {
         display: none !important;
     }
+    .erp-new-client-btn {
+        padding: 8px 15px !important;
+        font-size: 0.95rem !important;
+    }
+    .mobile-client-avatar {
+        width: 35px !important;
+        height: 35px !important;
+        font-size: 1rem !important;
+        border-radius: 8px !important;
+    }
+    .mobile-client-card-header {
+        gap: 10px !important;
+    }
     .erp-main {
         margin-right: 0;
         padding: 10px;
