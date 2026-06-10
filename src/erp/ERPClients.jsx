@@ -294,35 +294,40 @@ const ERPClients = () => {
     setHistoryLoading(true);
     setHistoryData([]);
 
+    const activeServiceNames = activePackages.map(p => p.service);
+
     if (type === 'finance') {
-      // Fetch from finance where detail contains client name
       const { data, error } = await supabase.from('finance').select('*').ilike('detail', `%${selectedClient.name}%`).order('id', { ascending: false });
-      
-      // Also fetch from bookings where status is 'دفعة' or payment > 0
       const { data: bData, error: bError } = await supabase.from('bookings').select('*').eq('client_name', selectedClient.name).gt('payment', 0).order('id', { ascending: false });
       
       let allFinance = [];
       if (!error && data) allFinance = [...data];
       
       if (!bError && bData) {
-        // Map bookings payments to look like finance records
         const mappedBookings = bData.map(b => ({
           id: 'b_' + b.id,
           date: b.date,
           detail: b.notes || 'دفعة حجز: ' + (b.service || ''),
           amount: b.payment,
           method: 'غير محدد',
-          type: 'إيراد'
+          type: 'إيراد',
+          service: b.service
         }));
-        // Merge and sort
         allFinance = [...allFinance, ...mappedBookings].sort((a, b) => new Date(b.date) - new Date(a.date));
       }
+
+      if (activeServiceNames.length > 0) {
+         allFinance = allFinance.filter(f => {
+            if (f.service) return activeServiceNames.includes(f.service);
+            return activeServiceNames.some(s => f.detail && f.detail.includes(s));
+         });
+      }
+
       setHistoryData(allFinance);
     } else {
       const { data, error } = await supabase.from('bookings').select('*').eq('client_name', selectedClient.name).order('id', { ascending: false });
       if (!error && data) {
         if (type === 'packages') {
-          // Group by service to build package summary cards
           const packagesMap = {};
           data.forEach(b => {
             if (!b.service) return;
@@ -339,7 +344,6 @@ const ERPClients = () => {
                 is_archived: b.service.includes('مؤرشف') || b.status === 'مؤرشف'
               };
             }
-            // Capture creation attributes
             if (b.custom_price > 0) {
               if (new Date(b.date) < new Date(packagesMap[cleanName].date)) {
                 packagesMap[cleanName].date = b.date;
@@ -356,13 +360,19 @@ const ERPClients = () => {
             }
           });
           
-          const packagesList = Object.values(packagesMap).filter(p => p.custom_price > 0);
+          let packagesList = Object.values(packagesMap).filter(p => p.custom_price > 0);
+          packagesList = packagesList.filter(p => p.is_archived || !activeServiceNames.includes(p.serviceName));
           packagesList.sort((a, b) => new Date(b.date) - new Date(a.date));
           setHistoryData(packagesList);
         } else {
-          // Photography appointments are bookings with actual_hours > 0, actual_reels > 0, or valid start_time/end_time
           let appointments = data.filter(b => b.actual_hours > 0 || b.actual_reels > 0 || (b.start_time && b.start_time !== '' && b.start_time !== '00:00'));
-          // Sort by date descending, then by id descending
+          
+          if (activeServiceNames.length > 0) {
+             appointments = appointments.filter(b => activeServiceNames.includes(b.service));
+          } else {
+             appointments = []; 
+          }
+          
           appointments.sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id);
           setHistoryData(appointments);
         }
@@ -492,11 +502,6 @@ const ERPClients = () => {
                             {client.phone2 && <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)' }}>{client.phone2}</div>}
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            {client.packagesList && client.packagesList.length > 0 && (
-                              <button onClick={(e) => { e.stopPropagation(); startSession(client.name, client.packagesList[0]); }} style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#ffc107', border: '1px solid rgba(255, 193, 7, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                                <Play size={16} /> ابدأ التصوير
-                              </button>
-                            )}
                             <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff', border: '1px solid rgba(67, 24, 255, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                               <CalendarPlus size={16} /> حجز / إضافة
                             </button>
@@ -542,11 +547,6 @@ const ERPClients = () => {
                       </div>
                     </div>
                     <div className="mobile-client-actions">
-                      {client.packagesList && client.packagesList.length > 0 && (
-                        <button onClick={(e) => { e.stopPropagation(); startSession(client.name, client.packagesList[0]); }} className="mobile-client-action-btn" style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#ffc107' }}>
-                          <Play size={20} />
-                        </button>
-                      )}
                       <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff' }}>
                         <CalendarPlus size={20} />
                       </button>
