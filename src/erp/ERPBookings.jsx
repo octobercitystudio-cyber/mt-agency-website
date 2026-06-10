@@ -367,7 +367,7 @@ const ERPBookings = () => {
         
         {/* FullCalendar Box */}
         <div className="erp-calendar-container">
-          <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '25px', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid var(--erp-primary)', minHeight: '600px' }}>
+          <div className="erp-calendar-inner" style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '25px', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid var(--erp-primary)', minHeight: '600px' }}>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', marginBottom: '10px', fontSize: '0.85rem', fontWeight: 'bold' }}>
               <span style={{ color: 'var(--erp-primary)' }}>● مجدول</span>
               <span style={{ color: 'var(--erp-success)' }}>● منتهي</span>

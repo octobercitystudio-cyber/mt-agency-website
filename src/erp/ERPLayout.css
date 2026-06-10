@@ -663,6 +663,10 @@
         flex: 1 1 100% !important;
         min-width: 100% !important;
     }
+    .erp-calendar-inner {
+        padding: 10px 5px !important;
+        border-radius: 12px !important;
+    }
     .erp-daily-bookings-container {
         flex: 1 1 100% !important;
         min-width: 100% !important;
