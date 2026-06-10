@@ -160,7 +160,7 @@ const ERPDashboard = () => {
     <div style={{ padding: '0' }} className="container-fluid">
       
       {/* Top Banner exactly like the light aesthetic */}
-      <div style={{ background: 'var(--erp-primary)', borderRadius: '15px', padding: '15px 30px', border: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: 'var(--erp-shadow)' }}>
+      <div className="erp-welcome-banner" style={{ background: 'var(--erp-primary)', borderRadius: '15px', padding: '15px 30px', border: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: 'var(--erp-shadow)' }}>
         <div>
           <div style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', padding: '4px 12px', borderRadius: '50px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '8px' }}>
             <span style={{ fontSize: '1rem' }}>⚡</span> نظام الإدارة الذكي
@@ -170,7 +170,7 @@ const ERPDashboard = () => {
           </h1>
           <p style={{ margin: '5px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: '600' }}>مرحباً بك مجدداً ! Owner - October City Studio</p>
         </div>
-        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '15px 25px', borderRadius: '15px', textAlign: 'center', border: 'none' }}>
+        <div className="erp-welcome-time" style={{ background: 'rgba(0,0,0,0.2)', padding: '15px 25px', borderRadius: '15px', textAlign: 'center', border: 'none' }}>
           <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)', marginBottom: '5px', fontWeight: 'bold' }}>
             {format(currentTime, 'EEEE, d MMMM yyyy', { locale: ar })}
           </div>
@@ -182,43 +182,43 @@ const ERPDashboard = () => {
       </div>
 
       {/* 4 Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        <div style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }} className="hover-elevate">
+      <div className="erp-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+        <div className="erp-stat-card hover-elevate" style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }}>
           <div>
             <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 'bold' }}>باقات نشطة</p>
             <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--erp-text-main)', fontWeight: '800' }}>{loading ? '...' : stats.activePackages}</h3>
           </div>
-          <div style={{ background: 'rgba(67, 24, 255, 0.1)', padding: '15px', borderRadius: '50%', color: 'var(--erp-primary)' }}>
+          <div className="icon-wrapper" style={{ background: 'rgba(67, 24, 255, 0.1)', padding: '15px', borderRadius: '50%', color: 'var(--erp-primary)' }}>
             <Package size={28} />
           </div>
         </div>
 
-        <div style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }} className="hover-elevate">
+        <div className="erp-stat-card hover-elevate" style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }}>
           <div>
             <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 'bold' }}>تسليمات (أسبوع)</p>
             <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--erp-text-main)', fontWeight: '800' }}>{loading ? '...' : stats.weekDeliveries}</h3>
           </div>
-          <div style={{ background: 'rgba(13, 202, 240, 0.15)', padding: '15px', borderRadius: '50%', color: '#0dcaf0' }}>
+          <div className="icon-wrapper" style={{ background: 'rgba(13, 202, 240, 0.15)', padding: '15px', borderRadius: '50%', color: '#0dcaf0' }}>
             <Truck size={28} />
           </div>
         </div>
 
-        <div style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }} className="hover-elevate">
+        <div className="erp-stat-card hover-elevate" style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }}>
           <div>
             <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 'bold' }}>مستحقات السوق</p>
             <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--erp-warning)', fontWeight: '800' }}>{loading ? '...' : stats.marketDues.toLocaleString()}</h3>
           </div>
-          <div style={{ background: 'rgba(255, 193, 7, 0.15)', padding: '15px', borderRadius: '50%', color: 'var(--erp-warning)' }}>
+          <div className="icon-wrapper" style={{ background: 'rgba(255, 193, 7, 0.15)', padding: '15px', borderRadius: '50%', color: 'var(--erp-warning)' }}>
             <DollarSign size={28} />
           </div>
         </div>
 
-        <div style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }} className="hover-elevate">
+        <div className="erp-stat-card hover-elevate" style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }}>
           <div>
             <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 'bold' }}>صافي الربح</p>
             <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--erp-success)', fontWeight: '800' }}>{loading ? '...' : stats.netProfit.toLocaleString()}</h3>
           </div>
-          <div style={{ background: 'rgba(25, 135, 84, 0.15)', padding: '15px', borderRadius: '50%', color: 'var(--erp-success)' }}>
+          <div className="icon-wrapper" style={{ background: 'rgba(25, 135, 84, 0.15)', padding: '15px', borderRadius: '50%', color: 'var(--erp-success)' }}>
             <TrendingUp size={28} />
           </div>
         </div>
@@ -242,7 +242,8 @@ const ERPDashboard = () => {
                 جدول اليوم فارغ
               </div>
             ) : (
-            <div className="table-responsive">
+            <>
+            <div className="table-responsive desktop-table">
               <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--erp-text-main)' }}>
                 <thead>
                   <tr style={{ background: 'var(--erp-bg)' }}>
@@ -266,6 +267,25 @@ const ERPDashboard = () => {
                 </tbody>
               </table>
             </div>
+            {/* Mobile View */}
+            <div className="mobile-card-list">
+              {todayBookings.map(b => (
+                <div key={b.id} className="mobile-booking-card">
+                  <div className="mobile-booking-card-left">
+                    <h5 className="mobile-booking-card-title">{b.client_name}</h5>
+                    <div className="mobile-booking-card-time">
+                      {b.start_time} {Number(b.start_time.split(':')[0]) >= 12 ? 'م' : 'ص'}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ background: 'rgba(25, 135, 84, 0.1)', color: 'var(--erp-success)', padding: '6px 15px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                      {b.status || 'مؤكد'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            </>
             )}
           </div>
         </div>
@@ -285,7 +305,8 @@ const ERPDashboard = () => {
                 جدول الغد فارغ حتى الآن
               </div>
             ) : (
-            <div className="table-responsive">
+            <>
+            <div className="table-responsive desktop-table">
               <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--erp-text-main)' }}>
                 <thead>
                   <tr style={{ background: 'var(--erp-bg)' }}>
@@ -303,6 +324,22 @@ const ERPDashboard = () => {
                 </tbody>
               </table>
             </div>
+            {/* Mobile View */}
+            <div className="mobile-card-list">
+              {tomorrowBookings.map(b => (
+                <div key={b.id} className="mobile-booking-card">
+                  <div className="mobile-booking-card-left">
+                    <h5 className="mobile-booking-card-title">{b.client_name}</h5>
+                  </div>
+                  <div>
+                    <div className="mobile-booking-card-time tomorrow">
+                      {b.start_time} {Number(b.start_time.split(':')[0]) >= 12 ? 'م' : 'ص'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            </>
             )}
           </div>
         </div>
@@ -327,7 +364,8 @@ const ERPDashboard = () => {
               لا توجد مهام مستحقة حالياً. الأمور كلها ممتازة!
             </div>
           ) : (
-            <div className="table-responsive">
+            <>
+            <div className="table-responsive desktop-table">
               <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--erp-text-main)' }}>
                 <thead>
                   <tr style={{ background: 'var(--erp-bg)', borderBottom: '1px solid var(--erp-border)' }}>
@@ -360,6 +398,30 @@ const ERPDashboard = () => {
                 </tbody>
               </table>
             </div>
+            {/* Mobile View */}
+            <div className="mobile-card-list">
+              {dueTasks.map(t => (
+                <div key={t.id} className="mobile-task-card">
+                  <div className="mobile-task-card-header">
+                    <div>
+                      <h5 className="mobile-task-card-title">{t.title}</h5>
+                      <span className="mobile-task-card-date">{format(new Date(t.due_date), 'yyyy-MM-dd HH:mm')}</span>
+                    </div>
+                    <div className="mobile-task-card-amount">
+                      {t.amount > 0 ? `${t.amount} ج.م` : '-'}
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleCompleteTask(t.id, t.is_recurring, t.due_date)}
+                    className="mobile-task-card-action"
+                    style={{ background: 'var(--erp-success)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(25, 135, 84, 0.2)' }}
+                  >
+                    <CheckCircle size={18} /> إنجاز المهمة
+                  </button>
+                </div>
+              ))}
+            </div>
+            </>
           )}
         </div>
       </div>

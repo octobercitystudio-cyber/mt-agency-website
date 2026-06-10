@@ -480,3 +480,126 @@
     -webkit-overflow-scrolling: touch;
     width: 100%;
 }
+
+/* ERP Dashboard Mobile Classes */
+.mobile-card-list {
+    display: none;
+}
+.desktop-table {
+    display: block;
+}
+
+@media (max-width: 992px) {
+    .desktop-table {
+        display: none !important;
+    }
+    .mobile-card-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        padding: 15px;
+    }
+    .erp-stat-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .erp-welcome-banner {
+        flex-direction: column !important;
+        text-align: center;
+        gap: 15px;
+    }
+    .erp-welcome-time {
+        width: 100%;
+    }
+    .erp-stat-card {
+        padding: 15px !important;
+    }
+    .erp-stat-card h3 {
+        font-size: 1.5rem !important;
+    }
+    .erp-stat-card .icon-wrapper {
+        padding: 10px !important;
+    }
+    .erp-stat-card .icon-wrapper svg {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+.mobile-booking-card {
+    background: var(--erp-surface);
+    border: 1px solid var(--erp-border);
+    border-radius: 15px;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+}
+
+.mobile-booking-card-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mobile-booking-card-title {
+    font-weight: bold;
+    font-size: 1rem;
+    color: var(--erp-text-main);
+    margin: 0;
+}
+
+.mobile-booking-card-time {
+    font-weight: bold;
+    color: var(--erp-primary);
+    direction: ltr;
+    display: inline-flex;
+    background: rgba(67, 24, 255, 0.1);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-booking-card-time.tomorrow {
+    color: #0dcaf0;
+    background: rgba(13, 202, 240, 0.1);
+}
+
+.mobile-task-card {
+    background: var(--erp-surface);
+    border: 1px solid var(--erp-border);
+    border-radius: 15px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+}
+
+.mobile-task-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+.mobile-task-card-title {
+    font-weight: bold;
+    font-size: 1.1rem;
+    color: var(--erp-text-main);
+    margin: 0 0 5px 0;
+}
+.mobile-task-card-amount {
+    font-weight: bold;
+    color: var(--erp-success);
+    font-size: 1.1rem;
+}
+.mobile-task-card-date {
+    font-size: 0.85rem;
+    color: var(--erp-text-muted);
+    font-weight: bold;
+}
+.mobile-task-card-action {
+    width: 100%;
+    margin-top: 5px;
+}
