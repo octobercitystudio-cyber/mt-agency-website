@@ -822,7 +822,7 @@ const ERPClients = () => {
                     const price = pkg.custom_price;
                     const discount = pkg.discount;
                     const paid = pkg.total_paid;
-                    const remaining = price - discount - paid;
+                    const remaining = price - paid;
                     const isArchived = pkg.is_archived;
                     
                     const dateObj = new Date(pkg.date);
