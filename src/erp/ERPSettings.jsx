@@ -333,7 +333,8 @@ const ERPSettings = () => {
           <li className="nav-item" role="presentation"><button className="nav-link active" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#hourly" type="button" role="tab">التصوير بالساعة</button></li>
           <li className="nav-item" role="presentation"><button className="nav-link" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab">الباقات اليومية <i className="fas fa-cog opacity-50"></i></button></li>
           <li className="nav-item" role="presentation"><button className="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab">الباقات الشهرية <i className="fas fa-calendar-alt opacity-50"></i></button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="others-tab" data-bs-toggle="tab" data-bs-target="#others" type="button" role="tab">الخدمات والريلز <i className="fas fa-star opacity-50"></i></button></li>
+          <li className="nav-item" role="presentation"><button className="nav-link" id="reels-tab" data-bs-toggle="tab" data-bs-target="#reels" type="button" role="tab">باقات الريلز <i className="fas fa-video opacity-50"></i></button></li>
+          <li className="nav-item" role="presentation"><button className="nav-link" id="others-tab" data-bs-toggle="tab" data-bs-target="#others" type="button" role="tab">خدمات إضافية <i className="fas fa-star opacity-50"></i></button></li>
         </ul>
 
         <div className="tab-content" id="servicesTabsContent">
@@ -440,6 +441,41 @@ const ERPSettings = () => {
             </div>
           </div>
 
+          {/* Reels */}
+          <div className="tab-pane fade" id="reels" role="tabpanel">
+            <div className="table-responsive">
+              <table className="table table-custom table-borderless align-middle w-100 text-center">
+                <thead>
+                  <tr>
+                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الباقة</th>
+                    <th style={{width: '20%'}}>عدد الفيديوهات</th>
+                    <th style={{width: '15%'}}>الصلاحية</th>
+                    <th style={{width: '20%'}}>السعر (ج.م)</th>
+                    <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {services.filter(s => s.category === 'باقة ريلز').map(s => (
+                    <tr key={s.id}>
+                      <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
+                      <td className="fw-bold" style={{color: '#0d6efd'}}>
+                        {s.total_reels} فيديو <br/>
+                      </td>
+                      <td className="fw-bold text-muted">{s.validity_days ? `${s.validity_days} يوم` : '-'}</td>
+                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="text-start ps-4">
+                        <div className="d-flex gap-2 justify-content-start flex-row-reverse">
+                          <button className="btn action-btn btn-delete-action" onClick={() => handleDeleteService(s.id, s.name)} title="حذف"><i className="fas fa-trash-alt"></i></button>
+                          <button className="btn action-btn btn-edit-action" onClick={() => openEditModal(s)} title="تعديل"><i className="fas fa-edit"></i></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Others */}
           <div className="tab-pane fade" id="others" role="tabpanel">
             <div className="table-responsive">
@@ -454,11 +490,11 @@ const ERPSettings = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {services.filter(s => s.category === 'خدمة إضافية' || s.category === 'باقة ريلز').map(s => (
+                  {services.filter(s => s.category === 'خدمة إضافية').map(s => (
                     <tr key={s.id}>
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
                       <td><span className="badge bg-secondary-subtle text-secondary border rounded-pill">{s.category}</span></td>
-                      <td className="fw-bold text-muted">{s.category === 'باقة ريلز' ? `${s.total_reels} فيديو` : '-'}</td>
+                      <td className="fw-bold text-muted">-</td>
                       <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
                       <td className="text-start ps-4">
                         <div className="d-flex gap-2 justify-content-start flex-row-reverse">
