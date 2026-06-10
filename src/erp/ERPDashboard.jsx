@@ -229,7 +229,7 @@ const ERPDashboard = () => {
         
         {/* Today Bookings */}
         <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '0', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', borderBottom: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }}>
+          <div className="erp-section-header" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', borderBottom: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }}>
             <div style={{ background: 'rgba(67, 24, 255, 0.1)', padding: '10px', borderRadius: '12px', color: 'var(--erp-primary)' }}>
               <Clock size={20} />
             </div>
@@ -292,7 +292,7 @@ const ERPDashboard = () => {
 
         {/* Tomorrow Bookings */}
         <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '0', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', borderBottom: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }}>
+          <div className="erp-section-header" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', borderBottom: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }}>
             <div style={{ background: 'rgba(13, 202, 240, 0.1)', padding: '10px', borderRadius: '12px', color: '#0dcaf0' }}>
               <Calendar size={20} />
             </div>
@@ -348,7 +348,7 @@ const ERPDashboard = () => {
 
       {/* Due Tasks & Reminders */}
       <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '0', border: '1px solid var(--erp-warning)', boxShadow: '0 10px 30px rgba(255, 193, 7, 0.1)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 25px', borderBottom: '1px solid var(--erp-border)', background: 'rgba(255, 193, 7, 0.05)' }}>
+        <div className="erp-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 25px', borderBottom: '1px solid var(--erp-border)', background: 'rgba(255, 193, 7, 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <AlertCircle size={24} color="var(--erp-warning)" />
             <h4 className="erp-section-title" style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>

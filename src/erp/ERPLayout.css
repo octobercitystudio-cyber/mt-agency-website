@@ -487,6 +487,9 @@
     .erp-section-title {
         font-size: 1.1rem !important;
     }
+    .erp-section-header {
+        padding: 10px 15px !important;
+    }
     .erp-bookings-grid {
         gap: 15px !important;
         margin-bottom: 15px !important;
