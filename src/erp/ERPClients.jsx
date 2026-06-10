@@ -838,7 +838,7 @@ const ERPClients = () => {
       {/* 4. History Modal */}
       {isHistoryModalOpen && selectedClient && (
         <div className="erp-modal-overlay" onClick={() => setIsHistoryModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '800px', width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', borderRadius: '1.5rem', padding: '30px' }}>
+          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '1000px', width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', borderRadius: '1.5rem', padding: '30px' }}>
             <h4 style={{ marginBottom: '25px', color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
               {historyType === 'packages' ? 'سجل الباقات والخدمات المنتهية' : historyType === 'bookings' ? 'سجل مواعيد التصوير' : 'سجل الدفعات والمعاملات المالية'} 
               {' '} - {selectedClient.name}
