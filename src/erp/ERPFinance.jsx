@@ -507,7 +507,8 @@ const ERPFinance = () => {
           </div>
           <div className="card border-0 shadow-sm rounded-4 overflow-hidden h-100 bg-income-container">
             <div className="card-body p-2 table-container">
-              <table className="table table-borderless align-middle m-0 table-income text-center" style={{ whiteSpace: 'nowrap' }}>
+              <div className="table-responsive">
+<table className="table table-borderless align-middle m-0 table-income text-center" style={{ whiteSpace: 'nowrap' }}>
                 <thead className="sticky-top thead-income">
                   <tr>
                     <th className="small fw-bold py-3 rounded-start-3">التاريخ</th>
@@ -546,6 +547,7 @@ const ERPFinance = () => {
                   {incomes.length === 0 && <tr><td colSpan="4" className="text-center py-5 fw-bold" style={{ color: 'var(--erp-success)', opacity: 0.5 }}>لا توجد إيرادات.</td></tr>}
                 </tbody>
               </table>
+</div>
             </div>
           </div>
         </div>
@@ -558,7 +560,8 @@ const ERPFinance = () => {
           </div>
           <div className="card border-0 shadow-sm rounded-4 overflow-hidden h-100 bg-expense-container">
             <div className="card-body p-2 table-container">
-              <table className="table table-borderless align-middle m-0 table-expense text-center" style={{ whiteSpace: 'nowrap' }}>
+              <div className="table-responsive">
+<table className="table table-borderless align-middle m-0 table-expense text-center" style={{ whiteSpace: 'nowrap' }}>
                 <thead className="sticky-top thead-expense">
                   <tr>
                     <th className="small fw-bold py-3 rounded-start-3">التاريخ</th>
@@ -601,6 +604,7 @@ const ERPFinance = () => {
                   {expenses.length === 0 && <tr><td colSpan="5" className="text-center py-5 fw-bold" style={{ color: 'var(--erp-danger)', opacity: 0.5 }}>لا توجد مصروفات.</td></tr>}
                 </tbody>
               </table>
+</div>
             </div>
           </div>
         </div>

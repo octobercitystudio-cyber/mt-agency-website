@@ -242,6 +242,7 @@ const ERPDashboard = () => {
                 جدول اليوم فارغ
               </div>
             ) : (
+            <div className="table-responsive">
               <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--erp-text-main)' }}>
                 <thead>
                   <tr style={{ background: 'var(--erp-bg)' }}>
@@ -264,6 +265,7 @@ const ERPDashboard = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
             )}
           </div>
         </div>
@@ -283,6 +285,7 @@ const ERPDashboard = () => {
                 جدول الغد فارغ حتى الآن
               </div>
             ) : (
+            <div className="table-responsive">
               <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--erp-text-main)' }}>
                 <thead>
                   <tr style={{ background: 'var(--erp-bg)' }}>
@@ -299,6 +302,7 @@ const ERPDashboard = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
             )}
           </div>
         </div>
@@ -323,7 +327,7 @@ const ERPDashboard = () => {
               لا توجد مهام مستحقة حالياً. الأمور كلها ممتازة!
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-responsive">
               <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--erp-text-main)' }}>
                 <thead>
                   <tr style={{ background: 'var(--erp-bg)', borderBottom: '1px solid var(--erp-border)' }}>

@@ -408,7 +408,8 @@ const ERPClients = () => {
         {/* Table Section */}
         <div style={{ background: 'var(--erp-surface)', borderRadius: '1rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+            <div className="table-responsive">
+<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
               <thead style={{ position: 'sticky', top: 0, background: 'var(--erp-bg)', zIndex: 10 }}>
                 <tr>
                   <th style={{ padding: '15px 25px', borderBottom: '1px solid #dee2e6', width: '40px' }}>
@@ -477,6 +478,7 @@ const ERPClients = () => {
                 })}
               </tbody>
             </table>
+</div>
           </div>
         </div>
 
@@ -779,7 +781,8 @@ const ERPClients = () => {
                   })}
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+                <div className="table-responsive">
+<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
                   <thead style={{ position: 'sticky', top: 0, background: 'var(--erp-bg)', zIndex: 10 }}>
                     <tr>
                       {historyType === 'finance' ? (
@@ -851,6 +854,7 @@ const ERPClients = () => {
                     ))}
                   </tbody>
                 </table>
+</div>
               )}
             </div>
             

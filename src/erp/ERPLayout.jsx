@@ -57,7 +57,7 @@ const ERPLayout = () => {
         </div>
       </div>
 
-      {/* Sidebar Overlay */}
+      {/* Sidebar Overlay (Now only toggled via bottom nav "More") */}
       {sidebarOpen && (
         <div className="erp-modal-overlay" onClick={() => setSidebarOpen(false)} style={{zIndex: 1035}}></div>
       )}
@@ -141,6 +141,30 @@ const ERPLayout = () => {
         <Outlet />
       </div>
 
+      {/* Bottom Navigation for Mobile */}
+      <div className="erp-bottom-nav">
+        <NavLink to="/erp" end className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+          <LayoutDashboard size={22} />
+          الرئيسية
+        </NavLink>
+        <NavLink to="/erp/clients" className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+          <Users size={22} />
+          العملاء
+        </NavLink>
+        <NavLink to="/erp/bookings" className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+          <CalendarDays size={22} />
+          الحجوزات
+        </NavLink>
+        <NavLink to="/erp/finance" className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+          <DollarSign size={22} />
+          الحسابات
+        </NavLink>
+        <div className={`erp-bottom-nav-item ${sidebarOpen ? 'active' : ''}`} onClick={() => setSidebarOpen(!sidebarOpen)} style={{cursor: 'pointer'}}>
+          <Menu size={22} />
+          المزيد
+        </div>
+      </div>
+
       <NotificationsOffcanvas 
         isOpen={notificationsOpen} 
         onClose={() => setNotificationsOpen(false)} 
@@ -152,22 +176,7 @@ const ERPLayout = () => {
       <button 
         onClick={handleUndo} 
         disabled={isUndoing}
-        className="btn shadow" 
-        style={{
-          position: 'fixed',
-          bottom: '20px',
-          left: '20px',
-          zIndex: 1050,
-          background: 'var(--erp-surface)',
-          color: 'var(--erp-danger)',
-          border: '2px dashed var(--erp-danger)',
-          borderRadius: '50px',
-          padding: '10px 20px',
-          fontWeight: 'bold',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}
+        className="btn shadow erp-floating-undo" 
       >
         <RotateCcw size={20} className={isUndoing ? "fa-spin" : ""} />
         {isUndoing ? 'جاري التراجع...' : 'تراجع عن آخر خطوة'}

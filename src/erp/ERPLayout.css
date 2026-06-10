@@ -397,3 +397,86 @@
     transform: scale(1.05);
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
 }
+
+/* Bottom Navigation for Mobile */
+.erp-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--erp-surface);
+    box-shadow: 0 -5px 15px rgba(67, 24, 255, 0.05);
+    z-index: 1040;
+    padding: 10px 10px;
+    justify-content: space-around;
+    align-items: center;
+    border-top: 1px solid var(--erp-border);
+    padding-bottom: env(safe-area-inset-bottom, 10px); /* For iPhone X+ notch support */
+}
+
+.erp-bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    color: var(--erp-sidebar-text-inactive);
+    font-size: 0.65rem;
+    font-weight: 800;
+    transition: all 0.3s;
+    gap: 4px;
+    padding: 5px;
+    border-radius: 12px;
+}
+
+.erp-bottom-nav-item svg {
+    color: var(--erp-text-muted);
+    transition: 0.3s;
+}
+
+.erp-bottom-nav-item.active {
+    color: var(--erp-primary);
+}
+
+.erp-bottom-nav-item.active svg {
+    color: var(--erp-primary);
+    transform: translateY(-3px);
+}
+
+.erp-floating-undo {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1050;
+    background: var(--erp-surface);
+    color: var(--erp-danger);
+    border: 2px dashed var(--erp-danger);
+    border-radius: 50px;
+    padding: 10px 20px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: 0.3s;
+}
+
+@media (max-width: 992px) {
+    .erp-bottom-nav {
+        display: flex;
+    }
+    .erp-main {
+        padding-bottom: 90px !important; /* Prevent content from hiding behind bottom nav */
+    }
+    .erp-floating-undo {
+        bottom: 90px !important; /* Move above bottom nav */
+    }
+    .erp-mobile-toggle-btn {
+        display: none; /* Hide top hamburger since we have "More" in bottom nav */
+    }
+}
+
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
