@@ -418,25 +418,7 @@ const ClientDashboard = () => {
                   <h3><Clock size={20}/> تفاصيل الاستهلاك للفترة المحددة</h3>
                 </div>
                 <div className="card-body" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <div style={{ flex: '1 1 100%', height: '300px' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={barData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                        <XAxis dataKey="name" stroke="#fff" tick={{fill: '#b3b3b3'}} />
-                        <YAxis stroke="#fff" tick={{fill: '#b3b3b3'}} />
-                        <Tooltip contentStyle={{backgroundColor: '#1e142e', border: '1px solid #9d4edd', borderRadius: '8px'}}/>
-                        <Bar dataKey="hours" fill="url(#colorUv)" radius={[4, 4, 0, 0]} />
-                        <defs>
-                          <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#c678ff" stopOpacity={0.8}/>
-                            <stop offset="95%" stopColor="#9d4edd" stopOpacity={0.2}/>
-                          </linearGradient>
-                        </defs>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', justifyContent: 'center', width: '100%', marginTop: '1rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', justifyContent: 'center', width: '100%', marginBottom: '1rem' }}>
                     <div className="package-chart" style={{ flex: '1 1 45%', minWidth: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                       <div className="chart-center-text">
                         <strong style={{fontSize: '1.8rem'}}>{filteredUsedHours}</strong>
@@ -467,6 +449,24 @@ const ClientDashboard = () => {
                         </ResponsiveContainer>
                       </div>
                     )}
+                  </div>
+
+                  <div style={{ flex: '1 1 100%', height: '300px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={barData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis dataKey="name" stroke="#fff" tick={{fill: '#b3b3b3'}} />
+                        <YAxis stroke="#fff" tick={{fill: '#b3b3b3'}} />
+                        <Tooltip contentStyle={{backgroundColor: '#1e142e', border: '1px solid #9d4edd', borderRadius: '8px'}}/>
+                        <Bar dataKey="hours" fill="url(#colorUv)" radius={[4, 4, 0, 0]} />
+                        <defs>
+                          <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#c678ff" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#9d4edd" stopOpacity={0.2}/>
+                          </linearGradient>
+                        </defs>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
               </div>
