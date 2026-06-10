@@ -370,7 +370,7 @@
 
 @media (max-width: 992px) {
     .erp-mobile-header {
-        display: flex;
+        display: none !important;
     }
 }
 
