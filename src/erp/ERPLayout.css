@@ -308,10 +308,10 @@
     background: var(--erp-surface);
     border: 1px solid var(--erp-border);
     border-radius: 15px;
-    padding: 15px;
+    padding: 10px 12px;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 10px;
     box-shadow: var(--erp-shadow);
 }
 .mobile-client-card-header {

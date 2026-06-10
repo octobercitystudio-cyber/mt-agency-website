@@ -486,21 +486,20 @@ const ERPClients = () => {
                 const isSelected = selectedClient?.id === client.id;
                 return (
                   <div key={client.id} className="mobile-client-card" onClick={() => setSelectedClient(client)} style={{ border: isSelected ? '2px solid #4318ff' : '1px solid var(--erp-border)' }}>
-                    <div className="mobile-client-card-header">
+                    <div className="mobile-client-card-header" style={{ alignItems: 'flex-start' }}>
                       <div className="mobile-client-avatar" style={{ background: client.color || '#4318ff' }}>
                         {client.name.charAt(0)}
                       </div>
                       <div className="mobile-client-info">
-                        <div className="mobile-client-name">
+                        <div className="mobile-client-name" style={{ marginBottom: '2px' }}>
                           {client.name}
-                          {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem' }}>نشط</span>}
+                          {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '50rem' }}>نشط</span>}
                         </div>
-                        <p className="mobile-client-job">{client.job || 'لا يوجد وظيفة مسجلة'}</p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                          <p className="mobile-client-job" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem', margin: 0 }}>{client.job || 'عميل'}</p>
+                          <span style={{ direction: 'ltr', fontSize: '0.85rem', color: '#4318ff', fontWeight: 'bold' }}>{client.phone1}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="mobile-client-contact">
-                      <div className="mobile-client-phone1">{client.phone1}</div>
-                      {client.phone2 && <div className="mobile-client-phone2">{client.phone2}</div>}
                     </div>
                     <div className="mobile-client-actions">
                       <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff' }}>
