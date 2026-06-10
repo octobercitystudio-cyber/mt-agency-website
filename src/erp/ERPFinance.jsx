@@ -25,6 +25,8 @@ const ERPFinance = () => {
     adjustPartner: false
   });
 
+  const [activeTab, setActiveTab] = useState('incomes');
+
   // Form States
   const [txForm, setTxForm] = useState({ type: 'إيراد', amount: '', method: 'كاش', detail: '', date: format(new Date(), 'yyyy-MM-dd'), entity: 'الشركة' });
   const [transferForm, setTransferForm] = useState({ from_method: 'كاش', to_method: 'فودافون كاش', amount: '', date: format(new Date(), 'yyyy-MM-dd'), note: '' });
@@ -382,26 +384,26 @@ const ERPFinance = () => {
       </div>
 
       {/* Overview Cards */}
-      <div className="row g-4 mb-4">
-        <div className="col-md-4">
-          <div className="card border-0 rounded-4 p-4 h-100 gradient-success shadow-sm wallet-card position-relative overflow-hidden">
-            <i className="fas fa-arrow-up position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '80px', transform: 'scaleX(-1)' }}></i>
+      <div className="row g-3 mb-4">
+        <div className="col-6">
+          <div className="card border-0 rounded-4 p-3 h-100 gradient-success shadow-sm wallet-card position-relative overflow-hidden">
+            <i className="fas fa-arrow-up position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '60px', transform: 'scaleX(-1)' }}></i>
             <div className="position-relative z-1">
-              <p className="mb-1 fw-bold opacity-75">إيرادات شهر ({format(parseISO(`${selectedMonth}-01`), 'MM-yyyy')})</p>
-              <h2 className="fw-bold m-0">{total_inc.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
+              <p className="mb-1 fw-bold opacity-75 small">إيرادات ({format(parseISO(`${selectedMonth}-01`), 'MM-yy')})</p>
+              <h3 className="fw-bold m-0">{total_inc.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h3>
             </div>
           </div>
         </div>
-        <div className="col-md-4">
-          <div className="card border-0 rounded-4 p-4 h-100 gradient-danger shadow-sm wallet-card position-relative overflow-hidden">
-            <i className="fas fa-arrow-down position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '80px', transform: 'scaleX(-1)' }}></i>
+        <div className="col-6">
+          <div className="card border-0 rounded-4 p-3 h-100 gradient-danger shadow-sm wallet-card position-relative overflow-hidden">
+            <i className="fas fa-arrow-down position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '60px', transform: 'scaleX(-1)' }}></i>
             <div className="position-relative z-1">
-              <p className="mb-1 fw-bold opacity-75">مصروفات شهر ({format(parseISO(`${selectedMonth}-01`), 'MM-yyyy')})</p>
-              <h2 className="fw-bold m-0">{total_exp.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h2>
+              <p className="mb-1 fw-bold opacity-75 small">مصروفات ({format(parseISO(`${selectedMonth}-01`), 'MM-yy')})</p>
+              <h3 className="fw-bold m-0">{total_exp.toLocaleString()} <span className="fs-6 opacity-75">ج.م</span></h3>
             </div>
           </div>
         </div>
-        <div className="col-md-4">
+        <div className="col-12">
           <div className="card border-0 rounded-4 p-4 h-100 gradient-primary shadow-sm wallet-card position-relative overflow-hidden">
             <i className="fas fa-star position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '80px' }}></i>
             <div className="position-relative z-1">
@@ -416,47 +418,47 @@ const ERPFinance = () => {
       <h5 className="fw-bold mb-3" style={{ color: 'var(--erp-text-main)' }}>
         <i className="fas fa-wallet ms-2 text-muted"></i> أرصدة الخزائن الحالية (تراكمي)
       </h5>
-      <div className="row g-4 mb-4">
-        <div className="col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <i className="fas fa-money-bill-wave fs-4"></i>
+      <div className="row g-3 mb-4">
+        <div className="col-6 col-md-4">
+          <div className="card border-0 shadow-sm rounded-4 p-3 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <i className="fas fa-money-bill-wave fs-5"></i>
               </div>
               {isAdmin && (
                 <button className="btn btn-link p-0 text-primary no-print" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('كاش', balances.cash)}><i className="fas fa-pen"></i></button>
               )}
             </div>
-            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>صندوق الكاش (النقدية)</p>
-            <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.cash.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
+            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>الكاش (النقدية)</p>
+            <h4 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.cash.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج</span></h4>
           </div>
         </div>
-        <div className="col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <i className="fas fa-mobile-alt fs-4"></i>
+        <div className="col-6 col-md-4">
+          <div className="card border-0 shadow-sm rounded-4 p-3 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <i className="fas fa-mobile-alt fs-5"></i>
               </div>
               {isAdmin && (
                 <button className="btn btn-link p-0 text-danger no-print" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('فودافون كاش', balances.vodafone)}><i className="fas fa-pen"></i></button>
               )}
             </div>
-            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>محفظة فودافون كاش</p>
-            <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.vodafone.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
+            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>فودافون كاش</p>
+            <h4 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.vodafone.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج</span></h4>
           </div>
         </div>
-        <div className="col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-4 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <div style={{ background: '#f4f0ff', color: '#6f42c1', width: '50px', height: '50px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <i className="fas fa-paper-plane fs-4"></i>
+        <div className="col-12 col-md-4">
+          <div className="card border-0 shadow-sm rounded-4 p-3 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <div style={{ background: '#f4f0ff', color: '#6f42c1', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <i className="fas fa-paper-plane fs-5"></i>
               </div>
               {isAdmin && (
                 <button className="btn btn-link p-0 no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
               )}
             </div>
-            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)' }}>حساب البنك (InstaPay)</p>
-            <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.instapay.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج.م</span></h3>
+            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>حساب البنك (InstaPay)</p>
+            <h4 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{balances.instapay.toLocaleString()} <span className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج</span></h4>
           </div>
         </div>
       </div>
@@ -497,10 +499,31 @@ const ERPFinance = () => {
         ))}
       </div>
 
+      {/* Tabs Navigation */}
+      <div className="d-flex justify-content-center mb-4">
+        <div className="bg-white p-1 rounded-pill shadow-sm d-flex w-100" style={{ maxWidth: '400px' }}>
+          <button 
+            className={`btn rounded-pill flex-grow-1 fw-bold border-0 ${activeTab === 'incomes' ? 'btn-success text-white' : 'btn-light text-muted bg-transparent'}`}
+            onClick={() => setActiveTab('incomes')}
+            style={{ transition: 'all 0.3s ease' }}
+          >
+            سجل الإيرادات
+          </button>
+          <button 
+            className={`btn rounded-pill flex-grow-1 fw-bold border-0 ${activeTab === 'expenses' ? 'btn-danger text-white' : 'btn-light text-muted bg-transparent'}`}
+            onClick={() => setActiveTab('expenses')}
+            style={{ transition: 'all 0.3s ease' }}
+          >
+            سجل المصروفات
+          </button>
+        </div>
+      </div>
+
       {/* Transaction Tables */}
       <div className="row g-4">
         {/* Incomes */}
-        <div className="col-xl-6">
+        {activeTab === 'incomes' && (
+        <div className="col-12 animate__animated animate__fadeIn">
           <div className="d-flex justify-content-between align-items-center mb-3 px-2">
             <h5 className="fw-bold m-0" style={{ color: 'var(--erp-success)' }}><i className="fas fa-arrow-down me-2"></i> سجل الواردات (إيرادات)</h5>
             <span className="badge rounded-pill shadow-sm py-2 px-3" style={{ background: 'var(--erp-success)', color: 'white' }}>{incomes.length} عملية</span>
@@ -508,52 +531,54 @@ const ERPFinance = () => {
           <div className="card border-0 shadow-sm rounded-4 overflow-hidden h-100 bg-income-container">
             <div className="card-body p-2 table-container">
               <div className="table-responsive">
-<table className="table table-borderless align-middle m-0 table-income text-center" style={{ whiteSpace: 'nowrap' }}>
-                <thead className="sticky-top thead-income">
-                  <tr>
-                    <th className="small fw-bold py-3 rounded-start-3">التاريخ</th>
-                    <th className="small fw-bold py-3">المعاملة</th>
-                    <th className="small fw-bold py-3">النوع/المحفظة</th>
-                    <th className="small fw-bold py-3 rounded-end-3">المبلغ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {incomes.map(i => {
-                    const dayName = format(parseISO(i.date), 'EEEE', { locale: ar });
-                    return (
-                      <tr key={i.id}>
-                        <td className="rounded-start-3">
-                          <span className="d-block fw-bold mb-1" style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem' }}>{dayName}</span>
-                          <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>{i.date}</span>
-                        </td>
-                        <td><span className="fw-bold small" style={{ color: 'var(--erp-text-main)' }}>{i.detail}</span></td>
-                        <td>
-                          {i.type === 'سداد سلفة' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-primary)', color: 'white', borderColor: 'var(--erp-primary)' }}>{i.entity} (سداد سلفة)</span>}
-                          {i.type === 'تحويل وارد' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#0dcaf0', color: '#000', borderColor: '#0dcaf0' }}>{i.method} (تحويل وارد)</span>}
-                          {['إيراد'].includes(i.type) && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-success)', borderColor: 'var(--erp-success)' }}>{i.method}</span>}
-                        </td>
-                        <td className="rounded-end-3">
-                          <span className="fw-bold fs-6 d-block" style={{ color: 'var(--erp-success)' }}>+{i.amount.toLocaleString()} ج</span>
-                          {isAdmin && (
-                            <div className="mt-2 d-flex gap-2 justify-content-center">
-                              <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><i className="fas fa-edit"></i></button>
-                              <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(i.id)} title="حذف"><i className="fas fa-trash"></i></button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {incomes.length === 0 && <tr><td colSpan="4" className="text-center py-5 fw-bold" style={{ color: 'var(--erp-success)', opacity: 0.5 }}>لا توجد إيرادات.</td></tr>}
-                </tbody>
-              </table>
-</div>
+                <table className="table table-borderless align-middle m-0 table-income text-center" style={{ whiteSpace: 'nowrap' }}>
+                  <thead className="sticky-top thead-income">
+                    <tr>
+                      <th className="small fw-bold py-3 rounded-start-3">التاريخ</th>
+                      <th className="small fw-bold py-3">المعاملة</th>
+                      <th className="small fw-bold py-3">النوع/المحفظة</th>
+                      <th className="small fw-bold py-3 rounded-end-3">المبلغ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {incomes.map(i => {
+                      const dayName = format(parseISO(i.date), 'EEEE', { locale: ar });
+                      return (
+                        <tr key={i.id}>
+                          <td className="rounded-start-3">
+                            <span className="d-block fw-bold mb-1" style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem' }}>{dayName}</span>
+                            <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>{i.date}</span>
+                          </td>
+                          <td><span className="fw-bold small" style={{ color: 'var(--erp-text-main)' }}>{i.detail}</span></td>
+                          <td>
+                            {i.type === 'سداد سلفة' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-primary)', color: 'white', borderColor: 'var(--erp-primary)' }}>{i.entity} (سداد سلفة)</span>}
+                            {i.type === 'تحويل وارد' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#0dcaf0', color: '#000', borderColor: '#0dcaf0' }}>{i.method} (تحويل وارد)</span>}
+                            {['إيراد'].includes(i.type) && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-success)', borderColor: 'var(--erp-success)' }}>{i.method}</span>}
+                          </td>
+                          <td className="rounded-end-3">
+                            <span className="fw-bold fs-6 d-block" style={{ color: 'var(--erp-success)' }}>+{i.amount.toLocaleString()} ج</span>
+                            {isAdmin && (
+                              <div className="mt-2 d-flex gap-2 justify-content-center">
+                                <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><i className="fas fa-edit"></i></button>
+                                <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(i.id)} title="حذف"><i className="fas fa-trash"></i></button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {incomes.length === 0 && <tr><td colSpan="4" className="text-center py-5 fw-bold" style={{ color: 'var(--erp-success)', opacity: 0.5 }}>لا توجد إيرادات.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
+        )}
 
         {/* Expenses */}
-        <div className="col-xl-6">
+        {activeTab === 'expenses' && (
+        <div className="col-12 animate__animated animate__fadeIn">
           <div className="d-flex justify-content-between align-items-center mb-3 px-2">
             <h5 className="fw-bold m-0" style={{ color: 'var(--erp-danger)' }}><i className="fas fa-arrow-up me-2"></i> سجل الصادر (مصروفات)</h5>
             <span className="badge rounded-pill shadow-sm py-2 px-3" style={{ background: 'var(--erp-danger)', color: 'white' }}>{expenses.length} عملية</span>
@@ -561,53 +586,54 @@ const ERPFinance = () => {
           <div className="card border-0 shadow-sm rounded-4 overflow-hidden h-100 bg-expense-container">
             <div className="card-body p-2 table-container">
               <div className="table-responsive">
-<table className="table table-borderless align-middle m-0 table-expense text-center" style={{ whiteSpace: 'nowrap' }}>
-                <thead className="sticky-top thead-expense">
-                  <tr>
-                    <th className="small fw-bold py-3 rounded-start-3">التاريخ</th>
-                    <th className="small fw-bold py-3">المعاملة</th>
-                    <th className="small fw-bold py-3">وسيلة الدفع</th>
-                    <th className="small fw-bold py-3">الجهة</th>
-                    <th className="small fw-bold py-3 rounded-end-3">المبلغ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenses.map(e => {
-                    const dayName = format(parseISO(e.date), 'EEEE', { locale: ar });
-                    const isDue = ['سداد مستحقات', 'سحب سلفة'].includes(e.type);
-                    return (
-                      <tr key={e.id} className={isDue ? 'due-row' : ''}>
-                        <td className="rounded-start-3">
-                          <span className="d-block fw-bold mb-1" style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem' }}>{dayName}</span>
-                          <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>{e.date}</span>
-                        </td>
-                        <td><span className="fw-bold small" style={{ color: 'var(--erp-text-main)' }}>{e.detail}</span></td>
-                        <td><span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-danger)', borderColor: 'var(--erp-danger)' }}>{e.method}</span></td>
-                        <td>
-                          {e.type === 'سداد مستحقات' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#ffc107', color: '#000', borderColor: '#ffc107' }}>{e.entity} (سداد مستحقات)</span>}
-                          {e.type === 'سحب سلفة' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-danger)', color: 'white', borderColor: 'var(--erp-danger)' }}>{e.entity} (سحب سلفة)</span>}
-                          {e.type === 'تحويل صادر' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#0dcaf0', color: '#000', borderColor: '#0dcaf0' }}>تحويل محفظة</span>}
-                          {['مصروف'].includes(e.type) && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-danger)', borderColor: 'var(--erp-danger)' }}>{e.entity}</span>}
-                        </td>
-                        <td className="rounded-end-3">
-                          <span className="fw-bold fs-6 d-block" style={{ color: e.type === 'سداد مستحقات' ? 'var(--erp-text-main)' : 'var(--erp-danger)' }}>-{e.amount.toLocaleString()} ج</span>
-                          {isAdmin && (
-                            <div className="mt-2 d-flex gap-2 justify-content-center">
-                              <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><i className="fas fa-edit"></i></button>
-                              <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(e.id)} title="حذف"><i className="fas fa-trash"></i></button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {expenses.length === 0 && <tr><td colSpan="5" className="text-center py-5 fw-bold" style={{ color: 'var(--erp-danger)', opacity: 0.5 }}>لا توجد مصروفات.</td></tr>}
-                </tbody>
-              </table>
-</div>
+                <table className="table table-borderless align-middle m-0 table-expense text-center" style={{ whiteSpace: 'nowrap' }}>
+                  <thead className="sticky-top thead-expense">
+                    <tr>
+                      <th className="small fw-bold py-3 rounded-start-3">التاريخ</th>
+                      <th className="small fw-bold py-3">المعاملة</th>
+                      <th className="small fw-bold py-3">وسيلة الدفع</th>
+                      <th className="small fw-bold py-3">الجهة</th>
+                      <th className="small fw-bold py-3 rounded-end-3">المبلغ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expenses.map(e => {
+                      const dayName = format(parseISO(e.date), 'EEEE', { locale: ar });
+                      const isDue = ['سداد مستحقات', 'سحب سلفة'].includes(e.type);
+                      return (
+                        <tr key={e.id} className={isDue ? 'due-row' : ''}>
+                          <td className="rounded-start-3">
+                            <span className="d-block fw-bold mb-1" style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem' }}>{dayName}</span>
+                            <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>{e.date}</span>
+                          </td>
+                          <td><span className="fw-bold small" style={{ color: 'var(--erp-text-main)' }}>{e.detail}</span></td>
+                          <td><span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-danger)', borderColor: 'var(--erp-danger)' }}>{e.method}</span></td>
+                          <td>
+                            {e.type === 'سداد مستحقات' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#ffc107', color: '#000', borderColor: '#ffc107' }}>{e.entity} (سداد مستحقات)</span>}
+                            {e.type === 'سحب سلفة' && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'var(--erp-danger)', color: 'white', borderColor: 'var(--erp-danger)' }}>{e.entity} (سحب سلفة)</span>}
+                            {e.type === 'تحويل صادر' && <span className="badge border shadow-sm py-2 px-3" style={{ background: '#0dcaf0', color: '#000', borderColor: '#0dcaf0' }}>تحويل محفظة</span>}
+                            {['مصروف'].includes(e.type) && <span className="badge border shadow-sm py-2 px-3" style={{ background: 'white', color: 'var(--erp-danger)', borderColor: 'var(--erp-danger)' }}>{e.entity}</span>}
+                          </td>
+                          <td className="rounded-end-3">
+                            <span className="fw-bold fs-6 d-block" style={{ color: e.type === 'سداد مستحقات' ? 'var(--erp-text-main)' : 'var(--erp-danger)' }}>-{e.amount.toLocaleString()} ج</span>
+                            {isAdmin && (
+                              <div className="mt-2 d-flex gap-2 justify-content-center">
+                                <button className="btn btn-sm btn-light text-primary border no-print py-0 px-2" title="تعديل"><i className="fas fa-edit"></i></button>
+                                <button className="btn btn-sm btn-light border py-0 px-2 text-danger opacity-50 no-print" onClick={() => deleteTransaction(e.id)} title="حذف"><i className="fas fa-trash"></i></button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {expenses.length === 0 && <tr><td colSpan="5" className="text-center py-5 fw-bold" style={{ color: 'var(--erp-danger)', opacity: 0.5 }}>لا توجد مصروفات.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* --- MODALS --- */}
