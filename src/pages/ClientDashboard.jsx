@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Calendar, Clock, CreditCard, ChevronRight, ChevronLeft, CheckCircle, Clock3, X, Tag } from 'lucide-react';
+import { Calendar, Clock, CreditCard, ChevronRight, ChevronLeft, CheckCircle, Clock3, X, Tag, Home } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isAfter, startOfWeek, endOfWeek } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useData } from '../store/DataContext';
@@ -278,16 +278,16 @@ const ClientDashboard = () => {
         </div>
         <nav className="sidebar-nav">
           <button className={`nav-btn ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>
-            <span className="icon">🏠</span> الرئيسية
+            <span className="icon"><Home size={20}/></span> الرئيسية
           </button>
           <button className={`nav-btn ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>
-            <span className="icon">📅</span> المواعيد
+            <span className="icon"><Calendar size={20}/></span> المواعيد
           </button>
           <button className={`nav-btn ${activeTab === 'finance' ? 'active' : ''}`} onClick={() => setActiveTab('finance')}>
-            <span className="icon">💳</span> الحالة المادية
+            <span className="icon"><CreditCard size={20}/></span> المادية
           </button>
           <button className={`nav-btn ${activeTab === 'offers' ? 'active' : ''}`} onClick={() => setActiveTab('offers')}>
-            <span className="icon"><Tag size={18}/></span> العروض
+            <span className="icon"><Tag size={20}/></span> العروض
           </button>
         </nav>
       </aside>
