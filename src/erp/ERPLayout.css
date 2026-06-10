@@ -386,6 +386,27 @@
     .mobile-client-card-header {
         gap: 10px !important;
     }
+    .erp-clients-details {
+        padding: 15px !important;
+        max-height: none !important;
+    }
+    .erp-client-actions-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        flex-wrap: wrap !important;
+    }
+    .erp-client-history-grid {
+        flex-direction: column !important;
+    }
+    .erp-package-stats > div {
+        padding: 8px 2px !important;
+    }
+    .erp-package-stats > div > div:first-child {
+        font-size: 0.75rem !important;
+    }
+    .erp-package-stats > div > div:last-child {
+        font-size: 0.9rem !important;
+    }
     .erp-main {
         margin-right: 0;
         padding: 10px;

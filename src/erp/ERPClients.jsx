@@ -546,7 +546,7 @@ const ERPClients = () => {
                   )}
                 </div>
                 
-                <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', background: 'var(--erp-bg)', padding: '10px', borderRadius: '1rem', border: '1px solid #dee2e6', overflowX: 'auto', marginTop: '20px' }}>
+                <div className="erp-client-actions-grid" style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', background: 'var(--erp-bg)', padding: '10px', borderRadius: '1rem', border: '1px solid #dee2e6', overflowX: 'auto', marginTop: '20px' }}>
                   <button onClick={() => navigate('/erp/bookings')} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <CalendarPlus size={20} /> <span style={{ fontSize: '0.8rem' }}>حجز جديد</span>
                   </button>
@@ -596,7 +596,7 @@ const ERPClients = () => {
                           
                           {/* Stats 3 Boxes */}
                           {totalHours > 0 && (
-                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                            <div className="erp-package-stats" style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                               <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>المتبقي</div>
                                 <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1.1rem', direction: 'rtl' }}>{formatHours(remHours)}</div>
@@ -613,7 +613,7 @@ const ERPClients = () => {
                           )}
 
                           {totalReels > 0 && (
-                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                            <div className="erp-package-stats" style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                               <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '12px', padding: '10px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '5px', fontWeight: 'bold' }}>المتبقي</div>
                                 <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1.1rem' }}>{remReels} ريل</div>
@@ -630,7 +630,7 @@ const ERPClients = () => {
                           )}
 
                           {/* Finance 3 Boxes */}
-                          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                          <div className="erp-package-stats" style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                             <div style={{ flex: 1, background: 'rgba(220, 53, 69, 0.15)', borderRadius: '10px', padding: '12px 5px', textAlign: 'center', border: '1px solid #f5c2c7' }}>
                               <div style={{ fontSize: '0.8rem', color: '#dc3545', marginBottom: '2px', fontWeight: 'bold' }}>المتبقي</div>
                               <div style={{ fontWeight: 'bold', color: '#dc3545', fontSize: '1rem' }}>{remainingPaid} ج</div>
@@ -664,7 +664,7 @@ const ERPClients = () => {
               )}
 
               {/* History Section */}
-              <div style={{ display: 'flex', gap: '10px', marginTop: '30px' }}>
+              <div className="erp-client-history-grid" style={{ display: 'flex', gap: '10px', marginTop: '30px' }}>
                 <button onClick={() => openHistory('packages')} style={{ flex: 1, background: 'transparent', border: '1px solid #dee2e6', padding: '15px', borderRadius: '1rem', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer', transition: '0.2s' }}>
                   <History size={24} color="#6c757d" /> <span style={{ color: 'var(--erp-text-main)', fontSize: '0.85rem', textAlign: 'center' }}>سجل الباقات والخدمات المنتهية</span>
                 </button>
