@@ -176,10 +176,12 @@ const ClientDashboard = () => {
   const now = new Date();
   const filteredBookings = bookings.filter(b => {
     if (timeFilter === 'all') return true;
+    if (!b.date) return false;
     const bDate = new Date(b.date);
+    if (isNaN(bDate)) return false;
     
     if (timeFilter === 'last_shoot') {
-      const pastShoots = bookings.filter(bk => bk.actual_hours && bk.actual_hours > 0).sort((a,b) => new Date(b.date) - new Date(a.date));
+      const pastShoots = bookings.filter(bk => bk.actual_hours && bk.actual_hours > 0 && bk.date && !isNaN(new Date(bk.date))).sort((a,b) => new Date(b.date) - new Date(a.date));
       if(pastShoots.length === 0) return false;
       return isSameDay(bDate, new Date(pastShoots[0].date));
     }
@@ -218,7 +220,12 @@ const ClientDashboard = () => {
 
   // Calculate Next Appointment
   const nextAppointment = [...bookings]
-    .filter(b => isAfter(new Date(b.date), new Date()) || isSameDay(new Date(b.date), new Date()))
+    .filter(b => {
+      if (!b.date) return false;
+      const d = new Date(b.date);
+      if (isNaN(d)) return false;
+      return isAfter(d, new Date()) || isSameDay(d, new Date());
+    })
     .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
 
   return (
@@ -388,7 +395,7 @@ const ClientDashboard = () => {
                       <div key={i} className="calendar-day-header">{day}</div>
                     ))}
                     {eachDayOfInterval({ start: startOfWeek(startOfMonth(currentMonth), {weekStartsOn: 0}), end: endOfWeek(endOfMonth(currentMonth), {weekStartsOn: 0}) }).map((day, idx) => {
-                      const dayBookings = bookings.filter(b => isSameDay(new Date(b.date), day));
+                      const dayBookings = bookings.filter(b => b.date && !isNaN(new Date(b.date)) && isSameDay(new Date(b.date), day));
                       const isSelectedMonth = isSameMonth(day, currentMonth);
                       const hasBooking = dayBookings.length > 0;
                       return (
