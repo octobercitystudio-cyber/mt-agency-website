@@ -392,7 +392,7 @@ const ERPFinance = () => {
 
       {/* Overview Cards */}
       <div className="row g-3 mb-4">
-        <div className="col-6">
+        <div className="col-12 col-md-4">
           <div className="card border-0 rounded-4 p-3 h-100 gradient-success shadow-sm wallet-card position-relative overflow-hidden">
             <i className="fas fa-arrow-up position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '60px', transform: 'scaleX(-1)' }}></i>
             <div className="position-relative z-1">
@@ -401,7 +401,7 @@ const ERPFinance = () => {
             </div>
           </div>
         </div>
-        <div className="col-6">
+        <div className="col-12 col-md-4">
           <div className="card border-0 rounded-4 p-3 h-100 gradient-danger shadow-sm wallet-card position-relative overflow-hidden">
             <i className="fas fa-arrow-down position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '60px', transform: 'scaleX(-1)' }}></i>
             <div className="position-relative z-1">
@@ -410,8 +410,8 @@ const ERPFinance = () => {
             </div>
           </div>
         </div>
-        <div className="col-12">
-          <div className="card border-0 rounded-4 p-4 h-100 gradient-primary shadow-sm wallet-card position-relative overflow-hidden">
+        <div className="col-12 col-md-4">
+          <div className="card border-0 rounded-4 p-3 p-md-4 h-100 gradient-primary shadow-sm wallet-card position-relative overflow-hidden">
             <i className="fas fa-star position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '80px' }}></i>
             <div className="position-relative z-1">
               <p className="mb-1 fw-bold opacity-75">صافي الأرباح للشهر</p>
@@ -503,8 +503,8 @@ const ERPFinance = () => {
         ))}
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="d-flex justify-content-center mb-4">
+      {/* Tabs Navigation (Mobile Only) */}
+      <div className="d-flex justify-content-center mb-4 d-md-none">
         <div className="bg-white p-1 rounded-pill shadow-sm d-flex w-100" style={{ maxWidth: '400px' }}>
           <button 
             className={`btn rounded-pill flex-grow-1 fw-bold border-0 ${activeTab === 'incomes' ? 'btn-success text-white' : 'btn-light text-muted bg-transparent'}`}
@@ -526,8 +526,7 @@ const ERPFinance = () => {
       {/* Transaction Tables */}
       <div className="row g-4">
         {/* Incomes */}
-        {activeTab === 'incomes' && (
-        <div className="col-12 animate__animated animate__fadeIn">
+        <div className={`col-12 col-md-6 ${activeTab !== 'incomes' ? 'd-none d-md-block' : ''} animate__animated animate__fadeIn`}>
           <div className="d-flex justify-content-between align-items-center mb-3 px-2">
             <h5 className="fw-bold m-0" style={{ color: 'var(--erp-success)' }}><i className="fas fa-arrow-down me-2"></i> سجل الواردات (إيرادات)</h5>
             <span className="badge rounded-pill shadow-sm py-2 px-3" style={{ background: 'var(--erp-success)', color: 'white' }}>{incomes.length} عملية</span>
@@ -578,11 +577,9 @@ const ERPFinance = () => {
             </div>
           </div>
         </div>
-        )}
 
         {/* Expenses */}
-        {activeTab === 'expenses' && (
-        <div className="col-12 animate__animated animate__fadeIn">
+        <div className={`col-12 col-md-6 ${activeTab !== 'expenses' ? 'd-none d-md-block' : ''} animate__animated animate__fadeIn`}>
           <div className="d-flex justify-content-between align-items-center mb-3 px-2">
             <h5 className="fw-bold m-0" style={{ color: 'var(--erp-danger)' }}><i className="fas fa-arrow-up me-2"></i> سجل الصادر (مصروفات)</h5>
             <span className="badge rounded-pill shadow-sm py-2 px-3" style={{ background: 'var(--erp-danger)', color: 'white' }}>{expenses.length} عملية</span>
@@ -637,7 +634,6 @@ const ERPFinance = () => {
             </div>
           </div>
         </div>
-        )}
       </div>
 
       {/* --- MODALS --- */}
