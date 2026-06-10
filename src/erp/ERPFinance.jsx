@@ -364,22 +364,30 @@ const ERPFinance = () => {
           <p className="small m-0 mt-1" style={{ color: 'var(--erp-text-muted)' }}>نظرة شاملة على الإيرادات والمصروفات الخاصة بالشركة.</p>
         </div>
         
-        <div className="d-flex flex-wrap align-items-center justify-content-center gap-3">
-          <div className="month-selector">
+        <div className="d-flex flex-column align-items-center align-items-md-end gap-3 w-100" style={{ maxWidth: '100%', flexBasis: 'auto' }}>
+          <div className="month-selector mb-1">
             <button onClick={() => changeMonth(1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-right"></i></button>
             <span className="m-0 px-4 fw-bold" style={{ color: '#2b3674' }}>{selectedMonth}</span>
             <button onClick={() => changeMonth(-1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-left"></i></button>
           </div>
           
-          <button className="btn btn-dark rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" onClick={() => window.print()}>
-            <i className="fas fa-print me-2"></i> طباعة
-          </button>
-          <button className="btn btn-info text-dark rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" onClick={() => setModalState({...modalState, transfer: true})}>
-            <i className="fas fa-exchange-alt me-2"></i> تحويل رصيد
-          </button>
-          <button className="btn rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center" style={{ background: 'var(--erp-primary)', color: 'white' }} onClick={() => setModalState({...modalState, addTransaction: true})}>
-            <i className="fas fa-plus-circle me-2"></i> عملية مالية
-          </button>
+          <div className="row g-2 w-100 m-0" style={{ maxWidth: '400px' }}>
+            <div className="col-6 p-1">
+              <button className="btn btn-dark w-100 rounded-pill fw-bold shadow-sm d-flex align-items-center justify-content-center" onClick={() => window.print()}>
+                <i className="fas fa-print me-1"></i> طباعة
+              </button>
+            </div>
+            <div className="col-6 p-1">
+              <button className="btn btn-info text-dark w-100 rounded-pill fw-bold shadow-sm d-flex align-items-center justify-content-center" onClick={() => setModalState({...modalState, transfer: true})}>
+                <i className="fas fa-exchange-alt me-1"></i> تحويل
+              </button>
+            </div>
+            <div className="col-12 p-1">
+              <button className="btn w-100 rounded-pill fw-bold shadow-sm d-flex align-items-center justify-content-center" style={{ background: 'var(--erp-primary)', color: 'white', padding: '10px' }} onClick={() => setModalState({...modalState, addTransaction: true})}>
+                <i className="fas fa-plus-circle me-2"></i> عملية مالية
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
