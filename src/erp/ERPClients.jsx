@@ -267,6 +267,8 @@ const ERPClients = () => {
       if (error) {
         console.error(error);
         alert('حدث خطأ أثناء بدء الجلسة');
+      } else {
+        window.dispatchEvent(new Event('sessionTimerUpdated'));
       }
     } catch (e) {
       console.error(e);

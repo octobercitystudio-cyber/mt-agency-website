@@ -19,6 +19,12 @@ const ERPSessionTimer = () => {
     fetchActiveSession();
     fetchServices();
 
+    const handleUpdate = () => fetchActiveSession();
+    window.addEventListener('sessionTimerUpdated', handleUpdate);
+
+    // Fallback polling just in case Realtime isn't fully enabled on this table
+    const pollInterval = setInterval(fetchActiveSession, 15000);
+
     // Setup realtime subscription
     const subscription = supabase
       .channel('public:bookings')
@@ -37,6 +43,8 @@ const ERPSessionTimer = () => {
       .subscribe();
 
     return () => {
+      window.removeEventListener('sessionTimerUpdated', handleUpdate);
+      clearInterval(pollInterval);
       supabase.removeChannel(subscription);
     };
   }, []);
