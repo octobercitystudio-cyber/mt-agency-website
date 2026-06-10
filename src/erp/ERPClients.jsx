@@ -377,7 +377,13 @@ const ERPClients = () => {
              appointments = []; 
           }
           
-          appointments.sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id);
+          appointments.sort((a, b) => {
+            const dateCmp = (a.date || '').localeCompare(b.date || '');
+            if (dateCmp !== 0) return dateCmp;
+            const timeCmp = (a.start_time || '').localeCompare(b.start_time || '');
+            if (timeCmp !== 0) return timeCmp;
+            return a.id - b.id;
+          });
           setHistoryData(appointments);
         }
       }
