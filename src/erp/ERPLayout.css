@@ -508,31 +508,63 @@
         padding: 15px;
     }
     .erp-stat-grid {
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+        grid-template-columns: repeat(2, 1fr) !important;
         gap: 10px !important;
     }
     .erp-welcome-banner {
-        flex-direction: column !important;
-        text-align: center;
-        gap: 15px;
-        padding: 20px 15px !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 10px;
+        padding: 12px 15px !important;
+        margin-bottom: 15px !important;
+    }
+    .erp-welcome-badge {
+        display: none !important;
+    }
+    .erp-welcome-title {
+        font-size: 1.1rem !important;
+        gap: 5px !important;
+    }
+    .erp-welcome-subtitle {
+        font-size: 0.75rem !important;
+        margin-top: 2px !important;
     }
     .erp-welcome-time {
-        width: 100%;
+        width: auto !important;
+        padding: 8px 12px !important;
+        flex-shrink: 0;
+    }
+    .erp-welcome-time > div:first-child {
+        display: none !important;
+    }
+    .erp-welcome-time > div:last-child {
+        font-size: 1.1rem !important;
     }
     .erp-stat-card {
-        padding: 15px 10px !important;
+        padding: 10px 8px !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        justify-content: center !important;
+        gap: 5px;
+        position: relative !important;
     }
     .erp-stat-card h3 {
-        font-size: 1.3rem !important;
+        font-size: 1.1rem !important;
         word-break: break-word;
     }
+    .erp-stat-card p {
+        font-size: 0.8rem !important;
+        margin: 0 !important;
+    }
     .erp-stat-card .icon-wrapper {
-        padding: 10px !important;
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 6px !important;
     }
     .erp-stat-card .icon-wrapper svg {
-        width: 20px;
-        height: 20px;
+        width: 16px;
+        height: 16px;
     }
 }
 

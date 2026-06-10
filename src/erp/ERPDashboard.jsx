@@ -162,13 +162,13 @@ const ERPDashboard = () => {
       {/* Top Banner exactly like the light aesthetic */}
       <div className="erp-welcome-banner" style={{ background: 'var(--erp-primary)', borderRadius: '15px', padding: '15px 30px', border: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: 'var(--erp-shadow)' }}>
         <div>
-          <div style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', padding: '4px 12px', borderRadius: '50px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '8px' }}>
+          <div className="erp-welcome-badge" style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', padding: '4px 12px', borderRadius: '50px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '8px' }}>
             <span style={{ fontSize: '1rem' }}>⚡</span> نظام الإدارة الذكي
           </div>
-          <h1 style={{ margin: 0, fontWeight: 800, fontSize: '2rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <h1 className="erp-welcome-title" style={{ margin: 0, fontWeight: 800, fontSize: '2rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '15px' }}>
             لوحة تحكم MT Agency
           </h1>
-          <p style={{ margin: '5px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: '600' }}>مرحباً بك مجدداً ! Owner - October City Studio</p>
+          <p className="erp-welcome-subtitle" style={{ margin: '5px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: '600' }}>مرحباً بك مجدداً ! Owner - October City Studio</p>
         </div>
         <div className="erp-welcome-time" style={{ background: 'rgba(0,0,0,0.2)', padding: '15px 25px', borderRadius: '15px', textAlign: 'center', border: 'none' }}>
           <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)', marginBottom: '5px', fontWeight: 'bold' }}>
