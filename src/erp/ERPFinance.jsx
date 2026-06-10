@@ -357,19 +357,18 @@ const ERPFinance = () => {
 
       {/* Header Area */}
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
-        <div>
+        <div className="d-flex flex-column flex-md-row align-items-center gap-3 w-100">
           <h3 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>
             الإدارة المالية <i className="fas fa-chart-line ms-2" style={{ color: 'var(--erp-primary)' }}></i>
           </h3>
-          <p className="small m-0 mt-1" style={{ color: 'var(--erp-text-muted)' }}>نظرة شاملة على الإيرادات والمصروفات الخاصة بالشركة.</p>
-        </div>
-        
-        <div className="d-flex flex-column align-items-center align-items-md-end gap-3 w-100" style={{ maxWidth: '100%', flexBasis: 'auto' }}>
-          <div className="month-selector mb-1">
+          <div className="month-selector">
             <button onClick={() => changeMonth(1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-right"></i></button>
             <span className="m-0 px-4 fw-bold" style={{ color: '#2b3674' }}>{selectedMonth}</span>
             <button onClick={() => changeMonth(-1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-left"></i></button>
           </div>
+        </div>
+        
+        <div className="d-flex justify-content-center justify-content-md-end w-100" style={{ maxWidth: '100%', flexBasis: 'auto' }}>
           
           <div className="row g-2 w-100 m-0" style={{ maxWidth: '400px' }}>
             <div className="col-6 p-1">
