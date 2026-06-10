@@ -1,8 +1,8 @@
 .hero-section {
-  min-height: 100vh;
+  min-height: 80vh; /* Reduced from 100vh to reduce vertical empty space */
   display: flex;
   align-items: center;
-  padding: 120px 0 var(--spacing-xl);
+  padding: 90px 0 var(--spacing-lg); /* Reduced top padding */
   position: relative;
   overflow: hidden;
 }
@@ -61,7 +61,7 @@
 .visual-banner {
   position: relative;
   width: 100%;
-  min-height: 600px;
+  min-height: 450px; /* Reduced from 600px to reduce space around the image */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -90,7 +90,7 @@
   .hero-container {
     grid-template-columns: 1fr;
     text-align: center;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-md); /* Reduced from lg */
   }
   
   .hero-content {
@@ -102,7 +102,7 @@
   }
 
   .visual-banner {
-    min-height: 400px;
+    min-height: 350px; /* Reduced from 400px */
     border-radius: 30px;
   }
   
@@ -119,13 +119,13 @@
 
 @media (max-width: 768px) {
   .hero-section {
-    padding-top: 100px;
-    padding-bottom: 40px;
+    padding-top: 80px; /* Reduced from 100px */
+    padding-bottom: 20px; /* Reduced from 40px */
     min-height: auto; /* Remove 100vh on mobile to prevent huge gaps */
   }
   
   .visual-banner {
-    min-height: 300px;
+    min-height: 250px; /* Reduced from 300px */
     border-radius: 20px;
   }
   
