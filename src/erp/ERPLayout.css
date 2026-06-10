@@ -307,7 +307,7 @@
     }
     .erp-main {
         margin-right: 0;
-        padding: 20px;
+        padding: 10px;
     }
 }
 
@@ -536,9 +536,10 @@
         width: auto !important;
         padding: 8px 12px !important;
         flex-shrink: 0;
+        text-align: center;
     }
     .erp-welcome-time > div:first-child {
-        display: none !important;
+        font-size: 0.75rem !important; /* Make date smaller instead of hiding */
     }
     .erp-welcome-time > div:last-child {
         font-size: 1.1rem !important;
