@@ -364,6 +364,21 @@
     color: var(--erp-text-muted);
 }
 
+/* ERP Bookings Layout */
+.erp-bookings-layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+}
+.erp-calendar-container {
+    flex: 1 1 65%;
+    min-width: 400px;
+}
+.erp-daily-bookings-container {
+    flex: 1 1 30%;
+    min-width: 300px;
+}
+
 @media (max-width: 992px) {
     .erp-clients-layout {
         display: flex !important;
@@ -643,6 +658,32 @@
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 10px !important;
         margin-bottom: 15px !important;
+    }
+    .erp-calendar-container {
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+    .erp-daily-bookings-container {
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+    .fc-toolbar {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .fc-toolbar-title {
+        font-size: 1.2rem !important;
+    }
+    .fc-daygrid-day-number {
+        padding: 4px !important;
+        font-size: 0.8rem !important;
+    }
+    .fc-event {
+        font-size: 0.65rem !important;
+        padding: 2px 4px !important;
+    }
+    .erp-modal-inner {
+        padding: 15px !important;
     }
     .erp-welcome-banner {
         flex-direction: row !important;

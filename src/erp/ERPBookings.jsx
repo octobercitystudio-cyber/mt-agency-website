@@ -363,10 +363,10 @@ const ERPBookings = () => {
         </button>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
+      <div className="erp-bookings-layout">
         
         {/* FullCalendar Box */}
-        <div style={{ flex: '1 1 65%', minWidth: '400px' }}>
+        <div className="erp-calendar-container">
           <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '25px', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid var(--erp-primary)', minHeight: '600px' }}>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', marginBottom: '10px', fontSize: '0.85rem', fontWeight: 'bold' }}>
               <span style={{ color: 'var(--erp-primary)' }}>● مجدول</span>
@@ -400,7 +400,7 @@ const ERPBookings = () => {
         </div>
 
         {/* Daily Bookings Sidebar */}
-        <div style={{ flex: '1 1 30%', minWidth: '300px' }}>
+        <div className="erp-daily-bookings-container">
           <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid #1e293b', height: '100%' }}>
             
             <div style={{ padding: '25px 25px 0 25px', textAlign: 'center' }}>
@@ -464,7 +464,7 @@ const ERPBookings = () => {
               <button onClick={() => setIsModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={24} /></button>
             </div>
 
-            <form onSubmit={handleSaveBooking} style={{ padding: '25px' }}>
+            <form onSubmit={handleSaveBooking} className="erp-modal-inner" style={{ padding: '25px' }}>
               
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '25px' }}>
                 <div>
@@ -567,7 +567,7 @@ const ERPBookings = () => {
               )}
 
               {/* Finance Box */}
-              <div style={{ background: 'var(--erp-bg)', border: '1px solid var(--erp-border)', padding: '25px', borderRadius: '20px', marginBottom: '25px' }}>
+              <div className="erp-modal-inner" style={{ background: 'var(--erp-bg)', border: '1px solid var(--erp-border)', padding: '25px', borderRadius: '20px', marginBottom: '25px' }}>
                 <h6 style={{ margin: '0 0 20px 0', fontWeight: 'bold', color: 'var(--erp-text-main)', display: 'flex', alignItems: 'center' }}>
                   <DollarSign color="var(--erp-primary)" size={20} style={{ marginLeft: '10px' }} /> تفاصيل الحساب والدفع
                 </h6>
@@ -650,13 +650,13 @@ const ERPBookings = () => {
                   </div>
 
                   <div className="row g-3 mb-4">
-                    <div className="col-6">
+                    <div className="col-12 col-md-6">
                       <div className="p-3 bg-white rounded-4 border shadow-sm h-100">
                         <small className="text-muted d-block mb-1 fw-bold">الخدمة / الباقة</small>
                         <div className="fw-bold text-dark">{selectedBookingDetails.service}</div>
                       </div>
                     </div>
-                    <div className="col-6">
+                    <div className="col-12 col-md-6">
                       <div className="p-3 bg-white rounded-4 border shadow-sm h-100">
                         <small className="text-muted d-block mb-1 fw-bold">التاريخ</small>
                         <div className="fw-bold text-dark" style={{direction: 'ltr'}}>{selectedBookingDetails.date}</div>
