@@ -378,11 +378,11 @@ const ERPClients = () => {
           }
           
           appointments.sort((a, b) => {
-            const dateCmp = (a.date || '').localeCompare(b.date || '');
+            const dateCmp = (b.date || '').localeCompare(a.date || '');
             if (dateCmp !== 0) return dateCmp;
-            const timeCmp = (a.start_time || '').localeCompare(b.start_time || '');
+            const timeCmp = (b.start_time || '').localeCompare(a.start_time || '');
             if (timeCmp !== 0) return timeCmp;
-            return a.id - b.id;
+            return b.id - a.id;
           });
           setHistoryData(appointments);
         }
