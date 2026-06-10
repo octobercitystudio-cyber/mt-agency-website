@@ -936,7 +936,13 @@ const ERPClients = () => {
                           </>
                         ) : (
                           <>
-                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', direction: 'ltr', textAlign: 'right' }}>{row.date}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              {(() => {
+                                const d = new Date(row.date);
+                                const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                                return `${days[d.getDay()]} ${row.date}`;
+                              })()}
+                            </td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>{row.service}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontSize: '0.85rem' }}>
                               {(row.start_time && row.start_time !== '' && row.start_time !== '00:00') ? `${row.start_time} - ${row.end_time || '?'}` : '-'}
@@ -966,7 +972,7 @@ const ERPClients = () => {
                               </span>
                             </td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.payment || 0} ج</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center' }}>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', whiteSpace: 'nowrap' }}>
                               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
                                 <button onClick={(e) => { e.stopPropagation(); handleEditAppointmentClick(row); }} style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd', border: 'none', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }} title="تعديل">
                                   <Edit size={14} />
