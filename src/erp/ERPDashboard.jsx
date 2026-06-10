@@ -351,10 +351,14 @@ const ERPDashboard = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 25px', borderBottom: '1px solid var(--erp-border)', background: 'rgba(255, 193, 7, 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <AlertCircle size={24} color="var(--erp-warning)" />
-            <h4 style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>مهام والتزامات مستحقة الآن</h4>
+            <h4 style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
+              <span className="mobile-hidden">مهام والتزامات مستحقة الآن</span>
+              <span className="desktop-hidden">مهام والتزامات</span>
+            </h4>
           </div>
           <button style={{ background: 'var(--erp-warning)', color: '#000', border: 'none', padding: '8px 20px', borderRadius: '50px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(255, 193, 7, 0.2)' }}>
-            إدارة المهام
+            <span className="mobile-hidden">إدارة المهام</span>
+            <span className="desktop-hidden">إدارة</span>
           </button>
         </div>
 

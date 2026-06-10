@@ -486,6 +486,12 @@
     }
 }
 
+@media (min-width: 993px) {
+    .desktop-hidden {
+        display: none !important;
+    }
+}
+
 .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
