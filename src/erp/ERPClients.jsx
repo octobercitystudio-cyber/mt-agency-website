@@ -331,11 +331,11 @@ const ERPClients = () => {
           const packagesMap = {};
           data.forEach(b => {
             if (!b.service) return;
-            const cleanName = b.service.replace('(مؤرشف)', '').trim();
-            if (!packagesMap[cleanName]) {
-              packagesMap[cleanName] = {
+            const srvName = b.service;
+            if (!packagesMap[srvName]) {
+              packagesMap[srvName] = {
                 id: b.id,
-                serviceName: cleanName,
+                serviceName: srvName,
                 date: b.date,
                 custom_price: b.custom_price > 0 ? b.custom_price : 0,
                 discount: b.discount || 0,
@@ -345,18 +345,18 @@ const ERPClients = () => {
               };
             }
             if (b.custom_price > 0) {
-              if (new Date(b.date) < new Date(packagesMap[cleanName].date)) {
-                packagesMap[cleanName].date = b.date;
+              if (new Date(b.date) < new Date(packagesMap[srvName].date)) {
+                packagesMap[srvName].date = b.date;
               }
-              if (b.custom_price > packagesMap[cleanName].custom_price) {
-                packagesMap[cleanName].custom_price = b.custom_price;
-                packagesMap[cleanName].discount = b.discount || 0;
-                packagesMap[cleanName].discount_reason = b.discount_reason || '';
+              if (b.custom_price > packagesMap[srvName].custom_price) {
+                packagesMap[srvName].custom_price = b.custom_price;
+                packagesMap[srvName].discount = b.discount || 0;
+                packagesMap[srvName].discount_reason = b.discount_reason || '';
               }
             }
-            packagesMap[cleanName].total_paid += Number(b.payment || 0);
+            packagesMap[srvName].total_paid += Number(b.payment || 0);
             if (b.service.includes('مؤرشف') || b.status === 'مؤرشف') {
-               packagesMap[cleanName].is_archived = true;
+               packagesMap[srvName].is_archived = true;
             }
           });
           
