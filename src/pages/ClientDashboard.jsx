@@ -203,6 +203,10 @@ const ClientDashboard = () => {
 
   const primaryPackage = Object.values(packages)[0] || null;
   let serviceDetails = {}, totalHours = 0, remainingHours = 0, cost = 0, remainingCost = 0, progressPercent = 0;
+  let packageExpiryDate = null;
+  let paymentDueDate = null;
+  let hasPaymentDue = false;
+  let paymentDueHours = 0;
   
   if (primaryPackage) {
     serviceDetails = services.find(s => s.name === primaryPackage.name) || {};
@@ -211,6 +215,31 @@ const ClientDashboard = () => {
     cost = primaryPackage.cost !== -1 ? primaryPackage.cost : (serviceDetails.price || 0);
     remainingCost = Math.max(0, cost - primaryPackage.discount - primaryPackage.paid);
     progressPercent = totalHours > 0 ? (primaryPackage.usedHours / totalHours) * 100 : 0;
+    paymentDueHours = serviceDetails.payment_due_hours || 0;
+
+    const validBookings = primaryPackage.bookings.filter(b => b.date && !isNaN(new Date(b.date))).sort((a,b) => new Date(a.date) - new Date(b.date));
+    const customExpiryBooking = primaryPackage.bookings.find(b => b.custom_expiry);
+    
+    if (customExpiryBooking) {
+      packageExpiryDate = customExpiryBooking.custom_expiry;
+    } else if (validBookings.length > 0 && serviceDetails.validity_days > 0) {
+      const firstDate = new Date(validBookings[0].date);
+      const expiry = new Date(firstDate);
+      expiry.setDate(expiry.getDate() + serviceDetails.validity_days);
+      packageExpiryDate = format(expiry, 'yyyy-MM-dd');
+    }
+
+    if (remainingCost > 0 && paymentDueHours > 0) {
+      let accumHours = 0;
+      for (const b of validBookings) {
+        accumHours += (parseFloat(b.actual_hours) || 0);
+        if (accumHours >= paymentDueHours) {
+          paymentDueDate = b.date;
+          hasPaymentDue = true;
+          break;
+        }
+      }
+    }
   }
 
   const now = new Date();
@@ -317,6 +346,18 @@ const ClientDashboard = () => {
                 <span className="badge-glow" style={{ fontSize: '1.1rem', padding: '0.6rem 1.5rem' }}>{primaryPackage.name}</span>
               </div>
 
+              {hasPaymentDue && (
+                <div style={{ background: 'rgba(231, 76, 60, 0.1)', border: '1px solid rgba(231, 76, 60, 0.3)', borderRadius: '15px', padding: '15px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div style={{ background: '#e74c3c', color: '#fff', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <CreditCard size={24} />
+                  </div>
+                  <div>
+                    <h4 style={{ color: '#e74c3c', margin: '0 0 5px 0', fontSize: '1.1rem' }}>تنبيه استحقاق سداد</h4>
+                    <p style={{ color: '#ffb8b8', margin: 0, fontSize: '0.9rem' }}>لقد تجاوزت حاجز ({paymentDueHours} ساعات) في تاريخ {paymentDueDate}. يرجى سداد المبلغ المتبقي ({remainingCost} ج) لتجنب توقف الباقة.</p>
+                  </div>
+                </div>
+              )}
+
               {/* Hero Stats Grid */}
               <div className="hero-stats-grid mb-4">
                 <div className="stat-card premium-glass glow-purple">
@@ -343,8 +384,8 @@ const ClientDashboard = () => {
                 <div className="stat-card premium-glass glow-border">
                   <div className="stat-icon"><Calendar size={28} /></div>
                   <div className="stat-info">
-                    <span className="stat-label">الصلاحية</span>
-                    <strong className="stat-value" style={{fontSize: '1rem'}}>{primaryPackage.latestExpiry || 'غير محدد'}</strong>
+                    <span className="stat-label">تاريخ الانتهاء</span>
+                    <strong className="stat-value" style={{fontSize: '1rem', direction: 'ltr'}}>{packageExpiryDate || 'غير محدد'}</strong>
                   </div>
                 </div>
               </div>
@@ -476,6 +517,16 @@ const ClientDashboard = () => {
                       <div className="stat-card premium-glass glow-purple" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', textAlign: 'center', borderColor: 'rgba(255, 71, 87, 0.3)' }}>
                         <span className="stat-label" style={{ marginBottom: '0.5rem' }}>المتبقي</span>
                         <strong className="stat-value" style={{ color: '#ff4757' }}>{remainingCost} ج</strong>
+                        {remainingCost > 0 && paymentDueHours > 0 && !hasPaymentDue && (
+                          <small style={{ marginTop: '0.5rem', color: '#a3aed1', fontSize: '0.75rem' }}>
+                            يستحق بعد استهلاك {paymentDueHours} س
+                          </small>
+                        )}
+                        {hasPaymentDue && (
+                          <small style={{ marginTop: '0.5rem', color: '#ff4757', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                            استحق في: <span dir="ltr">{paymentDueDate}</span>
+                          </small>
+                        )}
                       </div>
                     </div>
 
