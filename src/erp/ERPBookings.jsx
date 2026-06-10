@@ -183,7 +183,7 @@ const ERPBookings = () => {
   const handleServiceChange = (e) => {
     const sName = e.target.value;
     const srv = services.find(s => s.name === sName);
-    setNewBooking({ ...newBooking, service: sName, base_price: srv?.price || 0 });
+    setNewBooking({ ...newBooking, service: sName, base_price: srv?.price || 0, paid: srv ? srv.price * 0.5 : 0 });
   };
 
   const handleSaveBooking = async (e) => {
@@ -208,6 +208,41 @@ const ERPBookings = () => {
     if (needsDates && newBooking.dates.length === 0) {
       alert('يجب تحديد موعد واحد على الأقل في التقويم أو عن طريق الضغط مرتين على اليوم المختار');
       return;
+    }
+
+    // Strict Validations
+    const srvObj = services.find(s => s.name === newBooking.service);
+    if (newBooking.category === 'باقة شهرية') {
+      const minDeposit = (newBooking.base_price || 0) * 0.5;
+      if (newBooking.paid < minDeposit) {
+        alert('الباقات الشهرية تتطلب دفع 50% على الأقل كعربون (مقدم).');
+        return;
+      }
+    }
+
+    if (needsDates) {
+      for (const d of newBooking.dates) {
+        if (d.start_time && d.end_time) {
+          const [startH, startM] = d.start_time.split(':').map(Number);
+          const [endH, endM] = d.end_time.split(':').map(Number);
+          const diffInMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+          
+          if (newBooking.category === 'تصوير بالساعة' || newBooking.category === 'باقة شهرية') {
+            if (diffInMinutes < 60) {
+              alert('الحد الأدنى لحجز جلسة التصوير هو ساعة واحدة.');
+              return;
+            }
+          }
+          
+          if (newBooking.category === 'باقة يومية') {
+            const requiredMins = (srvObj?.total_hours || 0) * 60;
+            if (diffInMinutes < requiredMins) {
+              alert(`الباقة اليومية تشترط أن تكون مدة الحجز في الجلسة الواحدة لا تقل عن إجمالي ساعات الباقة (${srvObj?.total_hours || 0} ساعات)`);
+              return;
+            }
+          }
+        }
+      }
     }
 
     if (newBooking.paid > 0) {
@@ -246,6 +281,13 @@ const ERPBookings = () => {
           hours = diffInMinutes > 0 ? +(diffInMinutes / 60).toFixed(2) : 0;
         }
 
+        let finalDeliveryDate = newBooking.delivery_date;
+        if (['تصوير بالساعة', 'باقة يومية', 'باقة شهرية'].includes(newBooking.category) && d.date && d.end_time) {
+          const dateObj = new Date(d.date);
+          dateObj.setDate(dateObj.getDate() + 1);
+          finalDeliveryDate = `${format(dateObj, 'yyyy-MM-dd')} ${d.end_time}`;
+        }
+
         return {
           client_name: newBooking.client_name,
           service: newBooking.service,
@@ -256,7 +298,7 @@ const ERPBookings = () => {
           custom_price: newBooking.base_price,
           discount: newBooking.discount,
           discount_reason: newBooking.discount_reason,
-          delivery_date: newBooking.delivery_date || null,
+          delivery_date: finalDeliveryDate || null,
           status: 'مؤكد',
           notes: newBooking.notes,
           payment: newBooking.paid // Apply full payment to first record for simplicity, or divide it
@@ -282,9 +324,35 @@ const ERPBookings = () => {
       }];
     }
 
-    const { error } = await supabase.from('bookings').insert(bookingsToInsert);
+    const { data: insertedBookings, error } = await supabase.from('bookings').insert(bookingsToInsert).select();
 
     if (!error) {
+      if (insertedBookings) {
+        const remindersToInsert = [];
+        insertedBookings.filter(b => b.delivery_date).forEach(b => {
+             const dDate = new Date(b.delivery_date);
+             // Reminder 1: Tomorrow
+             remindersToInsert.push({
+               title: `تسليم غداً لعميل: ${b.client_name}`,
+               description: `تجهيز وتسليم خدمة ${b.service} الخاصة بحجز يوم ${b.date}.`,
+               due_date: dDate.toISOString(),
+               notify_before: 1440, // 24 hours
+               status: 'pending'
+             });
+             // Reminder 2: Today
+             remindersToInsert.push({
+               title: `تسليم اليوم لعميل: ${b.client_name} 🚨`,
+               description: `موعد التسليم النهائي لخدمة ${b.service} اليوم.`,
+               due_date: dDate.toISOString(),
+               notify_before: 0,
+               status: 'pending'
+             });
+        });
+        if (remindersToInsert.length > 0) {
+          await supabase.from('reminders').insert(remindersToInsert);
+        }
+      }
+
       fetchData();
       setIsModalOpen(false);
       setNewBooking({

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { StopCircle, Play, X, Save } from 'lucide-react';
+import { StopCircle, Play, X, Save, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ERPSessionTimer = () => {
@@ -15,6 +15,13 @@ const ERPSessionTimer = () => {
   const [selectedService, setSelectedService] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // New logic states
+  const [isReels, setIsReels] = useState(false);
+  const [actualReels, setActualReels] = useState(0);
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [remainingHours, setRemainingHours] = useState(0);
+  const [overageAction, setOverageAction] = useState('current'); // 'current' or 'split'
+
   useEffect(() => {
     fetchActiveSession();
     fetchServices();
@@ -22,18 +29,14 @@ const ERPSessionTimer = () => {
     const handleUpdate = () => fetchActiveSession();
     window.addEventListener('sessionTimerUpdated', handleUpdate);
 
-    // Fallback polling just in case Realtime isn't fully enabled on this table
     const pollInterval = setInterval(fetchActiveSession, 15000);
 
-    // Setup realtime subscription
     const subscription = supabase
       .channel('public:bookings')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, payload => {
-        // If a new active timer is created or updated
         if (payload.new && payload.new.status === 'active_timer') {
           setActiveSession(payload.new);
         }
-        // If the active timer is stopped/deleted
         if ((payload.old && payload.old.status === 'active_timer' && payload.new && payload.new.status !== 'active_timer') || 
             (payload.eventType === 'DELETE' && activeSession && payload.old.id === activeSession.id)) {
           setActiveSession(null);
@@ -76,7 +79,6 @@ const ERPSessionTimer = () => {
   useEffect(() => {
     let interval = null;
     if (activeSession) {
-      // Calculate initial elapsed based on notes (start timestamp)
       const startMs = new Date(activeSession.notes).getTime();
       
       const updateTimer = () => {
@@ -93,14 +95,39 @@ const ERPSessionTimer = () => {
     };
   }, [activeSession]);
 
-  const openManageModal = () => {
+  const openManageModal = async () => {
     const h = Math.floor(elapsedSeconds / 3600);
     const m = Math.floor((elapsedSeconds % 3600) / 60);
     setEditHours(h);
     setEditMinutes(m);
-    // If we have client packages, ideally we'd filter `services` to only what the client owns,
-    // but the admin can select any service here for flexibility.
-    setSelectedService('');
+
+    if (activeSession) {
+      const srvName = activeSession.service.replace(' (مؤرشف)', '');
+      const srv = services.find(s => s.name === srvName);
+      
+      if (srv && srv.category === 'باقة ريلز') {
+        setIsReels(true);
+        setActualReels(0);
+        setDeliveryDate(activeSession.delivery_date || format(new Date(), 'yyyy-MM-dd'));
+      } else {
+        setIsReels(false);
+        setDeliveryDate(activeSession.delivery_date || format(new Date(new Date().getTime() + 86400000), 'yyyy-MM-dd')); // Tomorrow
+        if (srv) {
+          const { data: bData } = await supabase.from('bookings')
+            .select('actual_hours')
+            .eq('client_name', activeSession.client_name)
+            .eq('service', activeSession.service)
+            .neq('status', 'دفعة');
+            
+          let used = 0;
+          bData?.forEach(b => { used += Number(b.actual_hours || 0); });
+          const remaining = Number(srv.total_hours || 0) - used;
+          setRemainingHours(remaining);
+        } else {
+          setRemainingHours(9999);
+        }
+      }
+    }
     setIsModalOpen(true);
   };
 
@@ -109,21 +136,71 @@ const ERPSessionTimer = () => {
     const finalHours = parseFloat(editHours) + (parseFloat(editMinutes) / 60);
     
     try {
-      const { error } = await supabase.from('bookings').update({
-        status: 'مكتمل', // Session is now complete and should be deducted
-        actual_hours: finalHours,
-        service: activeSession.service, // Use the automatically assigned service
+      const baseUpdate = {
+        status: 'مكتمل',
         date: format(new Date(), 'yyyy-MM-dd'),
-        notes: `وقت البدء: ${format(new Date(activeSession.notes), 'yyyy-MM-dd HH:mm:ss')} | تم إيقاف وحفظ المؤقت`
-      }).eq('id', activeSession.id);
+        notes: `وقت البدء: ${format(new Date(activeSession.notes), 'yyyy-MM-dd HH:mm:ss')} | تم إيقاف وحفظ المؤقت`,
+        delivery_date: deliveryDate
+      };
 
-      if (error) {
-        console.error(error);
-        alert('حدث خطأ أثناء الحفظ');
+      if (isReels) {
+        await supabase.from('bookings').update({
+          ...baseUpdate,
+          actual_reels: Number(actualReels)
+        }).eq('id', activeSession.id);
       } else {
-        setActiveSession(null);
-        setIsModalOpen(false);
+        if (finalHours > remainingHours && overageAction === 'split' && remainingHours > 0) {
+          // Update current to remaining, insert new for the rest
+          await supabase.from('bookings').update({
+            ...baseUpdate,
+            actual_hours: remainingHours
+          }).eq('id', activeSession.id);
+
+          await supabase.from('bookings').insert([{
+            client_name: activeSession.client_name,
+            service: 'تصوير بالساعة',
+            date: baseUpdate.date,
+            start_time: '',
+            end_time: '',
+            actual_hours: finalHours - remainingHours,
+            custom_price: 0,
+            discount: 0,
+            status: 'مؤكد',
+            delivery_date: deliveryDate,
+            notes: 'تم توليدها تلقائياً كزيادة من جلسة المؤقت السابقة.'
+          }]);
+        } else {
+          // Just save all on the current package (will show as negative balance)
+          await supabase.from('bookings').update({
+            ...baseUpdate,
+            actual_hours: finalHours
+          }).eq('id', activeSession.id);
+        }
       }
+
+      // Automatically create a reminder for delivery if it's tomorrow or later
+      if (deliveryDate) {
+         const dDate = new Date(deliveryDate);
+         await supabase.from('reminders').insert([
+           {
+             title: `تسليم غداً لعميل: ${activeSession.client_name}`,
+             description: `تجهيز وتسليم خدمة ${activeSession.service} الخاصة بجلسة المؤقت.`,
+             due_date: dDate.toISOString(),
+             notify_before: 1440, // 24 hours
+             status: 'pending'
+           },
+           {
+             title: `تسليم اليوم لعميل: ${activeSession.client_name} 🚨`,
+             description: `موعد التسليم النهائي لخدمة ${activeSession.service} اليوم.`,
+             due_date: dDate.toISOString(),
+             notify_before: 0,
+             status: 'pending'
+           }
+         ]);
+      }
+
+      setActiveSession(null);
+      setIsModalOpen(false);
     } catch (e) {
       console.error(e);
       alert('حدث خطأ بالاتصال');
@@ -141,13 +218,15 @@ const ERPSessionTimer = () => {
     return `${h}:${m}:${s}`;
   };
 
+  const finalHoursComputed = parseFloat(editHours || 0) + (parseFloat(editMinutes || 0) / 60);
+  const isOverlimit = !isReels && finalHoursComputed > remainingHours;
+
   return (
     <>
       <div style={{
         position: 'fixed',
         bottom: '85px',
-        left: '20px', // Moved to bottom-left
-        transform: 'none', // Removed horizontal translation
+        left: '20px',
         background: '#1e1b2e',
         border: '1px solid #332d4a',
         borderRadius: '50rem',
@@ -206,12 +285,36 @@ const ERPSessionTimer = () => {
             <div className="row mb-3">
               <div className="col-6">
                 <label className="form-label">عدد الساعات</label>
-                <input type="number" className="form-control" min="0" value={editHours} onChange={e => setEditHours(e.target.value)} />
+                <input type="number" className="form-control" min="0" value={editHours} onChange={e => setEditHours(e.target.value)} disabled={isReels} />
               </div>
               <div className="col-6">
                 <label className="form-label">عدد الدقائق</label>
-                <input type="number" className="form-control" min="0" max="59" value={editMinutes} onChange={e => setEditMinutes(e.target.value)} />
+                <input type="number" className="form-control" min="0" max="59" value={editMinutes} onChange={e => setEditMinutes(e.target.value)} disabled={isReels} />
               </div>
+            </div>
+
+            {isReels && (
+              <div className="mb-3 p-3 rounded" style={{ background: 'rgba(67, 24, 255, 0.05)', border: '1px solid rgba(67, 24, 255, 0.2)' }}>
+                <label className="form-label fw-bold text-primary">عدد الفيديوهات (الريلز) المصورة</label>
+                <input type="number" className="form-control fw-bold text-center" min="0" value={actualReels} onChange={e => setActualReels(e.target.value)} />
+              </div>
+            )}
+
+            {isOverlimit && (
+              <div className="mb-3 p-3 rounded" style={{ background: 'rgba(255, 71, 87, 0.1)', border: '1px solid rgba(255, 71, 87, 0.3)' }}>
+                <label className="form-label fw-bold text-danger d-flex align-items-center gap-1"><AlertTriangle size={16}/> تجاوز الساعات المحددة للباقة!</label>
+                <p className="small text-danger mb-2">لقد تخطى العميل الرصيد المتبقي للباقة ({remainingHours.toFixed(2)} س). طريقة المعالجة:</p>
+                <select className="form-select form-select-sm" value={overageAction} onChange={e => setOverageAction(e.target.value)}>
+                  <option value="current">تسجيل كل الساعات على الباقة الحالية (الرصيد سيكون بالسالب)</option>
+                  <option value="split">فصل الزيادة وتسجيلها كـ "تصوير بالساعة" كخدمة جديدة</option>
+                </select>
+              </div>
+            )}
+
+            <div className="mb-3">
+              <label className="form-label">تاريخ التسليم</label>
+              <input type="date" className="form-control" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} />
+              {!isReels && <small className="text-muted">تم تحديد موعد التسليم تلقائياً لليوم التالي.</small>}
             </div>
 
             <div className="mb-4">
