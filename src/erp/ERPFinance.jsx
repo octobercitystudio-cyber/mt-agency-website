@@ -155,7 +155,7 @@ const ERPFinance = () => {
     if (!error) {
       setModalState(s => ({...s, addTransaction: false}));
       setTxForm({ type: 'إيراد', amount: '', method: 'كاش', detail: '', date: format(new Date(), 'yyyy-MM-dd'), entity: 'الشركة' });
-      fetchData();
+      fetchData(true);
     } else {
       alert('حدث خطأ أثناء حفظ المعاملة');
     }
@@ -177,7 +177,7 @@ const ERPFinance = () => {
 
     setModalState(s => ({...s, transfer: false}));
     setTransferForm({ from_method: 'كاش', to_method: 'فودافون كاش', amount: '', date: format(new Date(), 'yyyy-MM-dd'), note: '' });
-    fetchData();
+    fetchData(true);
   };
 
   const handleSettle = async (e) => {
@@ -192,7 +192,7 @@ const ERPFinance = () => {
     }]);
     setModalState(s => ({...s, settleDues: false}));
     setSettleForm({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
-    fetchData();
+    fetchData(true);
   };
 
   const handleAdvance = async (e) => {
@@ -207,7 +207,7 @@ const ERPFinance = () => {
     }]);
     setModalState(s => ({...s, advance: false}));
     setAdvanceForm({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
-    fetchData();
+    fetchData(true);
   };
 
   const handlePayAdvance = async (e) => {
@@ -222,7 +222,7 @@ const ERPFinance = () => {
     }]);
     setModalState(s => ({...s, payAdvance: false}));
     setPayAdvanceForm({ partner: 'اشرف', amount: '', method: 'كاش', date: format(new Date(), 'yyyy-MM-dd') });
-    fetchData();
+    fetchData(true);
   };
 
   const handleAdjustDue = async (e) => {
@@ -249,7 +249,7 @@ const ERPFinance = () => {
     }
 
     setModalState(s => ({...s, adjustPartner: false}));
-    fetchData();
+    fetchData(true);
   };
 
   const handleAdjustWallet = async (e) => {
@@ -282,13 +282,13 @@ const ERPFinance = () => {
     }]);
     
     setModalState(s => ({...s, adjustWallet: false}));
-    fetchData();
+    fetchData(true);
   };
 
   const deleteTransaction = async (id) => {
     if (window.confirm('هل أنت متأكد من حذف هذا السجل المالي؟')) {
       await supabase.from('finance').delete().eq('id', id);
-      fetchData();
+      fetchData(true);
     }
   };
 
