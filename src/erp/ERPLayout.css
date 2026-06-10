@@ -297,7 +297,86 @@
     font-size: 0.9rem;
 }
 
+/* ERP Clients Layout & Cards */
+.erp-clients-layout {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 25px;
+    min-height: 680px;
+}
+.mobile-client-card {
+    background: var(--erp-surface);
+    border: 1px solid var(--erp-border);
+    border-radius: 15px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    box-shadow: var(--erp-shadow);
+}
+.mobile-client-card-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+.mobile-client-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: white;
+}
+.mobile-client-info {
+    flex: 1;
+}
+.mobile-client-name {
+    font-weight: bold;
+    color: var(--erp-text-main);
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 4px 0;
+}
+.mobile-client-job {
+    font-size: 0.85rem;
+    color: var(--erp-text-muted);
+    margin: 0;
+}
+.mobile-client-contact {
+    direction: ltr;
+    text-align: right;
+    background: var(--erp-bg);
+    padding: 10px;
+    border-radius: 10px;
+}
+.mobile-client-phone1 {
+    font-weight: bold;
+    color: var(--erp-primary);
+    font-size: 0.95rem;
+}
+.mobile-client-phone2 {
+    font-size: 0.85rem;
+    color: var(--erp-text-muted);
+}
+
 @media (max-width: 992px) {
+    .erp-clients-layout {
+        display: flex !important;
+        flex-direction: column-reverse;
+        gap: 15px;
+    }
+    .mobile-hide-empty-details {
+        display: none !important;
+    }
+    .erp-main {
+        margin-right: 0;
+        padding: 10px;
+    }
     .erp-sidebar {
         transform: translateX(100%);
         width: 300px;

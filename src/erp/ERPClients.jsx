@@ -403,13 +403,13 @@ const ERPClients = () => {
       </div>
 
       {/* Main Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '25px', minHeight: '680px' }}>
+      <div className="erp-clients-layout">
         
         {/* Table Section */}
         <div style={{ background: 'var(--erp-surface)', borderRadius: '1rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            <div className="table-responsive">
-<table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+            <div className="table-responsive desktop-table">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
               <thead style={{ position: 'sticky', top: 0, background: 'var(--erp-bg)', zIndex: 10 }}>
                 <tr>
                   <th style={{ padding: '15px 25px', borderBottom: '1px solid #dee2e6', width: '40px' }}>
@@ -478,12 +478,50 @@ const ERPClients = () => {
                 })}
               </tbody>
             </table>
-</div>
+            </div>
+
+            {/* Mobile View: Client Cards */}
+            <div className="mobile-card-list">
+              {sortedClients.map(client => {
+                const isSelected = selectedClient?.id === client.id;
+                return (
+                  <div key={client.id} className="mobile-client-card" onClick={() => setSelectedClient(client)} style={{ border: isSelected ? '2px solid #4318ff' : '1px solid var(--erp-border)' }}>
+                    <div className="mobile-client-card-header">
+                      <div className="mobile-client-avatar" style={{ background: client.color || '#4318ff' }}>
+                        {client.name.charAt(0)}
+                      </div>
+                      <div className="mobile-client-info">
+                        <div className="mobile-client-name">
+                          {client.name}
+                          {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem' }}>نشط</span>}
+                        </div>
+                        <p className="mobile-client-job">{client.job || 'لا يوجد وظيفة مسجلة'}</p>
+                      </div>
+                    </div>
+                    <div className="mobile-client-contact">
+                      <div className="mobile-client-phone1">{client.phone1}</div>
+                      {client.phone2 && <div className="mobile-client-phone2">{client.phone2}</div>}
+                    </div>
+                    <div className="mobile-client-actions">
+                      <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff' }}>
+                        <CalendarPlus size={16} /> حجز
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setCurrentClient(client); setIsEditing(true); setIsClientModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd' }}>
+                        <Edit size={16} /> تعديل
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteClient(client.id, client.name); }} className="mobile-client-action-btn" style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545' }}>
+                        <Trash2 size={16} /> حذف
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Details Section */}
-        <div style={{ background: 'var(--erp-surface)', borderRadius: '1rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', borderTop: '4px solid #0d6efd', padding: '30px', overflowY: 'auto', maxHeight: '750px' }}>
+        <div className={`erp-clients-details ${!selectedClient ? 'mobile-hide-empty-details' : ''}`} style={{ background: 'var(--erp-surface)', borderRadius: '1rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', borderTop: '4px solid #0d6efd', padding: '30px', overflowY: 'auto', maxHeight: '750px' }}>
           {!selectedClient ? (
             <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
               <CheckSquare size={60} color="#cbd5e1" style={{ marginBottom: '15px' }} />
