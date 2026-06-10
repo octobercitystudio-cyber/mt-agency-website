@@ -208,6 +208,11 @@ const ClientDashboard = () => {
   let hasPaymentDue = false;
   let paymentDueHours = 0;
   
+  let totalDays = 0;
+  let remainingDays = 0;
+  let passedDays = 0;
+  const now = new Date();
+  
   if (primaryPackage) {
     serviceDetails = services.find(s => s.name === primaryPackage.name) || {};
     totalHours = serviceDetails.total_hours || 0;
@@ -219,14 +224,24 @@ const ClientDashboard = () => {
 
     const validBookings = primaryPackage.bookings.filter(b => b.date && !isNaN(new Date(b.date))).sort((a,b) => new Date(a.date) - new Date(b.date));
     const customExpiryBooking = primaryPackage.bookings.find(b => b.custom_expiry);
+    let firstDateObj = validBookings.length > 0 ? new Date(validBookings[0].date) : new Date();
     
     if (customExpiryBooking) {
       packageExpiryDate = customExpiryBooking.custom_expiry;
     } else if (validBookings.length > 0 && serviceDetails.validity_days > 0) {
-      const firstDate = new Date(validBookings[0].date);
-      const expiry = new Date(firstDate);
+      const expiry = new Date(firstDateObj);
       expiry.setDate(expiry.getDate() + serviceDetails.validity_days);
       packageExpiryDate = format(expiry, 'yyyy-MM-dd');
+    }
+
+    if (packageExpiryDate) {
+      const expiryObj = new Date(packageExpiryDate);
+      const diffTotal = expiryObj.getTime() - firstDateObj.getTime();
+      totalDays = Math.max(1, Math.ceil(diffTotal / (1000 * 60 * 60 * 24)));
+      
+      const diffRem = expiryObj.getTime() - now.getTime();
+      remainingDays = Math.max(0, Math.ceil(diffRem / (1000 * 60 * 60 * 24)));
+      passedDays = Math.max(0, totalDays - remainingDays);
     }
 
     if (remainingCost > 0 && paymentDueHours > 0) {
@@ -242,7 +257,6 @@ const ClientDashboard = () => {
     }
   }
 
-  const now = new Date();
   const filteredBookings = bookings.filter(b => {
     if (timeFilter === 'all') return true;
     if (!b.date) return false;
@@ -403,8 +417,8 @@ const ClientDashboard = () => {
                 <div className="card-header">
                   <h3><Clock size={20}/> تفاصيل الاستهلاك للفترة المحددة</h3>
                 </div>
-                <div className="card-body" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-                  <div style={{ flex: '1 1 60%', minWidth: '300px', height: '300px' }}>
+                <div className="card-body" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <div style={{ flex: '1 1 100%', height: '300px' }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={barData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -422,18 +436,37 @@ const ClientDashboard = () => {
                     </ResponsiveContainer>
                   </div>
                   
-                  <div className="package-chart" style={{ flex: '1 1 30%', minWidth: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div className="chart-center-text">
-                      <strong style={{fontSize: '1.8rem'}}>{filteredUsedHours}</strong>
-                      <span>ساعة استهلاك</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', justifyContent: 'center', width: '100%', marginTop: '1rem' }}>
+                    <div className="package-chart" style={{ flex: '1 1 45%', minWidth: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                      <div className="chart-center-text">
+                        <strong style={{fontSize: '1.8rem'}}>{filteredUsedHours}</strong>
+                        <span>ساعة استهلاك</span>
+                      </div>
+                      <ResponsiveContainer width={200} height={200}>
+                        <PieChart>
+                          <Pie data={pieData} innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value" stroke="none">
+                            {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                    <ResponsiveContainer width={200} height={200}>
-                      <PieChart>
-                        <Pie data={pieData} innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value" stroke="none">
-                          {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
+
+                    {packageExpiryDate && (
+                      <div className="package-chart" style={{ flex: '1 1 45%', minWidth: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <div className="chart-center-text">
+                          <strong style={{fontSize: '1.8rem', color: '#0dcaf0'}}>{remainingDays}</strong>
+                          <span>يوم متبقي</span>
+                        </div>
+                        <ResponsiveContainer width={200} height={200}>
+                          <PieChart>
+                            <Pie data={[{name: 'منقضي', value: passedDays}, {name: 'متبقي', value: remainingDays}]} innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value" stroke="none">
+                              <Cell fill="rgba(255,255,255,0.05)" />
+                              <Cell fill="#0dcaf0" />
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
