@@ -94,11 +94,11 @@
   }
   
   .hero-content {
-    order: 1;
+    /* natural DOM order is 2 */
   }
   
   .hero-visual {
-    order: 2;
+    /* natural DOM order is 1 */
   }
 
   .visual-banner {

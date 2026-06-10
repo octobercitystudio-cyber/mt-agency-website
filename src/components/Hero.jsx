@@ -30,22 +30,7 @@ const Hero = () => {
     <section id="home" className="hero-section">
       <div className="container hero-container">
         
-        {/* Text Content (Right side in RTL) */}
-        <div className="hero-content">
-          <h1 className="hero-title">
-            {isEnglish ? heroData.title1En : heroData.title1}{' '}
-            <span className="text-gradient">{isEnglish ? heroData.title2En : heroData.title2}</span>
-          </h1>
-          <p className="hero-subtitle">
-            {isEnglish ? heroData.subtitleEn : heroData.subtitle}
-          </p>
-          <div className="hero-actions">
-            <a href="#portfolio" className="btn-primary">{t('hero.discover')}</a>
-            <a href="#contact" className="btn-secondary">{t('hero.contact')}</a>
-          </div>
-        </div>
-        
-        {/* Visual Slider (Left side in RTL) */}
+        {/* Visual Slider (Right side in RTL, or top in mobile) */}
         <div className="hero-visual">
           <div className="visual-banner">
             {sliderImages.map((img, index) => (
@@ -57,6 +42,21 @@ const Hero = () => {
               />
             ))}
             <div className="visual-overlay"></div>
+          </div>
+        </div>
+        
+        {/* Text Content (Left side in RTL, or bottom in mobile) */}
+        <div className="hero-content">
+          <h1 className="hero-title">
+            {isEnglish ? heroData.title1En : heroData.title1}{' '}
+            <span className="text-gradient">{isEnglish ? heroData.title2En : heroData.title2}</span>
+          </h1>
+          <p className="hero-subtitle">
+            {isEnglish ? heroData.subtitleEn : heroData.subtitle}
+          </p>
+          <div className="hero-actions">
+            <a href="#portfolio" className="btn-primary">{t('hero.discover')}</a>
+            <a href="#contact" className="btn-secondary">{t('hero.contact')}</a>
           </div>
         </div>
         
