@@ -473,6 +473,14 @@
     .erp-mobile-toggle-btn {
         display: none; /* Hide top hamburger since we have "More" in bottom nav */
     }
+    html, body {
+        overflow-x: hidden;
+        max-width: 100vw;
+    }
+    .erp-main {
+        overflow-x: hidden;
+        box-sizing: border-box;
+    }
 }
 
 .table-responsive {
@@ -500,21 +508,24 @@
         padding: 15px;
     }
     .erp-stat-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+        gap: 10px !important;
     }
     .erp-welcome-banner {
         flex-direction: column !important;
         text-align: center;
         gap: 15px;
+        padding: 20px 15px !important;
     }
     .erp-welcome-time {
         width: 100%;
     }
     .erp-stat-card {
-        padding: 15px !important;
+        padding: 15px 10px !important;
     }
     .erp-stat-card h3 {
-        font-size: 1.5rem !important;
+        font-size: 1.3rem !important;
+        word-break: break-word;
     }
     .erp-stat-card .icon-wrapper {
         padding: 10px !important;
