@@ -27,6 +27,8 @@ const ERPClients = () => {
   const [historyType, setHistoryType] = useState('bookings');
   const [historyData, setHistoryData] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [isEditAppointmentModalOpen, setIsEditAppointmentModalOpen] = useState(false);
+  const [currentEditAppointment, setCurrentEditAppointment] = useState(null);
   
   // Modal states
   const [isEditing, setIsEditing] = useState(false);
@@ -381,6 +383,37 @@ const ERPClients = () => {
       }
     }
     setHistoryLoading(false);
+  };
+
+  const handleEditAppointmentClick = (row) => {
+    setCurrentEditAppointment({ ...row });
+    setIsEditAppointmentModalOpen(true);
+  };
+
+  const handleSaveEditAppointment = async (e) => {
+    e.preventDefault();
+    const { error } = await supabase.from('bookings').update({
+      start_time: currentEditAppointment.start_time,
+      end_time: currentEditAppointment.end_time,
+      actual_hours: currentEditAppointment.actual_hours,
+      actual_reels: currentEditAppointment.actual_reels,
+      status: currentEditAppointment.status,
+      notes: currentEditAppointment.notes
+    }).eq('id', currentEditAppointment.id);
+
+    if (!error) {
+      setIsEditAppointmentModalOpen(false);
+      openHistory('bookings');
+    } else {
+      alert('حدث خطأ أثناء تعديل الموعد');
+    }
+  };
+
+  const handleDeleteAppointment = async (id) => {
+    if (window.confirm('هل أنت متأكد من حذف هذا الموعد نهائياً؟')) {
+      await supabase.from('bookings').delete().eq('id', id);
+      openHistory('bookings');
+    }
   };
 
   const toggleSelectAll = (e) => {
@@ -886,6 +919,7 @@ const ERPClients = () => {
                           <th style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>البيان</th>
                           <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>الحالة</th>
                           <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>المدفوع</th>
+                          <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)' }}>إجراءات</th>
                         </>
                       )}
                     </tr>
@@ -931,7 +965,17 @@ const ERPClients = () => {
                                 {row.status || 'مؤكد'}
                               </span>
                             </td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center', fontWeight: 'bold' }}>{row.payment || 0} ج</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.payment || 0} ج</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                                <button onClick={(e) => { e.stopPropagation(); handleEditAppointmentClick(row); }} style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd', border: 'none', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }} title="تعديل">
+                                  <Edit size={14} />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); handleDeleteAppointment(row.id); }} style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', border: 'none', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }} title="حذف">
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
                           </>
                         )}
                       </tr>
@@ -955,6 +999,42 @@ const ERPClients = () => {
         onClose={() => setIsAddBookingModalOpen(false)} 
         prefilledClientName={bookingClientName} 
       />
+
+      {/* Edit Appointment Modal */}
+      {isEditAppointmentModalOpen && currentEditAppointment && (
+        <div className="erp-modal-overlay" onClick={() => setIsEditAppointmentModalOpen(false)}>
+          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '500px', borderRadius: '1.5rem', padding: '30px', border: 'none' }}>
+            <h4 style={{ marginBottom: '25px', color: 'var(--erp-text-main)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Edit color="#0d6efd" /> تعديل موعد التصوير
+            </h4>
+            <form onSubmit={handleSaveEditAppointment} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>وقت البدء</label><input type="time" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.start_time || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, start_time: e.target.value})} /></div>
+                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>وقت الانتهاء</label><input type="time" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.end_time || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, end_time: e.target.value})} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الساعات الفعلية</label><input type="number" step="0.25" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.actual_hours || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, actual_hours: e.target.value})} /></div>
+                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الريلز المصورة</label><input type="number" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.actual_reels || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, actual_reels: e.target.value})} /></div>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الحالة</label>
+                <select style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.status || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, status: e.target.value})}>
+                  <option value="نشط">نشط (تحت التنفيذ)</option>
+                  <option value="مؤكد">مؤكد (قادم)</option>
+                  <option value="منتهي">منتهي</option>
+                  <option value="مؤرشف">مؤرشف</option>
+                  <option value="دفعة">دفعة (مالية)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>ملاحظات</label>
+                <textarea style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold', resize: 'vertical' }} value={currentEditAppointment.notes || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, notes: e.target.value})} />
+              </div>
+              <button type="submit" style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: '#0d6efd', color: 'var(--erp-surface)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '15px' }}>حفظ التعديلات</button>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
