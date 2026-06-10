@@ -225,7 +225,7 @@ const ERPDashboard = () => {
       </div>
 
       {/* Bookings Tables (Today & Tomorrow) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px', marginBottom: '30px' }}>
+      <div className="erp-bookings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px', marginBottom: '30px' }}>
         
         {/* Today Bookings */}
         <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '0', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', overflow: 'hidden' }}>
@@ -233,7 +233,7 @@ const ERPDashboard = () => {
             <div style={{ background: 'rgba(67, 24, 255, 0.1)', padding: '10px', borderRadius: '12px', color: 'var(--erp-primary)' }}>
               <Clock size={20} />
             </div>
-            <h4 style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>مواعيد اليوم</h4>
+            <h4 className="erp-section-title" style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>مواعيد اليوم</h4>
           </div>
           <div style={{ padding: '0' }}>
             {loading ? <div style={{ color: 'var(--erp-text-muted)', textAlign: 'center', padding: '30px', fontWeight: 'bold' }}>جاري التحميل...</div> : todayBookings.length === 0 ? (
@@ -296,7 +296,7 @@ const ERPDashboard = () => {
             <div style={{ background: 'rgba(13, 202, 240, 0.1)', padding: '10px', borderRadius: '12px', color: '#0dcaf0' }}>
               <Calendar size={20} />
             </div>
-            <h4 style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>مواعيد غداً</h4>
+            <h4 className="erp-section-title" style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>مواعيد غداً</h4>
           </div>
           <div style={{ padding: '0' }}>
             {loading ? <div style={{ color: 'var(--erp-text-muted)', textAlign: 'center', padding: '30px', fontWeight: 'bold' }}>جاري التحميل...</div> : tomorrowBookings.length === 0 ? (
@@ -351,7 +351,7 @@ const ERPDashboard = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 25px', borderBottom: '1px solid var(--erp-border)', background: 'rgba(255, 193, 7, 0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <AlertCircle size={24} color="var(--erp-warning)" />
-            <h4 style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
+            <h4 className="erp-section-title" style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
               <span className="mobile-hidden">مهام والتزامات مستحقة الآن</span>
               <span className="desktop-hidden">مهام والتزامات</span>
             </h4>

@@ -484,6 +484,13 @@
     .mobile-hidden {
         display: none !important;
     }
+    .erp-section-title {
+        font-size: 1.1rem !important;
+    }
+    .erp-bookings-grid {
+        gap: 15px !important;
+        margin-bottom: 15px !important;
+    }
 }
 
 @media (min-width: 993px) {
@@ -519,6 +526,7 @@
     .erp-stat-grid {
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 10px !important;
+        margin-bottom: 15px !important;
     }
     .erp-welcome-banner {
         flex-direction: row !important;
