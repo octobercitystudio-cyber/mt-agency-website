@@ -166,9 +166,9 @@ const ERPDashboard = () => {
             <span style={{ fontSize: '1rem' }}>⚡</span> نظام الإدارة الذكي
           </div>
           <h1 className="erp-welcome-title" style={{ margin: 0, fontWeight: 800, fontSize: '2rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '15px' }}>
-            لوحة تحكم MT Agency
+            لوحة التحكم <span className="mobile-hidden">MT Agency</span>
           </h1>
-          <p className="erp-welcome-subtitle" style={{ margin: '5px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: '600' }}>مرحباً بك مجدداً ! Owner - October City Studio</p>
+          <p className="erp-welcome-subtitle mobile-hidden" style={{ margin: '5px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: '600' }}>مرحباً بك مجدداً ! Owner - October City Studio</p>
         </div>
         <div className="erp-welcome-time" style={{ background: 'rgba(0,0,0,0.2)', padding: '15px 25px', borderRadius: '15px', textAlign: 'center', border: 'none' }}>
           <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)', marginBottom: '5px', fontWeight: 'bold' }}>

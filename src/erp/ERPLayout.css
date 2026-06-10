@@ -481,6 +481,9 @@
         overflow-x: hidden;
         box-sizing: border-box;
     }
+    .mobile-hidden {
+        display: none !important;
+    }
 }
 
 .table-responsive {
