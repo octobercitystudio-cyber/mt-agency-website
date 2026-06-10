@@ -158,14 +158,18 @@ const ERPClients = () => {
         }
       }
 
-      const activeNames = new Set(
-        (activeBookingsData || [])
-          .filter(b => b.service && !b.service.includes('مؤرشف'))
-          .map(b => b.client_name)
-      );
+      const activeBookingsByClient = {};
+      (activeBookingsData || []).forEach(b => {
+         if (b.service && !b.service.includes('مؤرشف')) {
+             if(!activeBookingsByClient[b.client_name]) activeBookingsByClient[b.client_name] = [];
+             activeBookingsByClient[b.client_name].push(b.service);
+         }
+      });
+
       const enrichedData = data.map(c => ({
         ...c,
-        isActive: activeNames.has(c.name)
+        isActive: !!activeBookingsByClient[c.name],
+        packagesList: activeBookingsByClient[c.name] || []
       }));
       setClients(enrichedData);
       globalClientsCache = enrichedData;
@@ -247,11 +251,11 @@ const ERPClients = () => {
     fetchClients();
   };
 
-  const startSession = async (clientName) => {
+  const startSession = async (clientName, packageName) => {
     try {
       const { error } = await supabase.from('bookings').insert([{
         client_name: clientName,
-        service: 'غير محدد',
+        service: packageName || 'غير محدد',
         date: new Date().toISOString().split('T')[0],
         start_time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
         end_time: '',
@@ -489,7 +493,7 @@ const ERPClients = () => {
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             {client.packagesList && client.packagesList.length > 0 && (
-                              <button onClick={(e) => { e.stopPropagation(); startSession(client.name); }} style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#ffc107', border: '1px solid rgba(255, 193, 7, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                              <button onClick={(e) => { e.stopPropagation(); startSession(client.name, client.packagesList[0]); }} style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#ffc107', border: '1px solid rgba(255, 193, 7, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                                 <Play size={16} /> ابدأ التصوير
                               </button>
                             )}
@@ -539,7 +543,7 @@ const ERPClients = () => {
                     </div>
                     <div className="mobile-client-actions">
                       {client.packagesList && client.packagesList.length > 0 && (
-                        <button onClick={(e) => { e.stopPropagation(); startSession(client.name); }} className="mobile-client-action-btn" style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#ffc107' }}>
+                        <button onClick={(e) => { e.stopPropagation(); startSession(client.name, client.packagesList[0]); }} className="mobile-client-action-btn" style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#ffc107' }}>
                           <Play size={20} />
                         </button>
                       )}
@@ -603,7 +607,7 @@ const ERPClients = () => {
                 </div>
                 
                 {activePackages.some(pkg => pkg.total_hours > 0 || pkg.total_reels > 0) && (
-                  <button onClick={() => startSession(selectedClient.name)} style={{ width: '100%', background: '#dc3545', color: 'var(--erp-surface)', padding: '1.5rem', borderRadius: '1rem', fontWeight: 'bold', fontSize: '1.5rem', border: '3px solid #ffcccc', boxShadow: '0 0.5rem 1rem rgba(0,0,0,.15)', marginTop: '15px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', animation: 'pulse 2s infinite' }}>
+                  <button onClick={() => startSession(selectedClient.name, activePackages[0].service)} style={{ width: '100%', background: '#dc3545', color: 'var(--erp-surface)', padding: '1.5rem', borderRadius: '1rem', fontWeight: 'bold', fontSize: '1.5rem', border: '3px solid #ffcccc', boxShadow: '0 0.5rem 1rem rgba(0,0,0,.15)', marginTop: '15px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', animation: 'pulse 2s infinite' }}>
                     <Play fill="currentColor" /> ابدأ التصوير الآن
                   </button>
                 )}

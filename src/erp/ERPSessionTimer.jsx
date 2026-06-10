@@ -105,11 +105,6 @@ const ERPSessionTimer = () => {
   };
 
   const handleStopAndSave = async () => {
-    if (!selectedService) {
-      alert('يرجى تحديد الباقة / الخدمة');
-      return;
-    }
-    
     setIsSaving(true);
     const finalHours = parseFloat(editHours) + (parseFloat(editMinutes) / 60);
     
@@ -117,7 +112,7 @@ const ERPSessionTimer = () => {
       const { error } = await supabase.from('bookings').update({
         status: 'مكتمل', // Session is now complete and should be deducted
         actual_hours: finalHours,
-        service: selectedService,
+        service: activeSession.service, // Use the automatically assigned service
         date: format(new Date(), 'yyyy-MM-dd'),
         notes: `وقت البدء: ${format(new Date(activeSession.notes), 'yyyy-MM-dd HH:mm:ss')} | تم إيقاف وحفظ المؤقت`
       }).eq('id', activeSession.id);
@@ -151,8 +146,8 @@ const ERPSessionTimer = () => {
       <div style={{
         position: 'fixed',
         bottom: '85px',
-        left: '50%',
-        transform: 'translateX(-50%)',
+        left: '20px', // Moved to bottom-left
+        transform: 'none', // Removed horizontal translation
         background: '#1e1b2e',
         border: '1px solid #332d4a',
         borderRadius: '50rem',
@@ -220,13 +215,10 @@ const ERPSessionTimer = () => {
             </div>
 
             <div className="mb-4">
-              <label className="form-label">الباقة / الخدمة التي سيتم الخصم منها</label>
-              <select className="form-select" value={selectedService} onChange={e => setSelectedService(e.target.value)}>
-                <option value="">-- اختر الباقة --</option>
-                {services.map(s => (
-                  <option key={s.id} value={s.name}>{s.name} ({s.category})</option>
-                ))}
-              </select>
+              <label className="form-label">الباقة المسجلة (تلقائي)</label>
+              <div className="form-control" style={{ background: 'rgba(255,255,255,0.05)', color: '#a3aed1', border: '1px solid rgba(255,255,255,0.1)', cursor: 'not-allowed' }}>
+                {activeSession.service}
+              </div>
             </div>
 
             <div className="d-flex gap-2">
