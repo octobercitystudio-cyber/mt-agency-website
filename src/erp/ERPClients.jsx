@@ -350,9 +350,11 @@ const ERPClients = () => {
               }
               if (b.custom_price > packagesMap[srvName].custom_price) {
                 packagesMap[srvName].custom_price = b.custom_price;
-                packagesMap[srvName].discount = b.discount || 0;
-                packagesMap[srvName].discount_reason = b.discount_reason || '';
               }
+            }
+            if (b.discount > packagesMap[srvName].discount) {
+              packagesMap[srvName].discount = b.discount;
+              if (b.discount_reason) packagesMap[srvName].discount_reason = b.discount_reason;
             }
             packagesMap[srvName].total_paid += Number(b.payment || 0);
             if (b.service.includes('مؤرشف') || b.status === 'مؤرشف') {
