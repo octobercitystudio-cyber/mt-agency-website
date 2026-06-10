@@ -41,11 +41,20 @@ const ScrollToTop = () => {
   const { pathname } = useLocation();
 
   useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    
     // Clear any hash (#portfolio, etc.) from URL on fresh load
     if (window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname);
     }
+    
+    // Force scroll to top with a slight delay to ensure rendering is complete
     window.scrollTo(0, 0);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }, 100);
   }, [pathname]);
 
   return null;
