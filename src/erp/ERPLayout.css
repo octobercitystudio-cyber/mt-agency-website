@@ -468,7 +468,7 @@
         padding-bottom: 90px !important; /* Prevent content from hiding behind bottom nav */
     }
     .erp-floating-undo {
-        bottom: 90px !important; /* Move above bottom nav */
+        display: none !important; /* Hide undo button on mobile to save space */
     }
     .erp-mobile-toggle-btn {
         display: none; /* Hide top hamburger since we have "More" in bottom nav */
