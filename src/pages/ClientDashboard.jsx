@@ -8,6 +8,39 @@ import { useData } from '../store/DataContext';
 import { useNavigate } from 'react-router-dom';
 import './ClientDashboard.css';
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+    this.setState({ errorInfo });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', color: '#ff4757', background: '#1e142e', height: '100vh', direction: 'ltr', textAlign: 'left' }}>
+          <h2>Something went wrong.</h2>
+          <details style={{ whiteSpace: 'pre-wrap', marginTop: '1rem', background: '#000', padding: '1rem', borderRadius: '8px' }}>
+            {this.state.error && this.state.error.toString()}
+            <br />
+            {this.state.errorInfo && this.state.errorInfo.componentStack}
+          </details>
+          <button onClick={() => window.location.reload()} style={{marginTop: '2rem', padding: '10px 20px', cursor: 'pointer'}}>Reload</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const ClientDashboard = () => {
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
@@ -229,6 +262,7 @@ const ClientDashboard = () => {
     .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
 
   return (
+    <ErrorBoundary>
     <div className="mt-dashboard">
       {/* Sidebar */}
       <aside className="mt-sidebar">
@@ -601,6 +635,7 @@ const ClientDashboard = () => {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 };
 
