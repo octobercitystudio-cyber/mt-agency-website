@@ -377,7 +377,7 @@ const ERPClients = () => {
              appointments = []; 
           }
           
-          appointments.sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id);
+          appointments.sort((a, b) => new Date(a.date) - new Date(b.date) || a.id - b.id);
           setHistoryData(appointments);
         }
       }
