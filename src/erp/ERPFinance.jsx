@@ -472,34 +472,31 @@ const ERPFinance = () => {
       </div>
 
       {/* Partners Dues */}
-      <div className="row g-4 mb-4">
+      <div className="row g-3 mb-4">
         {[
           { name: 'أ. أشرف', key: 'اشرف', due: ashraf_due },
           { name: 'أ. مروة', key: 'مروة', due: marwa_due }
         ].map(partner => (
-          <div className="col-md-6" key={partner.key}>
-            <div className="card border-0 shadow-sm rounded-4 p-3 d-flex flex-row align-items-center justify-content-between wallet-card" style={{ background: 'var(--erp-surface)' }}>
-              <div className="d-flex align-items-center">
-                <div style={{ background: 'var(--erp-bg)', padding: '15px', borderRadius: '50%', marginRight: '15px' }}>
-                  <i className="fas fa-user fs-5 text-dark"></i>
+          <div className="col-6" key={partner.key}>
+            <div className="card border-0 shadow-sm rounded-4 p-2 p-md-3 d-flex flex-column align-items-center justify-content-center wallet-card text-center h-100" style={{ background: 'var(--erp-surface)' }}>
+              <div className="d-flex flex-column flex-md-row align-items-center mb-2">
+                <div className="mb-2 mb-md-0 ms-md-2" style={{ background: 'var(--erp-bg)', padding: '10px', borderRadius: '50%' }}>
+                  <i className="fas fa-user text-dark" style={{ fontSize: '1rem' }}></i>
                 </div>
-                <div>
-                  <h6 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>
-                    {partner.name}
-                    {isAdmin && <button className="btn btn-sm btn-link p-0 ms-2" style={{ color: 'var(--erp-primary)' }} onClick={() => openAdjustPartnerModal(partner.key, partner.due)}><i className="fas fa-edit"></i></button>}
-                  </h6>
-                  <small style={{ color: 'var(--erp-text-muted)' }}>مستحقات متأخرة أو سلف (تراكمية)</small>
-                </div>
+                <h6 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)', fontSize: '0.9rem' }}>
+                  {partner.name}
+                  {isAdmin && <button className="btn btn-sm btn-link p-0 ms-1" style={{ color: 'var(--erp-primary)' }} onClick={() => openAdjustPartnerModal(partner.key, partner.due)}><i className="fas fa-edit"></i></button>}
+                </h6>
               </div>
-              <div className="text-end">
-                {partner.due > 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-success)' }}>له: {partner.due.toLocaleString()} <small className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج</small></h5>}
-                {partner.due < 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-danger)' }}>عليه: {(partner.due * -1).toLocaleString()} <small className="fs-6" style={{ color: 'var(--erp-text-muted)' }}>ج</small></h5>}
-                {partner.due === 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-text-muted)' }}>0 <small className="fs-6">ج</small></h5>}
+              <div className="text-center w-100">
+                {partner.due > 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-success)' }}>له: {partner.due.toLocaleString()} <small style={{ color: 'var(--erp-text-muted)', fontSize: '0.7rem' }}>ج</small></h5>}
+                {partner.due < 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-danger)' }}>عليه: {(partner.due * -1).toLocaleString()} <small style={{ color: 'var(--erp-text-muted)', fontSize: '0.7rem' }}>ج</small></h5>}
+                {partner.due === 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-text-muted)' }}>0 <small style={{ fontSize: '0.7rem' }}>ج</small></h5>}
                 
-                <div className="d-flex gap-1 justify-content-end mt-2">
-                  <button className="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold no-print" onClick={() => openAdvanceModal(partner.key)}>سحب سلفة</button>
-                  {partner.due > 0 && <button className="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold no-print" onClick={() => openSettleModal(partner.key, partner.due)}>سداد له</button>}
-                  {partner.due < 0 && <button className="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold no-print" onClick={() => openPayAdvanceModal(partner.key, partner.due * -1)}>سداد السلفة</button>}
+                <div className="d-flex gap-1 justify-content-center mt-2 flex-wrap">
+                  <button className="btn btn-outline-danger rounded-pill px-3 py-1 fw-bold no-print" style={{ fontSize: '0.75rem' }} onClick={() => openAdvanceModal(partner.key)}>سلفة</button>
+                  {partner.due > 0 && <button className="btn btn-outline-success rounded-pill px-3 py-1 fw-bold no-print" style={{ fontSize: '0.75rem' }} onClick={() => openSettleModal(partner.key, partner.due)}>سداد</button>}
+                  {partner.due < 0 && <button className="btn btn-outline-primary rounded-pill px-3 py-1 fw-bold no-print" style={{ fontSize: '0.75rem' }} onClick={() => openPayAdvanceModal(partner.key, partner.due * -1)}>تسديد</button>}
                 </div>
               </div>
             </div>
