@@ -48,7 +48,7 @@ const ClientDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [services, setServices] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { siteData } = useData();
   
@@ -148,7 +148,14 @@ const ClientDashboard = () => {
     return <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'var(--bg-dark)'}}>جاري تحميل لوحة التحكم...</div>;
   }
 
-  if (!client) return null;
+  if (!client) {
+    return (
+      <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff4757', background: 'var(--bg-dark)', flexDirection: 'column'}}>
+         <h3>عذراً، تعذر جلب بيانات العميل!</h3>
+         <button className="btn-modern-primary" style={{marginTop: '1rem'}} onClick={() => { localStorage.removeItem('mt_client_phone'); navigate('/login'); }}>العودة لصفحة الدخول</button>
+      </div>
+    );
+  }
 
   // Format Helpers
   const formatTime = (decimalHours) => {
