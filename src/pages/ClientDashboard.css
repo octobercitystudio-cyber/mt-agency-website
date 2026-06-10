@@ -542,23 +542,102 @@
   .mt-dashboard {
     flex-direction: column;
   }
+  
+  /* Make sidebar a fixed bottom nav */
   .mt-sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     width: 100%;
+    height: 70px;
+    flex-direction: row;
+    padding: 0;
     border-left: none;
-    border-bottom: var(--glass-border);
-    padding: 1rem;
+    border-top: var(--glass-border);
+    z-index: 1000;
+    align-items: center;
+    background: rgba(20, 15, 30, 0.85);
   }
+
+  .sidebar-brand {
+    display: none;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    justify-content: space-around;
+    width: 100%;
+    padding: 0 0.5rem;
+    gap: 0;
+  }
+
+  .nav-btn {
+    flex-direction: column;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 8px;
+    gap: 4px;
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .nav-btn .icon {
+    font-size: 1.2rem;
+  }
+
+  .nav-btn.active {
+    background: rgba(157, 78, 221, 0.1);
+    border-right: none;
+    border-bottom: 3px solid var(--color-neon-purple);
+    color: #fff;
+  }
+
   .mt-main {
     padding: 1rem;
+    padding-bottom: 90px;
   }
+
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .hero-stats-grid {
+    flex-wrap: wrap;
+  }
+
+  .stat-card {
+    min-width: 120px;
+    flex: 1 1 45%;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+  
+  .time-filters-container {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .filter-btn {
+    flex: 1 1 40%;
+    text-align: center;
+  }
+  
   .package-split {
     flex-direction: column;
   }
+  
   .finance-row {
     flex-direction: column;
   }
+  
+  .header-greeting h2 {
+    font-size: 1.5rem;
+  }
 }
-
 /* Helper Utilities */
 .mb-4 { margin-bottom: 2rem; }
 

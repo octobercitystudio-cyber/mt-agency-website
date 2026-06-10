@@ -79,6 +79,23 @@ const ClientDashboard = () => {
     };
 
     fetchClientData();
+
+    // Set up Realtime subscriptions for automatic syncing with Admin dashboard
+    const channel = supabase.channel('client_dashboard_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, payload => {
+        fetchClientData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, payload => {
+        fetchClientData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, payload => {
+        fetchClientData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [navigate]);
 
   const handleLogout = () => {
