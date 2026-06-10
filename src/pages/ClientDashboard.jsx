@@ -351,6 +351,15 @@ const ClientDashboard = () => {
             </div>
           )}
 
+          {activeTab === 'home' && !primaryPackage && (
+            <div className="mt-card premium-glass mb-4 p-5 text-center">
+              <Calendar size={64} style={{ color: 'var(--color-neon-purple)', marginBottom: '1rem' }} />
+              <h3 style={{ color: '#fff', marginBottom: '1rem' }}>لا توجد باقات أو حجوزات حالياً</h3>
+              <p style={{ color: '#8c8c8c' }}>لم يتم العثور على أي جلسات تصوير مسجلة مسبقاً في حسابك.</p>
+              <button className="btn-modern-primary mt-4" onClick={() => setActiveTab('offers')}>استكشف عروضنا</button>
+            </div>
+          )}
+
           {activeTab === 'schedule' && (
             <div className="schedule-tab">
               {/* Next Appointment Hero */}
@@ -472,6 +481,14 @@ const ClientDashboard = () => {
                     </table>
                   </div>
                </div>
+            </div>
+          )}
+
+          {activeTab === 'finance' && !primaryPackage && (
+            <div className="mt-card premium-glass mb-4 p-5 text-center">
+              <CreditCard size={64} style={{ color: 'var(--color-neon-purple)', marginBottom: '1rem' }} />
+              <h3 style={{ color: '#fff', marginBottom: '1rem' }}>لا توجد بيانات مالية</h3>
+              <p style={{ color: '#8c8c8c' }}>لا توجد حجوزات أو باقات مسجلة لعرض حالتها المادية.</p>
             </div>
           )}
 
