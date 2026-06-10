@@ -4,6 +4,7 @@ import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashbo
 import { useData } from '../store/DataContext';
 import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
 import { supabase } from '../supabaseClient';
+import ERPSessionTimer from './ERPSessionTimer';
 import './ERPLayout.css';
 
 const ERPLayout = () => {
@@ -181,6 +182,9 @@ const ERPLayout = () => {
         <RotateCcw size={20} className={isUndoing ? "fa-spin" : ""} />
         {isUndoing ? 'جاري التراجع...' : 'تراجع عن آخر خطوة'}
       </button>
+
+      {/* Global Session Timer */}
+      <ERPSessionTimer />
     </div>
   );
 };

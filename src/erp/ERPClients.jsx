@@ -247,6 +247,33 @@ const ERPClients = () => {
     fetchClients();
   };
 
+  const startSession = async (clientName) => {
+    try {
+      const { error } = await supabase.from('bookings').insert([{
+        client_name: clientName,
+        service: 'غير محدد',
+        date: new Date().toISOString().split('T')[0],
+        start_time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+        end_time: '',
+        actual_hours: 0,
+        custom_price: 0,
+        discount: 0,
+        discount_reason: '',
+        delivery_date: null,
+        status: 'active_timer',
+        notes: new Date().toISOString(),
+        payment: 0
+      }]);
+      if (error) {
+        console.error(error);
+        alert('حدث خطأ أثناء بدء الجلسة');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('حدث خطأ بالاتصال');
+    }
+  };
+
   const openWhatsApp = () => {
     if (!selectedClient) return;
     const msg = `أهلاً بك أستاذ/ة ${selectedClient.name}،\n\nنود إعلامكم بآخر تحديثات حسابكم لدينا:\nالمديونية: ${selectedClient.debt || 0} ج.م\nالنقاط: ${selectedClient.points || 0}\n\nشكراً لثقتكم بنا.`;
@@ -458,9 +485,16 @@ const ERPClients = () => {
                             <div style={{ fontWeight: 'bold', color: '#4318ff', fontSize: '0.9rem' }}>{client.phone1}</div>
                             {client.phone2 && <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)' }}>{client.phone2}</div>}
                           </div>
-                          <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff', border: '1px solid rgba(67, 24, 255, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                            <CalendarPlus size={16} /> حجز / إضافة
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {client.packagesList && client.packagesList.length > 0 && (
+                              <button onClick={(e) => { e.stopPropagation(); startSession(client.name); }} style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#ffc107', border: '1px solid rgba(255, 193, 7, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                <Play size={16} /> ابدأ التصوير
+                              </button>
+                            )}
+                            <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff', border: '1px solid rgba(67, 24, 255, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                              <CalendarPlus size={16} /> حجز / إضافة
+                            </button>
+                          </div>
                         </div>
                       </td>
                       <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
@@ -502,6 +536,11 @@ const ERPClients = () => {
                       </div>
                     </div>
                     <div className="mobile-client-actions">
+                      {client.packagesList && client.packagesList.length > 0 && (
+                        <button onClick={(e) => { e.stopPropagation(); startSession(client.name); }} className="mobile-client-action-btn" style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#ffc107' }}>
+                          <Play size={20} />
+                        </button>
+                      )}
                       <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff' }}>
                         <CalendarPlus size={20} />
                       </button>
