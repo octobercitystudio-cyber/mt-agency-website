@@ -55,6 +55,7 @@ const ClientDashboard = () => {
   const [activeTab, setActiveTab] = useState('home');
   const [rescheduleModal, setRescheduleModal] = useState({ isOpen: false, booking: null, date: '', time: '' });
   const [pendingRequests, setPendingRequests] = useState([]); // Simulate database for pending requests
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   const [timeFilter, setTimeFilter] = useState('all');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [dayModal, setDayModal] = useState({ isOpen: false, date: null, bookingsForDay: [] });
@@ -257,6 +258,49 @@ const ClientDashboard = () => {
     }
   }
 
+  // Calculate System Notifications
+  const systemNotifications = [];
+
+  if (primaryPackage) {
+    if (hasPaymentDue) {
+      systemNotifications.push({
+        id: 'payment_due',
+        type: 'danger',
+        icon: '💳',
+        title: 'تنبيه استحقاق سداد',
+        message: `لقد تجاوزت حاجز الاستهلاك. يرجى سداد المبلغ المتبقي (${remainingCost} ج) لتجنب توقف الباقة.`
+      });
+    } else if (primaryPackage.usedHours > 0 && primaryPackage.paid === 0) {
+      systemNotifications.push({
+        id: 'no_payment',
+        type: 'warning',
+        icon: '⚠️',
+        title: 'تنبيه مالي',
+        message: 'لقد بدأت باستخدام الباقة ولم تقم بتسديد أي مبالغ أو عربون حتى الآن.'
+      });
+    } else if (serviceDetails.deposit && primaryPackage.paid < serviceDetails.deposit && primaryPackage.usedHours === 0) {
+       systemNotifications.push({
+        id: 'under_deposit',
+        type: 'warning',
+        icon: '⚠️',
+        title: 'استكمال العربون',
+        message: `المبلغ المدفوع أقل من العربون المطلوب (${serviceDetails.deposit} ج). يرجى استكمال الدفع.`
+      });
+    }
+  }
+
+  // Check offers
+  const activeOffersCount = siteData?.offers?.filter(o => o.is_active)?.length || 0;
+  if (activeOffersCount > 0) {
+    systemNotifications.push({
+      id: 'new_offers',
+      type: 'success',
+      icon: '🎁',
+      title: 'عروض جديدة بانتظارك!',
+      message: `يوجد ${activeOffersCount} عروض حصرية متاحة الآن. تصفح صفحة العروض للاستفادة منها.`
+    });
+  }
+
   const filteredBookings = bookings.filter(b => {
     if (timeFilter === 'all') return true;
     if (!b.date) return false;
@@ -343,9 +387,9 @@ const ClientDashboard = () => {
             <p>جاهز لجلسة التصوير القادمة؟</p>
           </div>
           <div className="header-actions" style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
-            <button className="btn-notification" style={{background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--color-silver)', padding: '0.8rem', borderRadius: '50%', cursor: 'pointer', position: 'relative'}}>
+            <button className="btn-notification" onClick={() => setIsNotificationsModalOpen(true)} style={{background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--color-silver)', padding: '0.8rem', borderRadius: '50%', cursor: 'pointer', position: 'relative'}}>
               <span className="icon" style={{fontSize: '1.2rem'}}>🔔</span>
-              {pendingRequests.length > 0 && <span style={{position: 'absolute', top: '-5px', right: '-5px', background: '#ff4757', color: '#fff', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '50%'}}>{pendingRequests.length}</span>}
+              {systemNotifications.length > 0 && <span style={{position: 'absolute', top: '-5px', right: '-5px', background: '#ff4757', color: '#fff', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '50%', minWidth: '18px', textAlign: 'center'}}>{systemNotifications.length}</span>}
             </button>
             <button className="btn-logout" onClick={handleLogout}>تسجيل خروج</button>
           </div>
@@ -725,6 +769,45 @@ const ClientDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Notifications Modal */}
+      {isNotificationsModalOpen && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target.className === 'modal-overlay') setIsNotificationsModalOpen(false); }}>
+          <div className="modal-content premium-glass" style={{ maxWidth: '400px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+              <h3 style={{ margin: 0, color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}><span className="icon">🔔</span> الإشعارات والتنبيهات</h3>
+              <button className="btn-action" onClick={() => setIsNotificationsModalOpen(false)} style={{ padding: '0.3rem', borderRadius: '50%' }}><X size={20}/></button>
+            </div>
+            
+            <div className="notifications-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '400px', overflowY: 'auto' }}>
+              {systemNotifications.length > 0 ? (
+                systemNotifications.map((notif, idx) => (
+                  <div key={idx} style={{ 
+                    background: notif.type === 'danger' ? 'rgba(231, 76, 60, 0.1)' : notif.type === 'warning' ? 'rgba(241, 196, 15, 0.1)' : 'rgba(46, 213, 115, 0.1)', 
+                    border: `1px solid ${notif.type === 'danger' ? 'rgba(231, 76, 60, 0.3)' : notif.type === 'warning' ? 'rgba(241, 196, 15, 0.3)' : 'rgba(46, 213, 115, 0.3)'}`, 
+                    padding: '1rem', 
+                    borderRadius: '12px',
+                    display: 'flex',
+                    gap: '12px'
+                  }}>
+                    <div style={{ fontSize: '1.5rem' }}>{notif.icon}</div>
+                    <div>
+                      <h4 style={{ margin: '0 0 0.5rem 0', color: notif.type === 'danger' ? '#ff4757' : notif.type === 'warning' ? '#f1c40f' : '#2ed573' }}>{notif.title}</h4>
+                      <p style={{ margin: 0, color: '#e0e0e0', fontSize: '0.85rem', lineHeight: '1.5' }}>{notif.message}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '2rem 0', color: '#8c8c8c' }}>
+                  <span style={{ fontSize: '3rem', display: 'block', opacity: 0.5, marginBottom: '1rem' }}>🔕</span>
+                  لا توجد إشعارات جديدة في الوقت الحالي
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
     </ErrorBoundary>
   );
