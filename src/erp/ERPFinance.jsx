@@ -461,7 +461,7 @@ const ERPFinance = () => {
                 <i className="fas fa-paper-plane fs-5"></i>
               </div>
               {isAdmin && (
-                <button className="btn btn-link p-0 no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد"><i className="fas fa-pen"></i></button>
+                <button className="btn btn-link p-0 no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد" onClick={() => openAdjustWalletModal('انستاباي', balances.instapay)}><i className="fas fa-pen"></i></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>حساب البنك (InstaPay)</p>
