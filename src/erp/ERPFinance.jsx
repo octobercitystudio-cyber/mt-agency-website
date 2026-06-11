@@ -129,11 +129,17 @@ const ERPFinance = () => {
     const ashraf_due = (ashraf_e1 - ashraf_e2) + safeFloat(appConfig['partner_اشرف_adj'] || 0);
     const marwa_due = (marwa_e1 - marwa_e2) + safeFloat(appConfig['partner_مروة_adj'] || 0);
 
-    const final_instapay = balances['انستاباي'] + balances['إنستاباي (InstaPay)'] + balances['تحويل بنكي'];
+    const cash_adj = safeFloat(appConfig['wallet_كاش_adj'] || 0);
+    const vodafone_adj = safeFloat(appConfig['wallet_فودافون كاش_adj'] || 0);
+    const instapay_adj = safeFloat(appConfig['wallet_انستاباي_adj'] || 0);
+
+    const final_instapay = balances['انستاباي'] + (balances['إنستاباي (InstaPay)'] || 0) + (balances['تحويل بنكي'] || 0) + instapay_adj;
+    const final_cash = balances['كاش'] + cash_adj;
+    const final_vodafone = balances['فودافون كاش'] + vodafone_adj;
 
     return { 
       total_inc, total_exp, net_profit, 
-      balances: { cash: balances['كاش'], vodafone: balances['فودافون كاش'], instapay: final_instapay }, 
+      balances: { cash: final_cash, vodafone: final_vodafone, instapay: final_instapay }, 
       ashraf_due, marwa_due, 
       incomes, expenses 
     };
