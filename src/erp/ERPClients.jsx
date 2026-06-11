@@ -537,6 +537,7 @@ const ERPClients = () => {
                             <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                               {client.name}
                               {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem' }}>نشط</span>}
+                              {client.debt > 0 && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
                             </div>
                             <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginTop: '2px' }}>{client.job || 'لا يوجد وظيفة مسجلة'}</div>
                           </div>
@@ -586,6 +587,7 @@ const ERPClients = () => {
                         <div className="mobile-client-name" style={{ marginBottom: '2px' }}>
                           {client.name}
                           {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '50rem' }}>نشط</span>}
+                          {client.debt > 0 && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
                           <p className="mobile-client-job" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem', margin: 0 }}>{client.job || 'عميل'}</p>
@@ -625,7 +627,10 @@ const ERPClients = () => {
                 <div style={{ width: '70px', height: '70px', borderRadius: '12px', background: selectedClient.color || '#4318ff', color: 'var(--erp-surface)', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: '800', fontSize: '2rem', margin: '0 auto 15px auto', boxShadow: '0 4px 10px rgba(67, 24, 255, 0.2)' }}>
                   {selectedClient.name.charAt(0)}
                 </div>
-                <h4 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', margin: '0 0 15px 0' }}>{selectedClient.name}</h4>
+                <h4 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  {selectedClient.name}
+                  {selectedClient.debt > 0 && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.9rem', padding: '3px 10px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
+                </h4>
                 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <span style={{ background: 'rgba(255, 193, 7, 0.15)', color: '#ffc107', border: '1px solid #ffecb5', padding: '8px 16px', borderRadius: '50px', fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>

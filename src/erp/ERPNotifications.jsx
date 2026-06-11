@@ -10,7 +10,7 @@ export const useGlobalAlerts = () => {
   const fetchAlerts = async () => {
     setLoading(true);
     try {
-      const { data: clientsData } = await supabase.from('clients').select('name, dismissed_alerts');
+      const { data: clientsData } = await supabase.from('clients').select('name, dismissed_alerts, debt');
       const { data: servicesData } = await supabase.from('services').select('*');
       const { data: bookingsData } = await supabase.from('bookings').select('*').not('service', 'like', '%(مؤرشف)%');
       const { data: remindersData } = await supabase.from('reminders').select('*').eq('status', 'pending');
@@ -102,6 +102,20 @@ export const useGlobalAlerts = () => {
                 icon: <Clock className="text-warning" size={18} />
               });
             }
+          }
+        }
+      });
+
+      // Process general client debt
+      clientsData.forEach(c => {
+        if (c.debt && parseFloat(c.debt) > 0) {
+          const alertId = `general_debt_${c.name}`;
+          if (!isDismissed(c.name, alertId)) {
+            newAlerts.push({
+              id: alertId, client: c.name, service: 'رصيد مديونية مستحق', type: 'payment',
+              msg: `يوجد مديونية مستحقة الدفع على العميل بقيمة (${c.debt} ج.م)`,
+              icon: <DollarSign className="text-danger" size={18} />
+            });
           }
         }
       });
