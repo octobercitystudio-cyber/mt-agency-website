@@ -48,8 +48,11 @@ const ERPClients = () => {
   const [selectedIds, setSelectedIds] = useState([]);
 
   useEffect(() => {
-    fetchClients();
-    fetchServices();
+    const init = async () => {
+      await fetchServices();
+      fetchClients();
+    };
+    init();
   }, []);
 
   const fetchServices = async () => {
@@ -141,7 +144,7 @@ const ERPClients = () => {
     }
     
     const { data, error } = await supabase.from('clients').select('*').order('id', { ascending: false });
-    const { data: activeBookingsData } = await supabase.from('bookings').select('client_name, service').eq('status', 'نشط');
+    const { data: allBookingsData } = await supabase.from('bookings').select('*');
     const { data: configData } = await supabase.from('app_config').select('key, value').eq('key', 'points_validity_months');
     const validityMonths = configData && configData[0] ? parseInt(configData[0].value) || 0 : 0;
 
@@ -161,17 +164,57 @@ const ERPClients = () => {
       }
 
       const activeBookingsByClient = {};
-      (activeBookingsData || []).forEach(b => {
-         if (b.service && !b.service.includes('مؤرشف')) {
+      const packageDebtByClient = {};
+
+      (allBookingsData || []).forEach(b => {
+         if (b.status === 'نشط' && b.service && !b.service.includes('مؤرشف')) {
              if(!activeBookingsByClient[b.client_name]) activeBookingsByClient[b.client_name] = [];
              activeBookingsByClient[b.client_name].push(b.service);
          }
       });
 
+      // Calculate dynamic package debt
+      const pkgMap = {};
+      (allBookingsData || []).forEach(b => {
+        if (!b.client_name || !b.service || b.service.includes('(مؤرشف)')) return;
+        const key = `${b.client_name}_${b.service}`;
+        if (!pkgMap[key]) {
+          pkgMap[key] = { client: b.client_name, service: b.service, used_hours: 0, paid: 0, custom_price: -1, discount: 0 };
+        }
+        if (b.status !== 'دفعة') {
+          pkgMap[key].used_hours += (parseFloat(b.actual_hours) || 0);
+          if (parseFloat(b.custom_price) > -1) pkgMap[key].custom_price = Math.max(pkgMap[key].custom_price, parseFloat(b.custom_price));
+          pkgMap[key].discount = Math.max(pkgMap[key].discount, parseFloat(b.discount) || 0);
+        } else {
+          pkgMap[key].paid += (parseFloat(b.payment) || 0);
+        }
+      });
+
+      const srvs = globalSystemServicesCache || systemServices || [];
+      Object.values(pkgMap).forEach(pkg => {
+        const sDef = srvs.find(s => s.name === pkg.service);
+        if (!sDef) return;
+
+        const basePrice = parseFloat(sDef.price) || 0;
+        const finalPrice = pkg.custom_price > -1 ? pkg.custom_price : Math.max(0, basePrice - pkg.discount);
+        const debt = finalPrice - pkg.paid;
+
+        if (debt > 0) {
+          let owes = true;
+          if (sDef.category === 'باقة شهرية' && sDef.payment_due_hours > 0) {
+            owes = pkg.used_hours >= sDef.payment_due_hours;
+          }
+          if (owes) {
+            packageDebtByClient[pkg.client] = true;
+          }
+        }
+      });
+
       const enrichedData = data.map(c => ({
         ...c,
         isActive: !!activeBookingsByClient[c.name],
-        packagesList: activeBookingsByClient[c.name] || []
+        packagesList: activeBookingsByClient[c.name] || [],
+        hasPackageDebt: !!packageDebtByClient[c.name]
       }));
       setClients(enrichedData);
       globalClientsCache = enrichedData;
@@ -537,7 +580,7 @@ const ERPClients = () => {
                             <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                               {client.name}
                               {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem' }}>نشط</span>}
-                              {client.debt > 0 && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
+                              {(client.debt > 0 || client.hasPackageDebt) && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
                             </div>
                             <div style={{ fontSize: '0.85rem', color: 'var(--erp-text-muted)', marginTop: '2px' }}>{client.job || 'لا يوجد وظيفة مسجلة'}</div>
                           </div>
@@ -587,7 +630,7 @@ const ERPClients = () => {
                         <div className="mobile-client-name" style={{ marginBottom: '2px' }}>
                           {client.name}
                           {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '50rem' }}>نشط</span>}
-                          {client.debt > 0 && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
+                          {(client.debt > 0 || client.hasPackageDebt) && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
                           <p className="mobile-client-job" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem', margin: 0 }}>{client.job || 'عميل'}</p>
@@ -629,7 +672,7 @@ const ERPClients = () => {
                 </div>
                 <h4 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                   {selectedClient.name}
-                  {selectedClient.debt > 0 && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.9rem', padding: '3px 10px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
+                  {(selectedClient.debt > 0 || selectedClient.hasPackageDebt) && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.9rem', padding: '3px 10px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
                 </h4>
                 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
