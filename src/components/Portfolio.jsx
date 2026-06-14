@@ -16,6 +16,25 @@ const Portfolio = () => {
     ? portfolioItems 
     : portfolioItems.filter(item => item.category === filter);
 
+  const getEmbedUrl = (url) => {
+    if (!url) return '';
+    if (url.includes('youtube.com/embed/')) return url;
+    
+    let videoId = '';
+    try {
+      if (url.includes('youtu.be/')) {
+        videoId = url.split('youtu.be/')[1]?.split('?')[0];
+      } else if (url.includes('youtube.com/watch')) {
+        const urlParams = new URLSearchParams(url.split('?')[1]);
+        videoId = urlParams.get('v');
+      } else if (url.includes('youtube.com/shorts/')) {
+        videoId = url.split('youtube.com/shorts/')[1]?.split('?')[0];
+      }
+    } catch(e) {}
+    
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  };
+
   return (
     <section id="portfolio" className="portfolio-section">
       <div className="container">
@@ -45,7 +64,7 @@ const Portfolio = () => {
                   </a>
                 ) : item.embedUrl ? (
                   <iframe 
-                    src={item.embedUrl} 
+                    src={getEmbedUrl(item.embedUrl)} 
                     title={isEnglish ? item.titleEn : item.title}
                     frameBorder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 

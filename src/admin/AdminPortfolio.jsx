@@ -13,6 +13,23 @@ const AdminPortfolio = () => {
     setPortfolio(updated);
   };
 
+  const getEmbedUrl = (url) => {
+    if (!url) return '';
+    if (url.includes('youtube.com/embed/')) return url;
+    let videoId = '';
+    try {
+      if (url.includes('youtu.be/')) {
+        videoId = url.split('youtu.be/')[1]?.split('?')[0];
+      } else if (url.includes('youtube.com/watch')) {
+        const urlParams = new URLSearchParams(url.split('?')[1]);
+        videoId = urlParams.get('v');
+      } else if (url.includes('youtube.com/shorts/')) {
+        videoId = url.split('youtube.com/shorts/')[1]?.split('?')[0];
+      }
+    } catch(e) {}
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  };
+
   const addItem = () => {
     setPortfolio([...portfolio, { id: Date.now(), title: '', titleEn: '', category: 'video', imageUrl: '', embedUrl: '' }]);
   };
@@ -83,14 +100,14 @@ const AdminPortfolio = () => {
             </div>
 
             <div className="form-group">
-              <label>رابط فيديو يوتيوب المضمن (Embed URL)</label>
-              <input type="text" className="form-control" dir="ltr" placeholder="https://www.youtube.com/embed/..." value={item.embedUrl || ''} onChange={e => handleChange(index, 'embedUrl', e.target.value)} />
+              <label>رابط فيديو يوتيوب (عادي أو مضمن)</label>
+              <input type="text" className="form-control" dir="ltr" placeholder="https://youtu.be/..." value={item.embedUrl || ''} onChange={e => handleChange(index, 'embedUrl', e.target.value)} />
             </div>
             
             {(item.imageUrl || item.embedUrl) && (
               <div style={{marginTop: '15px', borderRadius: '8px', overflow: 'hidden', height: '120px'}}>
                 {item.embedUrl ? (
-                  <iframe src={item.embedUrl} width="100%" height="100%" style={{border: 'none', pointerEvents: 'none'}}></iframe>
+                  <iframe src={getEmbedUrl(item.embedUrl)} width="100%" height="100%" style={{border: 'none', pointerEvents: 'none'}}></iframe>
                 ) : (
                   <img src={item.imageUrl} alt="preview" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
                 )}
