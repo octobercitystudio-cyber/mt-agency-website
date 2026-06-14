@@ -14,9 +14,9 @@ const Portfolio = () => {
 
   const filteredPortfolio = portfolioItems.filter(item => item.category === filter);
 
-  const getEmbedUrl = (url) => {
+  const getYouTubeId = (url) => {
     if (!url) return '';
-    if (url.includes('youtube.com/embed/')) return url;
+    if (url.includes('youtube.com/embed/')) return url.split('embed/')[1]?.split('?')[0];
     
     let videoId = '';
     try {
@@ -30,7 +30,45 @@ const Portfolio = () => {
       }
     } catch(e) {}
     
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+    return videoId || url;
+  };
+
+  const LiteYouTube = ({ url, title }) => {
+    const [isLoaded, setIsLoaded] = useState(false);
+    const videoId = getYouTubeId(url);
+    const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+    if (isLoaded || !videoId) {
+      const embedSrc = videoId === url ? url : `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+      return (
+        <iframe 
+          src={embedSrc} 
+          title={title}
+          frameBorder="0" 
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowFullScreen
+          loading="lazy"
+          style={{width: '100%', height: '100%', position: 'absolute', top: 0, left: 0}}
+        ></iframe>
+      );
+    }
+
+    return (
+      <div 
+        style={{width: '100%', height: '100%', cursor: 'pointer', position: 'absolute', top: 0, left: 0}}
+        onClick={() => setIsLoaded(true)}
+      >
+        <img src={thumbnailUrl} alt={title} style={{width: '100%', height: '100%', objectFit: 'cover'}} loading="lazy" />
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          width: '68px', height: '48px', backgroundColor: 'rgba(255,0,0,0.9)', borderRadius: '12px',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
+        }}>
+          <div style={{width: 0, height: 0, borderTop: '10px solid transparent', borderBottom: '10px solid transparent', borderLeft: '16px solid white', marginLeft: '4px'}}></div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -61,21 +99,14 @@ const Portfolio = () => {
                     <img src={item.imageUrl} alt={isEnglish ? item.titleEn : item.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </a>
                 ) : item.embedUrl ? (
-                  <iframe 
-                    src={getEmbedUrl(item.embedUrl)} 
-                    title={isEnglish ? item.titleEn : item.title}
-                    frameBorder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowFullScreen
-                    loading="lazy"
-                  ></iframe>
+                  <LiteYouTube url={item.embedUrl} title={isEnglish ? item.titleEn : item.title} />
                 ) : (
                   <img src={item.imageUrl} alt={isEnglish ? item.titleEn : item.title} loading="lazy" />
                 )}
-                <div className="portfolio-overlay">
+                <div className="portfolio-overlay" style={{pointerEvents: 'none'}}>
                   {item.projectUrl ? (
-                    <a href={item.projectUrl} target="_blank" rel="noopener noreferrer" className="overlay-icon" style={{ textDecoration: 'none' }}>🔗</a>
-                  ) : (
+                    <a href={item.projectUrl} target="_blank" rel="noopener noreferrer" className="overlay-icon" style={{ textDecoration: 'none', pointerEvents: 'auto' }}>🔗</a>
+                  ) : item.embedUrl ? null : (
                     <div className="overlay-icon">▶</div>
                   )}
                 </div>
