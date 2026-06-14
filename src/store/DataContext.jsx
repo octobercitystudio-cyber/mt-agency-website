@@ -148,16 +148,30 @@ export const DataProvider = ({ children }) => {
     setSiteData(newSiteData);
     
     try {
-      // First check if the key exists using maybeSingle to avoid errors when empty
-      const { data } = await supabase.from('app_config').select('id').eq('key', 'website_data').maybeSingle();
+      const { data, error: fetchErr } = await supabase.from('app_config').select('id').eq('key', 'website_data').maybeSingle();
+      if (fetchErr) {
+        alert("خطأ في الاتصال بقاعدة البيانات: " + fetchErr.message);
+        return false;
+      }
       
       if (data) {
-        await supabase.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
+        const { error } = await supabase.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
+        if (error) {
+          alert("فشل الحفظ في قاعدة البيانات: " + error.message);
+          return false;
+        }
       } else {
-        await supabase.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
+        const { error } = await supabase.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
+        if (error) {
+          alert("فشل الحفظ في قاعدة البيانات: " + error.message);
+          return false;
+        }
       }
+      return true;
     } catch (err) {
+      alert("حدث خطأ غير متوقع: " + err.message);
       console.error("Error saving site data to Supabase:", err);
+      return false;
     }
   };
 
@@ -166,14 +180,30 @@ export const DataProvider = ({ children }) => {
     setSiteData(newSiteData);
     
     try {
-      const { data } = await supabase.from('app_config').select('id').eq('key', 'website_data').maybeSingle();
-      if (data) {
-        await supabase.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
-      } else {
-        await supabase.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
+      const { data, error: fetchErr } = await supabase.from('app_config').select('id').eq('key', 'website_data').maybeSingle();
+      if (fetchErr) {
+        alert("خطأ في الاتصال بقاعدة البيانات: " + fetchErr.message);
+        return false;
       }
+      
+      if (data) {
+        const { error } = await supabase.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
+        if (error) {
+          alert("فشل الحفظ في قاعدة البيانات: " + error.message);
+          return false;
+        }
+      } else {
+        const { error } = await supabase.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
+        if (error) {
+          alert("فشل الحفظ في قاعدة البيانات: " + error.message);
+          return false;
+        }
+      }
+      return true;
     } catch (err) {
+      alert("حدث خطأ غير متوقع: " + err.message);
       console.error("Error saving site data to Supabase:", err);
+      return false;
     }
   };
 

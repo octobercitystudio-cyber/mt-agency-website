@@ -34,16 +34,16 @@ const AdminStudio = () => {
     setStudios(updated);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      updateMultipleSections({
-        studio: studios,
-        studioCategories: categories
-      });
-      setIsSaving(false);
+    const success = await updateMultipleSections({
+      studio: studios,
+      studioCategories: categories
+    });
+    setIsSaving(false);
+    if (success) {
       alert('تم حفظ بيانات الاستوديوهات بنجاح!');
-    }, 600);
+    }
   };
 
   const addCategory = () => {

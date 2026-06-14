@@ -49,16 +49,16 @@ const AdminPortfolio = () => {
     setPortfolio(updated);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      updateMultipleSections({
-        portfolio: portfolio,
-        portfolioCategories: categories
-      });
-      setIsSaving(false);
+    const success = await updateMultipleSections({
+      portfolio: portfolio,
+      portfolioCategories: categories
+    });
+    setIsSaving(false);
+    if (success) {
       alert('تم حفظ معرض الأعمال بنجاح!');
-    }, 600);
+    }
   };
 
   const addCategory = () => {
