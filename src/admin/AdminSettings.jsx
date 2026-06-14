@@ -4,8 +4,8 @@ import { Save, Lock, User } from 'lucide-react';
 
 const AdminSettings = () => {
   const { siteData, updateSection } = useData();
-  const [username, setUsername] = useState(siteData?.adminCredentials?.username || 'admin');
-  const [password, setPassword] = useState(siteData?.adminCredentials?.password || 'admin123');
+  const [username, setUsername] = useState(siteData?.adminCredentials?.username || '');
+  const [password, setPassword] = useState(siteData?.adminCredentials?.password || '');
   const [showSavedMsg, setShowSavedMsg] = useState(false);
 
   const handleSave = (e) => {

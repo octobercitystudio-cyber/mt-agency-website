@@ -22,11 +22,7 @@ const AdminLogin = () => {
     <div style={styles.container}>
       <div style={styles.card} className="glass-panel">
         <h2 style={styles.title}>تسجيل الدخول للإدارة</h2>
-        <p style={{textAlign: 'center', marginBottom: '20px', color: 'var(--color-silver)'}}>
-          بيانات الدخول الافتراضية:<br/>
-          اسم المستخدم: <strong>admin</strong><br/>
-          كلمة المرور: <strong>admin123</strong>
-        </p>
+
         <form onSubmit={handleLogin} style={styles.form}>
           <input
             type="text"

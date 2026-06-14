@@ -66,8 +66,8 @@ const defaultData = {
     { id: 1, title: 'خصم 20% على باقة 50 ساعة', discount: '20%', desc: 'احجز الآن واستفد من الخصم لفترة محدودة على باقة الـ 50 ساعة التصوير.', is_active: true }
   ],
   adminCredentials: {
-    username: 'admin',
-    password: 'admin123'
+    username: '',
+    password: ''
   }
 };
 
@@ -106,8 +106,8 @@ export const DataProvider = ({ children }) => {
   };
 
   const login = (username, password) => {
-    const creds = siteData.adminCredentials || { username: 'admin', password: 'admin123' };
-    if (username === creds.username && password === creds.password) {
+    const creds = siteData.adminCredentials || { username: '', password: '' };
+    if (username && password && username === creds.username && password === creds.password) {
       setIsAdminAuth(true);
       localStorage.setItem('mt_admin_auth', 'true');
       return true;
