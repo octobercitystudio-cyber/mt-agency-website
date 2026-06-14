@@ -33,7 +33,7 @@ const StudioShowcase = () => {
         <div className="showcase-grid">
           {studioData[activeTab] && studioData[activeTab].map(img => (
             <div key={img.id || img.url} className="showcase-item">
-              <img src={img.url} alt={img.alt} loading="lazy" />
+              <img src={img.url} alt={`${isEnglish ? 'MT Agency Studio - ' : 'استوديو تصوير إم تي إيجنسي - '}${img.alt || ''}`} loading="lazy" />
               <div className="showcase-overlay">
                 <div className="overlay-icon">✦</div>
               </div>

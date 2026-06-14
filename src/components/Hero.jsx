@@ -33,17 +33,19 @@ const Hero = () => {
         {/* Visual Slider (Right side in RTL, or top in mobile) */}
         <div className="hero-visual">
           <div className="visual-banner">
-            {sliderImages.map((img, index) => (
+            {sliderImages.map((img, index) => {
+              const altTexts = ['تصوير منتجات احترافي', 'إنتاج فيديو سينمائي', 'تصميم هويات بصرية', 'إدارة منصات التواصل الاجتماعي'];
+              return (
               <img 
-                key={index}
+                key={index} 
                 src={img} 
-                alt={`Our Service ${index + 1}`} 
+                alt={`${altTexts[index]} - MT Agency`}
                 className={`hero-slider-img ${index === currentImageIndex ? 'active' : ''}`}
                 width="600" height="600"
                 fetchpriority={index === 0 ? "high" : "auto"}
                 loading={index === 0 ? "eager" : "lazy"}
               />
-            ))}
+            )})}
             <div className="visual-overlay"></div>
           </div>
         </div>

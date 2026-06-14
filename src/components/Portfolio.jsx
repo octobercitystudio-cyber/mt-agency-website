@@ -96,12 +96,12 @@ const Portfolio = () => {
               <div className="portfolio-media">
                 {item.projectUrl ? (
                   <a href={item.projectUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', width: '100%', height: '100%' }}>
-                    <img src={item.imageUrl} alt={isEnglish ? item.titleEn : item.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={item.imageUrl} alt={`${isEnglish ? item.titleEn : item.title} ${isEnglish ? '- MT Agency Portfolio' : '- معرض أعمال إم تي إيجنسي'}`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </a>
                 ) : item.embedUrl ? (
                   <LiteYouTube url={item.embedUrl} title={isEnglish ? item.titleEn : item.title} />
                 ) : (
-                  <img src={item.imageUrl} alt={isEnglish ? item.titleEn : item.title} loading="lazy" />
+                  <img src={item.imageUrl} alt={`${isEnglish ? item.titleEn : item.title} ${isEnglish ? '- MT Agency Portfolio' : '- معرض أعمال إم تي إيجنسي'}`} loading="lazy" />
                 )}
                 <div className="portfolio-overlay" style={{pointerEvents: 'none'}}>
                   {item.projectUrl ? (
