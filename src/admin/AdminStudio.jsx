@@ -107,7 +107,7 @@ const AdminStudio = () => {
             <button onClick={(e) => { e.stopPropagation(); removeCategory(cat.id); }} style={{background: 'transparent', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '1.2rem'}} title="حذف الاستديو">×</button>
           </div>
         ))}
-        <button onClick={addCategory} className="btn-primary" style={{padding: '5px 15px', borderRadius: '8px', background: 'var(--color-cyan)', color: '#000'}}>+ إضافة استديو</button>
+        <button onClick={addCategory} className="btn-primary" style={{padding: '5px 15px', borderRadius: '8px', background: 'var(--color-cyan)', color: '#fff'}}>+ إضافة استديو</button>
       </div>
 
       <div style={{display: 'flex', flexDirection: 'column', gap: '30px'}}>

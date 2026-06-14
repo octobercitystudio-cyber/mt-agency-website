@@ -6,15 +6,13 @@ import './Portfolio.css';
 const Portfolio = () => {
   const { t, i18n } = useTranslation();
   const { siteData } = useData();
-  const [filter, setFilter] = useState('all');
+  const categories = siteData.portfolioCategories || [];
+  const [filter, setFilter] = useState(categories.length > 0 ? categories[0].id : '');
   const isEnglish = i18n.language === 'en';
   
   const portfolioItems = siteData.portfolio;
-  const categories = siteData.portfolioCategories || [];
 
-  const filteredPortfolio = filter === 'all' 
-    ? portfolioItems 
-    : portfolioItems.filter(item => item.category === filter);
+  const filteredPortfolio = portfolioItems.filter(item => item.category === filter);
 
   const getEmbedUrl = (url) => {
     if (!url) return '';
@@ -43,12 +41,6 @@ const Portfolio = () => {
         </h2>
         
         <div className="portfolio-filters">
-          <button 
-            className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-            onClick={() => setFilter('all')}
-          >
-            {isEnglish ? 'All' : 'الكل'}
-          </button>
           {categories.map(cat => (
             <button 
               key={cat.id} 
