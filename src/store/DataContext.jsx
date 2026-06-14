@@ -148,7 +148,7 @@ export const DataProvider = ({ children }) => {
     setSiteData(newSiteData);
     
     try {
-      const { data, error: fetchErr } = await supabase.from('app_config').select('id').eq('key', 'website_data').maybeSingle();
+      const { data, error: fetchErr } = await supabase.from('app_config').select('key').eq('key', 'website_data').maybeSingle();
       if (fetchErr) {
         alert("خطأ في الاتصال بقاعدة البيانات: " + fetchErr.message);
         return false;
@@ -180,7 +180,7 @@ export const DataProvider = ({ children }) => {
     setSiteData(newSiteData);
     
     try {
-      const { data, error: fetchErr } = await supabase.from('app_config').select('id').eq('key', 'website_data').maybeSingle();
+      const { data, error: fetchErr } = await supabase.from('app_config').select('key').eq('key', 'website_data').maybeSingle();
       if (fetchErr) {
         alert("خطأ في الاتصال بقاعدة البيانات: " + fetchErr.message);
         return false;
