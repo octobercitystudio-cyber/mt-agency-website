@@ -93,7 +93,10 @@ const DataContext = createContext();
 export const useData = () => useContext(DataContext);
 
 export const DataProvider = ({ children }) => {
-  const [siteData, setSiteData] = useState({});
+  const [siteData, setSiteData] = useState(() => {
+    const cached = localStorage.getItem('mt_agency_data_v5');
+    return cached ? JSON.parse(cached) : defaultData;
+  });
   const [isAdminAuth, setIsAdminAuth] = useState(false);
   const [isErpAuth, setIsErpAuth] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
