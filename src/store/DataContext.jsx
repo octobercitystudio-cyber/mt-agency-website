@@ -113,7 +113,10 @@ export const DataProvider = ({ children }) => {
   };
 
   const login = (username, password) => {
-    const creds = siteData.adminCredentials || { username: 'octobercitystudio@gmail.com', password: 'Octcitystd@2019' };
+    const creds = (siteData.adminCredentials && siteData.adminCredentials.username) 
+      ? siteData.adminCredentials 
+      : { username: 'octobercitystudio@gmail.com', password: 'Octcitystd@2019' };
+    
     if (username && password && username === creds.username && password === creds.password) {
       setIsAdminAuth(true);
       localStorage.setItem('mt_admin_auth', 'true');
