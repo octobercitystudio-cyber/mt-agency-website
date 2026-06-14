@@ -9,12 +9,11 @@ const AdminLogin = () => {
   const { login } = useData();
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (login(username, password)) {
+    const success = await login(username, password);
+    if (success) {
       navigate('/adminmt');
-    } else {
-      setError('اسم المستخدم أو كلمة المرور غير صحيحة');
     }
   };
 

@@ -20,7 +20,8 @@ const UnifiedLogin = () => {
     setError('');
 
     // 1. Check if it's an Admin ERP login
-    if (loginErp(identifier, password)) {
+    const success = await loginErp(identifier, password);
+    if (success) {
       navigate('/erp');
       return;
     }

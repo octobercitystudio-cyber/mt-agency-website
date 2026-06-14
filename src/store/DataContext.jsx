@@ -97,27 +97,13 @@ export const DataProvider = ({ children }) => {
     const saved = localStorage.getItem('mt_agency_data_v5');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        return { ...defaultData, ...parsed };
-      } catch (e) {
-        return defaultData;
-      }
-    }
-    return defaultData;
-  });
-
-  const [isAdminAuth, setIsAdminAuth] = useState(() => {
-    return localStorage.getItem('mt_admin_auth') === 'true';
-  });
-
-  const [isErpAuth, setIsErpAuth] = useState(() => {
-    return localStorage.getItem('mt_erp_auth') === 'true';
-  });
-
+  const [siteData, setSiteData] = useState({});
+  const [isAdminAuth, setIsAdminAuth] = useState(false);
+  const [isErpAuth, setIsErpAuth] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   useEffect(() => {
-    const fetchSiteData = async () => {
+    const loadData = async () => {
       try {
         const { data, error } = await supabase
           .from('app_config')
@@ -125,18 +111,51 @@ export const DataProvider = ({ children }) => {
           .eq('key', 'website_data')
           .maybeSingle();
           
-        if (data && data.value) {
-          const parsed = JSON.parse(data.value);
-          setSiteData(prev => ({ ...prev, ...parsed }));
+        if (error) {
+          console.error("Error loading site data:", error);
+          setSiteData(defaultData);
+        } else if (data && data.value) {
+          let parsedData = data.value;
+          if (typeof parsedData === 'string') {
+            parsedData = JSON.parse(parsedData);
+          }
+          setSiteData({ ...defaultData, ...parsedData });
+        } else {
+          setSiteData(defaultData);
         }
       } catch (err) {
-        console.error("Error loading site data from Supabase:", err);
+        console.error("Unexpected error loading data:", err);
+        setSiteData(defaultData);
       } finally {
         setIsDataLoaded(true);
       }
     };
     
-    fetchSiteData();
+    loadData();
+
+    // Listen for Supabase Auth changes
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setIsAdminAuth(true);
+        setIsErpAuth(true);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setIsAdminAuth(true);
+        setIsErpAuth(true);
+      } else {
+        setIsAdminAuth(false);
+        setIsErpAuth(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -207,40 +226,36 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const login = (username, password) => {
-    const creds = (siteData.adminCredentials && siteData.adminCredentials.username) 
-      ? siteData.adminCredentials 
-      : { username: 'octobercitystudio@gmail.com', password: 'Octcitystd@2019' };
-    
-    if (username && password && username === creds.username && password === creds.password) {
-      setIsAdminAuth(true);
-      localStorage.setItem('mt_admin_auth', 'true');
-      return true;
+  const login = async (username, password) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: username,
+      password: password
+    });
+    if (error) {
+      alert("خطأ في تسجيل الدخول: " + error.message);
+      return false;
     }
-    return false;
+    return true;
   };
 
-  const logout = () => {
-    setIsAdminAuth(false);
-    localStorage.removeItem('mt_admin_auth');
+  const logout = async () => {
+    await supabase.auth.signOut();
   };
 
-  const loginErp = (username, password) => {
-    const creds = (siteData.erpCredentials && siteData.erpCredentials.username)
-      ? siteData.erpCredentials
-      : { username: 'octobercitystudio@gmail.com', password: 'Octcitystd@2019' };
-      
-    if (username && password && username === creds.username && password === creds.password) {
-      setIsErpAuth(true);
-      localStorage.setItem('mt_erp_auth', 'true');
-      return true;
+  const loginErp = async (username, password) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: username,
+      password: password
+    });
+    if (error) {
+      alert("خطأ في تسجيل الدخول: " + error.message);
+      return false;
     }
-    return false;
+    return true;
   };
 
-  const logoutErp = () => {
-    setIsErpAuth(false);
-    localStorage.removeItem('mt_erp_auth');
+  const logoutErp = async () => {
+    await supabase.auth.signOut();
   };
 
   if (!isDataLoaded) {
