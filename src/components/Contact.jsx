@@ -9,6 +9,7 @@ const Contact = () => {
   const isEnglish = i18n.language === 'en';
   
   const contactData = siteData.contact;
+  const receivingEmail = siteData.formSettings?.receivingEmail || contactData.email || 'octobercitystudio@gmail.com';
 
   return (
     <>
@@ -50,15 +51,15 @@ const Contact = () => {
             
             <div className="contact-form glass-panel">
               <h3 style={{marginBottom: '20px', color: 'var(--color-light-silver)'}}>{isEnglish ? 'Send us a Message' : 'أرسل لنا رسالة'}</h3>
-              <form>
+              <form action={`mailto:${receivingEmail}`} method="POST" encType="text/plain">
                 <div className="form-group">
-                  <input type="text" placeholder={t('contact.form.name')} required />
+                  <input type="text" name="Name" placeholder={t('contact.form.name')} required />
                 </div>
                 <div className="form-group">
-                  <input type="email" placeholder={t('contact.form.email')} required />
+                  <input type="email" name="Email" placeholder={t('contact.form.email')} required />
                 </div>
                 <div className="form-group">
-                  <textarea rows="5" placeholder={t('contact.form.message')} required></textarea>
+                  <textarea name="Message" rows="5" placeholder={t('contact.form.message')} required></textarea>
                 </div>
                 <button type="submit" className="btn-primary w-100">{t('contact.form.submit')}</button>
               </form>

@@ -14,6 +14,8 @@ const AdminSettings = () => {
   const [footerCopyAr, setFooterCopyAr] = useState(siteData?.footer?.copyrightAr || 'MT Agency. جميع الحقوق محفوظة.');
   const [footerCopyEn, setFooterCopyEn] = useState(siteData?.footer?.copyrightEn || 'MT Agency. All Rights Reserved.');
   
+  const [receivingEmail, setReceivingEmail] = useState(siteData?.formSettings?.receivingEmail || 'octobercitystudio@gmail.com');
+  
   const [showSavedMsg, setShowSavedMsg] = useState(false);
 
   const handleSaveAdmin = async (e) => {
@@ -36,6 +38,12 @@ const AdminSettings = () => {
       copyrightAr: footerCopyAr,
       copyrightEn: footerCopyEn
     });
+    if(success) showSuccess();
+  };
+
+  const handleSaveForms = async (e) => {
+    e.preventDefault();
+    const success = await updateSection('formSettings', { receivingEmail });
     if(success) showSuccess();
   };
 
@@ -203,6 +211,30 @@ const AdminSettings = () => {
           <button type="submit" className="btn-primary" style={{marginTop: '10px', background: 'var(--color-cyan)', color: '#000'}}>
             <Save size={18} style={{marginRight: '8px', display: 'inline-block'}} />
             حفظ إعدادات الفوتر
+          </button>
+        </form>
+      </div>
+
+      <div className="admin-card mt-4" style={{marginTop: '20px'}}>
+        <h3>إعدادات استقبال الرسائل</h3>
+        <p style={{color: '#8c8c8c', marginBottom: '20px'}}>حدد البريد الإلكتروني الذي ترغب في استلام رسائل نموذج (تواصل معنا) عليه.</p>
+        
+        <form onSubmit={handleSaveForms} style={{maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '15px'}}>
+          <div>
+            <label style={{display: 'block', marginBottom: '8px', color: '#fff'}}>البريد الإلكتروني المستلم</label>
+            <input
+              type="email"
+              value={receivingEmail}
+              onChange={(e) => setReceivingEmail(e.target.value)}
+              className="admin-input"
+              dir="ltr"
+              required
+            />
+          </div>
+          
+          <button type="submit" className="btn-primary" style={{marginTop: '10px'}}>
+            <Save size={18} style={{marginRight: '8px', display: 'inline-block'}} />
+            حفظ بريد الاستقبال
           </button>
         </form>
       </div>
