@@ -18,7 +18,7 @@ const Footer = () => {
         <div className="footer-grid">
           
           <div className="footer-col footer-col-about">
-            <img src="/logo.png" alt="MT Agency Logo" className="footer-logo" 
+            <img src="/logo.webp" alt="MT Agency Logo" className="footer-logo" 
                  onError={(e) => { e.target.style.display = 'none'; }} />
             <p className="footer-desc">
               {isEnglish 

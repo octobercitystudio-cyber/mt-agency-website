@@ -11,10 +11,10 @@ const Hero = () => {
   const heroData = siteData.hero;
 
   const sliderImages = [
-    '/hero-service-1.png', // Photography
-    '/hero-service-2.png', // AI Video
-    '/hero-service-3.png', // Creative Design
-    '/hero-service-4.png'  // Social Media
+    '/hero-service-1.webp', // Photography
+    '/hero-service-2.webp', // AI Video
+    '/hero-service-3.webp', // Creative Design
+    '/hero-service-4.webp'  // Social Media
   ];
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -39,6 +39,8 @@ const Hero = () => {
                 src={img} 
                 alt={`Our Service ${index + 1}`} 
                 className={`hero-slider-img ${index === currentImageIndex ? 'active' : ''}`}
+                fetchpriority={index === 0 ? "high" : "auto"}
+                loading={index === 0 ? "eager" : "lazy"}
               />
             ))}
             <div className="visual-overlay"></div>
