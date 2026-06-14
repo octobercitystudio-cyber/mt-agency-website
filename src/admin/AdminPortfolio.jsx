@@ -3,7 +3,7 @@ import { useData } from '../store/DataContext';
 import { Save, Plus, Trash2 } from 'lucide-react';
 
 const AdminPortfolio = () => {
-  const { siteData, updateSection } = useData();
+  const { siteData, updateMultipleSections } = useData();
   const defaultCats = [
     { id: 'video', nameAr: 'إنتاج فيديو', nameEn: 'Video' },
     { id: 'design', nameAr: 'تصميم جرافيك', nameEn: 'Design' },
@@ -52,8 +52,10 @@ const AdminPortfolio = () => {
   const handleSave = () => {
     setIsSaving(true);
     setTimeout(() => {
-      updateSection('portfolio', portfolio);
-      updateSection('portfolioCategories', categories);
+      updateMultipleSections({
+        portfolio: portfolio,
+        portfolioCategories: categories
+      });
       setIsSaving(false);
       alert('تم حفظ معرض الأعمال بنجاح!');
     }, 600);

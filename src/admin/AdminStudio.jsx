@@ -3,7 +3,7 @@ import { useData } from '../store/DataContext';
 import { Save, Image as ImageIcon } from 'lucide-react';
 
 const AdminStudio = () => {
-  const { siteData, updateSection } = useData();
+  const { siteData, updateMultipleSections } = useData();
   const defaultCats = [
     { id: 'october', nameAr: 'استديو أكتوبر', nameEn: 'October Studio' },
     { id: 'lebanon', nameAr: 'استديو ميدان لبنان', nameEn: 'Lebanon Square Studio' },
@@ -37,8 +37,10 @@ const AdminStudio = () => {
   const handleSave = () => {
     setIsSaving(true);
     setTimeout(() => {
-      updateSection('studio', studios);
-      updateSection('studioCategories', categories);
+      updateMultipleSections({
+        studio: studios,
+        studioCategories: categories
+      });
       setIsSaving(false);
       alert('تم حفظ بيانات الاستوديوهات بنجاح!');
     }, 600);

@@ -157,6 +157,22 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const updateMultipleSections = async (updates) => {
+    const newSiteData = { ...siteData, ...updates };
+    setSiteData(newSiteData);
+    
+    try {
+      const { data } = await supabase.from('app_config').select('id').eq('key', 'website_data').maybeSingle();
+      if (data) {
+        await supabase.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
+      } else {
+        await supabase.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
+      }
+    } catch (err) {
+      console.error("Error saving site data to Supabase:", err);
+    }
+  };
+
   const login = (username, password) => {
     const creds = (siteData.adminCredentials && siteData.adminCredentials.username) 
       ? siteData.adminCredentials 
@@ -196,7 +212,8 @@ export const DataProvider = ({ children }) => {
   return (
     <DataContext.Provider value={{ 
       siteData, 
-      updateSection, 
+      updateSection,
+      updateMultipleSections,
       isAdminAuth, 
       login, 
       logout,
