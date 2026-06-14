@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
+import { supabase } from '../supabaseClient';
 
 // Default data (matches current static state)
 const defaultData = {
@@ -114,11 +115,46 @@ export const DataProvider = ({ children }) => {
   });
 
   useEffect(() => {
+    const fetchSiteData = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_config')
+          .select('value')
+          .eq('key', 'website_data')
+          .single();
+          
+        if (data && data.value) {
+          const parsed = JSON.parse(data.value);
+          setSiteData(prev => ({ ...prev, ...parsed }));
+        }
+      } catch (err) {
+        console.error("Error loading site data from Supabase:", err);
+      }
+    };
+    
+    fetchSiteData();
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('mt_agency_data_v5', JSON.stringify(siteData));
   }, [siteData]);
 
-  const updateSection = (sectionName, newData) => {
-    setSiteData(prev => ({ ...prev, [sectionName]: newData }));
+  const updateSection = async (sectionName, newData) => {
+    const newSiteData = { ...siteData, [sectionName]: newData };
+    setSiteData(newSiteData);
+    
+    try {
+      // First check if the key exists
+      const { data } = await supabase.from('app_config').select('id').eq('key', 'website_data').single();
+      
+      if (data) {
+        await supabase.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
+      } else {
+        await supabase.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
+      }
+    } catch (err) {
+      console.error("Error saving site data to Supabase:", err);
+    }
   };
 
   const login = (username, password) => {
