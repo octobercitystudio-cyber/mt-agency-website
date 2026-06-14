@@ -8,7 +8,7 @@ const Footer = () => {
   const { siteData } = useData();
   const isEnglish = i18n.language === 'en';
   
-  const { contact } = siteData;
+  const { contact, footer } = siteData;
 
   const currentYear = new Date().getFullYear();
 
@@ -22,8 +22,8 @@ const Footer = () => {
                  onError={(e) => { e.target.style.display = 'none'; }} />
             <p className="footer-desc">
               {isEnglish 
-                ? "MT Agency specializes in media production, digital marketing, and creating visually stunning content that drives real impact for your business."
-                : "إم تي إيجنسي متخصصة في الإنتاج الإعلامي والتسويق الرقمي وصناعة محتوى مرئي يخطف الأنظار ويصنع تأثيراً حقيقياً لأعمالك."}
+                ? (footer?.descEn || "MT Agency specializes in media production, digital marketing, and creating visually stunning content that drives real impact for your business.")
+                : (footer?.descAr || "إم تي إيجنسي متخصصة في الإنتاج الإعلامي والتسويق الرقمي وصناعة محتوى مرئي يخطف الأنظار ويصنع تأثيراً حقيقياً لأعمالك.")}
             </p>
           </div>
           
@@ -65,7 +65,7 @@ const Footer = () => {
         </div>
         
         <div className="footer-bottom">
-          <p>&copy; {currentYear} MT Agency. {isEnglish ? "All Rights Reserved." : "جميع الحقوق محفوظة."}</p>
+          <p>&copy; {currentYear} {isEnglish ? (footer?.copyrightEn || "MT Agency. All Rights Reserved.") : (footer?.copyrightAr || "MT Agency. جميع الحقوق محفوظة.")}</p>
         </div>
       </div>
     </footer>

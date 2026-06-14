@@ -8,18 +8,35 @@ const AdminSettings = () => {
   const [password, setPassword] = useState(siteData?.adminCredentials?.password || '');
   const [erpUsername, setErpUsername] = useState(siteData?.erpCredentials?.username || 'octobercitystudio@gmail.com');
   const [erpPassword, setErpPassword] = useState(siteData?.erpCredentials?.password || 'Octcitystd@2019');
+  
+  const [footerDescAr, setFooterDescAr] = useState(siteData?.footer?.descAr || 'إم تي إيجنسي متخصصة في الإنتاج الإعلامي والتسويق الرقمي وصناعة محتوى مرئي يخطف الأنظار ويصنع تأثيراً حقيقياً لأعمالك.');
+  const [footerDescEn, setFooterDescEn] = useState(siteData?.footer?.descEn || 'MT Agency specializes in media production, digital marketing, and creating visually stunning content that drives real impact for your business.');
+  const [footerCopyAr, setFooterCopyAr] = useState(siteData?.footer?.copyrightAr || 'MT Agency. جميع الحقوق محفوظة.');
+  const [footerCopyEn, setFooterCopyEn] = useState(siteData?.footer?.copyrightEn || 'MT Agency. All Rights Reserved.');
+  
   const [showSavedMsg, setShowSavedMsg] = useState(false);
 
-  const handleSaveAdmin = (e) => {
+  const handleSaveAdmin = async (e) => {
     e.preventDefault();
-    updateSection('adminCredentials', { username, password });
-    showSuccess();
+    const success = await updateSection('adminCredentials', { username, password });
+    if(success) showSuccess();
   };
 
-  const handleSaveErp = (e) => {
+  const handleSaveErp = async (e) => {
     e.preventDefault();
-    updateSection('erpCredentials', { username: erpUsername, password: erpPassword });
-    showSuccess();
+    const success = await updateSection('erpCredentials', { username: erpUsername, password: erpPassword });
+    if(success) showSuccess();
+  };
+
+  const handleSaveFooter = async (e) => {
+    e.preventDefault();
+    const success = await updateSection('footer', {
+      descAr: footerDescAr,
+      descEn: footerDescEn,
+      copyrightAr: footerCopyAr,
+      copyrightEn: footerCopyEn
+    });
+    if(success) showSuccess();
   };
 
   const showSuccess = () => {
@@ -128,6 +145,64 @@ const AdminSettings = () => {
           
           <button type="submit" className="btn-primary" style={{marginTop: '10px', background: 'var(--color-vibrant-purple)'}}>
             تحديث بيانات نظام الشركة
+          </button>
+        </form>
+      </div>
+
+      <div className="admin-card mt-4" style={{marginTop: '20px'}}>
+        <h3>تعديل معلومات الفوتر (تذييل الموقع)</h3>
+        <p style={{color: '#8c8c8c', marginBottom: '20px'}}>يمكنك تعديل الوصف النصي وحقوق النشر التي تظهر في أسفل كل صفحة.</p>
+        
+        <form onSubmit={handleSaveFooter} style={{maxWidth: '800px', display: 'flex', flexDirection: 'column', gap: '15px'}}>
+          <div>
+            <label style={{display: 'block', marginBottom: '8px', color: '#fff'}}>الوصف باللغة العربية</label>
+            <textarea
+              value={footerDescAr}
+              onChange={(e) => setFooterDescAr(e.target.value)}
+              className="admin-input"
+              style={{minHeight: '80px', resize: 'vertical'}}
+              required
+            />
+          </div>
+          
+          <div>
+            <label style={{display: 'block', marginBottom: '8px', color: '#fff'}}>الوصف باللغة الإنجليزية</label>
+            <textarea
+              value={footerDescEn}
+              onChange={(e) => setFooterDescEn(e.target.value)}
+              className="admin-input"
+              style={{minHeight: '80px', resize: 'vertical'}}
+              dir="ltr"
+              required
+            />
+          </div>
+
+          <div>
+            <label style={{display: 'block', marginBottom: '8px', color: '#fff'}}>حقوق النشر (عربي)</label>
+            <input
+              type="text"
+              value={footerCopyAr}
+              onChange={(e) => setFooterCopyAr(e.target.value)}
+              className="admin-input"
+              required
+            />
+          </div>
+
+          <div>
+            <label style={{display: 'block', marginBottom: '8px', color: '#fff'}}>حقوق النشر (إنجليزي)</label>
+            <input
+              type="text"
+              value={footerCopyEn}
+              onChange={(e) => setFooterCopyEn(e.target.value)}
+              className="admin-input"
+              dir="ltr"
+              required
+            />
+          </div>
+          
+          <button type="submit" className="btn-primary" style={{marginTop: '10px', background: 'var(--color-cyan)', color: '#000'}}>
+            <Save size={18} style={{marginRight: '8px', display: 'inline-block'}} />
+            حفظ إعدادات الفوتر
           </button>
         </form>
       </div>
