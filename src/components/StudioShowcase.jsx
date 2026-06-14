@@ -4,12 +4,11 @@ import { useData } from '../store/DataContext';
 import './StudioShowcase.css';
 
 const StudioShowcase = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { siteData } = useData();
   const [activeTab, setActiveTab] = useState('october');
 
-  const tabs = t('studio.tabs', { returnObjects: true });
-  const tabKeys = Object.keys(tabs);
+  const tabs = siteData.studioCategories || [];
   const studioData = siteData.studio;
 
   return (
@@ -20,20 +19,20 @@ const StudioShowcase = () => {
         </h2>
         
         <div className="studio-tabs">
-          {tabKeys.map((key) => (
+          {tabs.map((tab) => (
             <button 
-              key={key} 
-              className={`studio-tab-btn ${activeTab === key ? 'active' : ''}`}
-              onClick={() => setActiveTab(key)}
+              key={tab.id} 
+              className={`studio-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
             >
-              {tabs[key]}
+              {i18n.language === 'en' ? tab.nameEn : tab.nameAr}
             </button>
           ))}
         </div>
         
         <div className="showcase-grid">
-          {studioData[activeTab].map(img => (
-            <div key={img.id} className="showcase-item">
+          {studioData[activeTab] && studioData[activeTab].map(img => (
+            <div key={img.id || img.url} className="showcase-item">
               <img src={img.url} alt={img.alt} loading="lazy" />
               <div className="showcase-overlay">
                 <div className="overlay-icon">✦</div>

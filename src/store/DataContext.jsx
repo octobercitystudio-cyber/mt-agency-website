@@ -49,6 +49,11 @@ const defaultData = {
     instagram: "#",
     youtube: "#"
   },
+  studioCategories: [
+    { id: 'october', nameAr: 'استديو أكتوبر', nameEn: 'October Studio' },
+    { id: 'lebanon', nameAr: 'استديو ميدان لبنان', nameEn: 'Lebanon Square Studio' },
+    { id: 'newCairo', nameAr: 'استديو القاهرة الجديدة', nameEn: 'New Cairo Studio' }
+  ],
   studio: {
     october: [
       { id: 1, url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', alt: 'October Studio setup' },
