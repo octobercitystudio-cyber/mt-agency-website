@@ -23,6 +23,13 @@ const defaultData = {
     { title: "إدارة السوشيال ميديا", titleEn: "Social Media Management", desc: "نبني تواجدك الرقمي ونزيد تأثيرك", descEn: "Building your digital presence and increasing your impact.", icon: "📱" },
     { title: "تطوير الويب", titleEn: "Web Development", desc: "مواقع مستقبلية تعكس هويتك", descEn: "Futuristic websites reflecting your identity.", icon: "💻" }
   ],
+  portfolioCategories: [
+    { id: 'video', nameAr: 'إنتاج فيديو', nameEn: 'Video' },
+    { id: 'design', nameAr: 'تصميم جرافيك', nameEn: 'Design' },
+    { id: 'reels', nameAr: 'ريلز & تيك توك', nameEn: 'Reels' },
+    { id: 'podcast', nameAr: 'بودكاست', nameEn: 'Podcast' },
+    { id: 'web', nameAr: 'برمجة ويب', nameEn: 'Web' }
+  ],
   portfolio: [
     { id: 1, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ', title: 'إعلان تجاري', titleEn: 'Commercial Ad', category: 'video' },
     { id: 2, imageUrl: 'https://images.unsplash.com/photo-1600132806370-bf17e65e942f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'هوية بصرية', titleEn: 'Visual Identity', category: 'design' },

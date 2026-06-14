@@ -10,7 +10,7 @@ const Portfolio = () => {
   const isEnglish = i18n.language === 'en';
   
   const portfolioItems = siteData.portfolio;
-  const categories = t('portfolio.categories', { returnObjects: true });
+  const categories = siteData.portfolioCategories || [];
 
   const filteredPortfolio = filter === 'all' 
     ? portfolioItems 
@@ -43,13 +43,19 @@ const Portfolio = () => {
         </h2>
         
         <div className="portfolio-filters">
-          {Object.keys(categories).map(key => (
+          <button 
+            className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
+            onClick={() => setFilter('all')}
+          >
+            {isEnglish ? 'All' : 'الكل'}
+          </button>
+          {categories.map(cat => (
             <button 
-              key={key} 
-              className={`filter-btn ${filter === key ? 'active' : ''}`}
-              onClick={() => setFilter(key)}
+              key={cat.id} 
+              className={`filter-btn ${filter === cat.id ? 'active' : ''}`}
+              onClick={() => setFilter(cat.id)}
             >
-              {categories[key]}
+              {isEnglish ? cat.nameEn : cat.nameAr}
             </button>
           ))}
         </div>
@@ -83,7 +89,7 @@ const Portfolio = () => {
               </div>
               <div className="portfolio-info">
                 <h3>{isEnglish ? item.titleEn : item.title}</h3>
-                <span>{categories[item.category] || item.category}</span>
+                <span>{categories.find(c => c.id === item.category)?.[isEnglish ? 'nameEn' : 'nameAr'] || item.category}</span>
               </div>
             </div>
           ))}

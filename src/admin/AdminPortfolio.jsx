@@ -4,7 +4,17 @@ import { Save, Plus, Trash2 } from 'lucide-react';
 
 const AdminPortfolio = () => {
   const { siteData, updateSection } = useData();
-  const [portfolio, setPortfolio] = useState(siteData.portfolio);
+  const defaultCats = [
+    { id: 'video', nameAr: 'إنتاج فيديو', nameEn: 'Video' },
+    { id: 'design', nameAr: 'تصميم جرافيك', nameEn: 'Design' },
+    { id: 'reels', nameAr: 'ريلز & تيك توك', nameEn: 'Reels' },
+    { id: 'podcast', nameAr: 'بودكاست', nameEn: 'Podcast' },
+    { id: 'web', nameAr: 'برمجة ويب', nameEn: 'Web' }
+  ];
+
+  const [portfolio, setPortfolio] = useState(siteData.portfolio || []);
+  const [categories, setCategories] = useState(siteData.portfolioCategories || defaultCats);
+  const [activeTab, setActiveTab] = useState(categories[0]?.id || 'video');
   const [isSaving, setIsSaving] = useState(false);
 
   const handleChange = (index, field, value) => {
@@ -31,11 +41,11 @@ const AdminPortfolio = () => {
   };
 
   const addItem = () => {
-    setPortfolio([...portfolio, { id: Date.now(), title: '', titleEn: '', category: 'video', imageUrl: '', embedUrl: '' }]);
+    setPortfolio([...portfolio, { id: Date.now(), title: '', titleEn: '', category: activeTab, imageUrl: '', embedUrl: '' }]);
   };
 
-  const removeItem = (index) => {
-    const updated = portfolio.filter((_, i) => i !== index);
+  const removeItem = (id) => {
+    const updated = portfolio.filter(item => item.id !== id);
     setPortfolio(updated);
   };
 
@@ -43,9 +53,32 @@ const AdminPortfolio = () => {
     setIsSaving(true);
     setTimeout(() => {
       updateSection('portfolio', portfolio);
+      updateSection('portfolioCategories', categories);
       setIsSaving(false);
       alert('تم حفظ معرض الأعمال بنجاح!');
     }, 600);
+  };
+
+  const addCategory = () => {
+    const newId = prompt('أدخل معرف التبويب (بالانجليزية وبدون مسافات، مثلا: photography):');
+    if (!newId || categories.find(c => c.id === newId)) {
+      if (newId) alert('هذا المعرف موجود بالفعل!');
+      return;
+    }
+    const nameAr = prompt('أدخل اسم التبويب بالعربية (مثلا: تصوير فوتوغرافي):');
+    const nameEn = prompt('أدخل اسم التبويب بالإنجليزية (مثلا: Photography):');
+    if (nameAr && nameEn) {
+      setCategories([...categories, { id: newId, nameAr, nameEn }]);
+      setActiveTab(newId);
+    }
+  };
+
+  const removeCategory = (id) => {
+    if (confirm('هل أنت متأكد من حذف هذا التبويب؟ لن يتم حذف الأعمال المرتبطة به لكنها لن تظهر في أي تبويب مالم تغير تصنيفها.')) {
+      const updated = categories.filter(c => c.id !== id);
+      setCategories(updated);
+      if (activeTab === id && updated.length > 0) setActiveTab(updated[0].id);
+    }
   };
 
   return (
@@ -58,12 +91,24 @@ const AdminPortfolio = () => {
         </button>
       </div>
 
+      <div style={{display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '20px'}}>
+        {categories.map(cat => (
+          <div key={cat.id} style={{display: 'flex', alignItems: 'center', background: activeTab === cat.id ? 'var(--color-vibrant-purple)' : 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '5px 15px', cursor: 'pointer'}}>
+            <span onClick={() => setActiveTab(cat.id)} style={{marginRight: '10px'}}>{cat.nameAr}</span>
+            <button onClick={(e) => { e.stopPropagation(); removeCategory(cat.id); }} style={{background: 'transparent', border: 'none', color: '#ff4d4d', cursor: 'pointer'}} title="حذف التبويب">×</button>
+          </div>
+        ))}
+        <button onClick={addCategory} className="btn-primary" style={{padding: '5px 15px', borderRadius: '8px', background: 'var(--color-cyan)', color: '#000'}}>+ إضافة تبويب</button>
+      </div>
+
       <div className="admin-grid">
-        {portfolio.map((item, index) => (
+        {portfolio.map((item, index) => {
+          if (item.category !== activeTab) return null;
+          return (
           <div key={item.id} className="admin-card glass-panel" style={{position: 'relative'}}>
             <button 
-              onClick={() => removeItem(index)}
-              style={{position: 'absolute', top: '15px', left: '15px', background: 'rgba(255,0,0,0.2)', border: 'none', color: '#ff4d4d', padding: '8px', borderRadius: '50%', cursor: 'pointer'}}
+              onClick={() => removeItem(item.id)}
+              style={{position: 'absolute', top: '15px', left: '15px', background: 'rgba(255,0,0,0.2)', border: 'none', color: '#ff4d4d', padding: '8px', borderRadius: '50%', cursor: 'pointer', zIndex: 10}}
               title="حذف العمل"
             >
               <Trash2 size={16} />
@@ -77,10 +122,9 @@ const AdminPortfolio = () => {
                 onChange={(e) => handleChange(index, 'category', e.target.value)}
                 style={{backgroundColor: 'rgba(0,0,0,0.5)'}}
               >
-                <option value="video">فيديو</option>
-                <option value="design">تصميم</option>
-                <option value="reels">ريلز</option>
-                <option value="podcast">بودكاست</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.nameAr}</option>
+                ))}
               </select>
             </div>
 
@@ -114,7 +158,8 @@ const AdminPortfolio = () => {
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
 
         <div 
           className="admin-card glass-panel" 
