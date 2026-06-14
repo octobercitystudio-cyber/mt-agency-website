@@ -80,6 +80,10 @@ const defaultData = {
   adminCredentials: {
     username: 'octobercitystudio@gmail.com',
     password: 'Octcitystd@2019'
+  },
+  erpCredentials: {
+    username: 'octobercitystudio@gmail.com',
+    password: 'Octcitystd@2019'
   }
 };
 
@@ -136,7 +140,11 @@ export const DataProvider = ({ children }) => {
   };
 
   const loginErp = (username, password) => {
-    if (username === 'octobercitystudio@gmail.com' && password === 'Octcitystd@2019') {
+    const creds = (siteData.erpCredentials && siteData.erpCredentials.username)
+      ? siteData.erpCredentials
+      : { username: 'octobercitystudio@gmail.com', password: 'Octcitystd@2019' };
+      
+    if (username && password && username === creds.username && password === creds.password) {
       setIsErpAuth(true);
       localStorage.setItem('mt_erp_auth', 'true');
       return true;
