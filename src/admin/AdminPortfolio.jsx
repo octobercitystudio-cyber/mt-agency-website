@@ -81,6 +81,24 @@ const AdminPortfolio = () => {
     }
   };
 
+  const editCategory = (id) => {
+    const categoryToEdit = categories.find(c => c.id === id);
+    if (!categoryToEdit) return;
+    
+    const newNameAr = prompt('تعديل اسم التبويب بالعربية:', categoryToEdit.nameAr);
+    if (newNameAr === null) return;
+    
+    const newNameEn = prompt('تعديل اسم التبويب بالإنجليزية:', categoryToEdit.nameEn);
+    if (newNameEn === null) return;
+    
+    if (newNameAr && newNameEn) {
+      const updated = categories.map(c => 
+        c.id === id ? { ...c, nameAr: newNameAr, nameEn: newNameEn } : c
+      );
+      setCategories(updated);
+    }
+  };
+
   return (
     <div>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
@@ -95,7 +113,8 @@ const AdminPortfolio = () => {
         {categories.map(cat => (
           <div key={cat.id} style={{display: 'flex', alignItems: 'center', background: activeTab === cat.id ? 'var(--color-vibrant-purple)' : 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '5px 15px', cursor: 'pointer'}}>
             <span onClick={() => setActiveTab(cat.id)} style={{marginRight: '10px'}}>{cat.nameAr}</span>
-            <button onClick={(e) => { e.stopPropagation(); removeCategory(cat.id); }} style={{background: 'transparent', border: 'none', color: '#ff4d4d', cursor: 'pointer'}} title="حذف التبويب">×</button>
+            <button onClick={(e) => { e.stopPropagation(); editCategory(cat.id); }} style={{background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', marginRight: '5px', fontSize: '0.9rem'}} title="تعديل اسم التبويب">✎</button>
+            <button onClick={(e) => { e.stopPropagation(); removeCategory(cat.id); }} style={{background: 'transparent', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '1.2rem'}} title="حذف التبويب">×</button>
           </div>
         ))}
         <button onClick={addCategory} className="btn-primary" style={{padding: '5px 15px', borderRadius: '8px', background: 'var(--color-cyan)', color: '#000'}}>+ إضافة تبويب</button>
