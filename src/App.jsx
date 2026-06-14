@@ -60,6 +60,17 @@ const ScrollToTop = () => {
     }, 100);
   }, [pathname]);
 
+  // Listen to hash changes (e.g. mobile back button returning to empty hash)
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (!window.location.hash || window.location.hash === '#home') {
+        window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   return null;
 };
 
