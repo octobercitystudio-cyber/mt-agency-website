@@ -9,8 +9,8 @@ const OfferPopup = () => {
   const activeOffers = (siteData.offers || []).filter(o => o.is_active !== false);
 
   useEffect(() => {
-    // Only show if there are active offers and user hasn't seen it in this session
-    if (activeOffers.length > 0 && !sessionStorage.getItem('offer_popup_seen')) {
+    // Show if there are active offers on every load/refresh
+    if (activeOffers.length > 0) {
       // Small delay to let the site load first
       const timer = setTimeout(() => {
         setIsVisible(true);
@@ -21,8 +21,10 @@ const OfferPopup = () => {
 
   const closePopup = () => {
     setIsVisible(false);
-    sessionStorage.setItem('offer_popup_seen', 'true');
   };
+
+  const waNumber = (siteData.contact?.phone2 || siteData.contact?.phone || '').replace(/\D/g, '');
+  const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent('مرحباً، أريد الاستفسار عن العروض المتاحة على الموقع')}`;
 
   if (!isVisible || activeOffers.length === 0) return null;
 
@@ -51,8 +53,8 @@ const OfferPopup = () => {
         </div>
         
         <div className="offer-popup-footer">
-          <a href="#contact" onClick={closePopup} className="btn-primary" style={{width: '100%', textAlign: 'center', display: 'block'}}>
-            احصل على العرض الآن
+          <a href={waLink} target="_blank" rel="noopener noreferrer" onClick={closePopup} className="btn-primary" style={{width: '100%', textAlign: 'center', display: 'block', background: '#25D366', color: '#fff', border: 'none'}}>
+            احصل على العرض الآن عبر واتساب
           </a>
         </div>
       </div>
