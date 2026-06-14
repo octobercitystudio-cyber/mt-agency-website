@@ -51,7 +51,17 @@ const Contact = () => {
             
             <div className="contact-form glass-panel">
               <h3 style={{marginBottom: '20px', color: 'var(--color-light-silver)'}}>{isEnglish ? 'Send us a Message' : 'أرسل لنا رسالة'}</h3>
-              <form action={`mailto:${receivingEmail}`} method="POST" encType="text/plain">
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.target);
+                  const name = formData.get('Name');
+                  const email = formData.get('Email');
+                  const message = formData.get('Message');
+                  const body = `Name: ${name}%0D%0AEmail: ${email}%0D%0AMessage: ${message}`;
+                  window.location.href = `mailto:${receivingEmail}?subject=Contact Form Submission&body=${body}`;
+                }}
+              >
                 <div className="form-group">
                   <input type="text" name="Name" placeholder={t('contact.form.name')} required />
                 </div>
