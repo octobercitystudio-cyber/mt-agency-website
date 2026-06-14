@@ -75,6 +75,7 @@ const Portfolio = () => {
                     frameBorder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                     allowFullScreen
+                    loading="lazy"
                   ></iframe>
                 ) : (
                   <img src={item.imageUrl} alt={isEnglish ? item.titleEn : item.title} loading="lazy" />
