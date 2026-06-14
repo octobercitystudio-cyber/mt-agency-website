@@ -61,16 +61,20 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(122, 40, 203, 0.4);
   border-radius: 40px;
-  padding: 10px 30px;
+  padding: 10px 30px 4px 30px; /* Tweak padding to center Arabic text baseline and make it thinner */
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
 }
 
 .main-nav {
   display: flex;
+  align-items: center;
 }
 
 .nav-list {
   display: flex;
+  align-items: center;
   gap: 25px;
 }
 
