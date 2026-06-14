@@ -66,8 +66,8 @@ const defaultData = {
     { id: 1, title: 'خصم 20% على باقة 50 ساعة', discount: '20%', desc: 'احجز الآن واستفد من الخصم لفترة محدودة على باقة الـ 50 ساعة التصوير.', is_active: true }
   ],
   adminCredentials: {
-    username: '',
-    password: ''
+    username: 'octobercitystudio@gmail.com',
+    password: 'Octcitystd@2019'
   }
 };
 
@@ -106,7 +106,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const login = (username, password) => {
-    const creds = siteData.adminCredentials || { username: '', password: '' };
+    const creds = siteData.adminCredentials || { username: 'octobercitystudio@gmail.com', password: 'Octcitystd@2019' };
     if (username && password && username === creds.username && password === creds.password) {
       setIsAdminAuth(true);
       localStorage.setItem('mt_admin_auth', 'true');
