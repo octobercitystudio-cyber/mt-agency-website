@@ -1,12 +1,18 @@
-import React from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag } from 'lucide-react';
+import React, { useState } from 'react';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag, Sidebar, Menu, X } from 'lucide-react';
 import { useData } from '../store/DataContext';
+import useExternalScripts from '../hooks/useExternalScripts';
 import './AdminLayout.css';
 
 const AdminLayout = () => {
   const { logout } = useData();
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const location = useLocation();
+
+  useExternalScripts();
 
   const handleLogout = () => {
     logout();
@@ -58,7 +64,7 @@ const AdminLayout = () => {
         </nav>
 
         <div className="sidebar-footer">
-          <a href="/" target="_blank" className="nav-item">
+          <a href="/" target="_blank" rel="noopener noreferrer" className="nav-item">
             <Home size={20} />
             عرض الموقع
           </a>

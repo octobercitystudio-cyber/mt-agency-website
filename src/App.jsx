@@ -1,28 +1,31 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import UnifiedLogin from './pages/UnifiedLogin';
-import AdminLayout from './admin/AdminLayout';
-import AdminLogin from './admin/AdminLogin';
-import AdminServices from './admin/AdminServices';
-import ERPLayout from './erp/ERPLayout';
-import ERPDashboard from './erp/ERPDashboard';
-import ERPClients from './erp/ERPClients';
-import ERPBookings from './erp/ERPBookings';
-import ERPFinance from './erp/ERPFinance';
-import ERPSettings from './erp/ERPSettings';
-import ERPReminders from './erp/ERPReminders';
-import ERPOfferGenerator from './erp/ERPOfferGenerator';
-import AdminHero from './admin/AdminHero';
-import AdminAbout from './admin/AdminAbout';
-import AdminPortfolio from './admin/AdminPortfolio';
-import AdminStudio from './admin/AdminStudio';
-import AdminContact from './admin/AdminContact';
-import AdminOffers from './admin/AdminOffers';
-import AdminSettings from './admin/AdminSettings';
 import ClientDashboard from './pages/ClientDashboard';
 import { DataProvider, useData } from './store/DataContext';
-import { useLocation } from 'react-router-dom';
+
+// Lazy Load Admin Components
+const AdminLayout = lazy(() => import('./admin/AdminLayout'));
+const AdminLogin = lazy(() => import('./admin/AdminLogin'));
+const AdminServices = lazy(() => import('./admin/AdminServices'));
+const AdminHero = lazy(() => import('./admin/AdminHero'));
+const AdminAbout = lazy(() => import('./admin/AdminAbout'));
+const AdminPortfolio = lazy(() => import('./admin/AdminPortfolio'));
+const AdminStudio = lazy(() => import('./admin/AdminStudio'));
+const AdminContact = lazy(() => import('./admin/AdminContact'));
+const AdminOffers = lazy(() => import('./admin/AdminOffers'));
+const AdminSettings = lazy(() => import('./admin/AdminSettings'));
+
+// Lazy Load ERP Components
+const ERPLayout = lazy(() => import('./erp/ERPLayout'));
+const ERPDashboard = lazy(() => import('./erp/ERPDashboard'));
+const ERPClients = lazy(() => import('./erp/ERPClients'));
+const ERPBookings = lazy(() => import('./erp/ERPBookings'));
+const ERPFinance = lazy(() => import('./erp/ERPFinance'));
+const ERPSettings = lazy(() => import('./erp/ERPSettings'));
+const ERPReminders = lazy(() => import('./erp/ERPReminders'));
+const ERPOfferGenerator = lazy(() => import('./erp/ERPOfferGenerator'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -94,47 +97,49 @@ function App() {
     <DataProvider>
       <BrowserRouter>
         <ScrollToTop />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<UnifiedLogin />} />
-          <Route path="/dashboard" element={<ClientDashboard />} />
-          <Route path="/adminmt/login" element={<AdminLogin />} />
-          <Route 
-            path="/erp/*" 
-            element={
-              <ErpProtectedRoute>
-                <ERPLayout />
-              </ErpProtectedRoute>
-            }
-          >
-            <Route index element={<ERPDashboard />} />
-            <Route path="clients" element={<ERPClients />} />
-            <Route path="bookings" element={<ERPBookings />} />
-            <Route path="finance" element={<ERPFinance />} />
-            <Route path="settings" element={<ERPSettings />} />
-            <Route path="reminders" element={<ERPReminders />} />
-            <Route path="offer-generator" element={<ERPOfferGenerator />} />
-          </Route>
-          <Route 
-            path="/adminmt/*" 
-            element={
-              <ProtectedRoute>
-                <AdminLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="hero" replace />} />
-            <Route path="hero" element={<AdminHero />} />
-            <Route path="about" element={<AdminAbout />} />
-            <Route path="services" element={<AdminServices />} />
-            <Route path="portfolio" element={<AdminPortfolio />} />
-            <Route path="studio" element={<AdminStudio />} />
-            <Route path="contact" element={<AdminContact />} />
-            <Route path="offers" element={<AdminOffers />} />
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="*" element={<div style={{padding: '2rem'}}>قريباً سيتم إضافة هذه الصفحة...</div>} />
-          </Route>
-        </Routes>
+        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0a0a0a', color: '#7a28cb' }}>جاري التحميل...</div>}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<UnifiedLogin />} />
+            <Route path="/dashboard" element={<ClientDashboard />} />
+            <Route path="/adminmt/login" element={<AdminLogin />} />
+            <Route 
+              path="/erp/*" 
+              element={
+                <ErpProtectedRoute>
+                  <ERPLayout />
+                </ErpProtectedRoute>
+              }
+            >
+              <Route index element={<ERPDashboard />} />
+              <Route path="clients" element={<ERPClients />} />
+              <Route path="bookings" element={<ERPBookings />} />
+              <Route path="finance" element={<ERPFinance />} />
+              <Route path="settings" element={<ERPSettings />} />
+              <Route path="reminders" element={<ERPReminders />} />
+              <Route path="offer-generator" element={<ERPOfferGenerator />} />
+            </Route>
+            <Route 
+              path="/adminmt/*" 
+              element={
+                <ProtectedRoute>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="hero" replace />} />
+              <Route path="hero" element={<AdminHero />} />
+              <Route path="about" element={<AdminAbout />} />
+              <Route path="services" element={<AdminServices />} />
+              <Route path="portfolio" element={<AdminPortfolio />} />
+              <Route path="studio" element={<AdminStudio />} />
+              <Route path="contact" element={<AdminContact />} />
+              <Route path="offers" element={<AdminOffers />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="*" element={<div style={{padding: '2rem'}}>قريباً سيتم إضافة هذه الصفحة...</div>} />
+            </Route>
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </DataProvider>
   );

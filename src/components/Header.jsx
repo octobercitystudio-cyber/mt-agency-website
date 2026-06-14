@@ -44,11 +44,11 @@ const Header = () => {
           </div>
         </a>
         
-        <button className="lang-btn" onClick={toggleLanguage}>
+        <button className="lang-btn" onClick={toggleLanguage} aria-label={lang === 'ar' ? 'Switch to English' : 'التبديل للعربية'}>
           {lang === 'ar' ? 'EN' : 'AR'}
         </button>
 
-        <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+        <button className="mobile-menu-btn" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}>
           {isMenuOpen ? <X size={28} /> : <Menu size={28} />}
         </button>
       </div>
@@ -61,7 +61,7 @@ const Header = () => {
 
       {/* Center & Left Columns: Navigation (Side Drawer on mobile) */}
       <div className={`mobile-nav-wrapper ${isMenuOpen ? 'open' : ''}`}>
-        <button className="close-menu-btn" onClick={() => setIsMenuOpen(false)}>
+        <button className="close-menu-btn" onClick={() => setIsMenuOpen(false)} aria-label="Close menu">
           <X size={28} />
         </button>
 

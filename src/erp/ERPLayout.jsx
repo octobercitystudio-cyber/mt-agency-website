@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, RotateCcw } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
 import { supabase } from '../supabaseClient';
 import ERPSessionTimer from './ERPSessionTimer';
+import useExternalScripts from '../hooks/useExternalScripts';
 import './ERPLayout.css';
 
 const ERPLayout = () => {
   const { logoutErp } = useData();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { alerts, dismissAlert } = useGlobalAlerts();
   const [isUndoing, setIsUndoing] = useState(false);
+
+  useExternalScripts();
   
   const unreadCount = alerts.length;
 
@@ -128,7 +132,7 @@ const ERPLayout = () => {
               <Settings size={20} /> إعدادات النظام
             </NavLink>
           </div>
-          <a href="/" target="_blank" className="erp-nav-link mb-2" style={{color: 'var(--erp-text-muted)'}}>
+          <a href="/" target="_blank" rel="noopener noreferrer" className="erp-nav-link mb-2" style={{color: 'var(--erp-text-muted)'}}>
             <Home size={20} /> عرض الموقع
           </a>
           <button onClick={handleLogout} className="erp-nav-link" style={{width: '100%', color: '#ef4444', background: 'transparent', border: 'none', justifyContent: 'flex-start'}}>
