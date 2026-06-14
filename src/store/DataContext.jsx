@@ -144,8 +144,8 @@ export const DataProvider = ({ children }) => {
     setSiteData(newSiteData);
     
     try {
-      // First check if the key exists
-      const { data } = await supabase.from('app_config').select('id').eq('key', 'website_data').single();
+      // First check if the key exists using maybeSingle to avoid errors when empty
+      const { data } = await supabase.from('app_config').select('id').eq('key', 'website_data').maybeSingle();
       
       if (data) {
         await supabase.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
