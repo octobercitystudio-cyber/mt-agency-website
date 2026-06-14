@@ -19,6 +19,15 @@
   z-index: 2;
 }
 
+@media (min-width: 993px) {
+  .hero-content {
+    order: 1;
+  }
+  .hero-visual {
+    order: 2;
+  }
+}
+
 .hero-title {
   font-size: clamp(1.1rem, 3.5vw, 3rem); /* Further reduced for tiny screens */
   white-space: nowrap; /* Keep on one line as requested */
