@@ -7,6 +7,7 @@ import Portfolio from '../components/Portfolio';
 import StudioShowcase from '../components/StudioShowcase';
 import Contact from '../components/Contact';
 import Footer from '../components/Footer';
+import OfferPopup from '../components/OfferPopup';
 
 const HomePage = () => {
   return (
@@ -19,6 +20,7 @@ const HomePage = () => {
       <StudioShowcase />
       <Contact />
       <Footer />
+      <OfferPopup />
     </main>
   );
 };
