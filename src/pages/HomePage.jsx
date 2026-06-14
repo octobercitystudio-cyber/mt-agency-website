@@ -1,26 +1,30 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import Header from '../components/Header';
 import Hero from '../components/Hero';
-import About from '../components/About';
-import Services from '../components/Services';
-import Portfolio from '../components/Portfolio';
-import StudioShowcase from '../components/StudioShowcase';
-import Contact from '../components/Contact';
-import Footer from '../components/Footer';
-import OfferPopup from '../components/OfferPopup';
+
+// Lazy load below-the-fold components
+const About = lazy(() => import('../components/About'));
+const Services = lazy(() => import('../components/Services'));
+const Portfolio = lazy(() => import('../components/Portfolio'));
+const StudioShowcase = lazy(() => import('../components/StudioShowcase'));
+const Contact = lazy(() => import('../components/Contact'));
+const Footer = lazy(() => import('../components/Footer'));
+const OfferPopup = lazy(() => import('../components/OfferPopup'));
 
 const HomePage = () => {
   return (
     <main className="app-container">
       <Header />
       <Hero />
-      <About />
-      <Services />
-      <Portfolio />
-      <StudioShowcase />
-      <Contact />
-      <Footer />
-      <OfferPopup />
+      <Suspense fallback={<div style={{ minHeight: '100px' }}></div>}>
+        <About />
+        <Services />
+        <Portfolio />
+        <StudioShowcase />
+        <Contact />
+        <Footer />
+        <OfferPopup />
+      </Suspense>
     </main>
   );
 };

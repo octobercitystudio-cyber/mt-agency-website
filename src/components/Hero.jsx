@@ -39,6 +39,7 @@ const Hero = () => {
                 src={img} 
                 alt={`Our Service ${index + 1}`} 
                 className={`hero-slider-img ${index === currentImageIndex ? 'active' : ''}`}
+                width="600" height="600"
                 fetchpriority={index === 0 ? "high" : "auto"}
                 loading={index === 0 ? "eager" : "lazy"}
               />

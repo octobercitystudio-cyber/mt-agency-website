@@ -38,7 +38,7 @@ const defaultData = {
     { id: 4, imageUrl: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'حلقة بودكاست', titleEn: 'Podcast Episode', category: 'podcast' },
     { id: 5, embedUrl: 'https://www.youtube.com/embed/9bZkp7q19f0', title: 'تغطية فعالية', titleEn: 'Event Coverage', category: 'video' },
     { id: 6, imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'موقع إلكتروني', titleEn: 'Website', category: 'design' },
-    { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: '/qpshoes.png', title: 'متجر قصر الملكة', titleEn: 'QP Shoes Store', category: 'web' }
+    { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: '/qpshoes_mockup.webp', title: 'متجر قصر الملكة', titleEn: 'QP Shoes Store', category: 'web' }
   ],
   contact: {
     address: "مدينة 6 أكتوبر، الجيزة، مصر",
@@ -118,6 +118,24 @@ export const DataProvider = ({ children }) => {
           if (typeof parsedData === 'string') {
             parsedData = JSON.parse(parsedData);
           }
+          
+          // 🚀 On-the-fly Image Optimization (Force WebP)
+          if (parsedData.portfolio) {
+            parsedData.portfolio.forEach(item => {
+              if (item.imageUrl) {
+                if (item.imageUrl.includes('unsplash.com') && !item.imageUrl.includes('fm=webp')) item.imageUrl += '&fm=webp';
+                if (item.imageUrl === '/qpshoes.png') item.imageUrl = '/qpshoes_mockup.webp';
+              }
+            });
+          }
+          if (parsedData.studio) {
+            Object.keys(parsedData.studio).forEach(cat => {
+              parsedData.studio[cat].forEach(item => {
+                if (item.url && item.url.includes('unsplash.com') && !item.url.includes('fm=webp')) item.url += '&fm=webp';
+              });
+            });
+          }
+          
           setSiteData({ ...defaultData, ...parsedData });
         } else {
           setSiteData(defaultData);

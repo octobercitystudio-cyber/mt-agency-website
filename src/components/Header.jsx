@@ -32,7 +32,7 @@ const Header = () => {
       {/* Right Column: Logo & Language & Hamburger */}
       <div className="top-bar-right">
         <a href="#home" className="logo-link">
-          <img src="/logo.webp" alt="MT Agency Logo" className="header-logo" 
+          <img src="/logo.webp" alt="MT Agency Logo" className="header-logo" width="50" height="50"
                onError={(e) => {
                  e.target.style.display = 'none';
                  e.target.nextSibling.style.display = 'flex';
