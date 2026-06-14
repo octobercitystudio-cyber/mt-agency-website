@@ -114,6 +114,8 @@ export const DataProvider = ({ children }) => {
     return localStorage.getItem('mt_erp_auth') === 'true';
   });
 
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
   useEffect(() => {
     const fetchSiteData = async () => {
       try {
@@ -121,7 +123,7 @@ export const DataProvider = ({ children }) => {
           .from('app_config')
           .select('value')
           .eq('key', 'website_data')
-          .single();
+          .maybeSingle();
           
         if (data && data.value) {
           const parsed = JSON.parse(data.value);
@@ -129,6 +131,8 @@ export const DataProvider = ({ children }) => {
         }
       } catch (err) {
         console.error("Error loading site data from Supabase:", err);
+      } finally {
+        setIsDataLoaded(true);
       }
     };
     
@@ -208,6 +212,20 @@ export const DataProvider = ({ children }) => {
     setIsErpAuth(false);
     localStorage.removeItem('mt_erp_auth');
   };
+
+  if (!isDataLoaded) {
+    return (
+      <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0a0a0a', color: '#fff'}}>
+        <div style={{textAlign: 'center'}}>
+          <div className="spinner" style={{width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--color-vibrant-purple)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 15px'}}></div>
+          <p>جاري تحميل البيانات...</p>
+        </div>
+        <style>{`
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <DataContext.Provider value={{ 
