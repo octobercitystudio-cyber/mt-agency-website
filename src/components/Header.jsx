@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Menu, X, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useData } from '../store/DataContext';
 import './Header.css';
 
 const Header = () => {
   const { t, i18n } = useTranslation();
+  const { isErpAuth } = useData();
   const [lang, setLang] = useState(i18n.language);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -80,9 +82,15 @@ const Header = () => {
         </div>
 
         <div className="top-bar-left" style={{ display: 'flex', gap: '10px' }}>
-          <Link to="/login" className="btn-secondary login-btn" onClick={() => setIsMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <User size={16} /> تسجيل الدخول
-          </Link>
+          {isErpAuth ? (
+            <Link to="/erp" className="btn-secondary login-btn" onClick={() => setIsMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--color-vibrant-purple)', color: '#fff', borderColor: 'var(--color-vibrant-purple)' }}>
+              <User size={16} /> {lang === 'ar' ? 'برنامج الشركة' : 'ERP System'}
+            </Link>
+          ) : (
+            <Link to="/login" className="btn-secondary login-btn" onClick={() => setIsMenuOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <User size={16} /> {lang === 'ar' ? 'تسجيل الدخول' : 'Login'}
+            </Link>
+          )}
         </div>
       </div>
     </div>
