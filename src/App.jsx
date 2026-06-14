@@ -61,6 +61,35 @@ const ScrollToTop = () => {
 };
 
 function App() {
+  useEffect(() => {
+    // Disable Right Click
+    const handleContextMenu = (e) => e.preventDefault();
+    
+    // Disable Developer Shortcuts
+    const handleKeyDown = (e) => {
+      // F12
+      if (e.keyCode === 123) {
+        e.preventDefault();
+      }
+      // Ctrl+Shift+I / Ctrl+Shift+J / Ctrl+Shift+C
+      if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) {
+        e.preventDefault();
+      }
+      // Ctrl+U (View Source)
+      if (e.ctrlKey && e.keyCode === 85) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   return (
     <DataProvider>
       <BrowserRouter>
