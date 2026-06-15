@@ -219,7 +219,7 @@ const ClientDashboard = () => {
     const basePrice = serviceDetails.price || 0;
     cost = primaryPackage.cost > 0 ? primaryPackage.cost : Math.max(0, basePrice - primaryPackage.discount);
     remainingCost = Math.max(0, cost - primaryPackage.paid);
-    progressPercent = totalHours > 0 ? (primaryPackage.usedHours / totalHours) * 100 : 0;
+    let progressPercent = totalHours > 0 ? (primaryPackage.usedHours / totalHours) * 100 : 0;
     paymentDueHours = serviceDetails.payment_due_hours || 0;
 
     const validBookings = primaryPackage.bookings.filter(b => b.date && !isNaN(new Date(b.date))).sort((a,b) => new Date(a.date) - new Date(b.date));
