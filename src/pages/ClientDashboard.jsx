@@ -384,7 +384,7 @@ const ClientDashboard = () => {
       <main className="mt-main">
         <header className="main-header">
           <div className="header-greeting">
-            <h2>مرحباً بك، أ. {client.name} ✨</h2>
+            <h2 className="client-name-title">مرحباً بك، أ. {client.name} ✨</h2>
             <p>جاهز لجلسة التصوير القادمة؟</p>
           </div>
           <div className="header-actions" style={{display: 'flex', gap: '15px', alignItems: 'center'}}>
@@ -463,15 +463,15 @@ const ClientDashboard = () => {
                   <h3><Clock size={20}/> تفاصيل الاستهلاك للفترة المحددة</h3>
                 </div>
                 <div className="card-body" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', justifyContent: 'center', width: '100%', marginBottom: '1rem' }}>
-                    <div className="package-chart" style={{ flex: '1 1 45%', minWidth: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <div className="charts-flex-container mb-4">
+                    <div className="package-chart">
                       <div className="chart-center-text">
-                        <strong style={{fontSize: '1.8rem'}}>{filteredUsedHours}</strong>
-                        <span>ساعة استهلاك</span>
+                        <strong className="chart-main-value">{filteredUsedHours}</strong>
+                        <span className="chart-sub-value">ساعة استهلاك</span>
                       </div>
-                      <ResponsiveContainer width={200} height={200}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={pieData} innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value" stroke="none">
+                          <Pie data={pieData} innerRadius="75%" outerRadius="100%" paddingAngle={5} dataKey="value" stroke="none">
                             {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
                           </Pie>
                         </PieChart>
@@ -479,14 +479,14 @@ const ClientDashboard = () => {
                     </div>
 
                     {packageExpiryDate && (
-                      <div className="package-chart" style={{ flex: '1 1 45%', minWidth: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                      <div className="package-chart">
                         <div className="chart-center-text">
-                          <strong style={{fontSize: '1.8rem', color: '#0dcaf0'}}>{remainingDays}</strong>
-                          <span>يوم متبقي</span>
+                          <strong className="chart-main-value" style={{color: '#0dcaf0'}}>{remainingDays}</strong>
+                          <span className="chart-sub-value">يوم متبقي</span>
                         </div>
-                        <ResponsiveContainer width={200} height={200}>
+                        <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={[{name: 'منقضي', value: passedDays}, {name: 'متبقي', value: remainingDays}]} innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="value" stroke="none">
+                            <Pie data={[{name: 'منقضي', value: passedDays}, {name: 'متبقي', value: remainingDays}]} innerRadius="75%" outerRadius="100%" paddingAngle={5} dataKey="value" stroke="none">
                               <Cell fill="rgba(255,255,255,0.05)" />
                               <Cell fill="#0dcaf0" />
                             </Pie>

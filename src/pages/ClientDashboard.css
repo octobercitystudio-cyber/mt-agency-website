@@ -86,6 +86,10 @@
 }
 
 .header-greeting h2 {
+  display: none; /* Replaced by .client-name-title */
+}
+
+.client-name-title {
   margin: 0 0 0.5rem;
   font-size: 2rem;
   color: #fff;
@@ -219,10 +223,28 @@
 }
 
 /* Chart Center Text */
+.charts-flex-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  justify-content: center;
+  width: 100%;
+}
+
 .package-chart {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: 200px;
+  height: 200px;
+}
+
+.chart-main-value {
+  font-size: 1.8rem;
+  color: #fff;
+}
+
+.chart-sub-value {
+  font-size: 0.9rem;
+  color: #8c8c8c;
 }
 
 .chart-center-text {
@@ -616,7 +638,7 @@
   }
 
   .mt-main {
-    padding: 1rem;
+    padding: 1rem 0.5rem;
     padding-bottom: 90px;
   }
 
@@ -626,15 +648,31 @@
   
   .hero-stats-grid {
     flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .stat-card {
-    min-width: 120px;
+    min-width: 45%;
     flex: 1 1 45%;
+    padding: 0.8rem 0.5rem;
+    gap: 0.4rem;
+  }
+
+  .stat-icon {
+    width: 35px;
+    height: 35px;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+  }
+
+  .stat-value {
+    font-size: 1rem;
   }
 
   .card-body {
-    padding: 1rem;
+    padding: 1rem 0.5rem;
   }
   
   .time-filters-container {
@@ -660,8 +698,29 @@
     gap: 1rem;
   }
 
-  .header-greeting h2 {
-    font-size: 1.5rem;
+  .client-name-title {
+    font-size: 1.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .charts-flex-container {
+    gap: 0.5rem;
+  }
+
+  .package-chart {
+    width: 130px;
+    height: 130px;
+  }
+
+  .chart-main-value {
+    font-size: 1.2rem;
+  }
+
+  .chart-sub-value {
+    font-size: 0.7rem;
   }
 }
 /* Helper Utilities */
