@@ -11,10 +11,10 @@ const Hero = () => {
   const heroData = siteData.hero;
 
   const sliderImages = [
-    '/hero-service-1-small.webp', // Photography
-    '/hero-service-2-small.webp', // AI Video
-    '/hero-service-3-small.webp', // Creative Design
-    '/hero-service-4-small.webp'  // Social Media
+    '/hero-service-1-tiny.webp', // Photography
+    '/hero-service-2-tiny.webp', // AI Video
+    '/hero-service-3-tiny.webp', // Creative Design
+    '/hero-service-4-tiny.webp'  // Social Media
   ];
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);

@@ -13,7 +13,8 @@ const filesToResize = [
 async function resizeImages() {
   for (const file of filesToResize) {
     const filePath = path.join(publicDir, file);
-    const tempPath = path.join(publicDir, `temp-${file}`);
+    const newName = file.replace('-small.webp', '-tiny.webp');
+    const destPath = path.join(publicDir, newName);
     
     if (fs.existsSync(filePath)) {
       console.log(`Resizing ${file} to 500x500 at 75 quality...`);
@@ -23,11 +24,9 @@ async function resizeImages() {
           position: 'center'
         })
         .webp({ quality: 75 })
-        .toFile(tempPath);
+        .toFile(destPath);
         
-      fs.unlinkSync(filePath);
-      fs.renameSync(tempPath, filePath);
-      console.log(`Successfully resized ${file}`);
+      console.log(`Successfully created ${newName}`);
     } else {
       console.log(`File not found: ${file}`);
     }
