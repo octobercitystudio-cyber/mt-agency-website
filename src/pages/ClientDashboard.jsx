@@ -194,7 +194,7 @@ const ClientDashboard = () => {
     pkg.usedHours += (booking.actual_hours || 0);
     pkg.paid += (booking.payment || 0);
     if (booking.discount > pkg.discount) pkg.discount = booking.discount;
-    if (booking.custom_price !== null && booking.custom_price !== -1) pkg.cost = booking.custom_price;
+    if (booking.custom_price !== null && booking.custom_price > 0) pkg.cost = booking.custom_price;
     if (booking.delivery_date) {
       if (!pkg.latestExpiry || new Date(booking.delivery_date) > new Date(pkg.latestExpiry)) {
         pkg.latestExpiry = booking.delivery_date;
@@ -219,7 +219,7 @@ const ClientDashboard = () => {
     totalHours = serviceDetails.total_hours || 0;
     remainingHours = Math.max(0, totalHours - primaryPackage.usedHours);
     const basePrice = serviceDetails.price || 0;
-    cost = primaryPackage.cost !== -1 ? primaryPackage.cost : Math.max(0, basePrice - primaryPackage.discount);
+    cost = primaryPackage.cost > 0 ? primaryPackage.cost : Math.max(0, basePrice - primaryPackage.discount);
     remainingCost = Math.max(0, cost - primaryPackage.paid);
     progressPercent = totalHours > 0 ? (primaryPackage.usedHours / totalHours) * 100 : 0;
     paymentDueHours = serviceDetails.payment_due_hours || 0;
