@@ -43,13 +43,11 @@ class ErrorBoundary extends React.Component {
 
 const ClientDashboard = () => {
   const navigate = useNavigate();
-  const [phone, setPhone] = useState('');
   const [client, setClient] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [services, setServices] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const { siteData } = useData();
   
   const [activeTab, setActiveTab] = useState('home');
@@ -116,13 +114,13 @@ const ClientDashboard = () => {
 
     // Set up Realtime subscriptions for automatic syncing with Admin dashboard
     const channel = supabase.channel('client_dashboard_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, payload => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, () => {
         fetchClientData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, payload => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bookings' }, () => {
         fetchClientData();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, payload => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'bookings' }, () => {
         fetchClientData();
       })
       .subscribe();
@@ -203,16 +201,10 @@ const ClientDashboard = () => {
   });
 
   const primaryPackage = Object.values(packages)[0] || null;
-  let serviceDetails = {}, totalHours = 0, remainingHours = 0, cost = 0, remainingCost = 0, progressPercent = 0;
-  let packageExpiryDate = null;
+  let serviceDetails = {}, totalHours = 0, remainingHours = 0, cost = 0, remainingCost = 0;
   let paymentDueDate = null;
   let hasPaymentDue = false;
   let paymentDueHours = 0;
-  
-  let totalDays = 0;
-  let remainingDays = 0;
-  let passedDays = 0;
-  const now = new Date();
   
   if (primaryPackage) {
     serviceDetails = services.find(s => s.name === primaryPackage.name) || {};
