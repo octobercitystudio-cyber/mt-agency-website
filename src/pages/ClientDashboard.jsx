@@ -218,8 +218,9 @@ const ClientDashboard = () => {
     serviceDetails = services.find(s => s.name === primaryPackage.name) || {};
     totalHours = serviceDetails.total_hours || 0;
     remainingHours = Math.max(0, totalHours - primaryPackage.usedHours);
-    cost = primaryPackage.cost !== -1 ? primaryPackage.cost : (serviceDetails.price || 0);
-    remainingCost = Math.max(0, cost - primaryPackage.discount - primaryPackage.paid);
+    const basePrice = serviceDetails.price || 0;
+    cost = primaryPackage.cost !== -1 ? primaryPackage.cost : Math.max(0, basePrice - primaryPackage.discount);
+    remainingCost = Math.max(0, cost - primaryPackage.paid);
     progressPercent = totalHours > 0 ? (primaryPackage.usedHours / totalHours) * 100 : 0;
     paymentDueHours = serviceDetails.payment_due_hours || 0;
 
