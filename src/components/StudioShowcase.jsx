@@ -7,6 +7,7 @@ const StudioShowcase = () => {
   const { t, i18n } = useTranslation();
   const { siteData } = useData();
   const [activeTab, setActiveTab] = useState('october');
+  const isEnglish = i18n.language === 'en';
 
   const tabs = siteData.studioCategories || [];
   const studioData = siteData.studio;
