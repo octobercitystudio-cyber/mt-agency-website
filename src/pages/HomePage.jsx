@@ -22,8 +22,9 @@ const sectionData = {
   contact: { title: 'تواصل معنا', desc: 'ابدأ مشروعك القادم مع فريق MT Agency. تواصل معنا الآن لتحويل أفكارك إلى واقع.' }
 };
 
+const sections = ['home', 'about', 'services', 'portfolio', 'studio', 'contact'];
+
 const HomePage = () => {
-  const sections = ['home', 'about', 'services', 'portfolio', 'studio', 'contact'];
   const activeSection = useScrollSpy(sections);
   const currentSeo = sectionData[activeSection] || sectionData.home;
 

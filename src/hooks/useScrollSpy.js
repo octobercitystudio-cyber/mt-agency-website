@@ -22,9 +22,13 @@ const useScrollSpy = (sectionIds) => {
       
       // Optionally update the URL hash silently (without jumping)
       if (currentSection !== sectionIds[0]) {
-        window.history.replaceState(null, '', `#${currentSection}`);
+        if (window.location.hash !== `#${currentSection}`) {
+          window.history.replaceState(null, '', `#${currentSection}`);
+        }
       } else {
-        window.history.replaceState(null, '', window.location.pathname);
+        if (window.location.hash !== '') {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
       }
     };
 
