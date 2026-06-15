@@ -247,6 +247,46 @@
   color: #8c8c8c;
 }
 
+/* Time Filters Dropdown Base */
+.filter-select {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  font-size: 1rem;
+  color: #fff;
+  background: rgba(20, 15, 30, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+}
+.filter-select:focus {
+  border-color: var(--color-neon-purple);
+  box-shadow: 0 0 10px rgba(157, 78, 221, 0.2);
+}
+.filter-select option {
+  background: #140f1e;
+  color: #fff;
+}
+
+/* Package Titles Base */
+.package-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.package-title {
+  margin: 0;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.package-name-badge {
+  font-size: 1.1rem;
+  padding: 0.6rem 1.5rem;
+}
+
 .package-chart-wrapper {
   display: flex;
   flex-direction: column;
@@ -684,45 +724,7 @@
     text-align: center;
   }
   
-  /* Time Filters Dropdown */
-  .filter-select {
-    width: 100%;
-    padding: 0.8rem 1rem;
-    font-size: 1rem;
-    color: #fff;
-    background: rgba(20, 15, 30, 0.8);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    outline: none;
-    cursor: pointer;
-    appearance: none;
-  }
-  .filter-select:focus {
-    border-color: var(--color-neon-purple);
-    box-shadow: 0 0 10px rgba(157, 78, 221, 0.2);
-  }
-  .filter-select option {
-    background: #140f1e;
-    color: #fff;
-  }
-
-  /* Package Titles */
-  .package-title-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .package-title {
-    margin: 0;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .package-name-badge {
-    font-size: 1.1rem;
-    padding: 0.6rem 1.5rem;
-  }
+  /* Moved to base CSS */
   
   .package-split {
     flex-direction: column;
