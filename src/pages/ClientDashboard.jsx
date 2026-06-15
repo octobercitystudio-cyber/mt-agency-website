@@ -202,9 +202,15 @@ const ClientDashboard = () => {
 
   const primaryPackage = Object.values(packages)[0] || null;
   let serviceDetails = {}, totalHours = 0, remainingHours = 0, cost = 0, remainingCost = 0;
+  let packageExpiryDate = null;
   let paymentDueDate = null;
   let hasPaymentDue = false;
   let paymentDueHours = 0;
+  
+  let totalDays = 0;
+  let remainingDays = 0;
+  let passedDays = 0;
+  const now = new Date();
   
   if (primaryPackage) {
     serviceDetails = services.find(s => s.name === primaryPackage.name) || {};
