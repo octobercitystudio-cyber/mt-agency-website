@@ -400,9 +400,9 @@ const ClientDashboard = () => {
           {activeTab === 'home' && primaryPackage && (
             <div className="home-tab">
               {/* Package Title Bar */}
-              <div className="package-title-bar mb-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h3 style={{ margin: 0, color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}><Calendar size={24}/> تفاصيل الباقة الإجمالية</h3>
-                <span className="badge-glow" style={{ fontSize: '1.1rem', padding: '0.6rem 1.5rem' }}>{primaryPackage.name}</span>
+              <div className="package-title-bar mb-4">
+                <h3 className="package-title"><Calendar size={24}/> تفاصيل الباقة الإجمالية</h3>
+                <span className="badge-glow package-name-badge">{primaryPackage.name}</span>
               </div>
 
               {hasPaymentDue && (
@@ -451,10 +451,16 @@ const ClientDashboard = () => {
 
               {/* Time Filters */}
               <div className="time-filters-container mb-4">
-                <button className={`filter-btn ${timeFilter === 'last_shoot' ? 'active' : ''}`} onClick={() => setTimeFilter('last_shoot')}>اخر موعد تصوير</button>
-                <button className={`filter-btn ${timeFilter === 'week' ? 'active' : ''}`} onClick={() => setTimeFilter('week')}>اخر اسبوع</button>
-                <button className={`filter-btn ${timeFilter === 'month' ? 'active' : ''}`} onClick={() => setTimeFilter('month')}>اخر شهر</button>
-                <button className={`filter-btn ${timeFilter === 'all' ? 'active' : ''}`} onClick={() => setTimeFilter('all')}>مدة الباقة كاملة</button>
+                <select 
+                  className="filter-select premium-glass"
+                  value={timeFilter} 
+                  onChange={(e) => setTimeFilter(e.target.value)}
+                >
+                  <option value="last_shoot">اخر موعد تصوير</option>
+                  <option value="week">اخر اسبوع</option>
+                  <option value="month">اخر شهر</option>
+                  <option value="all">مدة الباقة كاملة</option>
+                </select>
               </div>
 
               {/* Massive Consumption Chart Section */}
@@ -464,39 +470,43 @@ const ClientDashboard = () => {
                 </div>
                 <div className="card-body" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
                   <div className="charts-flex-container mb-4">
-                    <div className="package-chart">
-                      <div className="chart-center-text">
-                        <strong className="chart-main-value">{filteredUsedHours}</strong>
-                        <span className="chart-sub-value">ساعة استهلاك</span>
-                      </div>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={pieData} innerRadius="75%" outerRadius="100%" paddingAngle={5} dataKey="value" stroke="none">
-                            {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {packageExpiryDate && (
+                    <div className="package-chart-wrapper">
                       <div className="package-chart">
-                        <div className="chart-center-text">
-                          <strong className="chart-main-value" style={{color: '#0dcaf0'}}>{remainingDays}</strong>
-                          <span className="chart-sub-value">يوم متبقي</span>
-                        </div>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={[{name: 'منقضي', value: passedDays}, {name: 'متبقي', value: remainingDays}]} innerRadius="75%" outerRadius="100%" paddingAngle={5} dataKey="value" stroke="none">
-                              <Cell fill="rgba(255,255,255,0.05)" />
-                              <Cell fill="#0dcaf0" />
+                            <Pie data={pieData} innerRadius="75%" outerRadius="100%" paddingAngle={5} dataKey="value" stroke="none">
+                              {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />)}
                             </Pie>
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
+                      <div className="chart-bottom-text">
+                        <strong className="chart-main-value">{filteredUsedHours}</strong>
+                        <span className="chart-sub-value">ساعة استهلاك</span>
+                      </div>
+                    </div>
+
+                    {packageExpiryDate && (
+                      <div className="package-chart-wrapper">
+                        <div className="package-chart">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={[{name: 'منقضي', value: passedDays}, {name: 'متبقي', value: remainingDays}]} innerRadius="75%" outerRadius="100%" paddingAngle={5} dataKey="value" stroke="none">
+                                <Cell fill="rgba(255,255,255,0.05)" />
+                                <Cell fill="#0dcaf0" />
+                              </Pie>
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="chart-bottom-text">
+                          <strong className="chart-main-value" style={{color: '#0dcaf0'}}>{remainingDays}</strong>
+                          <span className="chart-sub-value">يوم متبقي</span>
+                        </div>
+                      </div>
                     )}
                   </div>
 
-                  <div style={{ flex: '1 1 100%', height: '300px' }}>
+                  <div className="bar-chart-container">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={barData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
