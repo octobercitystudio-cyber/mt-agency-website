@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { Calendar, Clock, CreditCard, ChevronRight, ChevronLeft, CheckCircle, Clock3, X, Tag, Home } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isAfter, startOfWeek, endOfWeek } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -583,7 +583,7 @@ const ClientDashboard = () => {
                   </div>
                   <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                     {/* Glass Buttons Row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                    <div className="finance-stats-grid">
                       <div className="stat-card premium-glass glow-silver" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', textAlign: 'center' }}>
                         <span className="stat-label" style={{ marginBottom: '0.5rem' }}>إجمالي التكلفة</span>
                         <strong className="stat-value text-silver">{cost} ج</strong>
@@ -615,13 +615,12 @@ const ClientDashboard = () => {
                           <Pie 
                             data={[{name: 'المدفوع', value: parseFloat(primaryPackage.paid) || 0}, {name: 'المتبقي', value: remainingCost > 0 ? remainingCost : 0}]} 
                             innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" stroke="none"
-                            label={({ name, value }) => `${name} (${value} ج)`}
-                            labelLine={{ stroke: 'rgba(255,255,255,0.2)' }}
                           >
                             <Cell fill="#2ed573" />
                             <Cell fill="#ff4757" />
                           </Pie>
-                          <Tooltip contentStyle={{backgroundColor: '#1e142e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px'}}/>
+                          <Tooltip contentStyle={{backgroundColor: '#1e142e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px'}} formatter={(value) => `${value} ج`} />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px', color: '#fff' }} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>

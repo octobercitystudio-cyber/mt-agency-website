@@ -245,10 +245,16 @@
   color: #8c8c8c;
 }
 
-/* Finance Row */
+/* Finance Row & Grid */
 .finance-row {
   display: flex;
   gap: 1rem;
+}
+
+.finance-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
 }
 
 .finance-box {
@@ -649,6 +655,11 @@
     flex-direction: column;
   }
   
+  .finance-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
   .header-greeting h2 {
     font-size: 1.5rem;
   }
