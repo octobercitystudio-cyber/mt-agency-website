@@ -11,7 +11,7 @@ const Portfolio = lazy(() => import('../components/Portfolio'));
 const StudioShowcase = lazy(() => import('../components/StudioShowcase'));
 const Contact = lazy(() => import('../components/Contact'));
 const Footer = lazy(() => import('../components/Footer'));
-const OfferPopup = lazy(() => import('../components/OfferPopup'));
+const PromoModal = lazy(() => import('../components/PromoModal'));
 
 const sectionData = {
   home: { title: null, desc: null },
@@ -44,7 +44,7 @@ const HomePage = () => {
         <StudioShowcase />
         <Contact />
         <Footer />
-        <OfferPopup />
+        <PromoModal />
       </Suspense>
     </main>
   );

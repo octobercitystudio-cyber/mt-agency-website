@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../store/DataContext';
 import { X, Gift } from 'lucide-react';
-import './OfferPopup.css';
+import './PromoModal.css';
 
-const OfferPopup = () => {
+const PromoModal = () => {
   const { siteData } = useData();
   const [isVisible, setIsVisible] = useState(false);
   const activeOffers = (siteData.offers || []).filter(o => o.is_active !== false);
@@ -62,4 +62,4 @@ const OfferPopup = () => {
   );
 };
 
-export default OfferPopup;
+export default PromoModal;
