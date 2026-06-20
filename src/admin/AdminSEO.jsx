@@ -165,6 +165,46 @@ const AdminSEO = () => {
               <input type="text" className="form-control" dir="ltr" value={seoData[activeTab].keywordsEn} onChange={e => handleChange(activeTab, 'keywordsEn', e.target.value)} />
             </div>
           </div>
+
+          <div className="admin-card glass-panel" style={{marginTop: '30px'}}>
+            <h3>معاينة جوجل (Google Live Preview)</h3>
+            <hr style={{borderColor: 'rgba(255,255,255,0.1)', margin: '15px 0'}} />
+            <p style={{color: 'rgba(255,255,255,0.6)', fontSize: '14px'}}>هكذا سيظهر موقعك في نتائج بحث جوجل عند البحث عن هذا القسم.</p>
+            
+            <div style={{display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '20px'}}>
+              {/* Arabic Preview */}
+              <div style={{flex: '1', minWidth: '300px', background: 'rgba(32, 33, 36, 0.6)', padding: '20px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)'}} dir="rtl">
+                <span style={{color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '10px', display: 'block'}}>النسخة العربية</span>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px'}}>
+                  <div style={{width: '28px', height: '28px', background: '#303134', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                    <span style={{color: '#bdc1c6', fontSize: '14px'}}>M</span>
+                  </div>
+                  <div>
+                    <div style={{color: '#dadce0', fontSize: '14px'}}>{seoData.global.siteName || 'MT Agency'}</div>
+                    <span style={{color: '#bdc1c6', fontSize: '12px'}}>https://multitaskagency.com</span>
+                  </div>
+                </div>
+                <h3 style={{color: '#8ab4f8', fontSize: '20px', margin: '0 0 5px 0', fontWeight: '400'}}>{seoData[activeTab].titleAr || 'عنوان الصفحة'}</h3>
+                <p style={{color: '#bdc1c6', fontSize: '14px', margin: '0', lineHeight: '1.6'}}>{seoData[activeTab].descAr || 'الوصف المختصر للصفحة سيظهر هنا.'}</p>
+              </div>
+
+              {/* English Preview */}
+              <div style={{flex: '1', minWidth: '300px', background: 'rgba(32, 33, 36, 0.6)', padding: '20px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)'}} dir="ltr">
+                <span style={{color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '10px', display: 'block'}}>English Version</span>
+                <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px'}}>
+                  <div style={{width: '28px', height: '28px', background: '#303134', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                    <span style={{color: '#bdc1c6', fontSize: '14px'}}>M</span>
+                  </div>
+                  <div>
+                    <div style={{color: '#dadce0', fontSize: '14px'}}>{seoData.global.siteNameEn || 'MT Agency'}</div>
+                    <span style={{color: '#bdc1c6', fontSize: '12px'}}>https://multitaskagency.com</span>
+                  </div>
+                </div>
+                <h3 style={{color: '#8ab4f8', fontSize: '20px', margin: '0 0 5px 0', fontWeight: '400'}}>{seoData[activeTab].titleEn || 'Page Title'}</h3>
+                <p style={{color: '#bdc1c6', fontSize: '14px', margin: '0', lineHeight: '1.6'}}>{seoData[activeTab].descEn || 'The meta description will appear here.'}</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
