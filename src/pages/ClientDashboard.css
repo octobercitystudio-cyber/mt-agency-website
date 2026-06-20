@@ -605,6 +605,173 @@
   width: 100%;
 }
 
+
+/* Helper Utilities */
+.mb-4 { margin-bottom: 2rem; }
+
+/* Hero Stats Grid - Premium Glass Widgets */
+.hero-stats-grid {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.stat-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.2rem 1rem;
+  border-radius: 16px;
+  background: rgba(20, 15, 30, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  min-width: 150px;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+}
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 45px;
+  height: 45px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #8c8c8c;
+  margin-bottom: 0.2rem;
+  white-space: nowrap;
+}
+
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* Glow Effects for Cards */
+.glow-purple {
+  box-shadow: inset 0 0 20px rgba(157, 78, 221, 0.1);
+}
+.glow-purple .stat-icon { background: rgba(157, 78, 221, 0.2); color: var(--color-vibrant-purple); }
+
+.glow-neon {
+  box-shadow: inset 0 0 20px rgba(198, 120, 255, 0.1);
+}
+.glow-neon .stat-icon { background: rgba(198, 120, 255, 0.2); color: var(--color-neon-purple); }
+
+.glow-silver {
+  box-shadow: inset 0 0 20px rgba(224, 224, 224, 0.05);
+}
+.glow-silver .stat-icon { background: rgba(224, 224, 224, 0.1); color: var(--color-silver); }
+
+.glow-border {
+  border-bottom: 3px solid var(--color-vibrant-purple);
+}
+
+.package-title-bar h3 {
+  font-size: 1.5rem;
+}
+
+/* Custom Calendar Grid */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.calendar-day-header {
+  color: #8c8c8c;
+  font-size: 0.9rem;
+  font-weight: bold;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  margin-bottom: 10px;
+}
+
+.calendar-cell {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #e0e0e0;
+}
+
+.calendar-cell:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+}
+
+.calendar-cell.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: transparent;
+  border-color: transparent;
+}
+
+.calendar-cell.has-booking {
+  background: rgba(157, 78, 221, 0.15);
+  border-color: var(--color-vibrant-purple);
+  color: #fff;
+  font-weight: bold;
+}
+
+.calendar-cell.has-booking:hover {
+  background: var(--color-vibrant-purple);
+  box-shadow: 0 5px 15px rgba(157, 78, 221, 0.4);
+}
+
+.day-number {
+  font-size: 1.1rem;
+}
+
+.booking-dot {
+  position: absolute;
+  bottom: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-neon-purple);
+  box-shadow: 0 0 5px var(--color-neon-purple);
+}
+
+.calendar-cell.has-booking:hover .booking-dot {
+  background: #fff;
+  box-shadow: 0 0 5px #fff;
+}
+
+
+/* MOVING MOBILE STYLES TO THE VERY END TO OVERRIDE ALL */
 @media (max-width: 1024px) {
   .mt-dashboard {
     flex-direction: column;
@@ -780,167 +947,4 @@
   .chart-sub-value {
     font-size: 0.7rem;
   }
-}
-/* Helper Utilities */
-.mb-4 { margin-bottom: 2rem; }
-
-/* Hero Stats Grid - Premium Glass Widgets */
-.hero-stats-grid {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  gap: 1rem;
-  width: 100%;
-}
-
-.stat-card {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.8rem;
-  padding: 1.2rem 1rem;
-  border-radius: 16px;
-  background: rgba(20, 15, 30, 0.6);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  min-width: 150px;
-}
-
-.stat-card:hover {
-  transform: translateY(-5px);
-}
-
-.stat-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 45px;
-  height: 45px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.stat-info {
-  display: flex;
-  flex-direction: column;
-  text-align: right;
-}
-
-.stat-label {
-  font-size: 0.85rem;
-  color: #8c8c8c;
-  margin-bottom: 0.2rem;
-  white-space: nowrap;
-}
-
-.stat-value {
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: #fff;
-  white-space: nowrap;
-}
-
-/* Glow Effects for Cards */
-.glow-purple {
-  box-shadow: inset 0 0 20px rgba(157, 78, 221, 0.1);
-}
-.glow-purple .stat-icon { background: rgba(157, 78, 221, 0.2); color: var(--color-vibrant-purple); }
-
-.glow-neon {
-  box-shadow: inset 0 0 20px rgba(198, 120, 255, 0.1);
-}
-.glow-neon .stat-icon { background: rgba(198, 120, 255, 0.2); color: var(--color-neon-purple); }
-
-.glow-silver {
-  box-shadow: inset 0 0 20px rgba(224, 224, 224, 0.05);
-}
-.glow-silver .stat-icon { background: rgba(224, 224, 224, 0.1); color: var(--color-silver); }
-
-.glow-border {
-  border-bottom: 3px solid var(--color-vibrant-purple);
-}
-
-.package-title-bar h3 {
-  font-size: 1.5rem;
-}
-
-/* Custom Calendar Grid */
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 10px;
-  text-align: center;
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-.calendar-day-header {
-  color: #8c8c8c;
-  font-size: 0.9rem;
-  font-weight: bold;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  margin-bottom: 10px;
-}
-
-.calendar-cell {
-  position: relative;
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #e0e0e0;
-}
-
-.calendar-cell:hover:not(.disabled) {
-  background: rgba(255, 255, 255, 0.05);
-  transform: translateY(-2px);
-}
-
-.calendar-cell.disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-  background: transparent;
-  border-color: transparent;
-}
-
-.calendar-cell.has-booking {
-  background: rgba(157, 78, 221, 0.15);
-  border-color: var(--color-vibrant-purple);
-  color: #fff;
-  font-weight: bold;
-}
-
-.calendar-cell.has-booking:hover {
-  background: var(--color-vibrant-purple);
-  box-shadow: 0 5px 15px rgba(157, 78, 221, 0.4);
-}
-
-.day-number {
-  font-size: 1.1rem;
-}
-
-.booking-dot {
-  position: absolute;
-  bottom: 8px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-neon-purple);
-  box-shadow: 0 0 5px var(--color-neon-purple);
-}
-
-.calendar-cell.has-booking:hover .booking-dot {
-  background: #fff;
-  box-shadow: 0 0 5px #fff;
 }
