@@ -16,6 +16,7 @@ const AdminStudio = lazy(() => import('./admin/AdminStudio'));
 const AdminContact = lazy(() => import('./admin/AdminContact'));
 const AdminOffers = lazy(() => import('./admin/AdminOffers'));
 const AdminSettings = lazy(() => import('./admin/AdminSettings'));
+const AdminSEO = lazy(() => import('./admin/AdminSEO'));
 
 // Lazy Load ERP Components
 const ERPLayout = lazy(() => import('./erp/ERPLayout'));
@@ -24,7 +25,6 @@ const ERPClients = lazy(() => import('./erp/ERPClients'));
 const ERPBookings = lazy(() => import('./erp/ERPBookings'));
 const ERPFinance = lazy(() => import('./erp/ERPFinance'));
 const ERPSettings = lazy(() => import('./erp/ERPSettings'));
-const ERPSEO = lazy(() => import('./erp/ERPSEO'));
 const ERPReminders = lazy(() => import('./erp/ERPReminders'));
 const ERPOfferGenerator = lazy(() => import('./erp/ERPOfferGenerator'));
 
@@ -128,7 +128,6 @@ function App() {
               <Route path="bookings" element={<ERPBookings />} />
               <Route path="finance" element={<ERPFinance />} />
               <Route path="settings" element={<ERPSettings />} />
-              <Route path="seo" element={<ERPSEO />} />
               <Route path="reminders" element={<ERPReminders />} />
               <Route path="offer-generator" element={<ERPOfferGenerator />} />
             </Route>
@@ -149,6 +148,7 @@ function App() {
               <Route path="contact" element={<AdminContact />} />
               <Route path="offers" element={<AdminOffers />} />
               <Route path="settings" element={<AdminSettings />} />
+              <Route path="seo" element={<AdminSEO />} />
               <Route path="*" element={<div style={{padding: '2rem'}}>قريباً سيتم إضافة هذه الصفحة...</div>} />
             </Route>
           </Routes>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag, Sidebar, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag, Sidebar, Menu, X, Search } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import useExternalScripts from '../hooks/useExternalScripts';
 import './AdminLayout.css';
@@ -60,6 +60,10 @@ const AdminLayout = () => {
           <NavLink to="/adminmt/settings" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Settings size={20} />
             إعدادات عامة
+          </NavLink>
+          <NavLink to="/adminmt/seo" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+            <Search size={20} />
+            إعدادات الـ SEO
           </NavLink>
         </nav>
 

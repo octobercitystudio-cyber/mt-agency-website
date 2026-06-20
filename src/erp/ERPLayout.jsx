@@ -132,11 +132,6 @@ const ERPLayout = () => {
               <Settings size={20} /> إعدادات النظام
             </NavLink>
           </div>
-          <div className="erp-nav-item mb-1">
-            <NavLink to="/erp/seo" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <Search size={20} /> تحسين محركات البحث
-            </NavLink>
-          </div>
           <a href="/" target="_blank" rel="noopener noreferrer" className="erp-nav-link mb-2" style={{color: 'var(--erp-text-muted)'}}>
             <Home size={20} /> عرض الموقع
           </a>

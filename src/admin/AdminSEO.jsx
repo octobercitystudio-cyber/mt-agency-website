@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../store/DataContext';
 import { Search, Globe, Save, Image as ImageIcon } from 'lucide-react';
 
-const ERPSEO = () => {
+const AdminSEO = () => {
   const { siteData, updateSection } = useData();
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('ar'); // 'ar' or 'en'
@@ -185,4 +185,4 @@ const ERPSEO = () => {
   );
 };
 
-export default ERPSEO;
+export default AdminSEO;
