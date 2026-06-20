@@ -85,6 +85,17 @@ const defaultData = {
   erpCredentials: {
     username: 'octobercitystudio@gmail.com',
     password: 'Octcitystd@2019'
+  },
+  seo: {
+    siteName: "MT Agency",
+    siteNameEn: "MT Agency",
+    titleAr: "إم تي إيجنسي | نصنع التأثير",
+    titleEn: "MT Agency | We Drive Impact",
+    descAr: "إم تي إيجنسي متخصصة في الإنتاج الإعلامي، التسويق الرقمي، وصناعة محتوى مرئي يخطف الأنظار.",
+    descEn: "MT Agency specializes in media production, digital marketing, and creating eye-catching visual content.",
+    keywordsAr: "إنتاج إعلامي, تسويق رقمي, تصوير فيديو, مونتاج, بودكاست",
+    keywordsEn: "media production, digital marketing, video shooting, editing, podcast",
+    socialImage: ""
   }
 };
 

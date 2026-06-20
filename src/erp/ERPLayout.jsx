@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, RotateCcw } from 'lucide-react';
+import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, RotateCcw, Search } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
 import { supabase } from '../supabaseClient';
@@ -130,6 +130,11 @@ const ERPLayout = () => {
           <div className="erp-nav-item mb-1">
             <NavLink to="/erp/settings" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
               <Settings size={20} /> إعدادات النظام
+            </NavLink>
+          </div>
+          <div className="erp-nav-item mb-1">
+            <NavLink to="/erp/seo" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <Search size={20} /> تحسين محركات البحث
             </NavLink>
           </div>
           <a href="/" target="_blank" rel="noopener noreferrer" className="erp-nav-link mb-2" style={{color: 'var(--erp-text-muted)'}}>

@@ -24,6 +24,7 @@ const ERPClients = lazy(() => import('./erp/ERPClients'));
 const ERPBookings = lazy(() => import('./erp/ERPBookings'));
 const ERPFinance = lazy(() => import('./erp/ERPFinance'));
 const ERPSettings = lazy(() => import('./erp/ERPSettings'));
+const ERPSEO = lazy(() => import('./erp/ERPSEO'));
 const ERPReminders = lazy(() => import('./erp/ERPReminders'));
 const ERPOfferGenerator = lazy(() => import('./erp/ERPOfferGenerator'));
 
@@ -127,6 +128,7 @@ function App() {
               <Route path="bookings" element={<ERPBookings />} />
               <Route path="finance" element={<ERPFinance />} />
               <Route path="settings" element={<ERPSettings />} />
+              <Route path="seo" element={<ERPSEO />} />
               <Route path="reminders" element={<ERPReminders />} />
               <Route path="offer-generator" element={<ERPOfferGenerator />} />
             </Route>
