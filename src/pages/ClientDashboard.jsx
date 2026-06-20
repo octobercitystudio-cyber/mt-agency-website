@@ -466,8 +466,8 @@ const ClientDashboard = () => {
                 <div className="card-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
                   <h3><Clock size={20}/> تفاصيل الاستهلاك للفترة المحددة</h3>
                   <div className="package-title-bar premium-glass w-100" style={{ justifyContent: 'center' }}>
-                    <span className="package-title">باقة {primaryPackage.total_hours} ساعة</span>
-                    <span className="package-name-badge">{primaryPackage.service.replace(' (مؤرشف)', '')}</span>
+                    <span className="package-title">باقة {totalHours} ساعة</span>
+                    <span className="package-name-badge">{primaryPackage.name.replace(' (مؤرشف)', '')}</span>
                   </div>
                 </div>
                 <div className="card-body" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
