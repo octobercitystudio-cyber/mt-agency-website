@@ -31,6 +31,6 @@ jobs:
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: ./dist/
-        server-dir: ./public_html/
+        server-dir: ./
         # إذا كان حساب الـ FTP يدخلك مباشرة داخل مجلد public_html، قم بتغيير السطر السابق إلى:
         # server-dir: ./
