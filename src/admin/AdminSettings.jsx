@@ -12,7 +12,7 @@ const AdminSettings = () => {
   const [footerCopyAr, setFooterCopyAr] = useState(siteData?.footer?.copyrightAr || 'MT Agency. جميع الحقوق محفوظة.');
   const [footerCopyEn, setFooterCopyEn] = useState(siteData?.footer?.copyrightEn || 'MT Agency. All Rights Reserved.');
   
-  const [receivingEmail, setReceivingEmail] = useState(siteData?.formSettings?.receivingEmail || 'octobercitystudio@gmail.com');
+  const [receivingEmail, setReceivingEmail] = useState(siteData?.formSettings?.receivingEmail || 'info@multitaskagency.com');
   
   const [showSavedMsg, setShowSavedMsg] = useState(false);
 

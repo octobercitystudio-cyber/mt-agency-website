@@ -9,7 +9,7 @@ const Contact = () => {
   const isEnglish = i18n.language === 'en';
   
   const contactData = siteData.contact;
-  const receivingEmail = siteData.formSettings?.receivingEmail || contactData.email || 'octobercitystudio@gmail.com';
+  const receivingEmail = siteData.formSettings?.receivingEmail || contactData.email || 'info@multitaskagency.com';
 
   return (
     <>

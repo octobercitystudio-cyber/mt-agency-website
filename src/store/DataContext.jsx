@@ -45,7 +45,7 @@ const defaultData = {
     addressEn: "6th of October City, Giza, Egypt",
     phone: "01114466646",
     phone2: "+201094084424",
-    email: "info@mt-agency.com",
+    email: "info@multitaskagency.com",
     facebook: "#",
     instagram: "#",
     youtube: "#"
