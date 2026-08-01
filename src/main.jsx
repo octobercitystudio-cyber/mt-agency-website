@@ -7,6 +7,8 @@ import './i18n'; // Import i18n for translations
 import { HelmetProvider } from 'react-helmet-async';
 import ErrorBoundary from './components/ErrorBoundary';
 
+console.log("Cache buster: ", Date.now());
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
