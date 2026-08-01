@@ -42,7 +42,7 @@ const Hero = () => {
                 alt={`${altTexts[index]} - MT Agency`}
                 className={`hero-slider-img ${index === currentImageIndex ? 'active' : ''}`}
                 width="600" height="600"
-                fetchpriority={index === 0 ? "high" : "auto"}
+                fetchPriority={index === 0 ? "high" : "auto"}
                 loading={index === 0 ? "eager" : "lazy"}
               />
             )})}

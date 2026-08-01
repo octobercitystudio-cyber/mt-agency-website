@@ -8,6 +8,7 @@ import SEO from '../components/SEO';
 const About = lazy(() => import('../components/About'));
 const Services = lazy(() => import('../components/Services'));
 const Portfolio = lazy(() => import('../components/Portfolio'));
+const Testimonials = lazy(() => import('../components/Testimonials'));
 const StudioShowcase = lazy(() => import('../components/StudioShowcase'));
 const Contact = lazy(() => import('../components/Contact'));
 const Footer = lazy(() => import('../components/Footer'));
@@ -18,11 +19,12 @@ const sectionData = {
   about: { title: 'من نحن', desc: 'اكتشف خبرتنا الممتدة لـ 15 عاماً في الإنتاج الإعلامي والتسويق الرقمي وبناء العلامات التجارية.' },
   services: { title: 'خدماتنا', desc: 'نقدم خدمات التصوير الاحترافي، إنتاج الفيديو والبودكاست، إدارة السوشيال ميديا، والتصميم الإبداعي.' },
   portfolio: { title: 'معرض الأعمال', desc: 'شاهد سابقة أعمالنا في الإنتاج المرئي، تصميم الهويات البصرية، وحملات التسويق الرقمي.' },
+  testimonials: { title: 'آراء العملاء', desc: 'آراء شركاء النجاح عن تجربتهم في العمل معنا.' },
   studio: { title: 'الاستوديو', desc: 'استوديوهاتنا المجهزة بأحدث التقنيات في أكتوبر، القاهرة الجديدة، وميدان لبنان لتنفيذ رؤيتك الإبداعية.' },
   contact: { title: 'تواصل معنا', desc: 'ابدأ مشروعك القادم مع فريق MT Agency. تواصل معنا الآن لتحويل أفكارك إلى واقع.' }
 };
 
-const sections = ['home', 'about', 'services', 'portfolio', 'studio', 'contact'];
+const sections = ['home', 'about', 'services', 'portfolio', 'testimonials', 'studio', 'contact'];
 
 const HomePage = () => {
   const activeSection = useScrollSpy(sections);
@@ -41,6 +43,7 @@ const HomePage = () => {
         <About />
         <Services />
         <Portfolio />
+        <Testimonials />
         <StudioShowcase />
         <Contact />
         <Footer />
