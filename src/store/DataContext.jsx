@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import { supabase } from '../supabaseClient';
 
 // Default data (matches current static state)
@@ -78,14 +78,6 @@ const defaultData = {
   offers: [
     { id: 1, title: 'خصم 20% على باقة 50 ساعة', discount: '20%', desc: 'احجز الآن واستفد من الخصم لفترة محدودة على باقة الـ 50 ساعة التصوير.', is_active: true }
   ],
-  adminCredentials: {
-    username: 'octobercitystudio@gmail.com',
-    password: 'Octcitystd@2019'
-  },
-  erpCredentials: {
-    username: 'octobercitystudio@gmail.com',
-    password: 'Octcitystd@2019'
-  },
   seo: {
     global: {
       siteName: "MT Agency",
@@ -109,6 +101,7 @@ const defaultData = {
 
 const DataContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useData = () => useContext(DataContext);
 
 export const DataProvider = ({ children }) => {
@@ -118,7 +111,19 @@ export const DataProvider = ({ children }) => {
   });
   const [isAdminAuth, setIsAdminAuth] = useState(false);
   const [isErpAuth, setIsErpAuth] = useState(false);
+  const [isClientAuth, setIsClientAuth] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  const applySession = (session) => {
+    const user = session?.user || null;
+    const role = user?.role;
+    const staffRoles = ['owner', 'admin', 'operations', 'finance', 'staff'];
+    setCurrentUser(user);
+    setIsClientAuth(role === 'client');
+    setIsErpAuth(staffRoles.includes(role));
+    setIsAdminAuth(role === 'owner' || role === 'admin');
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -169,24 +174,15 @@ export const DataProvider = ({ children }) => {
     
     loadData();
 
-    // Listen for Supabase Auth changes
+    // Authentication is decided by the server role, never by localStorage.
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsAdminAuth(true);
-        setIsErpAuth(true);
-      }
+      applySession(session);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setIsAdminAuth(true);
-        setIsErpAuth(true);
-      } else {
-        setIsAdminAuth(false);
-        setIsErpAuth(false);
-      }
+      applySession(session);
     });
 
     return () => {
@@ -263,7 +259,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const login = async (username, password) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: username,
       password: password
     });
@@ -271,7 +267,8 @@ export const DataProvider = ({ children }) => {
       alert("خطأ في تسجيل الدخول: " + error.message);
       return false;
     }
-    return true;
+    applySession(data.session);
+    return data.user || true;
   };
 
   const logout = async () => {
@@ -279,15 +276,17 @@ export const DataProvider = ({ children }) => {
   };
 
   const loginErp = async (username, password) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: username,
+      identifier: username,
       password: password
     });
     if (error) {
       alert("خطأ في تسجيل الدخول: " + error.message);
       return false;
     }
-    return true;
+    applySession(data.session);
+    return data.user || true;
   };
 
   const logoutErp = async () => {
@@ -314,6 +313,8 @@ export const DataProvider = ({ children }) => {
       updateSection,
       updateMultipleSections,
       isAdminAuth, 
+      isClientAuth,
+      currentUser,
       login, 
       logout,
       isErpAuth,

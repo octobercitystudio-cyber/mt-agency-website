@@ -1,8 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Cropper from 'cropperjs';
 import { supabase } from '../supabaseClient';
+import { useData } from '../store/DataContext';
+
+const ROLE_DETAILS = {
+  owner: { label: 'مالك', note: 'صلاحيات كاملة وإدارة الحسابات.' },
+  admin: { label: 'مدير', note: 'إدارة التشغيل والعملاء والخدمات.' },
+  operations: { label: 'تشغيل وحجوزات', note: 'الحجوزات والعملاء دون الحسابات المالية الحساسة.' },
+  finance: { label: 'مالية', note: 'المدفوعات والتقارير المالية.' },
+  staff: { label: 'موظف محدود', note: 'وصول محدود حسب مهام الموظف.' },
+};
 
 const ERPSettings = () => {
+  const { currentUser } = useData();
+  const isOwner = currentUser?.role === 'owner';
   const [services, setServices] = useState([]);
   const [users, setUsers] = useState([]);
   const [p_cfg, setP_cfg] = useState({
@@ -18,11 +29,12 @@ const ERPSettings = () => {
   // Form states
   const [addForm, setAddForm] = useState({ name: '', category: 'باقة شهرية', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
   const [editForm, setEditForm] = useState({ id: '', name: '', category: 'باقة شهرية', price: '', total_hours: 0, payment_due_hours: 0, validity_days: 0, total_reels: 0 });
-  const [addUserForm, setAddUserForm] = useState({ full_name: '', username: '', password: '', role: 'موظف' });
+  const [addUserForm, setAddUserForm] = useState({ full_name: '', email: '', phone: '', password: '', role: 'staff' });
+  const [userState, setUserState] = useState({ busy: false, type: '', message: '' });
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [isOwner]);
 
   const fetchData = async () => {
     const { data: sData } = await supabase.from('services').select('*').order('id', { ascending: true });
@@ -39,12 +51,12 @@ const ERPSettings = () => {
       setP_cfg(cfgObj);
     }
     
-    // We fetch users from app_config since we don't have an admin_users table for now
-    const { data: uData } = await supabase.from('app_config').select('value').eq('key', 'admin_users').single();
-    if (uData && uData.value) {
-      try { setUsers(JSON.parse(uData.value)); } catch(e) {}
+    if (isOwner) {
+      const { data: uData, error: usersError } = await supabase.request('/users', { method: 'GET' });
+      if (usersError) setUserState({ busy: false, type: 'error', message: usersError.message || 'تعذر تحميل حسابات النظام.' });
+      else setUsers(uData || []);
     } else {
-      setUsers([{ id: '1', full_name: 'مدير النظام', username: 'octobercitystudio@gmail.com', role: 'مدير' }]);
+      setUsers([]);
     }
   };
 
@@ -136,25 +148,41 @@ const ERPSettings = () => {
 
   const handleAddUser = async (e) => {
     e.preventDefault();
-    const newUser = { id: Date.now().toString(), ...addUserForm };
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    
-    const { data } = await supabase.from('app_config').select('id').eq('key', 'admin_users').single();
-    if (data) await supabase.from('app_config').update({ value: JSON.stringify(updatedUsers) }).eq('key', 'admin_users');
-    else await supabase.from('app_config').insert([{ key: 'admin_users', value: JSON.stringify(updatedUsers) }]);
-    
-    setAddUserForm({ full_name: '', username: '', password: '', role: 'موظف' });
-    window.bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide();
+    if (!isOwner) return;
+    if (!addUserForm.email.trim() && !addUserForm.phone.trim()) {
+      setUserState({ busy: false, type: 'error', message: 'أدخل البريد الإلكتروني أو رقم الهاتف على الأقل.' });
+      return;
+    }
+    if (addUserForm.password.length < 10) {
+      setUserState({ busy: false, type: 'error', message: 'كلمة المرور يجب ألا تقل عن 10 أحرف.' });
+      return;
+    }
+    setUserState({ busy: true, type: '', message: '' });
+    const { error } = await supabase.request('/users', { method: 'POST', body: JSON.stringify({
+      full_name: addUserForm.full_name, email: addUserForm.email || null, phone: addUserForm.phone || null,
+      password: addUserForm.password, role: addUserForm.role,
+    }) });
+    if (error) {
+      setUserState({ busy: false, type: 'error', message: error.message || 'تعذر إنشاء الحساب.' });
+      return;
+    }
+    setAddUserForm({ full_name: '', email: '', phone: '', password: '', role: 'staff' });
+    setUserState({ busy: false, type: 'success', message: 'تم إنشاء الحساب بأمان.' });
+    const { data } = await supabase.request('/users', { method: 'GET' });
+    setUsers(data || []);
+    window.setTimeout(() => window.bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide(), 700);
   };
 
-  const handleDeleteUser = async (id) => {
-    if (window.confirm('حذف المستخدم نهائياً ومنعه من الدخول؟')) {
-      const updatedUsers = users.filter(u => u.id !== id);
-      setUsers(updatedUsers);
-      const { data } = await supabase.from('app_config').select('id').eq('key', 'admin_users').single();
-      if (data) await supabase.from('app_config').update({ value: JSON.stringify(updatedUsers) }).eq('key', 'admin_users');
+  const updateSystemUser = async (id, values) => {
+    if (!isOwner) return;
+    setUserState({ busy: true, type: '', message: '' });
+    const { error } = await supabase.request(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(values) });
+    if (error) {
+      setUserState({ busy: false, type: 'error', message: error.message || 'تعذر تحديث الحساب.' });
+      return;
     }
+    setUsers(prev => prev.map(user => Number(user.id) === Number(id) ? { ...user, ...values } : user));
+    setUserState({ busy: false, type: 'success', message: 'تم تحديث صلاحيات الحساب.' });
   };
 
   // Cropper logic
@@ -511,35 +539,30 @@ const ERPSettings = () => {
         </div>
       </div>
 
-      <div className="setting-section">
+      {isOwner ? <div className="setting-section">
         <div className="section-title">
-          <span><i className="fas fa-users-cog text-primary me-2"></i> إدارة حسابات النظام</span>
-          <button className="btn btn-dark rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
+          <div><span><i className="fas fa-users-cog text-primary me-2"></i> إدارة حسابات النظام</span><small className="d-block text-muted mt-1" style={{fontSize: '.72rem'}}>الحسابات والصلاحيات محفوظة بأمان على الخادم ولا تُعرض كلمات المرور.</small></div>
+          <button className="btn btn-dark rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addUserModal" onClick={() => setUserState({ busy: false, type: '', message: '' })}>
             <i className="fas fa-user-plus me-1"></i> مستخدم جديد
           </button>
         </div>
         <div className="table-responsive">
           <table className="table table-hover align-middle mb-0 text-center">
-            <thead className="bg-light"><tr><th className="py-3 text-muted small fw-bold">الاسم بالكامل</th><th className="py-3 text-muted small fw-bold">اسم الدخول (Username)</th><th className="py-3 text-muted small fw-bold">الصلاحية</th><th className="py-3 text-muted small fw-bold">إجراءات</th></tr></thead>
+            <thead className="bg-light"><tr><th className="py-3 text-muted small fw-bold">الاسم بالكامل</th><th className="py-3 text-muted small fw-bold">بيانات الدخول</th><th className="py-3 text-muted small fw-bold">الدور والصلاحيات</th><th className="py-3 text-muted small fw-bold">الحالة</th></tr></thead>
             <tbody>
               {users.map(u => (
                 <tr key={u.id}>
                   <td className="py-3 fw-bold text-dark">{u.full_name}</td>
-                  <td className="py-3 font-monospace text-muted">{u.username}</td>
-                  <td className="py-3"><span className={`badge ${u.role === 'مدير' ? 'bg-danger' : 'bg-primary'} rounded-pill px-3 py-2`}>{u.role}</span></td>
-                  <td className="py-3">
-                    {u.username !== 'octobercitystudio@gmail.com' ? (
-                      <button className="btn btn-light text-danger border action-btn" onClick={() => handleDeleteUser(u.id)}><i className="fas fa-trash-alt"></i></button>
-                    ) : (
-                      <span className="badge bg-light text-muted border px-3 py-2">مالك النظام</span>
-                    )}
-                  </td>
+                  <td className="py-3"><div className="font-monospace text-muted" dir="ltr">{u.email || u.phone || '—'}</div>{u.email && u.phone && <small className="text-muted" dir="ltr">{u.phone}</small>}</td>
+                  <td className="py-3"><select className="form-select form-select-sm mx-auto fw-bold" style={{maxWidth:'175px'}} value={u.role} disabled={userState.busy || Number(u.id) === Number(currentUser.id)} onChange={e => updateSystemUser(u.id, { role: e.target.value })}>{Object.entries(ROLE_DETAILS).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select><small className="text-muted d-block mt-1" style={{fontSize:'.64rem'}}>{ROLE_DETAILS[u.role]?.note}</small></td>
+                  <td className="py-3"><button className={`btn btn-sm rounded-pill px-3 fw-bold ${Number(u.is_active) ? 'btn-success' : 'btn-outline-secondary'}`} disabled={userState.busy || Number(u.id) === Number(currentUser.id)} onClick={() => updateSystemUser(u.id, { is_active: Number(u.is_active) ? 0 : 1 })}>{Number(u.is_active) ? 'نشط' : 'موقوف'}</button>{Number(u.id) === Number(currentUser.id) && <small className="d-block text-muted mt-1">حسابك الحالي</small>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+        {userState.message && <div className={`alert mt-3 mb-0 ${userState.type === 'error' ? 'alert-danger' : 'alert-success'}`} role="status">{userState.message}</div>}
+      </div> : <div className="setting-section border-start border-warning border-4"><h5 className="fw-bold mb-2">إدارة الحسابات للمالك فقط</h5><p className="text-muted mb-0 small">يمكنك استخدام إعدادات التشغيل، لكن إضافة الموظفين وتغيير صلاحياتهم متاحة لحساب المالك فقط.</p></div>}
 
       <div className="setting-section border-start border-warning border-4">
         <h5 className="fw-bold text-warning mb-4"><i className="fas fa-star me-2"></i> إعدادات نظام النقاط والولاء</h5>
@@ -815,7 +838,7 @@ const ERPSettings = () => {
       </div>
 
       {/* ADD USER MODAL (Bootstrap native) */}
-      <div className="modal fade" id="addUserModal" tabIndex="-1">
+      {isOwner && <div className="modal fade" id="addUserModal" tabIndex="-1" data-bs-backdrop="static">
         <div className="modal-dialog modal-dialog-centered">
           <form onSubmit={handleAddUser} className="modal-content border-0 shadow-lg rounded-5">
             <div className="modal-header bg-dark text-white border-0 p-4">
@@ -828,25 +851,26 @@ const ERPSettings = () => {
                 <input type="text" className="form-control border-0 py-2 fw-bold shadow-sm" value={addUserForm.full_name} onChange={e => setAddUserForm({...addUserForm, full_name: e.target.value})} required />
               </div>
               <div className="mb-3">
-                <label className="small fw-bold text-muted mb-1">اسم الدخول (Username)</label>
-                <input type="text" className="form-control border-0 py-2 font-monospace shadow-sm" style={{direction: 'ltr'}} value={addUserForm.username} onChange={e => setAddUserForm({...addUserForm, username: e.target.value})} required />
+                <label className="small fw-bold text-muted mb-1">البريد الإلكتروني</label>
+                <input type="email" className="form-control border-0 py-2 font-monospace shadow-sm" style={{direction: 'ltr'}} value={addUserForm.email} onChange={e => setAddUserForm({...addUserForm, email: e.target.value})} placeholder="name@company.com" />
               </div>
+              <div className="mb-3"><label className="small fw-bold text-muted mb-1">رقم الهاتف</label><input type="tel" className="form-control border-0 py-2 font-monospace shadow-sm" style={{direction:'ltr'}} value={addUserForm.phone} onChange={e => setAddUserForm({...addUserForm, phone:e.target.value})} placeholder="01xxxxxxxxx"/><small className="text-muted">أدخل البريد أو الهاتف على الأقل؛ أيهما يمكن استخدامه للدخول.</small></div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">كلمة المرور</label>
-                <input type="password" className="form-control border-0 py-2 shadow-sm" value={addUserForm.password} onChange={e => setAddUserForm({...addUserForm, password: e.target.value})} required />
+                <input type="password" minLength="10" autoComplete="new-password" className="form-control border-0 py-2 shadow-sm" value={addUserForm.password} onChange={e => setAddUserForm({...addUserForm, password: e.target.value})} required placeholder="10 أحرف على الأقل" />
               </div>
               <div className="mb-4">
                 <label className="small fw-bold text-muted mb-1">الصلاحية</label>
                 <select className="form-select border-0 py-2 fw-bold shadow-sm" value={addUserForm.role} onChange={e => setAddUserForm({...addUserForm, role: e.target.value})}>
-                  <option value="موظف">موظف (حجز ومتابعة)</option>
-                  <option value="مدير">مدير (ماليات وحذف)</option>
+                  {Object.entries(ROLE_DETAILS).map(([value, meta]) => <option key={value} value={value}>{meta.label} — {meta.note}</option>)}
                 </select>
               </div>
-              <button type="submit" className="btn btn-dark w-100 py-3 rounded-pill fw-bold shadow submit-btn" data-bs-dismiss="modal">إنشاء الحساب</button>
+              {userState.message && <div className={`alert py-2 ${userState.type === 'error' ? 'alert-danger' : 'alert-success'}`} role="status">{userState.message}</div>}
+              <button type="submit" disabled={userState.busy} className="btn btn-dark w-100 py-3 rounded-pill fw-bold shadow submit-btn">{userState.busy ? 'جارٍ إنشاء الحساب...' : 'إنشاء الحساب'}</button>
             </div>
           </form>
         </div>
-      </div>
+      </div>}
     </>
   );
 };

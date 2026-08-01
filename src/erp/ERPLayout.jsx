@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, RotateCcw, Search } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, Inbox, Package, FolderKanban } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
 import { supabase } from '../supabaseClient';
@@ -9,40 +9,51 @@ import useExternalScripts from '../hooks/useExternalScripts';
 import './ERPLayout.css';
 
 const ERPLayout = () => {
-  const { logoutErp } = useData();
+  const { logoutErp, currentUser } = useData();
   const navigate = useNavigate();
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { alerts, dismissAlert } = useGlobalAlerts();
-  const [isUndoing, setIsUndoing] = useState(false);
+  const [requestsCount, setRequestsCount] = useState(0);
 
   useExternalScripts();
   
   const unreadCount = alerts.length;
+  const role = currentUser?.role;
+  const canManageFinance = ['owner', 'admin', 'finance'].includes(role);
+  const canOpenOffers = ['owner', 'admin', 'operations', 'finance'].includes(role);
+  const canOpenSettings = ['owner', 'admin'].includes(role);
+  const canOpenRequests = ['owner', 'admin', 'operations', 'finance'].includes(role);
+  const canOpenPackages = ['owner', 'admin', 'operations', 'finance'].includes(role);
+  const canOpenProjects = ['owner', 'admin', 'operations', 'staff'].includes(role);
+  const canSeeOperationsRequests = ['owner', 'admin', 'operations'].includes(role);
+  const canSeeFinanceRequests = ['owner', 'admin', 'finance'].includes(role);
 
-  const handleUndo = async () => {
-    if (isUndoing) return;
-    setIsUndoing(true);
-    try {
-      const { data, error } = await supabase.rpc('undo_last_action');
-      if (error) {
-        console.error('Undo error:', error);
-        alert('حدث خطأ أثناء محاولة التراجع.');
-      } else if (data && data.success) {
-        alert(data.message);
-        // Reload page to reflect changes instantly across all components
-        window.location.reload();
-      } else {
-        alert(data?.message || 'لا يوجد عمليات أخرى للتراجع عنها!');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('حدث خطأ بالاتصال.');
-    } finally {
-      setIsUndoing(false);
+  const refreshRequestsCount = useCallback(async () => {
+    if (!canOpenRequests) return setRequestsCount(0);
+    const queries = [];
+    if (canSeeOperationsRequests) {
+      queries.push(supabase.from('bookings').select('id,status'));
+      queries.push(supabase.from('reschedule_requests').select('id').eq('status', 'pending'));
     }
-  };
+    if (canSeeFinanceRequests) queries.push(supabase.from('payment_proofs').select('id').eq('status', 'pending'));
+    const results = await Promise.all(queries);
+    let total = 0;
+    results.forEach((result, index) => {
+      if (!result.data) return;
+      if (canSeeOperationsRequests && index === 0) total += result.data.filter(item => ['pending', 'cancel_requested', 'late_cancel_requested'].includes(item.status)).length;
+      else total += result.data.length;
+    });
+    setRequestsCount(total);
+  }, [canOpenRequests, canSeeFinanceRequests, canSeeOperationsRequests]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refreshRequestsCount();
+    const handler = () => refreshRequestsCount();
+    window.addEventListener('erpRequestsUpdated', handler);
+    return () => window.removeEventListener('erpRequestsUpdated', handler);
+  }, [refreshRequestsCount]);
 
   const handleLogout = () => {
     logoutErp();
@@ -78,8 +89,8 @@ const ERPLayout = () => {
             <User size={24} />
           </div>
           <div>
-            <h6 style={{margin: 0, fontWeight: 800, fontSize: '0.95rem', color: 'var(--erp-text-main)'}}>إدارة الشركة</h6>
-            <span style={{fontSize: '0.70rem', fontWeight: 700, padding: '2px 8px', background: '#ef4444', color: 'white', borderRadius: '50px'}}>مدير النظام</span>
+            <h6 style={{margin: 0, fontWeight: 800, fontSize: '0.95rem', color: 'var(--erp-text-main)'}}>{currentUser?.full_name || 'إدارة الشركة'}</h6>
+            <span style={{fontSize: '0.70rem', fontWeight: 700, padding: '2px 8px', background: currentUser?.role === 'owner' ? '#7c3aed' : '#334155', color: 'white', borderRadius: '50px'}}>{{owner:'مالك',admin:'مدير',operations:'تشغيل وحجوزات',finance:'مالية',staff:'موظف محدود'}[currentUser?.role] || 'مستخدم'}</span>
           </div>
         </div>
 
@@ -89,6 +100,22 @@ const ERPLayout = () => {
               <LayoutDashboard size={20} /> لوحة القيادة
             </NavLink>
           </li>
+          {canOpenRequests && <li className="erp-nav-item">
+            <NavLink to="/erp/requests" className={({isActive}) => `erp-nav-link position-relative ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <Inbox size={20} /> صندوق الطلبات
+              {requestsCount > 0 && <span className="badge rounded-pill bg-danger" style={{marginRight:'auto',fontSize:'.65rem'}}>{requestsCount}</span>}
+            </NavLink>
+          </li>}
+          {canOpenPackages && <li className="erp-nav-item">
+            <NavLink to="/erp/packages" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <Package size={20} /> الباقات المباعة
+            </NavLink>
+          </li>}
+          {canOpenProjects && <li className="erp-nav-item">
+            <NavLink to="/erp/projects" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <FolderKanban size={20} /> المشروعات والمحتوى
+            </NavLink>
+          </li>}
           <li className="erp-nav-item">
             <NavLink to="/erp/clients" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
               <Users size={20} /> قاعدة العملاء
@@ -99,21 +126,21 @@ const ERPLayout = () => {
               <CalendarDays size={20} /> جدول الحجوزات
             </NavLink>
           </li>
-          <li className="erp-nav-item">
+          {canManageFinance && <li className="erp-nav-item">
             <NavLink to="/erp/finance" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
               <DollarSign size={20} /> الخزينة والحسابات
             </NavLink>
-          </li>
+          </li>}
           <li className="erp-nav-item">
             <NavLink to="/erp/reminders" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
               <ClipboardList size={20} /> المهام والتذكيرات
             </NavLink>
           </li>
-          <li className="erp-nav-item">
+          {canOpenOffers && <li className="erp-nav-item">
             <NavLink to="/erp/offer-generator" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
               <FileText size={20} /> إنشاء عرض سعر
             </NavLink>
-          </li>
+          </li>}
         </nav>
 
         <div style={{marginTop: 'auto', paddingTop: '15px', borderTop: '1px solid rgba(0,0,0,0.03)'}}>
@@ -127,11 +154,11 @@ const ERPLayout = () => {
               )}
             </button>
           </div>
-          <div className="erp-nav-item mb-1">
+          {canOpenSettings && <div className="erp-nav-item mb-1">
             <NavLink to="/erp/settings" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
               <Settings size={20} /> إعدادات النظام
             </NavLink>
-          </div>
+          </div>}
           <a href="/" target="_blank" rel="noopener noreferrer" className="erp-nav-link mb-2" style={{color: 'var(--erp-text-muted)'}}>
             <Home size={20} /> عرض الموقع
           </a>
@@ -160,10 +187,23 @@ const ERPLayout = () => {
           <CalendarDays size={22} />
           الحجوزات
         </NavLink>
-        <NavLink to="/erp/finance" className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+        {canOpenRequests && <NavLink to="/erp/requests" className={({isActive}) => `erp-bottom-nav-item position-relative ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+          <Inbox size={22} />
+          الطلبات
+          {requestsCount > 0 && <span className="position-absolute badge rounded-pill bg-danger" style={{top:'2px',left:'calc(50% - 20px)',fontSize:'.55rem'}}>{requestsCount}</span>}
+        </NavLink>}
+        {canOpenPackages && <NavLink to="/erp/packages" className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+          <Package size={22} />
+          الباقات
+        </NavLink>}
+        {canOpenProjects && <NavLink to="/erp/projects" className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+          <FolderKanban size={22} />
+          المشروعات
+        </NavLink>}
+        {canManageFinance && <NavLink to="/erp/finance" className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
           <DollarSign size={22} />
           الحسابات
-        </NavLink>
+        </NavLink>}
         <div className={`erp-bottom-nav-item ${sidebarOpen ? 'active' : ''}`} onClick={() => setSidebarOpen(!sidebarOpen)} style={{cursor: 'pointer'}}>
           <Menu size={22} />
           المزيد
@@ -176,16 +216,6 @@ const ERPLayout = () => {
         alerts={alerts} 
         onDismiss={dismissAlert} 
       />
-
-      {/* Floating Undo Button */}
-      <button 
-        onClick={handleUndo} 
-        disabled={isUndoing}
-        className="btn shadow erp-floating-undo" 
-      >
-        <RotateCcw size={20} className={isUndoing ? "fa-spin" : ""} />
-        {isUndoing ? 'جاري التراجع...' : 'تراجع عن آخر خطوة'}
-      </button>
 
       {/* Global Session Timer */}
       <ERPSessionTimer />

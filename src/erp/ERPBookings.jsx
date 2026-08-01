@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, ShieldAlert, Truck, Pointer } from 'lucide-react';
+import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, ShieldAlert, Truck, Pointer, Check, Ban, RefreshCw, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useLocation } from 'react-router-dom';
+import { useData } from '../store/DataContext';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
@@ -17,6 +18,7 @@ let globalServicesCache = null;
 let globalBookingsLastFetch = 0;
 
 const ERPBookings = () => {
+  const { currentUser } = useData();
   const location = useLocation();
   const [bookings, setBookings] = useState(globalBookingsCache || []);
   const [clients, setClients] = useState(globalClientsCache || []);
@@ -27,6 +29,9 @@ const ERPBookings = () => {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBookingDetails, setSelectedBookingDetails] = useState(null);
+  const [decisionBusy, setDecisionBusy] = useState(null);
+  const [decisionError, setDecisionError] = useState('');
+  const [alternativeModal, setAlternativeModal] = useState({ open: false, booking: null, date: '', start_time: '12:00', end_time: '13:00', note: '' });
 
   useEffect(() => {
     fetchData();
@@ -41,7 +46,7 @@ const ERPBookings = () => {
     }
   }, [location.state, clients, services]);
 
-  const isAdmin = localStorage.getItem('erp_role') === 'مدير';
+  const isAdmin = ['owner', 'admin', 'operations'].includes(currentUser?.role);
   const [newBooking, setNewBooking] = useState({
     client_name: '',
     color: '#4318ff',
@@ -99,11 +104,26 @@ const ERPBookings = () => {
     return client?.color || '#4318ff';
   };
 
+  const statusMeta = {
+    pending: { label: 'بانتظار التأكيد', color: '#d99124' },
+    confirmed: { label: 'مؤكد', color: '#20a66a' },
+    alternative_proposed: { label: 'موعد بديل مقترح', color: '#268bd2' },
+    rejected: { label: 'مرفوض', color: '#d84b5d' },
+    cancel_requested: { label: 'طلب إلغاء', color: '#d99124' },
+    late_cancel_requested: { label: 'إلغاء متأخر', color: '#d84b5d' },
+    completed: { label: 'مكتمل', color: '#20a66a' },
+    'مؤكد': { label: 'مؤكد', color: '#20a66a' },
+    'منتهي': { label: 'مكتمل', color: '#20a66a' },
+  };
+
+  const getStatusMeta = (status) => statusMeta[status] || { label: status || 'غير محدد', color: '#6f5b82' };
+  const pendingBookings = bookings.filter(b => b.status === 'pending');
+
   const calendarEvents = bookings.map(b => ({
     id: b.id,
-    title: b.client_name,
+    title: `${(b.start_time || '').slice(0, 5)} · ${b.client_name}`,
     start: b.date,
-    color: getClientColor(b.client_name),
+    color: getStatusMeta(b.status).color,
     extendedProps: {
       booking_id: b.id,
       time: `${b.start_time} - ${b.end_time}`,
@@ -113,6 +133,28 @@ const ERPBookings = () => {
   }));
 
   const dailyBookings = bookings.filter(b => b.date === selectedDate);
+
+  const submitDecision = async (booking, action, extra = {}) => {
+    setDecisionBusy(`${action}-${booking.id}`);
+    setDecisionError('');
+    const { error } = await supabase.request(`/bookings/${booking.id}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ action, ...extra }),
+    });
+    setDecisionBusy(null);
+    if (error) {
+      setDecisionError(error.message || 'تعذر حفظ القرار. حاول مرة أخرى.');
+      return false;
+    }
+    await fetchData(true);
+    return true;
+  };
+
+  const submitAlternative = async (event) => {
+    event.preventDefault();
+    const ok = await submitDecision(alternativeModal.booking, 'alternative', alternativeModal);
+    if (ok) setAlternativeModal({ open: false, booking: null, date: '', start_time: '12:00', end_time: '13:00', note: '' });
+  };
 
   const handleDateClick = (arg) => {
     setSelectedDate(arg.dateStr);
@@ -245,31 +287,7 @@ const ERPBookings = () => {
       }
     }
 
-    if (newBooking.paid > 0) {
-      await supabase.from('finance').insert([{
-        type: 'إيراد',
-        amount: newBooking.paid,
-        method: newBooking.payment_method,
-        detail: `دفعة من ${newBooking.client_name} لخدمة ${newBooking.service}`,
-        date: format(new Date(), 'yyyy-MM-dd'),
-        entity: 'الشركة'
-      }]);
-
-      const { data: clientData } = await supabase.from('clients').select('id, points').eq('name', newBooking.client_name).single();
-      if (clientData) {
-        const { data: cfg } = await supabase.from('app_config').select('key, value');
-        let pSpent = 100, pEarn = 1;
-        cfg?.forEach(c => {
-          if (c.key === 'points_egp_spent') pSpent = Number(c.value) || 100;
-          if (c.key === 'points_earned') pEarn = Number(c.value) || 1;
-        });
-        const pointsToAdd = Math.floor((newBooking.paid / pSpent) * pEarn);
-        const newPoints = (clientData.points || 0) + pointsToAdd;
-        await supabase.from('clients').update({ points: newPoints, points_updated_at: new Date().toISOString().split('T')[0] }).eq('id', clientData.id);
-      }
-    }
-
-    let bookingsToInsert = [];
+    let bookingsToInsert;
     
     if (needsDates) {
       bookingsToInsert = newBooking.dates.map(d => {
@@ -327,6 +345,32 @@ const ERPBookings = () => {
     const { data: insertedBookings, error } = await supabase.from('bookings').insert(bookingsToInsert).select();
 
     if (!error) {
+      // Record money only after every booking row has been accepted by the server.
+      // This prevents a rejected/conflicting appointment from creating false revenue.
+      if (newBooking.paid > 0) {
+        await supabase.from('finance').insert([{
+          type: 'إيراد',
+          amount: newBooking.paid,
+          method: newBooking.payment_method,
+          detail: `دفعة من ${newBooking.client_name} لخدمة ${newBooking.service}`,
+          date: format(new Date(), 'yyyy-MM-dd'),
+          entity: 'الشركة'
+        }]);
+
+        const { data: clientData } = await supabase.from('clients').select('id, points').eq('name', newBooking.client_name).single();
+        if (clientData) {
+          const { data: cfg } = await supabase.from('app_config').select('key, value');
+          let pSpent = 100, pEarn = 1;
+          cfg?.forEach(c => {
+            if (c.key === 'points_egp_spent') pSpent = Number(c.value) || 100;
+            if (c.key === 'points_earned') pEarn = Number(c.value) || 1;
+          });
+          const pointsToAdd = Math.floor((newBooking.paid / pSpent) * pEarn);
+          const newPoints = (clientData.points || 0) + pointsToAdd;
+          await supabase.from('clients').update({ points: newPoints, points_updated_at: new Date().toISOString().split('T')[0] }).eq('id', clientData.id);
+        }
+      }
+
       if (insertedBookings) {
         const remindersToInsert = [];
         insertedBookings.filter(b => b.delivery_date).forEach(b => {
@@ -408,6 +452,23 @@ const ERPBookings = () => {
 
         .admin-delete-btn { cursor: pointer; opacity: 0.5; transition: 0.3s; color: var(--erp-danger); }
         .admin-delete-btn:hover { opacity: 1; transform: scale(1.2); color: #dc2626 !important; }
+        .pending-requests-panel { background: var(--erp-surface); border: 1px solid var(--erp-border); border-top: 4px solid #d99124; border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: var(--erp-shadow); }
+        .pending-requests-head { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 18px; }
+        .pending-requests-title { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--erp-text-main); font-size: 1.05rem; font-weight: 800; }
+        .pending-count { min-width: 30px; height: 30px; padding: 0 9px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #7a4a00; background: #ffe3b4; font-weight: 900; }
+        .pending-requests-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+        .pending-request-card { border: 1px solid var(--erp-border); border-right: 4px solid #d99124; border-radius: 12px; padding: 16px; background: var(--erp-bg); }
+        .pending-request-card h5 { margin: 0; color: var(--erp-text-main); font-weight: 800; }
+        .pending-request-meta { display: flex; flex-wrap: wrap; gap: 7px 14px; color: var(--erp-text-muted); font-size: .78rem; margin: 10px 0 13px; }
+        .pending-request-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+        .pending-request-actions button { border: 1px solid var(--erp-border); border-radius: 8px; padding: 8px 10px; font-weight: 700; font-size: .72rem; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; background: var(--erp-surface); color: var(--erp-text-main); }
+        .pending-request-actions .confirm { color: #158254; border-color: rgba(32,166,106,.35); }
+        .pending-request-actions .alternative { color: #267ab0; border-color: rgba(38,139,210,.35); }
+        .pending-request-actions .reject { color: #c13a4d; border-color: rgba(216,75,93,.35); }
+        .pending-request-actions button:disabled { opacity: .45; cursor: wait; }
+        .booking-status-pill { display: inline-flex; color: white; border-radius: 6px; padding: 3px 8px; font-size: .68rem; font-weight: 800; }
+        .decision-error { background: rgba(216,75,93,.1); color: #c13a4d; border: 1px solid rgba(216,75,93,.25); padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: .78rem; }
+        @media (max-width: 600px) { .pending-requests-panel { padding: 15px; } .pending-requests-list { grid-template-columns: 1fr; } .pending-request-actions button { flex: 1; justify-content: center; } }
       `}</style>
 
       {/* Header */}
@@ -431,6 +492,22 @@ const ERPBookings = () => {
         </button>
       </div>
 
+      <section className="pending-requests-panel" aria-labelledby="pending-requests-title">
+        <div className="pending-requests-head">
+          <h4 className="pending-requests-title" id="pending-requests-title"><Clock size={20} color="#d99124" /> طلبات بانتظار التأكيد <span className="pending-count">{pendingBookings.length}</span></h4>
+          <button onClick={() => fetchData(true)} disabled={loading} style={{ border: 'none', background: 'transparent', color: 'var(--erp-primary)', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontWeight: 700 }}><RefreshCw size={15} className={loading ? 'client-spin' : ''}/> تحديث</button>
+        </div>
+        {decisionError && <div className="decision-error" role="alert">{decisionError}</div>}
+        {pendingBookings.length === 0 ? (
+          <div style={{ padding: '22px', textAlign: 'center', color: 'var(--erp-text-muted)', border: '1px dashed var(--erp-border)', borderRadius: '10px', fontSize: '.82rem' }}><CheckCircle size={23} style={{ marginBottom: '7px', color: 'var(--erp-success)' }}/><div>لا توجد طلبات جديدة بانتظار القرار.</div></div>
+        ) : <div className="pending-requests-list">{pendingBookings.map(booking => <article className="pending-request-card" key={booking.id}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}><h5>{booking.client_name}</h5><span className="booking-status-pill" style={{ background: getStatusMeta(booking.status).color }}>{getStatusMeta(booking.status).label}</span></div>
+          <div className="pending-request-meta"><span><CalendarIcon size={13}/> {booking.date}</span><span dir="ltr"><Clock size={13}/> {(booking.start_time || '').slice(0,5)} – {(booking.end_time || '').slice(0,5)}</span><span>{booking.service}</span></div>
+          {booking.notes && <p style={{ color: 'var(--erp-text-muted)', fontSize: '.73rem', lineHeight: 1.7, margin: '0 0 12px' }}>{booking.notes}</p>}
+          <div className="pending-request-actions"><button className="confirm" disabled={Boolean(decisionBusy)} onClick={() => submitDecision(booking, 'confirm')}><Check size={15}/> {decisionBusy === `confirm-${booking.id}` ? 'جارٍ التأكيد...' : 'تأكيد'}</button><button className="alternative" disabled={Boolean(decisionBusy)} onClick={() => setAlternativeModal({ open: true, booking, date: booking.date, start_time: (booking.start_time || '12:00').slice(0,5), end_time: (booking.end_time || '13:00').slice(0,5), note: '' })}><CalendarPlus size={15}/> موعد بديل</button><button className="reject" disabled={Boolean(decisionBusy)} onClick={() => { if (window.confirm(`رفض طلب ${booking.client_name}؟`)) submitDecision(booking, 'reject'); }}><Ban size={15}/> {decisionBusy === `reject-${booking.id}` ? 'جارٍ الرفض...' : 'رفض'}</button></div>
+        </article>)}</div>}
+      </section>
+
       <div className="erp-bookings-layout">
         
         {/* FullCalendar Box */}
@@ -451,6 +528,12 @@ const ERPBookings = () => {
               events={calendarEvents}
               dateClick={handleDateClick}
               eventClick={handleEventClick}
+              eventContent={(arg) => (
+                <div style={{ overflow: 'hidden', lineHeight: 1.35 }}>
+                  <div style={{ fontSize: '.72rem', fontWeight: 900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{arg.event.title}</div>
+                  <div style={{ fontSize: '.59rem', opacity: .9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getStatusMeta(arg.event.extendedProps.status).label}</div>
+                </div>
+              )}
               height="auto"
               headerToolbar={{
                 right: 'dayGridMonth,timeGridWeek',
@@ -785,6 +868,22 @@ const ERPBookings = () => {
           </div>
         </div>
       </div>
+
+      {alternativeModal.open && (
+        <div className="erp-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, background: 'rgba(15,23,42,.72)', backdropFilter: 'blur(4px)' }} onClick={() => setAlternativeModal({ ...alternativeModal, open: false })}>
+          <div style={{ width: 'min(520px, calc(100% - 24px))', background: 'var(--erp-surface)', borderRadius: '18px', borderTop: '4px solid #268bd2', boxShadow: '0 24px 60px rgba(0,0,0,.28)', padding: '24px' }} onClick={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="اقتراح موعد بديل">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}><div><span style={{ color: '#268bd2', fontWeight: 800, fontSize: '.72rem' }}>قرار طلب الحجز</span><h4 style={{ margin: '5px 0', color: 'var(--erp-text-main)', fontWeight: 900 }}>اقتراح موعد بديل</h4><p style={{ margin: 0, color: 'var(--erp-text-muted)', fontSize: '.78rem' }}>للعميل: {alternativeModal.booking?.client_name}</p></div><button type="button" onClick={() => setAlternativeModal({ ...alternativeModal, open: false })} style={{ border: 0, background: 'transparent', color: 'var(--erp-text-muted)', cursor: 'pointer' }} aria-label="إغلاق"><X/></button></div>
+            {decisionError && <div className="decision-error" style={{ marginTop: '15px' }}>{decisionError}</div>}
+            <form onSubmit={submitAlternative} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '20px' }}>
+              <label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>التاريخ البديل<input required type="date" value={alternativeModal.date} onChange={e => setAlternativeModal({ ...alternativeModal, date: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>من<input required type="time" min="12:00" max="21:00" step="900" value={alternativeModal.start_time} onChange={e => setAlternativeModal({ ...alternativeModal, start_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>إلى<input required type="time" min="13:00" max="22:00" step="900" value={alternativeModal.end_time} onChange={e => setAlternativeModal({ ...alternativeModal, end_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label></div>
+              <label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>ملاحظة للعميل<textarea rows="3" value={alternativeModal.note} onChange={e => setAlternativeModal({ ...alternativeModal, note: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)', resize: 'vertical' }}/></label>
+              <p style={{ padding: '10px', background: 'rgba(38,139,210,.08)', color: '#267ab0', borderRight: '3px solid #268bd2', margin: 0, fontSize: '.7rem' }}>أقل مدة ساعة، والزيادة كل 15 دقيقة، ضمن مواعيد العمل من 12 ظهرًا إلى 10 مساءً.</p>
+              <button type="submit" disabled={Boolean(decisionBusy)} style={{ border: 0, borderRadius: '9px', background: '#268bd2', color: 'white', padding: '12px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>{decisionBusy ? <RefreshCw size={16} className="client-spin"/> : <Send size={16}/>} إرسال الموعد البديل</button>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

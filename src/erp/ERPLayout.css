@@ -26,6 +26,9 @@
     direction: rtl;
 }
 
+/* Safe fallback when optional Bootstrap CDN styles are unavailable. */
+.offcanvas:not(.show) { display: none !important; }
+
 .erp-sidebar {
     background: var(--erp-sidebar-bg);
     backdrop-filter: blur(10px);
@@ -44,9 +47,12 @@
 
 .erp-main {
     margin-right: var(--erp-sidebar-width);
+    width: calc(100% - var(--erp-sidebar-width));
+    min-width: 0;
+    box-sizing: border-box;
     padding: 30px;
     min-height: 100vh;
-    flex: 1;
+    flex: none;
     transition: margin-right 0.4s ease;
 }
 
@@ -424,6 +430,7 @@
     }
     .erp-main {
         margin-right: 0;
+        width: 100%;
         padding: 10px;
     }
     .erp-sidebar {

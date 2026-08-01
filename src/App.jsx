@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, lazy } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import UnifiedLogin from './pages/UnifiedLogin';
@@ -27,6 +27,9 @@ const ERPFinance = lazy(() => import('./erp/ERPFinance'));
 const ERPSettings = lazy(() => import('./erp/ERPSettings'));
 const ERPReminders = lazy(() => import('./erp/ERPReminders'));
 const ERPOfferGenerator = lazy(() => import('./erp/ERPOfferGenerator'));
+const ERPRequests = lazy(() => import('./erp/ERPRequests'));
+const ERPPackages = lazy(() => import('./erp/ERPPackages'));
+const ERPProjects = lazy(() => import('./erp/ERPProjects'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -38,6 +41,18 @@ const ProtectedRoute = ({ children }) => {
 const ErpProtectedRoute = ({ children }) => {
   const { isErpAuth } = useData();
   if (!isErpAuth) return <Navigate to="/login" replace />;
+  return children;
+};
+
+const ClientProtectedRoute = ({ children }) => {
+  const { isClientAuth } = useData();
+  if (!isClientAuth) return <Navigate to="/login" replace />;
+  return children;
+};
+
+const RoleProtectedRoute = ({ roles, children }) => {
+  const { currentUser } = useData();
+  if (!currentUser || !roles.includes(currentUser.role)) return <Navigate to="/erp" replace />;
   return children;
 };
 
@@ -113,7 +128,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<UnifiedLogin />} />
-            <Route path="/dashboard" element={<ClientDashboard />} />
+            <Route path="/dashboard" element={<ClientProtectedRoute><ClientDashboard /></ClientProtectedRoute>} />
             <Route path="/adminmt/login" element={<AdminLogin />} />
             <Route 
               path="/erp/*" 
@@ -126,10 +141,13 @@ function App() {
               <Route index element={<ERPDashboard />} />
               <Route path="clients" element={<ERPClients />} />
               <Route path="bookings" element={<ERPBookings />} />
-              <Route path="finance" element={<ERPFinance />} />
-              <Route path="settings" element={<ERPSettings />} />
+              <Route path="requests" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPRequests /></RoleProtectedRoute>} />
+              <Route path="packages" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPPackages /></RoleProtectedRoute>} />
+              <Route path="projects" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'staff']}><ERPProjects /></RoleProtectedRoute>} />
+              <Route path="finance" element={<RoleProtectedRoute roles={['owner', 'admin', 'finance']}><ERPFinance /></RoleProtectedRoute>} />
+              <Route path="settings" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPSettings /></RoleProtectedRoute>} />
               <Route path="reminders" element={<ERPReminders />} />
-              <Route path="offer-generator" element={<ERPOfferGenerator />} />
+              <Route path="offer-generator" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPOfferGenerator /></RoleProtectedRoute>} />
             </Route>
             <Route 
               path="/adminmt/*" 

@@ -1,0 +1,78 @@
+# نشر MT Agency ERP على Hostinger
+
+## المتطلبات
+
+- استضافة Hostinger تدعم PHP 8.1 أو أحدث وMySQL/MariaDB.
+- قاعدة MySQL جديدة من لوحة hPanel.
+- مستودع GitHub يحتوي المشروع.
+- بيانات FTP مضافة إلى GitHub Secrets بالأسماء:
+  - `FTP_SERVER`
+  - `FTP_USERNAME`
+  - `FTP_PASSWORD`
+
+## إعداد قاعدة البيانات لأول مرة
+
+1. افتح phpMyAdmin من hPanel.
+2. اختر قاعدة البيانات الخاصة بالمشروع.
+3. استورد ملفات قاعدة البيانات بالترتيب: `database/mysql/001_initial_schema.sql` ثم `database/mysql/002_seed_service_catalog.sql` ثم `database/mysql/003_projects_and_content.sql`.
+4. إذا كنت تنقل بيانات البرنامج القديم، راجع `database/mysql/900_legacy_report.json` ثم استورد `database/mysql/900_legacy_data.sql`.
+5. انسخ `api/config.example.php` إلى `public_html/api/config.php` على الخادم فقط.
+6. ضع بيانات MySQL الحقيقية، رابط الموقع، ومفتاح إعداد طويل وعشوائي داخل `config.php`.
+7. لا ترفع `config.php` إلى GitHub؛ الملف مستبعد تلقائيًا.
+
+## إنشاء أول حساب مالك
+
+نفّذ طلب POST مرة واحدة إلى:
+
+`https://YOUR-DOMAIN/api/auth/bootstrap`
+
+والجسم JSON:
+
+```json
+{
+  "setup_key": "THE-SETUP-KEY-FROM-CONFIG",
+  "full_name": "اسم المالك",
+  "email": "owner@example.com",
+  "password": "A-STRONG-PASSWORD"
+}
+```
+
+بعد إنشاء الحساب الأول، يغلق المسار نفسه تلقائيًا ولا ينشئ مالكًا ثانيًا. يُضاف الشريك الثاني والموظفون لاحقًا من إدارة المستخدمين.
+
+## النشر من GitHub
+
+كل رفع إلى فرع `main` يقوم تلقائيًا بـ:
+
+1. تثبيت الحزم بقفل الإصدارات.
+2. بناء React بوضع Hostinger API.
+3. إضافة PHP API وملف إعادة توجيه مسارات React.
+4. رفع الملفات إلى `public_html` مع الحفاظ على `api/config.php` وملفات إثبات الدفع.
+
+## فحص ما بعد النشر
+
+- افتح `/api/health` وتأكد أن الحالة `ok`.
+- افتح `/login` مباشرة وتأكد أن الصفحة لا تعطي 404.
+- جرّب دخول المالك ثم العميل.
+- أنشئ طلب حجز عميل وتأكد أنه يظهر للإدارة بحالة انتظار.
+- تأكد من منع حجزين مؤكدين متداخلين في الاستديو نفسه.
+- ارفع إثبات تحويل تجريبي وتأكد أن الملف غير قابل لتصفح المجلد مباشرة.
+
+## النسخ الاحتياطي
+
+- فعّل النسخ اليومي لقاعدة MySQL من Hostinger.
+- احتفظ بنسخة أسبوعية خارج الاستضافة.
+- مجلد `private_uploads` الموجود خارج `public_html` يجب نسخه مع قاعدة البيانات.
+- جرّب الاستعادة على قاعدة اختبار قبل الاعتماد على النسخ الاحتياطية.
+
+## تشغيل إشعارات واتساب
+
+1. من Meta Business أنشئ WhatsApp Cloud API واحصل على `phone_number_id` وSystem User access token دائم.
+2. أنشئ واعتمد قالب Utility باسم `package_financial_summary` وباللغة العربية. ترتيب متغيرات نص القالب هو: اسم العميل، ملخص الباقات، المبلغ المستحق، أقرب تاريخ انتهاء.
+3. في `api/config.php` فعّل قسم `whatsapp` وأدخل إصدار Graph الحالي، رقم الهاتف، التوكن، اسم القالب، ومفتاح `worker_key` عشوائي طويل. لا ترفع هذا الملف إلى GitHub.
+4. من Cron Jobs في hPanel شغّل الأمر التالي كل 5 دقائق بعد استبدال النطاق والمفتاح:
+
+```bash
+curl -sS -X POST -H "X-Worker-Key: YOUR_LONG_WORKER_KEY" https://your-domain.example/api/cron/whatsapp-queue
+```
+
+5. الإرسال الفاشل يعاد تلقائيًا بتأخير متزايد حتى خمس محاولات، ويمكن مراجعة الحالة من جدول `notification_queue`.

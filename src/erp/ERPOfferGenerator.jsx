@@ -1,269 +1,88 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Banknote, Check, Eye, FileCheck2, FilePlus2, FileText, Plus, Printer, RefreshCw, Send, Trash2, X } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { FileText, Plus, Trash2, Printer, CheckCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { useData } from '../store/DataContext';
+import './ERPOfferGenerator.css';
 
-const ERPOfferGenerator = () => {
-  const [services, setServices] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  const [clientName, setClientName] = useState('');
-  const [offerItems, setOfferItems] = useState([]);
-  const [selectedServiceId, setSelectedServiceId] = useState('');
-  const [discount, setDiscount] = useState(0);
-  const [notes, setNotes] = useState('');
-  
-  const [logoBase64, setLogoBase64] = useState(null);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    const { data: srvs } = await supabase.from('services').select('*');
-    if (srvs) setServices(srvs);
-    
-    const { data: cfg } = await supabase.from('app_config').select('value').eq('key', 'system_logo').single();
-    if (cfg && cfg.value) setLogoBase64(cfg.value);
-    
-    setLoading(false);
-  };
-
-  const handleAddItem = () => {
-    if (!selectedServiceId) return;
-    const srv = services.find(s => s.id.toString() === selectedServiceId);
-    if (!srv) return;
-    
-    setOfferItems([...offerItems, {
-      id: Date.now(),
-      service_id: srv.id,
-      name: srv.name,
-      price: parseFloat(srv.price),
-      quantity: 1
-    }]);
-    setSelectedServiceId('');
-  };
-
-  const handleRemoveItem = (id) => {
-    setOfferItems(offerItems.filter(item => item.id !== id));
-  };
-
-  const updateQuantity = (id, q) => {
-    setOfferItems(offerItems.map(item => item.id === id ? {...item, quantity: parseFloat(q) || 1} : item));
-  };
-
-  const updatePrice = (id, p) => {
-    setOfferItems(offerItems.map(item => item.id === id ? {...item, price: parseFloat(p) || 0} : item));
-  };
-
-  const calculateTotal = () => {
-    const subtotal = offerItems.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
-    return Math.max(0, subtotal - parseFloat(discount || 0));
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  if (loading) return <div className="text-center py-5">جاري التحميل...</div>;
-
-  return (
-    <div className="container-fluid p-0 animate__animated animate__fadeIn pb-5" style={{ background: '#f8f9fc', minHeight: '100vh', padding: '20px', direction: 'rtl' }}>
-      
-      <div className="d-flex justify-content-between align-items-center mb-4 mt-3 px-3 no-print">
-        <div>
-          <h2 className="fw-bold" style={{ color: '#1e293b', margin: 0 }}>
-            <FileText className="me-2 text-primary" size={28} />
-            إنشاء عرض سعر
-          </h2>
-          <p className="text-muted mt-1 mb-0">قم بإعداد عروض الأسعار وطباعتها للعملاء بشكل احترافي</p>
-        </div>
-        <button onClick={handlePrint} className="btn btn-dark shadow-sm rounded-pill px-4 py-2 fw-bold d-flex align-items-center gap-2">
-          <Printer size={20} /> طباعة أو حفظ PDF
-        </button>
-      </div>
-
-      <div className="row px-3 g-4">
-        {/* Print Area */}
-        <div className="col-12 col-xl-8 print-w-100">
-          <div className="card border-0 shadow-sm rounded-4 p-5 print-container" style={{ minHeight: '800px', background: 'white' }}>
-            
-            {/* Invoice Header */}
-            <div className="d-flex justify-content-between align-items-start border-bottom pb-4 mb-4">
-              <div>
-                {logoBase64 ? (
-                  <img src={logoBase64} alt="Logo" style={{ height: '80px', objectFit: 'contain' }} />
-                ) : (
-                  <h2 className="fw-bold text-primary">Multi Task Agency</h2>
-                )}
-              </div>
-              <div className="text-start">
-                <h3 className="fw-bold text-dark mb-1">عرض سعر</h3>
-                <p className="text-muted mb-0">التاريخ: <span dir="ltr">{format(new Date(), 'dd/MM/yyyy')}</span></p>
-                <p className="text-muted mb-0">صالح لمدة: 15 يوماً</p>
-              </div>
-            </div>
-
-            {/* Client Info */}
-            <div className="mb-4">
-              <h5 className="fw-bold text-muted mb-2">مقدم إلى السيد/ة:</h5>
-              <h4 className="fw-bold text-dark border-bottom border-primary border-2 d-inline-block pb-1 pe-4">
-                {clientName || 'اسم العميل...'}
-              </h4>
-            </div>
-
-            {/* Items Table */}
-            <div className="table-responsive mb-4">
-              <table className="table table-bordered border-light align-middle text-center">
-                <thead className="bg-light text-muted">
-                  <tr>
-                    <th className="py-3">م</th>
-                    <th className="py-3 text-start ps-3">الخدمة / البيان</th>
-                    <th className="py-3">السعر</th>
-                    <th className="py-3">الكمية</th>
-                    <th className="py-3">الإجمالي</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {offerItems.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" className="py-4 text-muted">لا توجد خدمات مضافة حتى الآن.</td>
-                    </tr>
-                  ) : (
-                    offerItems.map((item, index) => (
-                      <tr key={item.id}>
-                        <td className="fw-bold text-muted">{index + 1}</td>
-                        <td className="text-start ps-3 fw-bold">{item.name}</td>
-                        <td>{item.price.toLocaleString()} ج.م</td>
-                        <td>{item.quantity}</td>
-                        <td className="fw-bold text-primary">{(item.price * item.quantity).toLocaleString()} ج.م</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Totals */}
-            <div className="row justify-content-end mb-5">
-              <div className="col-12 col-md-5">
-                <div className="p-4 rounded-4" style={{ background: '#f8fafc' }}>
-                  <div className="d-flex justify-content-between mb-2">
-                    <span className="text-muted fw-bold">الإجمالي الفرعي:</span>
-                    <span className="fw-bold">{offerItems.reduce((a, b) => a + (b.price * b.quantity), 0).toLocaleString()} ج.م</span>
-                  </div>
-                  {discount > 0 && (
-                    <div className="d-flex justify-content-between mb-2 text-danger">
-                      <span className="fw-bold">الخصم الإضافي:</span>
-                      <span className="fw-bold">- {discount.toLocaleString()} ج.م</span>
-                    </div>
-                  )}
-                  <hr className="my-2" />
-                  <div className="d-flex justify-content-between mt-2">
-                    <span className="fw-bold fs-5 text-dark">الإجمالي النهائي:</span>
-                    <span className="fw-bold fs-5 text-primary">{calculateTotal().toLocaleString()} ج.م</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Notes */}
-            {notes && (
-              <div className="mb-4">
-                <h6 className="fw-bold text-muted mb-2">ملاحظات وشروط التعاقد:</h6>
-                <div className="p-3 bg-light rounded-4 text-dark" style={{ whiteSpace: 'pre-line' }}>
-                  {notes}
-                </div>
-              </div>
-            )}
-
-            {/* Signature */}
-            <div className="mt-auto border-top pt-4 text-center text-muted">
-              <p className="mb-0 fw-bold">إدارة Multi Task Agency</p>
-              <p className="small mb-0 mt-1">نشكركم على ثقتكم في خدماتنا. نتطلع للعمل معكم.</p>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Controls Area (Hidden in Print) */}
-        <div className="col-12 col-xl-4 no-print">
-          <div className="card border-0 shadow-sm rounded-4 p-4 sticky-top" style={{ top: '20px' }}>
-            <h5 className="fw-bold mb-4 border-bottom pb-2">لوحة التحكم السريعة</h5>
-            
-            <div className="mb-3">
-              <label className="fw-bold text-muted small mb-1">اسم العميل</label>
-              <input type="text" className="form-control bg-light border-0 py-2" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="اسم العميل أو الشركة" />
-            </div>
-
-            <div className="mb-4 p-3 border rounded-4 bg-light">
-              <label className="fw-bold text-dark small mb-2 d-block">إضافة خدمة للعرض:</label>
-              <div className="d-flex gap-2">
-                <select className="form-select border-0 shadow-sm flex-grow-1" value={selectedServiceId} onChange={e => setSelectedServiceId(e.target.value)}>
-                  <option value="">-- اختر الخدمة --</option>
-                  {services.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} - {s.price} ج</option>
-                  ))}
-                </select>
-                <button className="btn btn-primary shadow-sm" onClick={handleAddItem}><Plus size={20} /></button>
-              </div>
-            </div>
-
-            <h6 className="fw-bold text-muted mb-3">الخدمات المضافة ({offerItems.length}):</h6>
-            <div className="list-group list-group-flush mb-4" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              {offerItems.map(item => (
-                <div key={item.id} className="list-group-item bg-transparent px-0 py-3 border-bottom border-light">
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <span className="fw-bold text-primary" style={{ fontSize: '0.9rem' }}>{item.name}</span>
-                    <button className="btn btn-link text-danger p-0" onClick={() => handleRemoveItem(item.id)}><Trash2 size={16}/></button>
-                  </div>
-                  <div className="row g-2">
-                    <div className="col-6">
-                      <div className="input-group input-group-sm">
-                        <span className="input-group-text bg-light border-0">السعر</span>
-                        <input type="number" className="form-control border-0 bg-white shadow-sm" value={item.price} onChange={e => updatePrice(item.id, e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="col-6">
-                      <div className="input-group input-group-sm">
-                        <span className="input-group-text bg-light border-0">الكمية</span>
-                        <input type="number" className="form-control border-0 bg-white shadow-sm" value={item.quantity} onChange={e => updateQuantity(item.id, e.target.value)} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mb-3">
-              <label className="fw-bold text-muted small mb-1">خصم إضافي (ج.م)</label>
-              <input type="number" className="form-control bg-light border-0 py-2 text-danger fw-bold" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" />
-            </div>
-
-            <div className="mb-3">
-              <label className="fw-bold text-muted small mb-1">ملاحظات العرض (تظهر للعميل)</label>
-              <textarea className="form-control bg-light border-0 py-2" rows="3" value={notes} onChange={e => setNotes(e.target.value)} placeholder="شروط الدفع، مدة التنفيذ..."></textarea>
-            </div>
-
-          </div>
-        </div>
-
-      </div>
-
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          .no-print { display: none !important; }
-          .print-container, .print-container * { visibility: visible; }
-          .print-container { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; padding: 0 !important; }
-          .print-w-100 { width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; }
-          @page { size: A4; margin: 2cm; }
-        }
-      `}</style>
-
-    </div>
-  );
+const defaultValidity = () => { const date = new Date(); date.setDate(date.getDate() + 15); return date.toISOString().slice(0, 10); };
+const emptyForm = () => ({ client_id: '', title: 'عرض خدمات MT Agency', valid_until: defaultValidity(), discount: 0, notes: '', items: [] });
+const STATUS = { draft: ['مسودة','draft'], sent: ['مرسل للعميل','sent'], accepted: ['مقبول','accepted'], expired: ['منتهي','expired'] };
+const money = value => `${Number(value || 0).toLocaleString('ar-EG')} ج`;
+const unitName = unit => ({ hour:'ساعة', reel:'ريل', day:'يوم', month:'شهر', project:'مشروع' })[unit] || unit;
+const arabicDate = value => {
+  if (!value) return '—';
+  const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium' }).format(date);
 };
 
-export default ERPOfferGenerator;
+export default function ERPOfferGenerator() {
+  const { currentUser } = useData();
+  const canCompose = ['owner','admin','operations'].includes(currentUser?.role);
+  const [offers, setOffers] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [services, setServices] = useState([]);
+  const [mode, setMode] = useState(canCompose ? 'offers' : 'invoices');
+  const [form, setForm] = useState(emptyForm);
+  const [selectedService, setSelectedService] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const detailRef = useRef(null);
+  const detailTrigger = useRef(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true); setError('');
+    const [offersResult,invoicesResult,clientsResult,servicesResult] = await Promise.all([
+      supabase.from('offers').select('*').order('created_at',{ascending:false}),
+      supabase.from('invoices').select('*').order('issued_at',{ascending:false}),
+      supabase.from('clients').select('id,name,phone1').order('name',{ascending:true}),
+      supabase.from('services').select('*').eq('is_active',1).order('name',{ascending:true}),
+    ]);
+    const failed=[offersResult,invoicesResult,clientsResult,servicesResult].find(result=>result.error);
+    if(failed?.error)setError(failed.error.message||'تعذر تحميل العروض والفواتير.');
+    else{setOffers(offersResult.data||[]);setInvoices(invoicesResult.data||[]);setClients(clientsResult.data||[]);setServices(servicesResult.data||[])}
+    setLoading(false);
+  },[]);
+  useEffect(()=>{
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  },[fetchData]);
+
+  const subtotal=useMemo(()=>form.items.reduce((sum,item)=>sum+Number(item.quantity)*Number(item.unit_price),0),[form.items]);
+  const finalDiscount=Math.min(subtotal,Math.max(0,Number(form.discount||0)));
+  const total=subtotal-finalDiscount;
+  const clientName=id=>clients.find(client=>Number(client.id)===Number(id))?.name||'عميل';
+  const metrics={draft:offers.filter(item=>item.status==='draft').length,sent:offers.filter(item=>item.status==='sent').length,accepted:offers.filter(item=>item.status==='accepted').length,value:offers.reduce((sum,item)=>sum+Number(item.total),0)};
+  const invoiceMetrics={count:invoices.length,issued:invoices.filter(item=>item.status!=='paid').length,value:invoices.reduce((sum,item)=>sum+Number(item.total),0),due:invoices.reduce((sum,item)=>sum+Math.max(0,Number(item.total)-Number(item.paid_amount)),0)};
+
+  const addService=()=>{const service=services.find(item=>String(item.id)===selectedService);if(!service)return;setForm(prev=>({...prev,items:[...prev.items,{key:crypto.randomUUID(),service_id:service.id,description:service.name,quantity:1,unit:service.billing_unit||'project',unit_price:Number(service.price||0)}]}));setSelectedService('')};
+  const updateItem=(key,field,value)=>setForm(prev=>({...prev,items:prev.items.map(item=>item.key===key?{...item,[field]:value}:item)}));
+  const removeItem=key=>setForm(prev=>({...prev,items:prev.items.filter(item=>item.key!==key)}));
+
+  const saveDraft=async event=>{event.preventDefault();if(!form.items.length)return setError('أضف بند خدمة واحدًا على الأقل.');setBusy('save');setError('');const{error:requestError}=await supabase.request('/offers',{method:'POST',body:JSON.stringify({...form,client_id:Number(form.client_id),discount:finalDiscount,items:form.items.map(item=>({service_id:item.service_id,description:item.description,quantity:Number(item.quantity),unit:item.unit,unit_price:Number(item.unit_price)}))})});setBusy('');if(requestError)return setError(requestError.message||'تعذر حفظ العرض.');setForm(emptyForm());setNotice('تم حفظ عرض السعر كمسودة. يمكنك إرساله من سجل العروض.');setMode('offers');await fetchData()};
+  const sendOffer=async offer=>{if(!canCompose)return;if(!window.confirm(`إرسال العرض ${offer.offer_number} للعميل؟`))return;setBusy(`send-${offer.id}`);const{error:requestError}=await supabase.request(`/offers/${offer.id}/send`,{method:'POST',body:'{}'});setBusy('');if(requestError)return setError(requestError.message||'تعذر إرسال العرض.');setNotice('تم إرسال العرض إلى بوابة العميل.');await fetchData()};
+  const viewOffer=async(event,offer)=>{detailTrigger.current=event.currentTarget;setDetailLoading(true);setDetail({id:offer.id});const{data,error:requestError}=await supabase.request(`/offers/${offer.id}`,{method:'GET'});setDetailLoading(false);if(requestError){setDetail(null);return setError(requestError.message||'تعذر تحميل تفاصيل العرض.')}setDetail(data)};
+  const closeDetail=useCallback(()=>setDetail(null),[]);
+  useEffect(()=>{if(!detail)return undefined;const dialog=detailRef.current;const focusables=()=>Array.from(dialog?.querySelectorAll('button:not([disabled]),[href],[tabindex]:not([tabindex="-1"])')||[]);const onKey=event=>{if(event.key==='Escape'){event.preventDefault();closeDetail()}else if(event.key==='Tab'){const items=focusables();if(!items.length)return;const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}};document.addEventListener('keydown',onKey);document.body.style.overflow='hidden';requestAnimationFrame(()=>focusables()[0]?.focus());return()=>{document.removeEventListener('keydown',onKey);document.body.style.overflow='';requestAnimationFrame(()=>detailTrigger.current?.focus())}},[detail,closeDetail]);
+
+  return <div className="offers-command" dir="rtl">
+    <header className="offers-command-head"><div><span><FileCheck2/> {canCompose?'مسار المبيعات':'المتابعة المالية'}</span><h2>{canCompose?'العروض والفواتير':'الفواتير'}</h2><p>{canCompose?'أنشئ العرض، احفظه، ثم أرسله للعميل ليقبله من بوابته.':'تابع الفواتير الصادرة والمدفوعات والأرصدة المتبقية.'}</p></div>{canCompose&&<button onClick={()=>setMode('compose')}><FilePlus2/> عرض جديد</button>}</header>
+    <section className="offers-metrics">{canCompose?<><Metric label="مسودات" value={metrics.draft}/><Metric label="بانتظار العميل" value={metrics.sent} tone="amber"/><Metric label="عروض مقبولة" value={metrics.accepted} tone="green"/><Metric label="قيمة العروض" value={money(metrics.value)} tone="cyan"/></>:<><Metric label="عدد الفواتير" value={invoiceMetrics.count}/><Metric label="فواتير صادرة" value={invoiceMetrics.issued} tone="amber"/><Metric label="إجمالي الفواتير" value={money(invoiceMetrics.value)} tone="green"/><Metric label="الرصيد المتبقي" value={money(invoiceMetrics.due)} tone="cyan"/></>}</section>
+    {notice&&<div className="offer-feedback success"><Check/> {notice}</div>}{error&&<div className="offer-feedback error"><X/><span>{error}</span><button onClick={()=>setError('')}>إخفاء</button></div>}
+    <nav className="offers-modes">{canCompose&&<><button className={mode==='compose'?'active':''} onClick={()=>setMode('compose')}><FilePlus2/> تركيب عرض</button><button className={mode==='offers'?'active':''} onClick={()=>setMode('offers')}><FileText/> سجل العروض <span>{offers.length}</span></button></>}<button className={mode==='invoices'?'active':''} onClick={()=>setMode('invoices')}><Banknote/> الفواتير <span>{invoices.length}</span></button><button className="refresh" onClick={fetchData}><RefreshCw className={loading?'offer-spin':''}/> تحديث</button></nav>
+
+    {loading?<Empty icon={RefreshCw} spin title="جارٍ تجهيز مساحة المبيعات" text="نسترجع العروض والفواتير من الخادم."/>:mode==='compose'&&canCompose?<form className="offer-composer" onSubmit={saveDraft}><section className="offer-fields"><div className="offer-section-title"><span>01</span><div><h3>بيانات العرض</h3><p>حدد العميل والعنوان ومدة الصلاحية.</p></div></div><div className="offer-field-grid"><label>العميل<select required value={form.client_id} onChange={event=>setForm({...form,client_id:event.target.value})}><option value="">اختر العميل</option>{clients.map(client=><option value={client.id} key={client.id}>{client.name} — {client.phone1}</option>)}</select></label><label>عنوان العرض<input required value={form.title} onChange={event=>setForm({...form,title:event.target.value})}/></label><label>صالح حتى<input required type="date" min={new Date().toISOString().slice(0,10)} value={form.valid_until} onChange={event=>setForm({...form,valid_until:event.target.value})}/></label><label>خصم بالقيمة<input type="number" min="0" max={subtotal} value={form.discount} onChange={event=>setForm({...form,discount:event.target.value})}/></label></div><label>ملاحظات وشروط<textarea rows="3" value={form.notes} onChange={event=>setForm({...form,notes:event.target.value})} placeholder="شروط الدفع، مدة التنفيذ، وما يشمله العرض..."/></label></section><section className="offer-lines"><div className="offer-section-title"><span>02</span><div><h3>بناء الباقة التجارية</h3><p>أضف الخدمات واضبط الوصف والكمية والسعر.</p></div></div><div className="offer-add-service"><select value={selectedService} onChange={event=>setSelectedService(event.target.value)}><option value="">اختر خدمة من النظام</option>{services.map(service=><option value={service.id} key={service.id}>{service.name} — {money(service.price)}</option>)}</select><button type="button" disabled={!selectedService} onClick={addService}><Plus/> إضافة بند</button></div><div className="offer-line-stack">{form.items.map((item,index)=><article key={item.key}><div className="offer-line-index">{String(index+1).padStart(2,'0')}</div><label className="description">الوصف<input value={item.description} onChange={event=>updateItem(item.key,'description',event.target.value)}/></label><label>الكمية<input type="number" min=".25" step=".25" value={item.quantity} onChange={event=>updateItem(item.key,'quantity',event.target.value)}/></label><label>الوحدة<select value={item.unit} onChange={event=>updateItem(item.key,'unit',event.target.value)}><option value="hour">ساعة</option><option value="reel">ريل</option><option value="day">يوم</option><option value="month">شهر</option><option value="project">مشروع</option></select></label><label>سعر الوحدة<input type="number" min="0" value={item.unit_price} onChange={event=>updateItem(item.key,'unit_price',event.target.value)}/></label><strong>{money(Number(item.quantity)*Number(item.unit_price))}</strong><button type="button" aria-label={`حذف بند ${item.description}`} onClick={()=>removeItem(item.key)}><Trash2/></button></article>)}{!form.items.length&&<div className="offer-lines-empty"><Plus/><p>أضف أول خدمة لتبدأ تركيب العرض.</p></div>}</div></section><aside className="offer-total-strip"><div><span>الإجمالي الفرعي</span><strong>{money(subtotal)}</strong></div><div><span>الخصم</span><strong>- {money(finalDiscount)}</strong></div><div className="grand"><span>قيمة العرض النهائية</span><strong>{money(total)}</strong></div><button disabled={busy==='save'||!form.items.length}><FileCheck2/>{busy==='save'?'جارٍ الحفظ...':'حفظ كمسودة'}</button><small>بعد الحفظ يمكنك مراجعته وإرساله للعميل.</small></aside></form>:mode==='offers'?<OfferList offers={offers} clients={clients} busy={busy} onView={viewOffer} onSend={sendOffer}/>:<InvoiceList invoices={invoices} clients={clients}/>}
+
+    {detail&&<div className="offer-modal" onMouseDown={event=>{if(event.target===event.currentTarget)closeDetail()}}><section ref={detailRef} role="dialog" aria-modal="true" aria-labelledby="offer-detail-title" className="offer-dialog"><button className="offer-dialog-close" onClick={closeDetail} aria-label="إغلاق تفاصيل العرض"><X/></button>{detailLoading?<Empty icon={RefreshCw} spin title="جارٍ تحميل العرض" text=""/>:<><div className="offer-detail-head"><span>{detail.offer_number}</span><h3 id="offer-detail-title">{detail.title}</h3><p>{clientName(detail.client_id)} · صالح حتى {detail.valid_until||'غير محدد'}</p></div><div className="offer-detail-lines">{detail.items?.map(item=><article key={item.id}><div><strong>{item.description}</strong><span>{Number(item.quantity)} {unitName(item.unit)} × {money(item.unit_price)}</span></div><b>{money(item.total)}</b></article>)}</div><div className="offer-detail-totals"><span>الإجمالي الفرعي <b>{money(detail.subtotal)}</b></span><span>الخصم <b>{money(detail.discount)}</b></span><strong>الإجمالي <b>{money(detail.total)}</b></strong></div>{detail.notes&&<p className="offer-detail-note">{detail.notes}</p>}<button className="offer-print" onClick={()=>window.print()}><Printer/> طباعة / حفظ PDF</button></>}</section></div>}
+  </div>;
+}
+
+function Metric({label,value,tone=''}){return <article className={tone}><span>{label}</span><strong>{value}</strong></article>}
+function Status({value}){const meta=STATUS[value]||[value,value];return <span className={`offer-status ${meta[1]}`}>{meta[0]}</span>}
+function OfferList({offers,clients,busy,onView,onSend}){const{currentUser}=useData();const canSend=['owner','admin','operations'].includes(currentUser?.role);const name=id=>clients.find(client=>Number(client.id)===Number(id))?.name||'عميل';if(!offers.length)return <Empty icon={FileText} title="لا توجد عروض محفوظة" text="ابدأ بتركيب أول عرض تجاري للعميل."/>;return <div className="offer-table-wrap"><table><thead><tr><th>رقم العرض</th><th>العميل والعنوان</th><th>القيمة</th><th>الصلاحية</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>{offers.map(offer=><tr key={offer.id}><td><b>{offer.offer_number}</b><span>{arabicDate(offer.created_at)}</span></td><td><strong>{name(offer.client_id)}</strong><span>{offer.title}</span></td><td><strong>{money(offer.total)}</strong></td><td>{arabicDate(offer.valid_until)}</td><td><Status value={offer.status}/></td><td><div className="offer-row-actions"><button onClick={event=>onView(event,offer)}><Eye/> عرض</button>{canSend&&offer.status==='draft'&&<button className="send" disabled={busy===`send-${offer.id}`} onClick={()=>onSend(offer)}><Send/> {busy===`send-${offer.id}`?'جارٍ...':'إرسال'}</button>}</div></td></tr>)}</tbody></table></div>}
+function InvoiceList({invoices,clients}){const name=id=>clients.find(client=>Number(client.id)===Number(id))?.name||'عميل';if(!invoices.length)return <Empty icon={Banknote} title="لا توجد فواتير بعد" text="تُنشأ الفاتورة تلقائيًا عند قبول عرض السعر."/>;return <div className="invoice-grid">{invoices.map(invoice=>{const due=Math.max(0,Number(invoice.total)-Number(invoice.paid_amount));return <article key={invoice.id}><header><div><span>{invoice.invoice_number}</span><h3>{name(invoice.client_id)}</h3></div><Status value={invoice.status}/></header><div className="invoice-value"><span>الإجمالي</span><strong>{money(invoice.total)}</strong></div><dl><div><dt>مدفوع</dt><dd>{money(invoice.paid_amount)}</dd></div><div><dt>متبقي</dt><dd className={due?'due':''}>{money(due)}</dd></div><div><dt>الإصدار</dt><dd>{arabicDate(invoice.issued_at)}</dd></div><div><dt>الاستحقاق</dt><dd>{arabicDate(invoice.due_at)}</dd></div></dl></article>})}</div>}
+function Empty({icon:Icon,title,text,spin}){return <div className="offer-empty"><Icon className={spin?'offer-spin':''}/><h3>{title}</h3>{text&&<p>{text}</p>}</div>}

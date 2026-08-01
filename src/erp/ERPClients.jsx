@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { UserPlus, Edit, Trash2, Search, Phone, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText, Camera, Calendar, Tag, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ERPAddBookingModal from './ERPAddBookingModal';
+import { useData } from '../store/DataContext';
 
 let globalClientsCache = null;
 let globalSystemServicesCache = null;
@@ -10,6 +11,7 @@ let globalClientsLastFetch = 0;
 
 const ERPClients = () => {
   const navigate = useNavigate();
+  const { currentUser: sessionUser } = useData();
   const [clients, setClients] = useState(globalClientsCache || []);
   const [loading, setLoading] = useState(!globalClientsCache);
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,7 +34,10 @@ const ERPClients = () => {
   
   // Modal states
   const [isEditing, setIsEditing] = useState(false);
-  const [currentClient, setCurrentClient] = useState({ name: '', phone1: '', phone2: '', job: '', color: '#4318ff', debt: 0, points: 0 });
+  const [currentClient, setCurrentClient] = useState({ name: '', phone1: '', phone2: '', email: '', job: '', color: '#4318ff', debt: 0, points: 0, enablePortal: true, portalPassword: '' });
+  const [clientSaveState, setClientSaveState] = useState({ busy: false, type: '', message: '' });
+  const [accessPassword, setAccessPassword] = useState('');
+  const [accessBusy, setAccessBusy] = useState(false);
   const [financeAction, setFinanceAction] = useState('pay_debt');
   const [financeAmount, setFinanceAmount] = useState('');
   const [financeMethod, setFinanceMethod] = useState('كاش');
@@ -229,20 +234,59 @@ const ERPClients = () => {
 
   const handleSaveClient = async (e) => {
     e.preventDefault();
+    setClientSaveState({ busy: true, type: '', message: '' });
     if (isEditing) {
       const { error } = await supabase.from('clients').update({ 
-          name: currentClient.name, phone1: currentClient.phone1, phone2: currentClient.phone2, 
+          name: currentClient.name, phone1: currentClient.phone1, phone2: currentClient.phone2, email: currentClient.email || null,
           job: currentClient.job, color: currentClient.color
       }).eq('id', currentClient.id);
-      if (!error) fetchClients();
+      if (error) {
+        setClientSaveState({ busy: false, type: 'error', message: error.message || 'تعذر تحديث بيانات العميل.' });
+        return;
+      }
+      await fetchClients(true);
     } else {
-      const { error } = await supabase.from('clients').insert([{ 
-          name: currentClient.name, phone1: currentClient.phone1, phone2: currentClient.phone2, 
-          job: currentClient.job, color: currentClient.color, points: 0, debt: 0
-      }]);
-      if (!error) fetchClients();
+      if (currentClient.enablePortal && currentClient.portalPassword.length < 10) {
+        setClientSaveState({ busy: false, type: 'error', message: 'كلمة مرور لوحة العميل يجب ألا تقل عن 10 أحرف.' });
+        return;
+      }
+      const { error } = await supabase.request('/clients', {
+        method: 'POST',
+        body: JSON.stringify({ name: currentClient.name, phone1: currentClient.phone1, phone2: currentClient.phone2 || null,
+          email: currentClient.email || null, job: currentClient.job || null, color: currentClient.color,
+          portal_password: currentClient.enablePortal ? currentClient.portalPassword : '' }),
+      });
+      if (error) {
+        setClientSaveState({ busy: false, type: 'error', message: error.message || 'تعذر إنشاء العميل.' });
+        return;
+      }
+      setCurrentClient(prev => ({ ...prev, portalPassword: '' }));
+      await fetchClients(true);
     }
-    setIsClientModalOpen(false);
+    setClientSaveState({ busy: false, type: 'success', message: isEditing ? 'تم تحديث بيانات العميل بنجاح.' : 'تم إنشاء العميل وبيانات دخوله بأمان.' });
+    window.setTimeout(() => {
+      setIsClientModalOpen(false);
+      setClientSaveState({ busy: false, type: '', message: '' });
+    }, 900);
+  };
+
+  const handleClientAccess = async () => {
+    if (!currentClient?.id || accessPassword.length < 10) {
+      setClientSaveState({ busy: false, type: 'error', message: 'كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.' });
+      return;
+    }
+    setAccessBusy(true);
+    setClientSaveState({ busy: false, type: '', message: '' });
+    const { error } = await supabase.request(`/clients/${currentClient.id}/access`, {
+      method: 'POST', body: JSON.stringify({ password: accessPassword }),
+    });
+    setAccessBusy(false);
+    if (error) {
+      setClientSaveState({ busy: false, type: 'error', message: error.message || 'تعذر تعيين كلمة مرور لوحة العميل.' });
+      return;
+    }
+    setAccessPassword('');
+    setClientSaveState({ busy: false, type: 'success', message: 'تم تعيين كلمة مرور لوحة العميل. لن يتم عرضها أو حفظها في الواجهة.' });
   };
 
   const deleteClient = async (id, name) => {
@@ -529,7 +573,7 @@ const ERPClients = () => {
             <option value="default">حسب الإضافة (الأحدث)</option>
             <option value="alpha">أبجدياً (أ - ي)</option>
           </select>
-          <button className="erp-new-client-btn" onClick={() => { setIsEditing(false); setCurrentClient({ name: '', phone1: '', phone2: '', job: '', color: '#4318ff', debt: 0, points: 0 }); setIsClientModalOpen(true); }} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 20px', borderRadius: '50rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
+          <button className="erp-new-client-btn" onClick={() => { setIsEditing(false); setClientSaveState({ busy: false, type: '', message: '' }); setAccessPassword(''); setCurrentClient({ name: '', phone1: '', phone2: '', email: '', job: '', color: '#4318ff', debt: 0, points: 0, enablePortal: true, portalPassword: '' }); setIsClientModalOpen(true); }} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 20px', borderRadius: '50rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
             <UserPlus size={18} /> عميل جديد
           </button>
         </div>
@@ -601,7 +645,7 @@ const ERPClients = () => {
                       </td>
                       <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                          <button onClick={(e) => { e.stopPropagation(); setCurrentClient(client); setIsEditing(true); setIsClientModalOpen(true); }} style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd', border: 'none', width: '35px', height: '35px', borderRadius: '10px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: '0.2s' }}>
+                          <button onClick={(e) => { e.stopPropagation(); setCurrentClient({ ...client, email: client.email || '', portalPassword: '' }); setAccessPassword(''); setClientSaveState({ busy: false, type: '', message: '' }); setIsEditing(true); setIsClientModalOpen(true); }} style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd', border: 'none', width: '35px', height: '35px', borderRadius: '10px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: '0.2s' }}>
                             <Edit size={16} />
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); deleteClient(client.id, client.name); }} style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', border: 'none', width: '35px', height: '35px', borderRadius: '10px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: '0.2s' }}>
@@ -642,7 +686,7 @@ const ERPClients = () => {
                       <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff' }}>
                         <CalendarPlus size={20} />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); setCurrentClient(client); setIsEditing(true); setIsClientModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd' }}>
+                      <button onClick={(e) => { e.stopPropagation(); setCurrentClient({ ...client, email: client.email || '', portalPassword: '' }); setAccessPassword(''); setClientSaveState({ busy: false, type: '', message: '' }); setIsEditing(true); setIsClientModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd' }}>
                         <Edit size={20} />
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); deleteClient(client.id, client.name); }} className="mobile-client-action-btn" style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545' }}>
@@ -835,11 +879,19 @@ const ERPClients = () => {
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>واتساب (أساسي)</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'rgba(25, 135, 84, 0.15)', color: '#198754', fontWeight: 'bold' }} value={currentClient.phone1} onChange={e => setCurrentClient({...currentClient, phone1: e.target.value})} required /></div>
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>رقم ثانٍ (اختياري)</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.phone2} onChange={e => setCurrentClient({...currentClient, phone2: e.target.value})} /></div>
               </div>
+              <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>البريد الإلكتروني (اختياري)</label><input type="email" dir="ltr" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.email || ''} onChange={e => setCurrentClient({...currentClient, email: e.target.value})} placeholder="client@example.com" /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الوظيفة / ملاحظة</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.job} onChange={e => setCurrentClient({...currentClient, job: e.target.value})} /></div>
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>اللون</label><input type="color" style={{ width: '100%', padding: '5px', borderRadius: '0.5rem', border: 'none', height: '45px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }} value={currentClient.color} onChange={e => setCurrentClient({...currentClient, color: e.target.value})} /></div>
               </div>
-              <button type="submit" style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: isEditing ? 'var(--erp-text-main)' : '#0d6efd', color: 'var(--erp-surface)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '15px', boxShadow: '0 .5rem 1rem rgba(0,0,0,.15)' }}>{isEditing ? 'تحديث البيانات' : 'حفظ العميل'}</button>
+              {!isEditing && <div style={{ background: 'rgba(67,24,255,.07)', border: '1px solid rgba(67,24,255,.2)', borderRadius: '12px', padding: '14px' }}>
+                <label style={{ display: 'flex', gap: '9px', alignItems: 'center', color: 'var(--erp-text-main)', fontSize: '.82rem', fontWeight: 800, cursor: 'pointer' }}><input type="checkbox" checked={Boolean(currentClient.enablePortal)} onChange={e => setCurrentClient({ ...currentClient, enablePortal: e.target.checked, portalPassword: '' })}/> تفعيل دخول العميل إلى لوحته</label>
+                <p style={{ color: 'var(--erp-text-muted)', fontSize: '.7rem', margin: '7px 0 0' }}>سيستخدم العميل رقم الهاتف الأساسي مع كلمة المرور للدخول.</p>
+                {currentClient.enablePortal && <div style={{ marginTop: '12px' }}><label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>كلمة مرور لوحة العميل</label><input type="password" minLength="10" autoComplete="new-password" required value={currentClient.portalPassword || ''} onChange={e => setCurrentClient({ ...currentClient, portalPassword: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }} placeholder="10 أحرف على الأقل"/><small style={{ color: 'var(--erp-text-muted)', fontSize: '.66rem' }}>لن تظهر كلمة المرور أو تُحفظ هنا بعد إنشاء الحساب.</small></div>}
+              </div>}
+              {isEditing && ['owner','admin'].includes(sessionUser?.role) && <div style={{ background: 'rgba(13,110,253,.06)', border: '1px solid rgba(13,110,253,.18)', borderRadius: '12px', padding: '14px' }}><strong style={{ display: 'block', color: 'var(--erp-text-main)', fontSize: '.82rem', marginBottom: '5px' }}>تعيين / تغيير كلمة مرور لوحة العميل</strong><p style={{ color: 'var(--erp-text-muted)', fontSize: '.68rem', margin: '0 0 10px' }}>إجراء مستقل وآمن؛ لا يمكن مشاهدة كلمة المرور الحالية.</p><div style={{ display: 'flex', gap: '8px' }}><input type="password" minLength="10" autoComplete="new-password" value={accessPassword} onChange={e => setAccessPassword(e.target.value)} placeholder="كلمة مرور جديدة – 10 أحرف" style={{ flex: 1, minWidth: 0, padding: '11px', borderRadius: '8px', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }}/><button type="button" disabled={accessBusy || accessPassword.length < 10} onClick={handleClientAccess} style={{ border: 0, borderRadius: '8px', padding: '0 13px', background: '#0d6efd', color: 'white', fontWeight: 800, cursor: 'pointer', opacity: accessBusy || accessPassword.length < 10 ? .5 : 1 }}>{accessBusy ? 'جارٍ الحفظ...' : 'تعيين'}</button></div></div>}
+              {clientSaveState.message && <div role="status" style={{ padding: '11px 13px', borderRadius: '9px', fontSize: '.76rem', background: clientSaveState.type === 'error' ? 'rgba(220,53,69,.1)' : 'rgba(25,135,84,.1)', color: clientSaveState.type === 'error' ? '#dc3545' : '#198754', border: `1px solid ${clientSaveState.type === 'error' ? 'rgba(220,53,69,.25)' : 'rgba(25,135,84,.25)'}` }}>{clientSaveState.message}</div>}
+              <button type="submit" disabled={clientSaveState.busy} style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: isEditing ? 'var(--erp-text-main)' : '#0d6efd', color: 'var(--erp-surface)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '15px', boxShadow: '0 .5rem 1rem rgba(0,0,0,.15)', opacity: clientSaveState.busy ? .6 : 1 }}>{clientSaveState.busy ? 'جارٍ الحفظ...' : isEditing ? 'تحديث البيانات' : 'حفظ العميل'}</button>
             </form>
           </div>
         </div>

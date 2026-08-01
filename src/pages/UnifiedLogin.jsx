@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../store/DataContext';
-import { supabase } from '../supabaseClient';
 import { Lock, User } from 'lucide-react';
 import './UnifiedLogin.css';
 
@@ -19,31 +18,11 @@ const UnifiedLogin = () => {
     setLoading(true);
     setError('');
 
-    // 1. Check if it's an Admin ERP login
-    const success = await loginErp(identifier, password);
-    if (success) {
-      navigate('/erp');
+    const user = await loginErp(identifier, password);
+    if (user) {
+      navigate(user.role === 'client' ? '/dashboard' : '/erp');
       return;
     }
-
-    // 2. Check if it's a Teacher login (by phone number)
-    try {
-      const { data: clientData, error: clientError } = await supabase
-        .from('clients')
-        .select('*')
-        .or(`phone1.eq.${identifier},phone2.eq.${identifier}`)
-        .single();
-
-      if (!clientError && clientData) {
-        localStorage.setItem('mt_client_phone', identifier);
-        navigate('/dashboard');
-        return;
-      }
-    } catch (err) {
-      console.error('Login error:', err);
-    }
-
-    // 3. If neither works
     setError('بيانات الدخول غير صحيحة أو غير مسجلة لدينا.');
     setLoading(false);
   };
@@ -78,10 +57,11 @@ const UnifiedLogin = () => {
               <Lock size={18} style={{position: 'absolute', right: '15px', top: '15px', color: '#8c8c8c'}} />
               <input
                 type="password"
-                placeholder="كلمة المرور (اختياري للمعلمين)"
+                placeholder="كلمة المرور"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 dir="ltr"
+                required
                 className="unified-input w-100"
                 style={{paddingRight: '45px'}}
               />

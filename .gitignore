@@ -11,6 +11,14 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+api/config.php
+database/mysql/900_legacy_data.sql
+database/mysql/900_legacy_report.json
+company_ultra_v3.db
+api/uploads/
 
 # Editor directories and files
 .vscode/*
