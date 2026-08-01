@@ -75,63 +75,6 @@ const defaultData = {
       { id: 12, url: 'https://images.unsplash.com/photo-1530635439971-b65fa367c330?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', alt: 'Audio mixing' }
     ]
   },
-  testimonials: [
-    {
-      id: 1,
-      companyAr: "شركة الربوة للاستثمار الزراعي والتصنيع الغذائي",
-      companyEn: "Al-Rabwa for Agricultural Investment & Food Processing",
-      authorAr: "أ/ جابر إبراهيم عبد الفتاح",
-      authorEn: "Mr. Jaber Ibrahim Abdel Fattah",
-      roleAr: "رئيس مجلس الإدارة",
-      roleEn: "Chairman of the Board",
-      textAr: "مكتب AFC هو الشريك الاستراتيجي الحقيقي لنجاحنا. بفضل المتابعة والاحترافية من الأستاذة ولاء العشماوي وفريقها، أنهينا كافة إجراءات وتراخيص المصنع في وقت قياسي وبسلاسة تامة. ننصح بالتعامل معهم وبشدة!",
-      textEn: "AFC Firm is the true strategic partner behind our success. Thanks to the continuous follow-up and professionalism of Ms. Walaa and her team, we completed all factory procedures and licensing in record time and with total ease. We highly recommend working with them."
-    },
-    {
-      id: 2,
-      companyAr: "شركة أبكس إم جي للمقاولات العامة",
-      companyEn: "Apex MG for General Contracting",
-      authorAr: "أ/ محمود جمال",
-      authorEn: "Mr. Mahmoud Gamal",
-      roleAr: "رئيس مجلس الإدارة",
-      roleEn: "Chairman of the Board",
-      textAr: "في مجال المقاولات، الوقت والدقة هما أساس كل شيء. مكتب AFC بقيادة الأستاذة ولاء العشماوي وفريقها، قدّم لنا نموذجاً استثنائياً في السرعة والانضباط؛ أنهوا لنا كافة الإجراءات والتأسيس بدقة متناهية وبدون أي تعقيدات. سند حقيقي وأمان قانوني لكل مستثمر.",
-      textEn: "In the contracting sector, time and accuracy are everything. AFC Firm, led by Ms. Walaa El-Ashmawy, provided us with an exceptional example of speed and discipline. They finalized all our incorporation procedures with utmost precision and zero complications. A true pillar of support and legal peace of mind for any investor."
-    },
-    {
-      id: 3,
-      companyAr: "شركة بيوندرا للتجارة",
-      companyEn: "Beyondra Trading",
-      authorAr: "أ/ محمد شمس الدين",
-      authorEn: "Mr. Mohamed Shams El-Din",
-      roleAr: "رئيس مجلس الإدارة",
-      roleEn: "Chairman of the Board",
-      textAr: "كمستثمر أجنبي في مجال تجارة الجملة والتجزئة، كانت إجراءات الإقامة والتراخيص تشكل تحدياً كبيراً بالنسبة لي. بفضل الله ثم الدعم الاحترافي من الأستاذة ولاء العشماوي وفريق مكتب AFC، تم حل كافة العقبات وإنهاء إجراءات الإقامة والورقيات بسلاسة وأمان تام. خيار استثماري يضمن لك راحة البال في مصر.",
-      textEn: "As a foreign investor in the wholesale and retail sector, handling residency procedures and licensing was a major challenge for me. Thanks to God, and then the professional support of Ms. Walaa El-Ashmawy and the AFC team, all obstacles were overcome, and my residency and legal paperwork were finalized smoothly and with complete peace of mind. Truly an investment partner that guarantees total peace of mind in Egypt."
-    },
-    {
-      id: 4,
-      companyAr: "شركة راجنور للمقاولات العامة",
-      companyEn: "Ragnor General Contracting",
-      authorAr: "المهندس محمد إسماعيل",
-      authorEn: "Eng. Mohamed Ismail",
-      roleAr: "رئيس مجلس الإدارة",
-      roleEn: "Chairman of the Board",
-      textAr: "واجهتنا صعوبات كثيرة أثناء مرحلة التأسيس، ولكن مع مكتب AFC كانت الحلول دائماً حاضرة. الأستاذة ولاء العشماوي وفريقها أثبتوا خبرة عالية في التعامل مع كافة المعاملات المعقدة حتى اكتمل تأسيس شركتنا بنجاح. كل الشكر والتقدير لجهودكم الملموسة.",
-      textEn: "We faced numerous challenges during the incorporation stage, but with AFC Firm, solutions were always at hand. Ms. Walaa El-Ashmawy and her team demonstrated deep expertise in handling complex procedures until our company was successfully established. Sincere thanks and appreciation for your tangible efforts."
-    },
-    {
-      id: 5,
-      companyAr: "شركة الثلاثية لتشغيل المعادن",
-      companyEn: "Al-Tholathia for Metal Machining",
-      authorAr: "المهندس إسلام عماد",
-      authorEn: "Eng. Islam Emad",
-      roleAr: "رئيس مجلس الإدارة",
-      roleEn: "Chairman of the Board",
-      textAr: "القطاع الصناعي وتشغيل المعادن يتطلب دقة واحترافية متكاملة في المعاملات المالية والقانونية. بفضل الله ثم الدعم الكبير من الأستاذة ولاء العشماوي وفريق مكتب AFC، تم حل كافة العقبات وإنهاء إجراءات التأسيس والتراخيص بكل سلاسة وبأعلى درجات الكفاءة. شريك نجاح حقيقي نعتز به.",
-      textEn: "The industrial and metal machining sector requires total precision and professionalism in financial and legal matters. Thanks to God, and then the incredible support of Ms. Walaa El-Ashmawy and the AFC team, all obstacles were resolved, and our incorporation and licensing procedures were completed smoothly and with the highest level of efficiency. Truly a valued success partner!"
-    }
-  ],
   offers: [
     { id: 1, title: 'خصم 20% على باقة 50 ساعة', discount: '20%', desc: 'احجز الآن واستفد من الخصم لفترة محدودة على باقة الـ 50 ساعة التصوير.', is_active: true }
   ],
