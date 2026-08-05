@@ -1,6 +1,7 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { activateDemoMode, deactivateDemoMode } from '../lib/demoDataClient';
+import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../data/studioGalleries';
 import './DataContext.css';
 
 const OFFICIAL_CONTACT_EMAIL = 'info@multitaskagency.com';
@@ -118,8 +119,17 @@ const defaultData = {
   }
 };
 
+// Keep the original company galleries available even before remote settings load.
+defaultData.studioCategories = STUDIO_CATEGORIES;
+defaultData.studio = STUDIO_GALLERIES;
+
 const withOfficialContactEmail = (data) => ({
   ...data,
+  studioCategories: data?.studioCategories || STUDIO_CATEGORIES,
+  studio: {
+    ...STUDIO_GALLERIES,
+    ...(data?.studio || {}),
+  },
   contact: {
     ...(data?.contact || {}),
     email: OFFICIAL_CONTACT_EMAIL,
@@ -146,15 +156,17 @@ export const DataProvider = ({ children }) => {
   const [isClientAuth, setIsClientAuth] = useState(restoredPreview?.role === 'client');
   const [currentUser, setCurrentUser] = useState(restoredPreview);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(Boolean(restoredPreview));
+  const authRevisionRef = useRef(0);
 
-  const applySession = (session) => {
+  const applySession = useCallback((session) => {
     const user = session?.user || null;
     const role = user?.role;
     setCurrentUser(user);
     setIsClientAuth(role === 'client');
     setIsErpAuth(staffRoles.includes(role));
     setIsAdminAuth(role === 'owner' || role === 'admin');
-  };
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -207,21 +219,29 @@ export const DataProvider = ({ children }) => {
 
     // Authentication is decided by the server role, never by localStorage.
     if (!restoredPreview) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        applySession(session);
-      });
+      const restoreRevision = authRevisionRef.current;
+      supabase.auth.getSession()
+        .then(({ data: { session } }) => {
+          // A login may finish while this initial request is still in flight.
+          // Never let that older response clear the newly authenticated user.
+          if (authRevisionRef.current === restoreRevision) {
+            applySession(session);
+          }
+        })
+        .finally(() => setIsAuthReady(true));
     }
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       applySession(session);
+      setIsAuthReady(true);
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [restoredPreview]);
+  }, [applySession, restoredPreview]);
 
   useEffect(() => {
     localStorage.setItem('mt_agency_data_v5', JSON.stringify(siteData));
@@ -292,6 +312,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const login = async (username, password) => {
+    authRevisionRef.current += 1;
     const { data, error } = await supabase.auth.signInWithPassword({
       email: username,
       password: password
@@ -306,15 +327,18 @@ export const DataProvider = ({ children }) => {
 
   const logout = async () => {
     if (import.meta.env.DEV && currentUser?.is_local_preview) {
+      authRevisionRef.current += 1;
       deactivateDemoMode();
       sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
       applySession(null);
       return;
     }
+    authRevisionRef.current += 1;
     await supabase.auth.signOut();
   };
 
   const loginErp = async (username, password) => {
+    authRevisionRef.current += 1;
     if (import.meta.env.DEV && username === 'local-owner' && password === 'local-preview') {
       activateDemoMode('owner');
       const localOwner = {
@@ -363,11 +387,13 @@ export const DataProvider = ({ children }) => {
 
   const logoutErp = async () => {
     if (import.meta.env.DEV && currentUser?.is_local_preview) {
+      authRevisionRef.current += 1;
       deactivateDemoMode();
       sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
       applySession(null);
       return;
     }
+    authRevisionRef.current += 1;
     await supabase.auth.signOut();
   };
 
@@ -397,6 +423,7 @@ export const DataProvider = ({ children }) => {
       updateMultipleSections,
       isAdminAuth, 
       isClientAuth,
+      isAuthReady,
       currentUser,
       login, 
       logout,

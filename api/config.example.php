@@ -14,7 +14,9 @@ return [
         'environment' => 'production',
         'allowed_origin' => 'https://your-domain.example',
         'setup_key' => 'replace-with-a-long-random-setup-key',
-        'session_days' => 14,
+        'session_days' => 7,
+        'session_idle_minutes' => 120,
+        'max_sessions_per_user' => 5,
         // Keep customer documents outside public_html.
         'upload_dir' => dirname(__DIR__, 2) . '/private_uploads/payment-proofs',
         'max_upload_bytes' => 5 * 1024 * 1024,

@@ -16,7 +16,12 @@ dist-ssr
 api/config.php
 database/mysql/900_legacy_data.sql
 database/mysql/900_legacy_report.json
-company_ultra_v3.db
+# Local database snapshots may contain customer or authentication data.
+*.db
+*.sqlite
+*.sqlite3
+*.sql.gz
+Backup_*
 api/uploads/
 
 # Editor directories and files

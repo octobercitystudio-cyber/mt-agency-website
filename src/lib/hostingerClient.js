@@ -1,5 +1,14 @@
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
+const readCookie = (name) => document.cookie
+  .split('; ')
+  .find((item) => item.startsWith(`${name}=`))
+  ?.slice(name.length + 1) || '';
+
+const csrfToken = () => decodeURIComponent(
+  readCookie('__Host-mt_csrf') || readCookie('mt_csrf') || '',
+);
+
 const toError = (payload, fallback = 'تعذر الاتصال بالخادم.') => {
   const source = payload?.error || payload;
   const error = new Error(source?.message || fallback);
@@ -9,10 +18,18 @@ const toError = (payload, fallback = 'تعذر الاتصال بالخادم.') 
 };
 
 const apiRequest = async (path, options = {}) => {
+  const method = (options.method || 'GET').toUpperCase();
+  const headers = { ...(options.headers || {}) };
+  if (!(options.body instanceof FormData)) headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const token = csrfToken();
+    if (token) headers['X-CSRF-Token'] = token;
+  }
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
-    headers: options.body instanceof FormData ? undefined : { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
+    method,
+    headers,
   });
 
   const payload = await response.json().catch(() => null);

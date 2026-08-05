@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import { Lock, User } from 'lucide-react';
@@ -10,21 +10,32 @@ const UnifiedLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { loginErp } = useData();
+  const { loginErp, isAuthReady, currentUser } = useData();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthReady || !currentUser?.role) return;
+    navigate(currentUser.role === 'client' ? '/dashboard' : '/erp', { replace: true });
+  }, [currentUser, isAuthReady, navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!isAuthReady) return;
     setLoading(true);
     setError('');
 
-    const user = await loginErp(identifier, password);
-    if (user) {
-      navigate(user.role === 'client' ? '/dashboard' : '/erp');
-      return;
+    try {
+      const user = await loginErp(identifier.trim(), password);
+      if (user) {
+        navigate(user.role === 'client' ? '/dashboard' : '/erp', { replace: true });
+        return;
+      }
+      setError('بيانات الدخول غير صحيحة أو غير مسجلة لدينا.');
+    } catch {
+      setError('تعذر الاتصال بالخادم. حاول مرة أخرى.');
+    } finally {
+      setLoading(false);
     }
-    setError('بيانات الدخول غير صحيحة أو غير مسجلة لدينا.');
-    setLoading(false);
   };
 
   const handleLocalPreview = async () => {
@@ -93,8 +104,8 @@ const UnifiedLogin = () => {
 
             {error && <p className="error-msg">{error}</p>}
             
-            <button type="submit" className="btn-modern-primary w-100" disabled={loading} style={{marginTop: '10px'}}>
-              {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
+            <button type="submit" className="btn-modern-primary w-100" disabled={loading || !isAuthReady} style={{marginTop: '10px'}}>
+              {loading || !isAuthReady ? 'جاري التحقق...' : 'تسجيل الدخول'}
             </button>
 
             {import.meta.env.DEV && (

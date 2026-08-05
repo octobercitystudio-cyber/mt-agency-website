@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 import './About.css';
@@ -17,9 +16,9 @@ const About = () => {
           <h2 className="section-title">{t('about.title1')} <span className="text-gradient">{t('about.title2')}</span></h2>
           
           <div className="about-text">
-            <p dangerouslySetInnerHTML={{ __html: isEnglish ? aboutData.p1En : aboutData.p1 }}></p>
-            <p dangerouslySetInnerHTML={{ __html: isEnglish ? aboutData.p2En : aboutData.p2 }}></p>
-            <p dangerouslySetInnerHTML={{ __html: isEnglish ? aboutData.p3En : aboutData.p3 }}></p>
+            <p>{isEnglish ? aboutData.p1En : aboutData.p1}</p>
+            <p>{isEnglish ? aboutData.p2En : aboutData.p2}</p>
+            <p>{isEnglish ? aboutData.p3En : aboutData.p3}</p>
           </div>
           
           <div className="about-stats">

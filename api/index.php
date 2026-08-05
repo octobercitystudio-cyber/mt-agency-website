@@ -6,6 +6,9 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('Referrer-Policy: same-origin');
 header("Permissions-Policy: camera=(), microphone=(), geolocation=()");
+header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 $configFile = __DIR__ . '/config.php';
 if (!is_file($configFile)) {
@@ -15,9 +18,16 @@ if (!is_file($configFile)) {
 }
 
 $config = require $configFile;
-$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-$allowedOrigin = rtrim((string)($config['app']['allowed_origin'] ?? ''), '/');
-if ($origin !== '' && $allowedOrigin !== '' && rtrim($origin, '/') === $allowedOrigin) {
+$origin = rtrim((string)($_SERVER['HTTP_ORIGIN'] ?? ''), '/');
+$configuredOrigins = $config['app']['allowed_origins'] ?? [$config['app']['allowed_origin'] ?? ''];
+if (!is_array($configuredOrigins)) $configuredOrigins = [$configuredOrigins];
+$allowedOrigins = array_values(array_filter(array_map(fn($value) => rtrim((string)$value, '/'), $configuredOrigins)));
+if ($origin !== '' && !in_array($origin, $allowedOrigins, true)) {
+    http_response_code(403);
+    echo json_encode(['data' => null, 'error' => ['code' => 'origin_not_allowed', 'message' => 'مصدر الطلب غير مسموح.']], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Access-Control-Allow-Credentials: true');
     header('Vary: Origin');
@@ -47,6 +57,8 @@ set_exception_handler(function (Throwable $error): never {
 });
 
 function body(): array {
+    $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($contentLength > 1048576) fail('حجم الطلب أكبر من المسموح.', 413, 'request_too_large');
     $raw = file_get_contents('php://input');
     if ($raw === false || trim($raw) === '') return [];
     $decoded = json_decode($raw, true);
@@ -101,6 +113,138 @@ function requestIpHash(): string {
     return hash('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
 }
 
+function requestUserAgentHash(): string {
+    return hash('sha256', (string)($_SERVER['HTTP_USER_AGENT'] ?? 'unknown'));
+}
+
+function isProduction(array $config): bool {
+    return strtolower((string)($config['app']['environment'] ?? 'production')) === 'production';
+}
+
+function isSecureRequest(array $config): bool {
+    if (isProduction($config)) return true;
+    $https = strtolower((string)($_SERVER['HTTPS'] ?? ''));
+    $forwarded = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    return ($https !== '' && $https !== 'off') || $forwarded === 'https';
+}
+
+function sessionCookieName(array $config): string {
+    return isProduction($config) ? '__Host-mt_session' : 'mt_session';
+}
+
+function csrfCookieName(array $config): string {
+    return isProduction($config) ? '__Host-mt_csrf' : 'mt_csrf';
+}
+
+function sessionToken(array $config): string {
+    $name = sessionCookieName($config);
+    $token = $_COOKIE[$name] ?? '';
+    if ($token === '' && $name !== 'mt_session') $token = $_COOKIE['mt_session'] ?? '';
+    return is_string($token) ? $token : '';
+}
+
+function setCsrfCookie(array $config, ?string $token = null): string {
+    $token ??= bin2hex(random_bytes(32));
+    setcookie(csrfCookieName($config), $token, [
+        'expires' => time() + 86400 * 7,
+        'path' => '/',
+        'secure' => isSecureRequest($config),
+        'httponly' => false,
+        'samesite' => 'Strict',
+    ]);
+    return $token;
+}
+
+function clearAuthCookies(array $config): void {
+    foreach (array_unique([sessionCookieName($config), csrfCookieName($config), 'mt_session', 'mt_csrf']) as $name) {
+        setcookie($name, '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'secure' => str_starts_with($name, '__Host-') || isSecureRequest($config),
+            'httponly' => str_contains($name, 'session'),
+            'samesite' => 'Strict',
+        ]);
+    }
+}
+
+function requireCsrf(array $config, string $path, string $method): void {
+    if (in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) return;
+    if (in_array($path, ['/auth/login', '/auth/bootstrap', '/cron/whatsapp-queue'], true)) return;
+    $cookie = (string)($_COOKIE[csrfCookieName($config)] ?? $_COOKIE['mt_csrf'] ?? '');
+    $header = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if ($cookie === '' || $header === '' || !hash_equals($cookie, $header)) {
+        fail('انتهت صلاحية حماية الطلب. حدّث الصفحة ثم حاول مرة أخرى.', 403, 'csrf_failed');
+    }
+}
+
+function validPassword(string $password): bool {
+    $length = strlen($password);
+    return $length >= 12 && $length <= 128
+        && preg_match('/[\p{L}]/u', $password) === 1
+        && preg_match('/\d/', $password) === 1
+        && preg_match('/[\x00-\x1F\x7F]/', $password) !== 1;
+}
+
+function loginIdentity(string $identifier): string {
+    $email = strtolower(trim($identifier));
+    if (str_contains($email, '@')) return $email;
+    $phone = normalizePhone($identifier);
+    return $phone !== '' ? $phone : $email;
+}
+
+function authLimitKey(string $scope, string $value): string {
+    return hash('sha256', $scope . ':' . $value);
+}
+
+function enforceLoginRateLimit(PDO $pdo, string $identifier): void {
+    $keys = [
+        authLimitKey('account', loginIdentity($identifier)),
+        authLimitKey('ip', requestIpHash()),
+    ];
+    $marks = implode(',', array_fill(0, count($keys), '?'));
+    $stmt = $pdo->prepare("SELECT MAX(blocked_until) FROM auth_rate_limits WHERE limit_key IN ($marks) AND blocked_until > NOW()");
+    $stmt->execute($keys);
+    if ($stmt->fetchColumn()) {
+        usleep(random_int(300000, 650000));
+        fail('تعذر تسجيل الدخول الآن. انتظر قليلاً ثم حاول مرة أخرى.', 429, 'login_temporarily_blocked');
+    }
+}
+
+function recordLoginFailure(PDO $pdo, string $identifier, ?array $user = null): void {
+    $entries = [
+        ['account', authLimitKey('account', loginIdentity($identifier)), 5, 15],
+        ['ip', authLimitKey('ip', requestIpHash()), 20, 60],
+    ];
+    $pdo->beginTransaction();
+    try {
+        foreach ($entries as [$scope, $key, $threshold, $blockMinutes]) {
+            $stmt = $pdo->prepare('SELECT * FROM auth_rate_limits WHERE limit_key=? FOR UPDATE');
+            $stmt->execute([$key]);
+            $row = $stmt->fetch();
+            $windowExpired = !$row || strtotime((string)$row['window_started_at']) < time() - 900;
+            $attempts = $windowExpired ? 1 : (int)$row['attempts'] + 1;
+            $blockedUntil = $attempts >= $threshold ? date('Y-m-d H:i:s', time() + ($blockMinutes * 60)) : null;
+            if ($row) {
+                $pdo->prepare('UPDATE auth_rate_limits SET attempts=?,window_started_at=IF(?,NOW(),window_started_at),blocked_until=?,last_attempt_at=NOW() WHERE id=?')
+                    ->execute([$attempts, $windowExpired ? 1 : 0, $blockedUntil, $row['id']]);
+            } else {
+                $pdo->prepare('INSERT INTO auth_rate_limits (limit_key,scope,attempts,window_started_at,blocked_until,last_attempt_at) VALUES (?,?,1,NOW(),?,NOW())')
+                    ->execute([$key, $scope, $blockedUntil]);
+            }
+        }
+        $pdo->prepare('INSERT INTO auth_security_events (organization_id,user_id,event_type,identifier_hash,ip_hash,user_agent_hash) VALUES (?,?,?,?,?,?)')
+            ->execute([$user['organization_id'] ?? null, $user['id'] ?? null, 'login_failed', hash('sha256', loginIdentity($identifier)), requestIpHash(), requestUserAgentHash()]);
+        $pdo->commit();
+    } catch (Throwable $error) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $error;
+    }
+}
+
+function clearAccountLoginLimit(PDO $pdo, string $identifier): void {
+    $pdo->prepare('DELETE FROM auth_rate_limits WHERE limit_key=?')->execute([authLimitKey('account', loginIdentity($identifier))]);
+}
+
 function db(array $config): PDO {
     static $pdo = null;
     if ($pdo instanceof PDO) return $pdo;
@@ -124,18 +268,28 @@ function routePath(): string {
     return '/' . trim($path, '/');
 }
 
-function sessionUser(PDO $pdo): ?array {
-    $token = $_COOKIE['mt_session'] ?? '';
+function sessionUser(PDO $pdo, array $config): ?array {
+    $token = sessionToken($config);
     if (!is_string($token) || strlen($token) < 40) return null;
+    $idleMinutes = max(15, min(1440, (int)($config['app']['session_idle_minutes'] ?? 120)));
+    $tokenHash = hash('sha256', $token);
+    $userAgentHash = requestUserAgentHash();
     $stmt = $pdo->prepare(
         'SELECT u.id, u.organization_id, u.client_id, u.full_name, u.email, u.phone, u.role, u.permissions
          FROM api_sessions s JOIN users u ON u.id = s.user_id
-         WHERE s.token_hash = ? AND s.expires_at > NOW() AND u.is_active = 1 LIMIT 1'
+         WHERE s.token_hash = ? AND s.expires_at > NOW()
+           AND s.last_used_at > DATE_SUB(NOW(), INTERVAL ' . $idleMinutes . ' MINUTE)
+           AND (s.user_agent_hash IS NULL OR s.user_agent_hash = ?)
+           AND u.is_active = 1 LIMIT 1'
     );
-    $stmt->execute([hash('sha256', $token)]);
+    $stmt->execute([$tokenHash, $userAgentHash]);
     $user = $stmt->fetch();
-    if (!$user) return null;
-    $pdo->prepare('UPDATE api_sessions SET last_used_at = NOW() WHERE token_hash = ?')->execute([hash('sha256', $token)]);
+    if (!$user) {
+        $pdo->prepare('DELETE FROM api_sessions WHERE token_hash = ?')->execute([$tokenHash]);
+        clearAuthCookies($config);
+        return null;
+    }
+    $pdo->prepare('UPDATE api_sessions SET last_used_at = NOW() WHERE token_hash = ? AND last_used_at < DATE_SUB(NOW(), INTERVAL 2 MINUTE)')->execute([$tokenHash]);
     $user['permissions'] = $user['permissions'] ? json_decode($user['permissions'], true) : [];
     return $user;
 }
@@ -149,11 +303,11 @@ function requireRole(array $user, array $roles): void {
     if (!in_array($user['role'], $roles, true)) fail('ليس لديك صلاحية لتنفيذ هذا الإجراء.', 403, 'forbidden');
 }
 
-function setSessionCookie(string $token, int $days): void {
-    setcookie('mt_session', $token, [
+function setSessionCookie(array $config, string $token, int $days): void {
+    setcookie(sessionCookieName($config), $token, [
         'expires' => time() + ($days * 86400),
         'path' => '/',
-        'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+        'secure' => isSecureRequest($config),
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
@@ -706,7 +860,8 @@ function buildFilters(array $definition, array $filters, array &$params, string 
 $pdo = db($config);
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = routePath();
-$user = sessionUser($pdo);
+requireCsrf($config, $path, $method);
+$user = sessionUser($pdo, $config);
 
 if ($path === '/health' && $method === 'GET') {
     $pdo->query('SELECT 1');
@@ -759,12 +914,14 @@ if ($path === '/cron/whatsapp-queue' && $method === 'POST') {
 
 if ($path === '/auth/bootstrap' && $method === 'POST') {
     $payload = body();
-    if (!hash_equals((string)($config['app']['setup_key'] ?? ''), (string)($payload['setup_key'] ?? ''))) fail('مفتاح الإعداد غير صحيح.', 403, 'invalid_setup_key');
+    $setupKey = (string)($config['app']['setup_key'] ?? '');
+    if (strlen($setupKey) < 32) fail('إعداد إنشاء المالك غير آمن على الخادم.', 503, 'unsafe_setup_configuration');
+    if (!hash_equals($setupKey, (string)($payload['setup_key'] ?? ''))) fail('مفتاح الإعداد غير صحيح.', 403, 'invalid_setup_key');
     if ((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() > 0) fail('تم إعداد حساب المالك بالفعل.', 409, 'already_bootstrapped');
     $name = trim((string)($payload['full_name'] ?? ''));
     $email = strtolower(trim((string)($payload['email'] ?? '')));
     $password = (string)($payload['password'] ?? '');
-    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 10) fail('الاسم والبريد وكلمة مرور من 10 أحرف مطلوبة.', 422, 'validation_error');
+    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !validPassword($password)) fail('الاسم والبريد وكلمة مرور قوية من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا مطلوبة.', 422, 'validation_error');
     $stmt = $pdo->prepare("INSERT INTO users (organization_id, full_name, email, password_hash, role) VALUES (1, ?, ?, ?, 'owner')");
     $stmt->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT)]);
     respond(['created' => true], 201);
@@ -775,19 +932,31 @@ if ($path === '/auth/login' && $method === 'POST') {
     $identifier = trim((string)($payload['identifier'] ?? $payload['email'] ?? ''));
     $password = (string)($payload['password'] ?? '');
     if ($identifier === '' || $password === '') fail('أدخل رقم الهاتف أو البريد وكلمة المرور.', 422, 'validation_error');
+    enforceLoginRateLimit($pdo, $identifier);
     $phone = normalizePhone($identifier);
     $stmt = $pdo->prepare('SELECT * FROM users WHERE is_active = 1 AND (LOWER(email) = LOWER(?) OR phone = ? OR phone = ?) LIMIT 1');
     $stmt->execute([$identifier, $identifier, $phone]);
     $found = $stmt->fetch();
     if (!$found || !password_verify($password, $found['password_hash'])) {
-        usleep(250000);
+        recordLoginFailure($pdo, $identifier, $found ?: null);
+        usleep(random_int(300000, 650000));
         fail('بيانات الدخول غير صحيحة.', 401, 'invalid_credentials');
     }
+    clearAccountLoginLimit($pdo, $identifier);
     $rawToken = bin2hex(random_bytes(32));
-    $days = max(1, min(30, (int)($config['app']['session_days'] ?? 14)));
+    $days = max(1, min(7, (int)($config['app']['session_days'] ?? 7)));
     $expiry = (new DateTimeImmutable("+$days days"))->format('Y-m-d H:i:s');
+    $pdo->prepare('DELETE FROM api_sessions WHERE expires_at <= NOW()')->execute();
     $pdo->prepare('INSERT INTO api_sessions (user_id, token_hash, ip_hash, user_agent_hash, expires_at, last_used_at) VALUES (?, ?, ?, ?, ?, NOW())')
-        ->execute([$found['id'], hash('sha256', $rawToken), requestIpHash(), hash('sha256', (string)($_SERVER['HTTP_USER_AGENT'] ?? '')), $expiry]);
+        ->execute([$found['id'], hash('sha256', $rawToken), requestIpHash(), requestUserAgentHash(), $expiry]);
+    $maxSessions = max(1, min(10, (int)($config['app']['max_sessions_per_user'] ?? 5)));
+    $sessions = $pdo->prepare('SELECT id FROM api_sessions WHERE user_id=? ORDER BY last_used_at DESC, id DESC');
+    $sessions->execute([$found['id']]);
+    $expiredSessionIds = array_slice(array_map('intval', array_column($sessions->fetchAll(), 'id')), $maxSessions);
+    if ($expiredSessionIds) {
+        $marks = implode(',', array_fill(0, count($expiredSessionIds), '?'));
+        $pdo->prepare("DELETE FROM api_sessions WHERE id IN ($marks)")->execute($expiredSessionIds);
+    }
     $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')->execute([$found['id']]);
     try {
         attendanceCheckIn($pdo, ['id'=>(int)$found['id'],'organization_id'=>(int)$found['organization_id'],'role'=>$found['role']]);
@@ -795,12 +964,16 @@ if ($path === '/auth/login' && $method === 'POST') {
         // Attendance must never lock a valid employee out. The error remains visible in server logs.
         error_log('[Attendance check-in] ' . $attendanceError->getMessage());
     }
-    setSessionCookie($rawToken, $days);
+    setSessionCookie($config, $rawToken, $days);
+    setCsrfCookie($config);
+    $pdo->prepare('INSERT INTO auth_security_events (organization_id,user_id,event_type,identifier_hash,ip_hash,user_agent_hash) VALUES (?,?,?,?,?,?)')
+        ->execute([$found['organization_id'], $found['id'], 'login_succeeded', hash('sha256', loginIdentity($identifier)), requestIpHash(), requestUserAgentHash()]);
     respond(['session' => ['expires_at' => $expiry], 'user' => ['id'=>(int)$found['id'],'client_id'=>$found['client_id'] ? (int)$found['client_id'] : null,'full_name'=>$found['full_name'],'email'=>$found['email'],'phone'=>$found['phone'],'role'=>$found['role']]]);
 }
 
 if ($path === '/auth/session' && $method === 'GET') {
     if (!$user) respond(['session' => null, 'user' => null]);
+    if (empty($_COOKIE[csrfCookieName($config)])) setCsrfCookie($config);
     try { attendanceCheckIn($pdo, $user); } catch (Throwable $attendanceError) { error_log('[Attendance restored session] '.$attendanceError->getMessage()); }
     respond(['session' => ['active' => true], 'user' => $user]);
 }
@@ -809,8 +982,9 @@ if ($path === '/auth/logout' && $method === 'POST') {
     if ($user) {
         try { attendanceCheckOut($pdo, $user); } catch (Throwable $attendanceError) { error_log('[Attendance check-out] '.$attendanceError->getMessage()); }
     }
-    if (isset($_COOKIE['mt_session'])) $pdo->prepare('DELETE FROM api_sessions WHERE token_hash = ?')->execute([hash('sha256', (string)$_COOKIE['mt_session'])]);
-    setcookie('mt_session', '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict']);
+    $token = sessionToken($config);
+    if ($token !== '') $pdo->prepare('DELETE FROM api_sessions WHERE token_hash = ?')->execute([hash('sha256', $token)]);
+    clearAuthCookies($config);
     respond(['signed_out' => true]);
 }
 
@@ -822,9 +996,11 @@ if ($path === '/auth/password' && $method === 'PATCH') {
     $stmt = $pdo->prepare('SELECT password_hash FROM users WHERE id = ?');
     $stmt->execute([$user['id']]);
     if (!password_verify($current, (string)$stmt->fetchColumn())) fail('كلمة المرور الحالية غير صحيحة.', 422, 'invalid_password');
-    if (strlen($next) < 10) fail('كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.', 422, 'weak_password');
+    if (!validPassword($next)) fail('كلمة المرور الجديدة يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 422, 'weak_password');
     $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([password_hash($next, PASSWORD_DEFAULT), $user['id']]);
-    $pdo->prepare('DELETE FROM api_sessions WHERE user_id = ? AND token_hash <> ?')->execute([$user['id'], hash('sha256', (string)($_COOKIE['mt_session'] ?? ''))]);
+    $pdo->prepare('DELETE FROM api_sessions WHERE user_id = ? AND token_hash <> ?')->execute([$user['id'], hash('sha256', sessionToken($config))]);
+    $pdo->prepare('INSERT INTO auth_security_events (organization_id,user_id,event_type,ip_hash,user_agent_hash) VALUES (?,?,?,?,?)')
+        ->execute([$user['organization_id'], $user['id'], 'password_changed', requestIpHash(), requestUserAgentHash()]);
     respond(['updated' => true]);
 }
 
@@ -1647,7 +1823,8 @@ if (preg_match('#^/payment-proofs/(\d+)/file$#', $path, $m) && $method === 'GET'
     $filename=basename((string)$proof['file_path']);$full=rtrim((string)$config['app']['upload_dir'],'/\\').DIRECTORY_SEPARATOR.$filename;
     if(!is_file($full))fail('الملف غير موجود على الخادم.',404);
     header_remove('Content-Type');header('Content-Type: '.$proof['mime_type']);header('Content-Length: '.filesize($full));
-    header('Content-Disposition: inline; filename="proof-'.$id.'.'.pathinfo($filename,PATHINFO_EXTENSION).'"');readfile($full);exit;
+    $disposition = $proof['mime_type'] === 'application/pdf' ? 'attachment' : 'inline';
+    header('Content-Disposition: '.$disposition.'; filename="proof-'.$id.'.'.pathinfo($filename,PATHINFO_EXTENSION).'"');readfile($full);exit;
 }
 
 if (preg_match('#^/data/([a-z_]+)$#', $path, $m)) {
@@ -1661,6 +1838,21 @@ if (preg_match('#^/data/([a-z_]+)$#', $path, $m)) {
         requireRole($user,$roles);
     }
     $filters = json_decode((string)($_GET['filters'] ?? '[]'), true); if (!is_array($filters)) $filters=[];
+    if (in_array($method, ['PATCH', 'DELETE'], true)) {
+        $hasRecordIdentifier = false;
+        foreach ($filters as $filter) {
+            $column = (string)($filter['column'] ?? '');
+            $operator = (string)($filter['op'] ?? 'eq');
+            $value = $filter['value'] ?? null;
+            if ($column === 'id' && (($operator === 'eq' && (int)$value > 0) || ($operator === 'in' && is_array($value) && count($value) > 0 && count($value) <= 100))) {
+                $hasRecordIdentifier = true;
+            }
+            if ($table === 'app_config' && $column === 'key' && $operator === 'eq' && is_string($value) && $value !== '') {
+                $hasRecordIdentifier = true;
+            }
+        }
+        if (!$hasRecordIdentifier) fail('يجب تحديد سجل بعينه قبل التعديل أو الحذف.', 422, 'record_identifier_required');
+    }
     $params=[]; $where=buildFilters($definition,$filters,$params);
     if ($definition['org'] ?? false) {
         if ($isPublicConfig) {
