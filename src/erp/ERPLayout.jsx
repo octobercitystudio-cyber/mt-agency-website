@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Users, CalendarDays, DollarSign, LogOut, Home, User, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, Inbox, Package, FolderKanban } from 'lucide-react';
+import { Users, CalendarDays, DollarSign, LogOut, Home, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, Inbox, Package, FolderKanban, Fingerprint, FlaskConical, RotateCcw, CheckCircle2, AlertCircle, Landmark, TrendingUp } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
 import { supabase } from '../supabaseClient';
 import ERPSessionTimer from './ERPSessionTimer';
 import useExternalScripts from '../hooks/useExternalScripts';
+import useChangeSync from '../hooks/useChangeSync';
+import { resetDemoDatabase } from '../lib/demoDataClient';
 import './ERPLayout.css';
+import './ERPEnterpriseTheme.css';
 
 const ERPLayout = () => {
   const { logoutErp, currentUser } = useData();
@@ -15,13 +18,17 @@ const ERPLayout = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { alerts, dismissAlert } = useGlobalAlerts();
   const [requestsCount, setRequestsCount] = useState(0);
+  const [demoResetState, setDemoResetState] = useState('idle');
+  const [demoDataVersion, setDemoDataVersion] = useState(0);
 
   useExternalScripts();
   
   const unreadCount = alerts.length;
   const role = currentUser?.role;
-  const canManageFinance = ['owner', 'admin', 'finance'].includes(role);
-  const canOpenOffers = ['owner', 'admin', 'operations', 'finance'].includes(role);
+  const canManageFinance = ['owner', 'admin'].includes(role);
+  const canManageFormationFund = ['owner', 'admin'].includes(role);
+  const canManageSocialProfits = ['owner', 'admin'].includes(role);
+  const canOpenOffers = ['owner', 'admin'].includes(role);
   const canOpenSettings = ['owner', 'admin'].includes(role);
   const canOpenRequests = ['owner', 'admin', 'operations', 'finance'].includes(role);
   const canOpenPackages = ['owner', 'admin', 'operations', 'finance'].includes(role);
@@ -54,10 +61,33 @@ const ERPLayout = () => {
     window.addEventListener('erpRequestsUpdated', handler);
     return () => window.removeEventListener('erpRequestsUpdated', handler);
   }, [refreshRequestsCount]);
+  useEffect(() => {
+    const handleDemoDataReset = () => setDemoDataVersion(version => version + 1);
+    window.addEventListener('erpDemoDataReset', handleDemoDataReset);
+    return () => window.removeEventListener('erpDemoDataReset', handleDemoDataReset);
+  }, []);
+  useChangeSync(useCallback((topics) => {
+    if (topics.some(topic => ['bookings', 'finance', 'notifications'].includes(topic))) refreshRequestsCount();
+  }, [refreshRequestsCount]), !currentUser?.is_local_preview);
 
-  const handleLogout = () => {
-    logoutErp();
+  const handleLogout = async () => {
+    await logoutErp();
     navigate('/login');
+  };
+
+  const handleDemoReset = async () => {
+    const confirmed = window.confirm('سيتم حذف كل التغييرات التجريبية واستعادة البيانات الأصلية. هل تريد المتابعة؟');
+    if (!confirmed) return;
+
+    setDemoResetState('loading');
+    try {
+      await resetDemoDatabase();
+      setDemoResetState('success');
+      window.dispatchEvent(new CustomEvent('erpDemoDataReset', { detail: { topics: ['demo-data'] } }));
+    } catch (error) {
+      console.error('Unable to reset demo database:', error);
+      setDemoResetState('error');
+    }
   };
 
   return (
@@ -80,20 +110,6 @@ const ERPLayout = () => {
 
       {/* Sidebar */}
       <div className={`erp-sidebar ${sidebarOpen ? 'show' : ''}`}>
-        <div className="erp-brand-container d-none d-lg-block" style={{display: sidebarOpen ? 'block' : ''}}>
-          <h3 style={{color: 'var(--erp-primary)', fontWeight: 'bold', margin: 0}}>Multi Task<br/><span style={{fontSize: '1.2rem', color: 'var(--erp-text-main)'}}>Agency</span></h3>
-        </div>
-
-        <div className="erp-user-card" style={{marginTop: '20px'}}>
-          <div className="erp-user-avatar">
-            <User size={24} />
-          </div>
-          <div>
-            <h6 style={{margin: 0, fontWeight: 800, fontSize: '0.95rem', color: 'var(--erp-text-main)'}}>{currentUser?.full_name || 'إدارة الشركة'}</h6>
-            <span style={{fontSize: '0.70rem', fontWeight: 700, padding: '2px 8px', background: currentUser?.role === 'owner' ? '#7c3aed' : '#334155', color: 'white', borderRadius: '50px'}}>{{owner:'مالك',admin:'مدير',operations:'تشغيل وحجوزات',finance:'مالية',staff:'موظف محدود'}[currentUser?.role] || 'مستخدم'}</span>
-          </div>
-        </div>
-
         <nav className="erp-nav-menu">
           <li className="erp-nav-item">
             <NavLink to="/erp" end className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
@@ -126,9 +142,24 @@ const ERPLayout = () => {
               <CalendarDays size={20} /> جدول الحجوزات
             </NavLink>
           </li>
+          <li className="erp-nav-item">
+            <NavLink to="/erp/attendance" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <Fingerprint size={20} /> الحضور والرواتب
+            </NavLink>
+          </li>
           {canManageFinance && <li className="erp-nav-item">
             <NavLink to="/erp/finance" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
               <DollarSign size={20} /> الخزينة والحسابات
+            </NavLink>
+          </li>}
+          {canManageFormationFund && <li className="erp-nav-item erp-nav-item--formation">
+            <NavLink to="/erp/formation-fund" className={({isActive}) => `erp-nav-link erp-nav-link--formation ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <Landmark size={20} /> صندوق التأسيس
+            </NavLink>
+          </li>}
+          {canManageSocialProfits && <li className="erp-nav-item erp-nav-item--social-profits">
+            <NavLink to="/erp/social-profits" className={({isActive}) => `erp-nav-link erp-nav-link--social-profits ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <TrendingUp size={20} /> أرباح السوشيال
             </NavLink>
           </li>}
           <li className="erp-nav-item">
@@ -137,13 +168,13 @@ const ERPLayout = () => {
             </NavLink>
           </li>
           {canOpenOffers && <li className="erp-nav-item">
-            <NavLink to="/erp/offer-generator" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <FileText size={20} /> إنشاء عرض سعر
+            <NavLink to="/erp/offers" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+              <FileText size={20} /> إنشاء عرض
             </NavLink>
           </li>}
         </nav>
 
-        <div style={{marginTop: 'auto', paddingTop: '15px', borderTop: '1px solid rgba(0,0,0,0.03)'}}>
+        <div className="erp-sidebar-actions">
           <div className="erp-nav-item mb-1">
             <button className="erp-nav-link erp-nav-alert-btn position-relative" onClick={() => setNotificationsOpen(true)} style={{width: '100%', border: '1px solid rgba(255, 152, 0, 0.2)', background: 'rgba(255, 193, 7, 0.1)', color: '#ff9800', justifyContent: 'flex-start'}}>
               <Bell size={20} style={{color: '#ff9800'}} /> مركز الإشعارات
@@ -170,7 +201,36 @@ const ERPLayout = () => {
 
       {/* Main Content Area */}
       <div className="erp-main" style={{marginTop: '0'}}>
-        <Outlet />
+        {currentUser?.is_local_preview && (
+          <aside className={`erp-demo-banner erp-demo-banner--${demoResetState}`} aria-label="تنبيه وضع التجربة">
+            <div className="erp-demo-banner__status" aria-hidden="true">
+              <span className="erp-demo-banner__pulse" />
+              {demoResetState === 'success'
+                ? <CheckCircle2 />
+                : demoResetState === 'error'
+                  ? <AlertCircle />
+                  : <FlaskConical />}
+            </div>
+            <div className="erp-demo-banner__copy" aria-live="polite">
+              <strong>وضع التجربة</strong>
+              <p>
+                {demoResetState === 'success' && 'تمت إعادة بيانات التجربة الأصلية بنجاح.'}
+                {demoResetState === 'error' && 'تعذرت إعادة البيانات. حاول مرة أخرى.'}
+                {(demoResetState === 'idle' || demoResetState === 'loading') && 'هذه السجلات وهمية، وتظل تغييراتك على هذا الجهاز فقط.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="erp-demo-banner__reset"
+              onClick={handleDemoReset}
+              disabled={demoResetState === 'loading'}
+            >
+              <RotateCcw className={demoResetState === 'loading' ? 'is-spinning' : ''} />
+              <span>{demoResetState === 'loading' ? 'جارٍ الاستعادة...' : 'إعادة ضبط البيانات'}</span>
+            </button>
+          </aside>
+        )}
+        <Outlet key={demoDataVersion} />
       </div>
 
       {/* Bottom Navigation for Mobile */}
@@ -186,6 +246,10 @@ const ERPLayout = () => {
         <NavLink to="/erp/bookings" className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
           <CalendarDays size={22} />
           الحجوزات
+        </NavLink>
+        <NavLink to="/erp/attendance" className={({isActive}) => `erp-bottom-nav-item ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+          <Fingerprint size={22} />
+          الحضور
         </NavLink>
         {canOpenRequests && <NavLink to="/erp/requests" className={({isActive}) => `erp-bottom-nav-item position-relative ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
           <Inbox size={22} />
@@ -204,10 +268,10 @@ const ERPLayout = () => {
           <DollarSign size={22} />
           الحسابات
         </NavLink>}
-        <div className={`erp-bottom-nav-item ${sidebarOpen ? 'active' : ''}`} onClick={() => setSidebarOpen(!sidebarOpen)} style={{cursor: 'pointer'}}>
+        <button type="button" className={`erp-bottom-nav-item erp-bottom-nav-more ${sidebarOpen ? 'active' : ''}`} onClick={() => setSidebarOpen(!sidebarOpen)}>
           <Menu size={22} />
           المزيد
-        </div>
+        </button>
       </div>
 
       <NotificationsOffcanvas 

@@ -1,0 +1,144 @@
+.attendance-page,
+.attendance-page * {
+  box-sizing: border-box;
+}
+
+.attendance-page {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.attendance-head,
+.attendance-preview,
+.attendance-error,
+.attendance-strip,
+.attendance-workspace,
+.attendance-toolbar,
+.attendance-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.attendance-strip > div,
+.attendance-head > div,
+.attendance-preview > div {
+  min-width: 0;
+}
+
+.attendance-strip span,
+.attendance-strip small,
+.attendance-preview span,
+.attendance-error {
+  overflow-wrap: anywhere;
+}
+
+.attendance-workspace { overflow: hidden; }
+.attendance-table-wrap { width: 100%; overflow-x: auto; }
+.attendance-mobile-list { display: none; }
+
+@media (max-width: 800px) {
+  .attendance-table-wrap { display: none; }
+  .attendance-mobile-list {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .attendance-employee-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--at-border);
+    border-radius: 7px;
+    background: #fff;
+  }
+
+  .attendance-employee-card > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px;
+    border-bottom: 1px solid var(--at-border);
+    background: #f8f6f0;
+  }
+
+  .attendance-employee-card header div { min-width: 0; }
+  .attendance-employee-card header strong,
+  .attendance-employee-card header small { display: block; }
+  .attendance-employee-card header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; }
+  .attendance-employee-card header small { margin-top: 2px; color: #777985; font-size: .6rem; }
+
+  .attendance-employee-card dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+  }
+
+  .attendance-employee-card dl > div {
+    min-width: 0;
+    padding: 10px 12px;
+    border-bottom: 1px solid #ece9e2;
+  }
+
+  .attendance-employee-card dt { color: #777985; font-size: .58rem; }
+  .attendance-employee-card dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: .72rem; font-weight: 900; }
+  .attendance-employee-card dd.warn { color: var(--at-amber); }
+  .attendance-employee-card dd.danger { color: var(--at-red); }
+
+  .attendance-employee-card > footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    padding: 10px;
+  }
+
+  .attendance-employee-card footer button {
+    min-width: 0;
+    border: 1px solid var(--at-border);
+    border-radius: 5px;
+    background: #fff;
+    color: #554a8d;
+    padding: 8px 6px;
+    font: inherit;
+    font-size: .62rem;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    cursor: pointer;
+  }
+
+  .attendance-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .attendance-strip > div { border-left: 1px solid var(--at-border); border-bottom: 1px solid var(--at-border); }
+  .attendance-head__tools { min-width: 0; flex-wrap: wrap; }
+  .attendance-head__tools label { min-width: 0; max-width: 100%; }
+  .attendance-head__tools input { width: 100%; max-width: 190px; }
+  .attendance-filters { max-width: 100%; padding-bottom: 2px; overflow-x: auto; }
+  .attendance-filters button { flex: 0 0 auto; }
+  .attendance-drawer { width: 100%; max-width: 100%; }
+  .daily-records > div { min-width: 0; }
+}
+
+@media (max-width: 520px) {
+  .attendance-strip { grid-template-columns: 1fr; }
+  .attendance-strip > div { border-left: 0; padding: 13px 15px; }
+  .attendance-head { padding: 18px 16px; }
+  .attendance-head h1 { font-size: 1.25rem; }
+  .attendance-preview,
+  .attendance-error { align-items: flex-start; }
+  .attendance-toolbar { padding: 10px; }
+  .attendance-mobile-list { padding: 9px; }
+  .attendance-employee-card dl { grid-template-columns: 1fr 1fr; }
+  .drawer-breakdown { grid-template-columns: 1fr 1fr; }
+  .drawer-section { margin: 10px; }
+  .daily-records > div { grid-template-columns: 1fr; gap: 5px; }
+  .adjustment-form { grid-template-columns: 1fr; }
+  .policy-modal,
+  .correction-modal { width: 100%; max-width: 100%; }
+  .policy-grid { grid-template-columns: 1fr; }
+  .weekday-picker { gap: 4px; }
+  .weekday-picker span { width: 29px; height: 29px; }
+}

@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Banknote, CalendarClock, CalendarDays, Check, Clock3, Eye, Inbox, RefreshCw, RotateCcw, Send, ShieldCheck, X, XCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useData } from '../store/DataContext';
+import { safeUiError } from '../lib/uiError';
+import { formatBookingDate, formatDateTime12, formatEGP, formatTime12 } from '../lib/businessFormat';
+import ERPPageHero from './ERPPageHero';
 import './ERPRequests.css';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 const emptyDecision = { open: false, kind: '', action: '', item: null, charge: false, note: '' };
-const time = value => value ? value.slice(0, 5) : '—';
-const dateTimeLabel = value => value ? new Date(value).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const time = value => formatTime12(value);
+const dateTimeLabel = value => formatDateTime12(value);
 
 export default function ERPRequests() {
   const { currentUser } = useData();
@@ -31,12 +34,12 @@ export default function ERPRequests() {
     const queries = [
       canOperations ? supabase.from('bookings').select('*').order('date', { ascending: true }) : Promise.resolve({ data: [] }),
       canOperations ? supabase.from('reschedule_requests').select('*').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
-      canFinance ? supabase.from('payment_proofs').select('id,client_id,amount,original_name,mime_type,status,admin_note,created_at').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
+      canFinance ? supabase.from('payment_proofs').select('id,client_id,client_package_id,invoice_id,amount,original_name,mime_type,status,admin_note,created_at').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
       supabase.from('clients').select('id,name,phone1'),
     ];
     const [bookingsResult, reschedulesResult, proofsResult, clientsResult] = await Promise.all(queries);
     const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult].find(result => result.error);
-    if (failed?.error) setError(failed.error.message || 'تعذر تحميل الطلبات.');
+    if (failed?.error) setError(safeUiError(failed.error, 'تعذر تحميل بعض الطلبات الآن. أعد المحاولة بعد قليل.'));
     else setData({ bookings: bookingsResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [] });
     setLoading(false);
   }, [canFinance, canOperations]);
@@ -84,7 +87,7 @@ export default function ERPRequests() {
     const { error: requestError } = await supabase.request(path, { method: 'POST', body: JSON.stringify(payload) });
     setDecisionBusy(false);
     if (requestError) {
-      setError(requestError.message || 'تعذر حفظ القرار.');
+      setError(safeUiError(requestError, 'تعذر حفظ القرار. حاول مرة أخرى.'));
       return;
     }
     setDecision(emptyDecision);
@@ -97,10 +100,13 @@ export default function ERPRequests() {
   const requiresExceptionReason = decision.kind === 'cancellation' && decision.action === 'approve' && !decision.charge;
 
   return <div className="requests-center" dir="rtl">
-    <header className="requests-header">
-      <div><span className="requests-eyebrow"><Inbox size={16}/> مركز عمليات MT</span><h2>صندوق الطلبات</h2><p>راجع طلبات العملاء واتخذ القرار من مساحة واحدة واضحة وآمنة.</p></div>
-      <button className="requests-refresh" onClick={fetchRequests} disabled={loading}><RefreshCw size={17} className={loading ? 'requests-spin' : ''}/> تحديث</button>
-    </header>
+    <ERPPageHero
+      icon={Inbox}
+      eyebrow="مركز عمليات MT"
+      title="صندوق الطلبات"
+      description="راجع طلبات العملاء واتخذ القرار من مساحة واحدة واضحة وآمنة."
+      actions={<button onClick={fetchRequests} disabled={loading}><RefreshCw size={17} className={loading ? 'requests-spin' : ''}/> تحديث</button>}
+    />
 
     <section className="requests-summary" aria-label="ملخص الطلبات">
       <article className="total"><Inbox/><div><span>إجمالي قيد المراجعة</span><strong>{total}</strong></div></article>
@@ -116,13 +122,13 @@ export default function ERPRequests() {
 
     <main className="requests-workspace">
       {loading ? <LoadingState/> : <>
-        {activeTab === 'bookings' && <RequestGrid empty={!pendingBookings.length} emptyLabel="لا توجد حجوزات جديدة بانتظار التأكيد.">{pendingBookings.map(item => <RequestCard key={item.id} tone="amber" icon={CalendarDays} title={item.client_name} badge="بانتظار التأكيد" meta={[item.date, `${time(item.start_time)} – ${time(item.end_time)}`, item.service]} note={item.notes}><button className="approve" onClick={() => openDecision('booking', 'confirm', item)}><Check/> تأكيد</button><button className="alternative" onClick={() => navigate('/erp/bookings')}><CalendarClock/> موعد بديل</button><button className="reject" onClick={() => openDecision('booking', 'reject', item)}><X/> رفض</button></RequestCard>)}</RequestGrid>}
+        {activeTab === 'bookings' && <RequestGrid empty={!pendingBookings.length} emptyLabel="لا توجد حجوزات جديدة بانتظار التأكيد.">{pendingBookings.map(item => <RequestCard key={item.id} tone="amber" icon={CalendarDays} title={item.client_name} badge="بانتظار التأكيد" meta={[formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, item.service]} note={item.notes}><button className="approve" onClick={() => openDecision('booking', 'confirm', item)}><Check/> تأكيد</button><button className="alternative" onClick={() => navigate('/erp/bookings')}><CalendarClock/> موعد بديل</button><button className="reject" onClick={() => openDecision('booking', 'reject', item)}><X/> رفض</button></RequestCard>)}</RequestGrid>}
 
-        {activeTab === 'reschedules' && <RequestGrid empty={!data.reschedules.length} emptyLabel="لا توجد طلبات تغيير موعد.">{data.reschedules.map(item => { const old = bookingById(item.booking_id); return <RequestCard key={item.id} tone="blue" icon={RotateCcw} title={clientName(item.client_id)} badge="طلب تغيير" meta={[]} note={item.reason}><div className="requests-time-change"><div><span>الموعد الحالي</span><strong>{old?.date || '—'}</strong><small>{time(old?.start_time)} – {time(old?.end_time)}</small></div><i>←</i><div><span>الموعد المقترح</span><strong>{item.proposed_date}</strong><small>{time(item.proposed_start_time)} – {time(item.proposed_end_time)}</small></div></div><button className="approve" onClick={() => openDecision('reschedule', 'approve', item)}><Check/> قبول التغيير</button><button className="reject" onClick={() => openDecision('reschedule', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
+        {activeTab === 'reschedules' && <RequestGrid empty={!data.reschedules.length} emptyLabel="لا توجد طلبات تغيير موعد.">{data.reschedules.map(item => { const old = bookingById(item.booking_id); return <RequestCard key={item.id} tone="blue" icon={RotateCcw} title={clientName(item.client_id)} badge="طلب تغيير" meta={[]} note={item.reason}><div className="requests-time-change"><div><span>الموعد الحالي</span><strong>{formatBookingDate(old?.date)}</strong><small>{time(old?.start_time)} – {time(old?.end_time)}</small></div><i>←</i><div><span>الموعد المقترح</span><strong>{formatBookingDate(item.proposed_date)}</strong><small>{time(item.proposed_start_time)} – {time(item.proposed_end_time)}</small></div></div><button className="approve" onClick={() => openDecision('reschedule', 'approve', item)}><Check/> قبول التغيير</button><button className="reject" onClick={() => openDecision('reschedule', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
 
-        {activeTab === 'cancellations' && <RequestGrid empty={!cancellations.length} emptyLabel="لا توجد طلبات إلغاء قيد المراجعة.">{cancellations.map(item => { const late = item.status === 'late_cancel_requested'; return <RequestCard key={item.id} tone={late ? 'red' : 'amber'} icon={XCircle} title={item.client_name} badge={late ? 'أقل من 48 ساعة' : 'ضمن مهلة 48 ساعة'} meta={[item.date, `${time(item.start_time)} – ${time(item.end_time)}`, `${Number(item.requested_quantity || 0)} ساعة`]} note={item.notes}>{isOwner ? <><button className="reject" onClick={() => openDecision('cancellation', 'approve', item, true)}><Clock3/> قبول مع الخصم</button><button className="approve" onClick={() => openDecision('cancellation', 'approve', item, false)}><ShieldCheck/> قبول دون خصم</button><button className="neutral" onClick={() => openDecision('cancellation', 'reject', item)}><X/> رفض الإلغاء</button></> : <p className="requests-owner-only"><ShieldCheck/> قرار الخصم أو الاستثناء متاح للمالك فقط.</p>}</RequestCard>})}</RequestGrid>}
+        {activeTab === 'cancellations' && <RequestGrid empty={!cancellations.length} emptyLabel="لا توجد طلبات إلغاء قيد المراجعة.">{cancellations.map(item => { const late = item.status === 'late_cancel_requested'; return <RequestCard key={item.id} tone={late ? 'red' : 'amber'} icon={XCircle} title={item.client_name} badge={late ? 'أقل من 48 ساعة' : 'ضمن مهلة 48 ساعة'} meta={[formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, `${Number(item.requested_quantity || 0)} ساعة`]} note={item.notes}>{isOwner ? <><button className="reject" onClick={() => openDecision('cancellation', 'approve', item, true)}><Clock3/> قبول مع الخصم</button><button className="approve" onClick={() => openDecision('cancellation', 'approve', item, false)}><ShieldCheck/> قبول دون خصم</button><button className="neutral" onClick={() => openDecision('cancellation', 'reject', item)}><X/> رفض الإلغاء</button></> : <p className="requests-owner-only"><ShieldCheck/> قرار الخصم أو الاستثناء متاح للمالك فقط.</p>}</RequestCard>})}</RequestGrid>}
 
-        {activeTab === 'proofs' && <RequestGrid empty={!data.proofs.length} emptyLabel="لا توجد إثباتات تحويل قيد المراجعة.">{data.proofs.map(item => <RequestCard key={item.id} tone="purple" icon={Banknote} title={clientName(item.client_id)} badge="إثبات جديد" meta={[`${Number(item.amount).toLocaleString('ar-EG')} ج`, dateTimeLabel(item.created_at), item.original_name]}><button className="view" onClick={() => window.open(`${API_BASE}/payment-proofs/${item.id}/file`, '_blank', 'noopener,noreferrer')}><Eye/> عرض الملف الآمن</button><button className="approve" onClick={() => openDecision('proof', 'approve', item)}><Check/> اعتماد</button><button className="reject" onClick={() => openDecision('proof', 'reject', item)}><X/> رفض</button></RequestCard>)}</RequestGrid>}
+        {activeTab === 'proofs' && <RequestGrid empty={!data.proofs.length} emptyLabel="لا توجد إثباتات تحويل قيد المراجعة.">{data.proofs.map(item => <RequestCard key={item.id} tone="purple" icon={Banknote} title={clientName(item.client_id)} badge="إثبات جديد" meta={[formatEGP(item.amount), item.client_package_id ? `باقة #${item.client_package_id}` : `فاتورة #${item.invoice_id}`, dateTimeLabel(item.created_at), item.original_name]}><button className="view" onClick={() => window.open(`${API_BASE}/payment-proofs/${item.id}/file`, '_blank', 'noopener,noreferrer')}><Eye/> عرض الملف الآمن</button>{isOwner ? <><button className="approve" onClick={() => openDecision('proof', 'approve', item)}><Check/> اعتماد</button><button className="reject" onClick={() => openDecision('proof', 'reject', item)}><X/> رفض</button></> : <p className="requests-owner-only"><ShieldCheck/> القرار النهائي بالاعتماد أو الرفض متاح للمالك فقط.</p>}</RequestCard>)}</RequestGrid>}
       </>}
     </main>
 

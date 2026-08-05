@@ -31,3 +31,12 @@ api/uploads/
 *.sln
 *.sw?
 *.zip
+
+# Local design, browser-test, and evaluation artifacts
+scratch/
+artifacts/
+mockups/
+.codex-tmp/
+.tmp/
+tmp/
+eval_main_*.md

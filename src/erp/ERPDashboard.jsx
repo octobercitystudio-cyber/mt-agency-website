@@ -1,436 +1,222 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
-import { Package, Truck, DollarSign, TrendingUp, Calendar, AlertCircle, CheckCircle, Clock } from 'lucide-react';
-import { format, addDays } from 'date-fns';
-import { ar } from 'date-fns/locale';
-import './ERPLayout.css';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  AlertTriangle, ArrowLeft, BadgeDollarSign, CalendarDays, Check, Clock3,
+  FileCheck2, PackageCheck, Plus, RefreshCw, TimerOff, UserPlus, UsersRound,
+} from 'lucide-react';
+import { supabase, dataProvider } from '../supabaseClient';
+import { useData } from '../store/DataContext';
+import { attendanceApi } from '../lib/attendanceApi';
+import { formatBookingDate, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
+import ERPPageHero from './ERPPageHero';
+import useChangeSync from '../hooks/useChangeSync';
+import './ERPDashboard.css';
+import './ERPDashboardFixes.css';
 
-let globalStatsCache = null;
-let globalTodayBookingsCache = null;
-let globalTomorrowBookingsCache = null;
-let globalDueTasksCache = null;
-let globalDashboardLastFetch = 0;
+const cairoDate = (date = new Date()) => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(date);
+const cairoMonth = () => cairoDate().slice(0, 7);
+const money = (value) => formatEGP(value, { maximumFractionDigits: 0 });
+const roleLabels = { owner: 'مالك', admin: 'مدير', operations: 'تشغيل', finance: 'مالية', staff: 'موظف' };
+const statusLabels = {
+  pending: 'بانتظار التأكيد', confirmed: 'مؤكد', in_progress: 'جارٍ الآن', completed: 'مكتمل',
+  cancelled: 'ملغي', cancel_requested: 'طلب إلغاء', late_cancel_requested: 'إلغاء متأخر',
+};
+const normalizeStatus = (status = '') => ({ 'قيد الانتظار': 'pending', 'مؤكد': 'confirmed', 'ملغي': 'cancelled' }[status] || status);
 
 const ERPDashboard = () => {
-  const [stats, setStats] = useState(globalStatsCache || {
-    activePackages: 0,
-    weekDeliveries: 0,
-    marketDues: 0,
-    netProfit: 0
-  });
-  const [todayBookings, setTodayBookings] = useState(globalTodayBookingsCache || []);
-  const [tomorrowBookings, setTomorrowBookings] = useState(globalTomorrowBookingsCache || []);
-  const [dueTasks, setDueTasks] = useState(globalDueTasksCache || []);
-  const [loading, setLoading] = useState(!globalStatsCache);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const { currentUser } = useData();
+  const navigate = useNavigate();
+  const [clock, setClock] = useState(new Date());
+  const [state, setState] = useState({ loading: true, error: '', bookings: [], actions: [], tasks: [], health: {} });
+  const [attendance, setAttendance] = useState({ loading: true, error: '', data: null });
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => setClock(new Date()), 30000);
     return () => clearInterval(timer);
   }, []);
 
-  const loadDashboardData = async (force = false) => {
-    if (globalStatsCache && globalTodayBookingsCache && globalTomorrowBookingsCache && globalDueTasksCache) {
-      setStats(globalStatsCache);
-      setTodayBookings(globalTodayBookingsCache);
-      setTomorrowBookings(globalTomorrowBookingsCache);
-      setDueTasks(globalDueTasksCache);
-      setLoading(false);
-      if (!force && (Date.now() - globalDashboardLastFetch < 30000)) return;
-    } else {
-      setLoading(true);
-    }
+  const load = useCallback(async () => {
+    setState((old) => ({ ...old, loading: true, error: '' }));
+    const today = cairoDate(); const month = cairoMonth();
     try {
-      const todayStr = format(new Date(), 'yyyy-MM-dd');
-      const dayOfWeek = new Date().getDay();
-      const daysToAdd = dayOfWeek === 4 ? 2 : 1;
-      const tomorrowStr = format(addDays(new Date(), daysToAdd), 'yyyy-MM-dd');
-      const nextWeekStr = format(addDays(new Date(), 7), 'yyyy-MM-dd');
-      const currentMonth = format(new Date(), 'yyyy-MM');
-
-      // 1. Fetch Finance
-      const { data: financeData } = await supabase.from('finance').select('*').like('date', `${currentMonth}%`);
-      let realInc = 0; let realExp = 0;
-      if (financeData) {
-        financeData.forEach(f => {
-          if (['إيراد', 'سداد سلفة'].includes(f.type)) realInc += Number(f.amount || 0);
-          if (['مصروف', 'سحب سلفة'].includes(f.type)) realExp += Number(f.amount || 0);
-        });
-      }
-      const netProfit = realInc - realExp;
-
-      // 2. Deliveries
-      const { data: deliveriesData } = await supabase.from('bookings').select('id').gte('delivery_date', todayStr).lte('delivery_date', nextWeekStr).not('status', 'like', '%مؤرشف%').neq('delivery_date', null).neq('delivery_date', '');
-      const weekDeliveries = deliveriesData ? deliveriesData.length : 0;
-
-      // 3. Packages and Debts
-      const { data: bookingsData } = await supabase.from('bookings').select('client_name, service, actual_hours, actual_reels, custom_price, discount, payment, status').neq('status', 'دفعة');
-      const { data: servicesData } = await supabase.from('services').select('*');
-        
-      let activePackages = 0;
-      let marketDues = 0;
-
-      if (bookingsData && servicesData) {
-        const grouped = {};
-        bookingsData.forEach(b => {
-          const key = `${b.client_name}_${b.service}`;
-          if (!grouped[key]) grouped[key] = { client: b.client_name, service: b.service, used_h: 0, used_r: 0, custom_price: -1, discount: 0, paid: 0, is_archived: b.service.includes('مؤرشف') };
-          grouped[key].used_h += Number(b.actual_hours || 0);
-          grouped[key].used_r += Number(b.actual_reels || 0);
-          if (Number(b.custom_price) > -1) grouped[key].custom_price = Math.max(grouped[key].custom_price, Number(b.custom_price));
-          grouped[key].discount = Math.max(grouped[key].discount, Number(b.discount || 0));
-        });
-
-        const { data: paymentsData } = await supabase.from('bookings').select('*').eq('status', 'دفعة');
-        if (paymentsData) {
-          paymentsData.forEach(p => {
-            const key = `${p.client_name}_${p.service}`;
-            if (grouped[key]) grouped[key].paid += Number(p.payment || 0);
-          });
-        }
-
-        Object.values(grouped).forEach(g => {
-          const srvName = g.service.replace(' (مؤرشف)', '');
-          const srv = servicesData.find(s => s.name === srvName);
-          if (srv) {
-            if (!g.is_archived) {
-              if (['باقة شهرية', 'باقة يومية', 'تصوير بالساعة'].includes(srv.category)) {
-                if (Number(srv.total_hours) - g.used_h > 0) activePackages++;
-              } else if (srv.category === 'باقة ريلز') {
-                if (Number(srv.total_reels) - g.used_r > 0) activePackages++;
-              }
-              const basePrice = Number(srv.price || 0);
-              const custom = g.custom_price;
-              const price = custom > -1 ? custom : Math.max(0, basePrice - g.discount);
-              marketDues += Math.max(0, price - g.paid);
-            }
-          }
-        });
-      }
-
-      const newStats = { activePackages, weekDeliveries, marketDues, netProfit };
-      setStats(newStats);
-      globalStatsCache = newStats;
-
-      // 4. Bookings
-      const { data: tdyBkgs } = await supabase.from('bookings').select('*').eq('date', todayStr).neq('status', 'دفعة').neq('start_time', '').order('start_time', { ascending: true });
-      const { data: tmrwBkgs } = await supabase.from('bookings').select('*').eq('date', tomorrowStr).neq('status', 'دفعة').neq('start_time', '').order('start_time', { ascending: true });
-      setTodayBookings(tdyBkgs || []);
-      globalTodayBookingsCache = tdyBkgs || [];
-      setTomorrowBookings(tmrwBkgs || []);
-      globalTomorrowBookingsCache = tmrwBkgs || [];
-
-      // 5. Tasks
-      const { data: tasksData } = await supabase.from('reminders').select('*').eq('status', 'pending').order('due_date', { ascending: true });
-      const due = [];
-      const now = new Date();
-      if (tasksData) {
-        tasksData.forEach(t => {
-          if (t.due_date) {
-            const dueDate = new Date(t.due_date);
-            const notifyDate = new Date(dueDate.getTime() - (t.notify_before || 0) * 60000);
-            if (now >= notifyDate) due.push(t);
-          }
-        });
-      }
-      setDueTasks(due);
-      globalDueTasksCache = due;
-      globalDashboardLastFetch = Date.now();
-    } catch (err) {
-      console.error("Error loading dashboard data:", err);
-    } finally {
-      setLoading(false);
+      const [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks] = await Promise.all([
+        supabase.from('bookings').select('*').eq('date', today).order('start_time', { ascending: true }),
+        supabase.from('bookings').select('id,client_name,status,date,start_time').in('status', ['pending', 'cancel_requested', 'late_cancel_requested']).limit(8),
+        supabase.from('reschedule_requests').select('id,booking_id,client_id,status,proposed_date,proposed_start_time').eq('status', 'pending').limit(8),
+        supabase.from('payment_proofs').select('id,client_id,amount,status,created_at').eq('status', 'pending').limit(8),
+        supabase.from('finance').select('id,type,entry_kind,amount,date').like('date', `${month}%`),
+        supabase.from('client_packages').select('id,status,expires_at,total_price,overage_amount,paid_amount,source_invoice_id').eq('status', 'active'),
+        supabase.from('invoices').select('id,total,paid_amount,status'),
+        supabase.from('reminders').select('id,title,due_date,type,status,amount').eq('status', 'pending').order('due_date', { ascending: true }).limit(6),
+      ]);
+      const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks].filter((result) => result.error);
+      if (failedModules.length) console.error('Dashboard data modules unavailable:', failedModules.map((result) => result.error));
+      const actions = [
+        ...(pendingBookings.data || []).map((item) => ({ ...item, kind: 'booking', title: `${statusLabels[normalizeStatus(item.status)] || 'طلب حجز'} — ${item.client_name}`, meta: `${formatBookingDate(item.date)} · ${formatTime12(item.start_time, '')}`, to: '/erp/requests' })),
+        ...(reschedules.data || []).map((item) => ({ ...item, kind: 'reschedule', title: 'طلب تغيير موعد', meta: `${formatBookingDate(item.proposed_date)} · ${formatTime12(item.proposed_start_time, '')}`, to: '/erp/requests' })),
+        ...(proofs.data || []).map((item) => ({ ...item, kind: 'payment', title: 'إثبات تحويل يحتاج مراجعة', meta: money(item.amount), to: '/erp/requests' })),
+      ].slice(0, 8);
+      let cashIn = 0; let cashOut = 0;
+      (finance.data || []).forEach((entry) => {
+        if (['income', 'transfer_in', 'advance_in'].includes(entry.entry_kind) || ['إيراد', 'سداد سلفة', 'income'].includes(entry.type)) cashIn += Number(entry.amount || 0);
+        else cashOut += Number(entry.amount || 0);
+      });
+      const invoiceOutstanding = (invoices.data || []).filter((invoice) => !['cancelled', 'void'].includes(invoice.status)).reduce((sum, invoice) => sum + Math.max(0, Number(invoice.total || 0) - Number(invoice.paid_amount || 0)), 0);
+      const packageOnlyOutstanding = (packages.data || []).reduce((sum, pkg) => {
+        const total = Number(pkg.total_price || 0); const paid = Number(pkg.paid_amount || 0);
+        const fullDue = Math.max(0, total + Number(pkg.overage_amount || 0) - paid);
+        return sum + (pkg.source_invoice_id ? Math.max(0, fullDue - Math.max(0, total - paid)) : fullDue);
+      }, 0);
+      const outstanding = invoiceOutstanding + packageOnlyOutstanding;
+      const soon = new Date(); soon.setDate(soon.getDate() + 14); const soonDate = cairoDate(soon);
+      setState({
+        loading: false,
+        error: failedModules.length ? 'تعذر تحميل بعض بيانات التشغيل الآن. يمكنك متابعة الأقسام المتاحة أو إعادة المحاولة.' : '',
+        bookings: (bookingsResult.data || []).filter((booking) => normalizeStatus(booking.status) !== 'cancelled'), actions,
+        tasks: tasks.data || [],
+        health: { outstanding, cashIn, cashOut, activePackages: (packages.data || []).length, expiringSoon: (packages.data || []).filter((item) => item.expires_at && item.expires_at <= soonDate).length },
+      });
+    } catch (error) {
+      console.error('Dashboard load failed:', error);
+      setState((old) => ({ ...old, loading: false, error: 'تعذر تحميل بيانات التشغيل الآن. تحقق من الاتصال ثم أعد المحاولة.' }));
     }
+  }, []);
+
+  const loadAttendance = useCallback(async () => {
+    setAttendance({ loading: true, error: '', data: null });
+    if (currentUser?.is_local_preview || dataProvider !== 'hostinger') {
+      setAttendance({
+        loading: false,
+        error: '',
+        data: {
+          preview: true,
+          self: { tracked: false },
+          team: [
+            { user_id: 3, full_name: 'كريم حسن', role: 'operations', track_attendance: 1, record_id: 1, check_in_at: `${cairoDate()} 12:08:00`, late_minutes: 0 },
+            { user_id: 4, full_name: 'ليلى عمر', role: 'staff', track_attendance: 1, record_id: 2, check_in_at: `${cairoDate()} 12:27:00`, late_minutes: 12 },
+          ],
+        },
+      });
+      return;
+    }
+    try { setAttendance({ loading: false, error: '', data: await attendanceApi.today() }); }
+    catch (error) { setAttendance({ loading: false, error: error.message || 'تعذر تحميل الحضور.', data: null }); }
+  }, [currentUser]);
+
+  useEffect(() => { load(); loadAttendance(); }, [load, loadAttendance]);
+  useChangeSync(useCallback((topics) => {
+    if (topics.some(topic => ['bookings', 'client_packages', 'finance', 'notifications'].includes(topic))) load();
+  }, [load]), !currentUser?.is_local_preview);
+
+  const checkOut = async () => {
+    try { await attendanceApi.checkOut(); await loadAttendance(); }
+    catch (error) { setAttendance((old) => ({ ...old, error: error.message || 'تعذر تسجيل الانصراف.' })); }
   };
 
-  useEffect(() => { loadDashboardData(); }, []);
+  const timelineBookings = useMemo(() => state.bookings.map((booking) => {
+    const start = booking.start_time || '12:00'; const end = booking.end_time || start;
+    const startMinutes = timeToMinutes(start);
+    const endMinutes = timeToMinutes(end, { endOfDay: true });
+    const top = Math.max(0, ((startMinutes - 720) / 720) * 100);
+    const height = Math.max(7, ((endMinutes - startMinutes) / 720) * 100);
+    return { ...booking, normalizedStatus: normalizeStatus(booking.status), start, end, top, height };
+  }), [state.bookings]);
 
-  const handleCompleteTask = async (id, isRecurring, dueDateStr) => {
-    if (isRecurring) {
-      const dueDate = new Date(dueDateStr);
-      dueDate.setMonth(dueDate.getMonth() + 1);
-      await supabase.from('reminders').update({ due_date: dueDate.toISOString() }).eq('id', id);
-    } else {
-      await supabase.from('reminders').update({ status: 'completed' }).eq('id', id);
-    }
-    loadDashboardData();
-  };
+  const currentMarker = useMemo(() => {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(clock).map((part) => [part.type, part.value]));
+    const minutes = (Number(parts.hour) * 60) + Number(parts.minute);
+    return minutes >= 720 && minutes <= 1440 ? ((minutes - 720) / 720) * 100 : null;
+  }, [clock]);
+
+  const teamTracked = attendance.data?.team?.filter((member) => Number(member.track_attendance) === 1) || [];
+  const teamCounts = teamTracked.reduce((acc, member) => {
+    if (!member.record_id) acc.absent += 1;
+    else if (Number(member.late_minutes) > 0) acc.late += 1;
+    else acc.present += 1;
+    return acc;
+  }, { present: 0, late: 0, absent: 0 });
+  const selfRecord = attendance.data?.self?.record;
 
   return (
-    <div style={{ padding: '0' }} className="container-fluid">
-      
-      {/* Top Banner exactly like the light aesthetic */}
-      <div className="erp-welcome-banner" style={{ background: 'var(--erp-primary)', borderRadius: '15px', padding: '15px 30px', border: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', boxShadow: 'var(--erp-shadow)' }}>
-        <div>
-          <div className="erp-welcome-badge" style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#ffffff', padding: '4px 12px', borderRadius: '50px', display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '8px' }}>
-            <span style={{ fontSize: '1rem' }}>⚡</span> نظام الإدارة الذكي
-          </div>
-          <h1 className="erp-welcome-title" style={{ margin: 0, fontWeight: 800, fontSize: '2rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '15px' }}>
-            لوحة التحكم <span className="mobile-hidden">MT Agency</span>
-          </h1>
-          <p className="erp-welcome-subtitle mobile-hidden" style={{ margin: '5px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '1rem', fontWeight: '600' }}>مرحباً بك مجدداً ! Owner - October City Studio</p>
-        </div>
-        <div className="erp-welcome-time" style={{ background: 'rgba(0,0,0,0.2)', padding: '15px 25px', borderRadius: '15px', textAlign: 'center', border: 'none' }}>
-          <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)', marginBottom: '5px', fontWeight: 'bold' }}>
-            {format(currentTime, 'EEEE, d MMMM yyyy', { locale: ar })}
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', fontFamily: 'monospace', color: '#ffffff' }}>
-            {format(currentTime, 'hh:mm:ss')}
-            <span style={{ fontSize: '1rem', marginRight: '5px' }}>{format(currentTime, 'aa', { locale: ar })}</span>
-          </div>
-        </div>
-      </div>
+    <main className="ops-dashboard" aria-busy={state.loading}>
+      <ERPPageHero
+        className="ops-commandbar"
+        identityClassName="ops-commandbar__identity"
+        eyebrow="مركز عمليات MT Agency"
+        title={`أهلًا، ${currentUser?.full_name || 'مستخدم النظام'}`}
+        description={<>{roleLabels[currentUser?.role] || currentUser?.role} · {new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long' }).format(clock)} · <bdi>{new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }).format(clock)}</bdi></>}
+        actions={<>
+          <Link data-variant="primary" className="ops-action ops-action--primary" to="/erp/bookings"><Plus size={17} /> حجز جديد</Link>
+          <Link className="ops-action" to="/erp/clients"><UserPlus size={17} /> عميل جديد</Link>
+          {['owner','admin'].includes(currentUser?.role) && <Link className="ops-action" to="/erp/offers"><FileCheck2 size={17} /> عرض حصري</Link>}
+        </>}
+        details={<div className="ops-attendance-chip">
+          <div><span>حضورك اليوم</span><strong>{attendance.loading ? 'جارٍ التحقق…' : !attendance.data?.self?.tracked ? 'غير خاضع للتتبع' : selfRecord?.check_out_at ? 'تم الانصراف' : selfRecord ? `دخول ${formatTime12(selfRecord.check_in_at)}` : 'لم يُسجل'}</strong></div>
+          {selfRecord && !selfRecord.check_out_at && <button type="button" onClick={checkOut}><TimerOff size={16} /> تسجيل الانصراف</button>}
+        </div>}
+      />
 
-      {/* 4 Stat Cards */}
-      <div className="erp-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-        <div className="erp-stat-card hover-elevate" style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }}>
-          <div>
-            <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 'bold' }}>باقات نشطة</p>
-            <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--erp-text-main)', fontWeight: '800' }}>{loading ? '...' : stats.activePackages}</h3>
-          </div>
-          <div className="icon-wrapper" style={{ background: 'rgba(67, 24, 255, 0.1)', padding: '15px', borderRadius: '50%', color: 'var(--erp-primary)' }}>
-            <Package size={28} />
-          </div>
-        </div>
+      {state.error && <div className="ops-state ops-state--error" role="alert"><AlertTriangle size={18} /> {state.error}<button onClick={load}>إعادة المحاولة</button></div>}
 
-        <div className="erp-stat-card hover-elevate" style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }}>
-          <div>
-            <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 'bold' }}>تسليمات (أسبوع)</p>
-            <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--erp-text-main)', fontWeight: '800' }}>{loading ? '...' : stats.weekDeliveries}</h3>
+      <section className="ops-grid-main">
+        <article className="ops-panel ops-runway">
+          <div className="ops-panel__heading">
+            <div><span className="ops-kicker">المشهد التشغيلي</span><h2>مسار الاستديو اليوم</h2></div>
+            <Link to="/erp/bookings">فتح التقويم <ArrowLeft size={16} /></Link>
           </div>
-          <div className="icon-wrapper" style={{ background: 'rgba(13, 202, 240, 0.15)', padding: '15px', borderRadius: '50%', color: '#0dcaf0' }}>
-            <Truck size={28} />
-          </div>
-        </div>
-
-        <div className="erp-stat-card hover-elevate" style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }}>
-          <div>
-            <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 'bold' }}>مستحقات السوق</p>
-            <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--erp-warning)', fontWeight: '800' }}>{loading ? '...' : stats.marketDues.toLocaleString()}</h3>
-          </div>
-          <div className="icon-wrapper" style={{ background: 'rgba(255, 193, 7, 0.15)', padding: '15px', borderRadius: '50%', color: 'var(--erp-warning)' }}>
-            <DollarSign size={28} />
-          </div>
-        </div>
-
-        <div className="erp-stat-card hover-elevate" style={{ background: 'var(--erp-surface)', borderRadius: '15px', padding: '20px', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'transform 0.3s' }}>
-          <div>
-            <p style={{ color: 'var(--erp-text-muted)', margin: '0 0 5px 0', fontSize: '1rem', fontWeight: 'bold' }}>صافي الربح</p>
-            <h3 style={{ margin: 0, fontSize: '2rem', color: 'var(--erp-success)', fontWeight: '800' }}>{loading ? '...' : stats.netProfit.toLocaleString()}</h3>
-          </div>
-          <div className="icon-wrapper" style={{ background: 'rgba(25, 135, 84, 0.15)', padding: '15px', borderRadius: '50%', color: 'var(--erp-success)' }}>
-            <TrendingUp size={28} />
-          </div>
-        </div>
-      </div>
-
-      {/* Bookings Tables (Today & Tomorrow) */}
-      <div className="erp-bookings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '24px', marginBottom: '30px' }}>
-        
-        {/* Today Bookings */}
-        <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '0', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', overflow: 'hidden' }}>
-          <div className="erp-section-header" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', borderBottom: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }}>
-            <div style={{ background: 'rgba(67, 24, 255, 0.1)', padding: '10px', borderRadius: '12px', color: 'var(--erp-primary)' }}>
-              <Clock size={20} />
-            </div>
-            <h4 className="erp-section-title" style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>مواعيد اليوم</h4>
-          </div>
-          <div style={{ padding: '0' }}>
-            {loading ? <div style={{ color: 'var(--erp-text-muted)', textAlign: 'center', padding: '30px', fontWeight: 'bold' }}>جاري التحميل...</div> : todayBookings.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--erp-text-muted)', fontWeight: 'bold' }}>
-                <div style={{ fontSize: '3rem', opacity: 0.5, marginBottom: '10px' }}>☕</div>
-                جدول اليوم فارغ
-              </div>
-            ) : (
-            <>
-            <div className="table-responsive desktop-table">
-              <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--erp-text-main)' }}>
-                <thead>
-                  <tr style={{ background: 'var(--erp-bg)' }}>
-                    <th style={{ padding: '15px 20px', textAlign: 'right', borderBottom: '1px solid var(--erp-border)', color: 'var(--erp-text-muted)', fontSize: '0.9rem' }}>العميل</th>
-                    <th style={{ padding: '15px 20px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)', color: 'var(--erp-text-muted)', fontSize: '0.9rem' }}>الوقت</th>
-                    <th style={{ padding: '15px 20px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)', color: 'var(--erp-text-muted)', fontSize: '0.9rem' }}>الحالة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {todayBookings.map(b => (
-                    <tr key={b.id} style={{ borderBottom: '1px solid var(--erp-border)', transition: 'background 0.2s' }} className="hover-row">
-                      <td style={{ padding: '15px 20px', fontWeight: 'bold' }}>{b.client_name}</td>
-                      <td style={{ padding: '15px 20px', textAlign: 'center', color: 'var(--erp-primary)', fontWeight: 'bold', direction: 'ltr' }}>{b.start_time} {Number(b.start_time.split(':')[0]) >= 12 ? 'م' : 'ص'}</td>
-                      <td style={{ padding: '15px 20px', textAlign: 'center' }}>
-                        <span style={{ background: 'rgba(25, 135, 84, 0.1)', color: 'var(--erp-success)', padding: '6px 15px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>
-                          {b.status || 'مؤكد'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {/* Mobile View */}
-            <div className="mobile-card-list">
-              {todayBookings.map(b => (
-                <div key={b.id} className="mobile-booking-card">
-                  <div className="mobile-booking-card-left">
-                    <h5 className="mobile-booking-card-title">{b.client_name}</h5>
-                    <div className="mobile-booking-card-time">
-                      {b.start_time} {Number(b.start_time.split(':')[0]) >= 12 ? 'م' : 'ص'}
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ background: 'rgba(25, 135, 84, 0.1)', color: 'var(--erp-success)', padding: '6px 15px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>
-                      {b.status || 'مؤكد'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            </>
-            )}
-          </div>
-        </div>
-
-        {/* Tomorrow Bookings */}
-        <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '0', border: '1px solid var(--erp-border)', boxShadow: 'var(--erp-shadow)', overflow: 'hidden' }}>
-          <div className="erp-section-header" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', borderBottom: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }}>
-            <div style={{ background: 'rgba(13, 202, 240, 0.1)', padding: '10px', borderRadius: '12px', color: '#0dcaf0' }}>
-              <Calendar size={20} />
-            </div>
-            <h4 className="erp-section-title" style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>مواعيد غداً</h4>
-          </div>
-          <div style={{ padding: '0' }}>
-            {loading ? <div style={{ color: 'var(--erp-text-muted)', textAlign: 'center', padding: '30px', fontWeight: 'bold' }}>جاري التحميل...</div> : tomorrowBookings.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--erp-text-muted)', fontWeight: 'bold' }}>
-                <div style={{ fontSize: '3rem', opacity: 0.5, marginBottom: '10px' }}>☕</div>
-                جدول الغد فارغ حتى الآن
-              </div>
-            ) : (
-            <>
-            <div className="table-responsive desktop-table">
-              <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--erp-text-main)' }}>
-                <thead>
-                  <tr style={{ background: 'var(--erp-bg)' }}>
-                    <th style={{ padding: '15px 20px', textAlign: 'right', borderBottom: '1px solid var(--erp-border)', color: 'var(--erp-text-muted)', fontSize: '0.9rem' }}>العميل</th>
-                    <th style={{ padding: '15px 20px', textAlign: 'center', borderBottom: '1px solid var(--erp-border)', color: 'var(--erp-text-muted)', fontSize: '0.9rem' }}>الوقت</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tomorrowBookings.map(b => (
-                    <tr key={b.id} style={{ borderBottom: '1px solid var(--erp-border)', transition: 'background 0.2s' }} className="hover-row">
-                      <td style={{ padding: '15px 20px', fontWeight: 'bold' }}>{b.client_name}</td>
-                      <td style={{ padding: '15px 20px', textAlign: 'center', color: '#0dcaf0', fontWeight: 'bold', direction: 'ltr' }}>{b.start_time} {Number(b.start_time.split(':')[0]) >= 12 ? 'م' : 'ص'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {/* Mobile View */}
-            <div className="mobile-card-list">
-              {tomorrowBookings.map(b => (
-                <div key={b.id} className="mobile-booking-card">
-                  <div className="mobile-booking-card-left">
-                    <h5 className="mobile-booking-card-title">{b.client_name}</h5>
-                  </div>
-                  <div>
-                    <div className="mobile-booking-card-time tomorrow">
-                      {b.start_time} {Number(b.start_time.split(':')[0]) >= 12 ? 'م' : 'ص'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            </>
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Due Tasks & Reminders */}
-      <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '0', border: '1px solid var(--erp-warning)', boxShadow: '0 10px 30px rgba(255, 193, 7, 0.1)', overflow: 'hidden' }}>
-        <div className="erp-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 25px', borderBottom: '1px solid var(--erp-border)', background: 'rgba(255, 193, 7, 0.05)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <AlertCircle size={24} color="var(--erp-warning)" />
-            <h4 className="erp-section-title" style={{ margin: 0, color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
-              <span className="mobile-hidden">مهام والتزامات مستحقة الآن</span>
-              <span className="desktop-hidden">مهام والتزامات</span>
-            </h4>
-          </div>
-          <button style={{ background: 'var(--erp-warning)', color: '#000', border: 'none', padding: '8px 20px', borderRadius: '50px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(255, 193, 7, 0.2)' }}>
-            <span className="mobile-hidden">إدارة المهام</span>
-            <span className="desktop-hidden">إدارة</span>
-          </button>
-        </div>
-
-        <div style={{ padding: '0' }}>
-          {loading ? <div style={{ color: 'var(--erp-text-muted)', textAlign: 'center', padding: '30px', fontWeight: 'bold' }}>جاري التحميل...</div> : dueTasks.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--erp-text-muted)', fontWeight: 'bold' }}>
-              لا توجد مهام مستحقة حالياً. الأمور كلها ممتازة!
-            </div>
-          ) : (
-            <>
-            <div className="table-responsive desktop-table">
-              <table style={{ width: '100%', borderCollapse: 'collapse', color: 'var(--erp-text-main)' }}>
-                <thead>
-                  <tr style={{ background: 'var(--erp-bg)', borderBottom: '1px solid var(--erp-border)' }}>
-                    <th style={{ padding: '15px 25px', textAlign: 'right', color: 'var(--erp-text-muted)', fontSize: '0.9rem' }}>المهمة</th>
-                    <th style={{ padding: '15px 25px', textAlign: 'center', color: 'var(--erp-text-muted)', fontSize: '0.9rem' }}>المبلغ</th>
-                    <th style={{ padding: '15px 25px', textAlign: 'center', color: 'var(--erp-text-muted)', fontSize: '0.9rem' }}>الاستحقاق</th>
-                    <th style={{ padding: '15px 25px', textAlign: 'center', color: 'var(--erp-text-muted)', fontSize: '0.9rem' }}>إجراء</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dueTasks.map(t => (
-                    <tr key={t.id} style={{ borderBottom: '1px solid var(--erp-border)', transition: 'background 0.2s' }} className="hover-row">
-                      <td style={{ padding: '20px 25px', fontWeight: 'bold', fontSize: '1.1rem' }}>{t.title}</td>
-                      <td style={{ padding: '20px 25px', textAlign: 'center', color: 'var(--erp-success)', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                        {t.amount > 0 ? `${t.amount} ج.م` : '-'}
-                      </td>
-                      <td style={{ padding: '20px 25px', textAlign: 'center', color: 'var(--erp-text-muted)', fontWeight: 'bold', direction: 'ltr' }}>
-                        {format(new Date(t.due_date), 'yyyy-MM-dd HH:mm')}
-                      </td>
-                      <td style={{ padding: '20px 25px', textAlign: 'center' }}>
-                        <button 
-                          onClick={() => handleCompleteTask(t.id, t.is_recurring, t.due_date)}
-                          style={{ background: 'var(--erp-success)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '50px', display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(25, 135, 84, 0.2)' }}
-                        >
-                          <CheckCircle size={18} /> إنجاز
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {/* Mobile View */}
-            <div className="mobile-card-list">
-              {dueTasks.map(t => (
-                <div key={t.id} className="mobile-task-card">
-                  <div className="mobile-task-card-header">
-                    <div>
-                      <h5 className="mobile-task-card-title">{t.title}</h5>
-                      <span className="mobile-task-card-date">{format(new Date(t.due_date), 'yyyy-MM-dd HH:mm')}</span>
-                    </div>
-                    <div className="mobile-task-card-amount">
-                      {t.amount > 0 ? `${t.amount} ج.م` : '-'}
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => handleCompleteTask(t.id, t.is_recurring, t.due_date)}
-                    className="mobile-task-card-action"
-                    style={{ background: 'var(--erp-success)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(25, 135, 84, 0.2)' }}
-                  >
-                    <CheckCircle size={18} /> إنجاز المهمة
+          {state.loading ? <div className="ops-skeleton ops-skeleton--timeline" /> : (
+            <div className={`runway ${timelineBookings.length === 0 ? 'runway--empty' : ''}`} aria-label="جدول حجوزات اليوم من الثانية عشرة ظهرًا إلى الثانية عشرة منتصف الليل">
+              <div className="runway__hours">{Array.from({ length: 13 }, (_, index) => <span key={index}>{formatTime12(index === 12 ? '24:00' : `${String(index + 12).padStart(2, '0')}:00`)}</span>)}</div>
+              <div className="runway__track">
+                <span className="runway__resource">الاستديو الرئيسي</span>
+                {Array.from({ length: 13 }, (_, index) => <i key={index} style={{ top: `${(index / 12) * 100}%` }} />)}
+                {currentMarker !== null && <span className="runway__now" style={{ top: `${currentMarker}%` }}><b>الآن</b></span>}
+                {timelineBookings.length === 0 && <button className="runway-empty-slot" type="button" onClick={() => navigate('/erp/bookings')}><CalendarDays size={24} /><strong>اليوم متاح بالكامل</strong><small>12:00 م — 12:00 ص</small><span><Plus size={15} /> إضافة أول حجز</span></button>}
+                {timelineBookings.map((booking, index) => (
+                  <button key={booking.id} className={`runway-booking runway-booking--${booking.normalizedStatus}`} style={{ top: `${booking.top}%`, height: `${booking.height}%`, insetInlineStart: `${(index % 2) * 48}%`, width: timelineBookings.length > 1 ? '47%' : '96%' }} onClick={() => navigate('/erp/bookings')}>
+                    <span className="runway-booking__time"><bdi>{formatTime12(booking.start)}–{formatTime12(booking.end)}</bdi></span>
+                    <strong>{booking.client_name}</strong><small>{booking.service || 'تصوير استديو'} · {booking.resource_name || 'الاستديو الرئيسي'}</small>
+                    <em>{statusLabels[booking.normalizedStatus] || booking.status}</em>
                   </button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-            </>
           )}
-        </div>
-      </div>
+        </article>
 
-    </div>
+        <aside className="ops-panel ops-queue">
+          <div className="ops-panel__heading"><div><span className="ops-kicker">يحتاج قرارًا</span><h2>طابور الإجراءات</h2></div><span className="ops-count">{state.actions.length}</span></div>
+          {state.loading ? <div className="ops-skeleton ops-skeleton--list" /> : state.actions.length === 0 ? <div className="ops-empty ops-empty--compact"><Check size={26} /><h3>لا توجد قرارات معلقة</h3><p>صندوق الطلبات مراجع بالكامل.</p></div> : (
+            <div className="ops-queue__list">{state.actions.map((item) => <Link to={item.to} key={`${item.kind}-${item.id}`}><span className={`ops-queue__icon ops-queue__icon--${item.kind}`}>{item.kind === 'payment' ? <BadgeDollarSign size={17} /> : <Clock3 size={17} />}</span><div><strong>{item.title}</strong><small>{item.meta}</small></div><ArrowLeft size={16} /></Link>)}</div>
+          )}
+          <Link className="ops-panel__footer" to="/erp/requests">عرض صندوق الطلبات كاملًا</Link>
+        </aside>
+      </section>
+
+      <section className="ops-health" aria-label="صحة العمل">
+        <div><span>مستحقات غير محصلة</span><strong>{state.loading ? '—' : money(state.health.outstanding)}</strong><small>من الفواتير النشطة</small></div>
+        <div><span>صافي حركة الشهر</span><strong className={(state.health.cashIn - state.health.cashOut) < 0 ? 'negative' : ''}>{state.loading ? '—' : money(state.health.cashIn - state.health.cashOut)}</strong><small>دخل {money(state.health.cashIn)} · خرج {money(state.health.cashOut)}</small></div>
+        <div><span>الباقات الفعالة</span><strong>{state.loading ? '—' : state.health.activePackages || 0}</strong><small><PackageCheck size={14} /> {state.health.expiringSoon || 0} تنتهي خلال 14 يومًا</small></div>
+      </section>
+
+      <section className="ops-grid-lower">
+        <article className="ops-panel ops-attendance">
+          <div className="ops-panel__heading"><div><span className="ops-kicker">فريق العمل</span><h2>الحضور اليوم</h2></div><Link to="/erp/attendance">السجل الكامل <ArrowLeft size={16} /></Link></div>
+          {attendance.error ? <div className="ops-inline-error">{attendance.error}</div> : attendance.loading ? <div className="ops-skeleton ops-skeleton--list" /> : teamTracked.length === 0 ? (
+            <div className="ops-empty ops-empty--compact"><UsersRound size={28} /><h3>لا يوجد موظفون خاضعون للحضور</h3><p>المالكان معفيان افتراضيًا. يمكنك تفعيل التتبع لكل شخص من صفحة الحضور.</p>{attendance.data?.preview && <span className="ops-preview-label">معاينة محلية</span>}</div>
+          ) : <><div className="attendance-totals"><span><b>{teamCounts.present}</b> حاضر</span><span><b>{teamCounts.late}</b> متأخر</span><span><b>{teamCounts.absent}</b> لم يسجل</span></div><div className="attendance-mini-list">{teamTracked.map((member) => <div key={member.user_id}><span className={`attendance-dot attendance-dot--${!member.record_id ? 'absent' : Number(member.late_minutes) ? 'late' : 'present'}`} /><strong>{member.full_name}</strong><small>{member.check_in_at ? formatTime12(member.check_in_at) : 'لم يسجل بعد'}</small></div>)}</div></>}
+        </article>
+
+        <article className="ops-panel ops-deliveries">
+          <div className="ops-panel__heading"><div><span className="ops-kicker">القادم</span><h2>مهام وتسليمات</h2></div><Link to="/erp/reminders">كل المهام <ArrowLeft size={16} /></Link></div>
+          {state.loading ? <div className="ops-skeleton ops-skeleton--list" /> : state.tasks.length === 0 ? <div className="ops-empty ops-empty--compact"><Check size={27} /><h3>لا توجد مهام قريبة</h3><p>أضف مهمة أو موعد تسليم ليظهر هنا.</p></div> : <div className="delivery-list">{state.tasks.map((task) => <Link to="/erp/reminders" key={task.id}><time>{task.due_date ? new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(task.due_date)) : 'دون موعد'}</time><div><strong>{task.title}</strong><small>{task.type || 'مهمة تشغيل'}</small></div><ArrowLeft size={15} /></Link>)}</div>}
+        </article>
+      </section>
+
+      <button className="ops-refresh" type="button" onClick={() => { load(); loadAttendance(); }} aria-label="تحديث لوحة العمليات"><RefreshCw size={16} /> آخر تحديث بتوقيت القاهرة</button>
+    </main>
   );
 };
 

@@ -1,15 +1,22 @@
 /* Outer Container: 3-Column Grid for exact centering */
 .top-bar {
-  position: absolute;
-  top: 25px;
+  position: fixed;
+  top: var(--public-promo-height, 0px);
   left: 50%;
   transform: translateX(-50%);
-  width: 90%;
-  max-width: 1200px;
+  width: 100%;
+  max-width: none;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
+  padding: 11px max(5vw, calc((100vw - 1200px) / 2));
+  background: rgba(19, 13, 26, .94);
+  border-bottom: 1px solid rgba(157, 78, 221, .24);
+  box-shadow: 0 12px 28px rgba(4, 2, 8, .22);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   z-index: 1000;
+  transition: top .2s ease;
 }
 
 .mobile-menu-backdrop, .close-menu-btn {
@@ -111,6 +118,8 @@
 
 /* Actions Buttons */
 .lang-btn {
+  min-width: 44px;
+  min-height: 44px;
   background: transparent;
   border: 1px solid rgba(224, 224, 224, 0.3);
   color: var(--color-silver);
@@ -140,6 +149,8 @@
   border: none;
   color: #fff;
   cursor: pointer;
+  width: 44px;
+  height: 44px;
 }
 
 .mobile-nav-wrapper {
@@ -148,8 +159,8 @@
 
 @media (max-width: 992px) {
   .top-bar {
-    width: 95%;
     grid-template-columns: auto 1fr auto;
+    padding-inline: 2.5%;
   }
   .nav-list {
     gap: 15px;
@@ -161,12 +172,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    position: absolute;
-    top: 0;
+    position: fixed;
+    top: var(--public-promo-height, 0px);
     left: 0;
     transform: none;
     width: 100%;
-    padding: 20px 5%;
+    padding: 12px 5%;
     margin-bottom: 0;
   }
   
@@ -211,6 +222,10 @@
     color: var(--color-silver);
     cursor: pointer;
     padding: 10px;
+    width: 48px;
+    height: 48px;
+    align-items: center;
+    justify-content: center;
     margin-bottom: 20px;
     transition: var(--transition);
   }
@@ -275,6 +290,11 @@
     font-size: 1.2rem;
     padding: 5px 0;
     white-space: nowrap;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .mobile-nav-wrapper {
+    direction: ltr;
+    text-align: left;
   }
   
   .quote-btn {

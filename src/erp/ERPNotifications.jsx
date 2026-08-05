@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Bell, AlertTriangle, Clock, CheckCircle, Package, Calendar } from 'lucide-react';
 import { format, addDays } from 'date-fns';
+import { formatDateTime12, formatEGP } from '../lib/businessFormat';
 
 export const useGlobalAlerts = () => {
   const [alerts, setAlerts] = useState([]);
@@ -144,7 +145,7 @@ export const useGlobalAlerts = () => {
           if (today >= notifyDt) {
             newAlerts.push({
               id: `task_alert_${r.id}`, client: 'تذكير إداري', service: r.type, type: r.type === 'مهمة' ? 'warning' : 'danger',
-              msg: `⏰ ${r.title} ${r.amount > 0 ? `(بمبلغ ${r.amount} ج.م)` : ''} - مستحق: ${format(dueDt, 'hh:mm a | yyyy-MM-dd')}`,
+              msg: `⏰ ${r.title} ${r.amount > 0 ? `(بمبلغ ${formatEGP(r.amount)})` : ''} - مستحق: ${formatDateTime12(dueDt)}`,
               icon: <AlertTriangle className="text-danger" size={18} />
             });
           }

@@ -1,0 +1,1311 @@
+/*
+ * MT Agency ERP visual system
+ * One shared enterprise vocabulary for legacy Bootstrap pages and newer modules.
+ */
+.erp-layout {
+  /* Typography: one Arabic-first scale shared by every ERP route. */
+  --erp-font-family: 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif;
+  --erp-font-size-page: 24px;
+  --erp-font-size-section: 18px;
+  --erp-font-size-card: 15px;
+  --erp-font-size-body: 14px;
+  --erp-font-size-secondary: 13px;
+  --erp-font-size-caption: 12px;
+  --erp-font-size-control: 14px;
+  --erp-font-size-kpi: 24px;
+  --erp-line-height-body: 1.55;
+  --erp-line-height-heading: 1.35;
+  --erp-weight-regular: 400;
+  --erp-weight-medium: 500;
+  --erp-weight-semibold: 700;
+  --erp-weight-bold: 800;
+  --erp-bg: #f6f5f1;
+  --erp-surface: #fffefa;
+  --erp-surface-muted: #f1f0eb;
+  --erp-surface-raised: #ffffff;
+  --erp-text-main: #171a27;
+  --erp-text-default: #303442;
+  --erp-text-muted: #6f7380;
+  --erp-text-subtle: #9699a3;
+  --erp-border: #dedcd5;
+  --erp-border-strong: #c9c6bd;
+  --erp-primary: #6d28d9;
+  --erp-primary-hover: #5b21b6;
+  --erp-primary-soft: #f1eafe;
+  --erp-success: #17835f;
+  --erp-success-soft: #e8f6f0;
+  --erp-warning: #bd7514;
+  --erp-warning-soft: #fff4df;
+  --erp-danger: #c24155;
+  --erp-danger-soft: #fbecef;
+  --erp-info: #2476a6;
+  --erp-info-soft: #eaf4fa;
+  --erp-sidebar-bg: #111629;
+  --erp-sidebar-hover: #1c2339;
+  --erp-sidebar-text-inactive: #adb5ca;
+  --erp-radius-xs: 6px;
+  --erp-radius-sm: 9px;
+  --erp-radius-md: 13px;
+  --erp-radius-lg: 17px;
+  --erp-control-height: 42px;
+  --erp-shadow: 0 1px 2px rgba(20, 24, 40, .04), 0 8px 24px rgba(20, 24, 40, .045);
+  --erp-shadow-raised: 0 16px 40px rgba(20, 24, 40, .12);
+  font-family: var(--erp-font-family) !important;
+  font-size: var(--erp-font-size-body);
+  font-weight: var(--erp-weight-regular);
+  line-height: var(--erp-line-height-body);
+  background: var(--erp-bg);
+  color: var(--erp-text-default);
+}
+
+/* Keep form controls, navigation, data views and overlay content on the same face. */
+.erp-layout :where(
+  h1, h2, h3, h4, h5, h6,
+  p, small, label, legend,
+  button, input, select, textarea,
+  table, th, td, a, time, bdi
+) {
+  font-family: var(--erp-font-family) !important;
+}
+
+.erp-layout :where(.erp-nav-link, .erp-mobile-header h4) {
+  font-size: var(--erp-font-size-control) !important;
+  line-height: 1.45 !important;
+}
+
+.erp-layout .erp-bottom-nav-item {
+  font-size: var(--erp-font-size-caption) !important;
+  line-height: 1.35 !important;
+}
+
+.erp-main :where(h1, h2, h3, h4, h5, h6) {
+  line-height: var(--erp-line-height-heading) !important;
+  font-weight: var(--erp-weight-bold) !important;
+}
+
+.erp-main h1 { font-size: var(--erp-font-size-page) !important; }
+.erp-main h2 { font-size: var(--erp-font-size-section) !important; }
+.erp-main :where(h3, h4, h5, h6) { font-size: var(--erp-font-size-card) !important; }
+
+/* Route titles: legacy Bootstrap pages and the newer standalone modules. */
+.erp-main :where(
+  .ops-commandbar__identity h1,
+  .packages-header h2,
+  .offers-command-head h2,
+  .projects-head h1,
+  .requests-header h2,
+  .attendance-head h1,
+  .erp-header h2,
+  #servicesSection > .d-flex:first-child h5
+) {
+  font-size: var(--erp-font-size-page) !important;
+  font-weight: var(--erp-weight-bold) !important;
+}
+
+.erp-main > div:not([class]) > div:first-of-type :where(h1, h2, h3),
+.erp-main > .container-fluid > .d-flex:first-of-type :where(h1, h2, h3),
+.erp-main > .container-fluid > .mb-4:first-of-type :where(h1, h2, h3) {
+  font-size: var(--erp-font-size-page) !important;
+  font-weight: var(--erp-weight-bold) !important;
+}
+
+.erp-main :where(
+  .ops-panel__heading h2,
+  .offer-section-title h3,
+  .calendar-main > header h2,
+  .drawer-section h3,
+  .setting-section > div:first-child h5,
+  .pending-requests-title
+) {
+  font-size: var(--erp-font-size-section) !important;
+  font-weight: var(--erp-weight-bold) !important;
+}
+
+/* Settings has no separate visible hero; its first section heading is the route title. */
+.erp-main #servicesSection > .d-flex:first-child h5 {
+  font-size: var(--erp-font-size-page) !important;
+  font-weight: var(--erp-weight-bold) !important;
+}
+
+.erp-main p {
+  font-size: var(--erp-font-size-secondary) !important;
+  line-height: var(--erp-line-height-body) !important;
+}
+
+.erp-main small,
+.erp-main :where(.ops-eyebrow, .ops-kicker, .requests-eyebrow, .attendance-eyebrow, .packages-dialog-kicker, .dialog-kicker) {
+  font-size: var(--erp-font-size-caption) !important;
+  line-height: var(--erp-line-height-body) !important;
+}
+
+.erp-main :where(strong, b, .fw-bold) { font-weight: var(--erp-weight-semibold) !important; }
+.erp-main :where(.ops-eyebrow, .ops-kicker, .requests-eyebrow, .attendance-eyebrow, .packages-dialog-kicker, .dialog-kicker) {
+  font-weight: var(--erp-weight-bold) !important;
+}
+
+.erp-main :where(label, legend, .erp-label) {
+  font-size: var(--erp-font-size-secondary) !important;
+  line-height: var(--erp-line-height-body) !important;
+  font-weight: var(--erp-weight-semibold) !important;
+}
+
+.erp-main :where(
+  button, .btn, .nav-link,
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea,
+  .form-control, .form-select, .erp-input
+) {
+  font-size: var(--erp-font-size-control) !important;
+  line-height: 1.45 !important;
+}
+
+.erp-main :where(.table, .erp-table, .table-custom, .attendance-table, .offer-table-wrap table, .packages-table-wrap table) {
+  font-size: var(--erp-font-size-secondary) !important;
+  line-height: 1.5 !important;
+}
+
+.erp-main :where(.table, .erp-table, .table-custom, .attendance-table, .offer-table-wrap table, .packages-table-wrap table) thead th {
+  font-size: var(--erp-font-size-caption) !important;
+  font-weight: var(--erp-weight-bold) !important;
+}
+
+.erp-main :where(.table, .erp-table, .table-custom, .attendance-table, .offer-table-wrap table, .packages-table-wrap table) tbody td {
+  font-size: var(--erp-font-size-secondary) !important;
+}
+
+.erp-main :where(.badge, .status, [class*="status--"], .offer-status, .project-status, .priority, .booking-status-pill) {
+  font-size: var(--erp-font-size-caption) !important;
+  line-height: 1.35 !important;
+  font-weight: var(--erp-weight-bold) !important;
+}
+
+.erp-main :where(
+  .ops-health span, .ops-health small,
+  .attendance-strip span, .attendance-strip small,
+  .requests-summary span, .request-card header div > span, .request-card-meta span,
+  .requests-time-change span, .requests-time-change small, .requests-owner-only,
+  .packages-summary span, .offers-metrics span, .projects-metrics span,
+  .invoice-grid header span, .invoice-grid dt,
+  .project-card footer, .project-dates
+) {
+  font-size: var(--erp-font-size-caption) !important;
+  line-height: var(--erp-line-height-body) !important;
+}
+
+.erp-main .fc .fc-toolbar-title {
+  font-size: var(--erp-font-size-section) !important;
+  line-height: var(--erp-line-height-heading) !important;
+  font-weight: var(--erp-weight-bold) !important;
+}
+
+.erp-main .fc :where(.fc-button, .fc-daygrid-day-number) {
+  font-size: var(--erp-font-size-secondary) !important;
+}
+
+.erp-main .fc :where(.fc-event, .fc-col-header-cell-cushion) {
+  font-size: var(--erp-font-size-caption) !important;
+  line-height: 1.4 !important;
+}
+
+/* Numeric prominence is preserved, but no module invents its own KPI scale. */
+.erp-main :where(
+  .ops-health strong,
+  .attendance-strip strong,
+  .requests-summary strong,
+  .packages-summary strong,
+  .offers-metrics strong,
+  .projects-metrics strong,
+  .offer-total-strip .grand strong,
+  .invoice-value strong,
+  .drawer-breakdown strong,
+  .wallet-card h2,
+  .wallet-card h3,
+  .erp-stat-card h3
+) {
+  font-size: var(--erp-font-size-kpi) !important;
+  line-height: 1.25 !important;
+  font-weight: var(--erp-weight-bold) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-main {
+  background: var(--erp-bg);
+}
+
+.erp-main :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--erp-text-main);
+  letter-spacing: -.012em;
+}
+
+/* Dark command surfaces keep their local light hierarchy after global normalization. */
+.erp-main :where(
+  .ops-commandbar,
+  .attendance-head,
+  .attendance-drawer > header,
+  .policy-modal > header,
+  .correction-modal > header
+) :where(h1, h2, h3, h4, h5, h6) {
+  color: #ffffff !important;
+}
+
+.erp-main :where(.ops-commandbar__identity, .attendance-head, .attendance-drawer > header) p {
+  color: #cbd2e3 !important;
+}
+
+.erp-main :where(.ops-commandbar, .attendance-head, .attendance-drawer > header, .policy-modal > header, .correction-modal > header)
+  :where(.ops-eyebrow, .attendance-eyebrow, span:first-child) {
+  color: #c4b5fd !important;
+}
+
+.erp-main :where(p, small) { color: var(--erp-text-muted); }
+
+.erp-main :where(a, button, input, select, textarea) {
+  font-family: inherit;
+}
+
+.erp-main :where(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid rgba(109, 40, 217, .18) !important;
+  outline-offset: 2px;
+}
+
+/* Shared page canvas and section rhythm */
+.erp-main > :where(.container-fluid, main) {
+  color: var(--erp-text-default);
+}
+
+.erp-main > .container-fluid[style*="background"] {
+  background: transparent !important;
+  min-height: auto !important;
+}
+
+.erp-card,
+.erp-main .setting-section,
+.erp-main .card,
+.erp-main .packages-dialog,
+.erp-main .requests-dialog,
+.erp-main .attendance-drawer,
+.erp-main .policy-modal,
+.erp-main .correction-modal,
+.erp-main .projects-panel,
+.erp-main .offer-panel {
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+
+.erp-main .setting-section {
+  padding: clamp(18px, 2vw, 28px) !important;
+  margin-bottom: 20px !important;
+}
+
+/* Bootstrap utilities normalized inside ERP only */
+.erp-layout .bg-white,
+.erp-layout .bg-light,
+.erp-layout .modal-body.bg-light,
+.erp-layout .modal-body.bg-white,
+.erp-layout .modal-footer.bg-white {
+  background: var(--erp-surface) !important;
+}
+
+.erp-layout .text-dark { color: var(--erp-text-main) !important; }
+.erp-layout .text-muted { color: var(--erp-text-muted) !important; }
+.erp-layout .text-primary { color: var(--erp-primary) !important; }
+.erp-layout .text-success { color: var(--erp-success) !important; }
+.erp-layout .text-warning { color: var(--erp-warning) !important; }
+.erp-layout .text-danger { color: var(--erp-danger) !important; }
+.erp-layout .border { border-color: var(--erp-border) !important; }
+.erp-layout .border-primary { border-color: var(--erp-primary) !important; }
+.erp-layout .border-success { border-color: var(--erp-success) !important; }
+.erp-layout .border-warning { border-color: var(--erp-warning) !important; }
+.erp-layout .border-danger { border-color: var(--erp-danger) !important; }
+.erp-layout .shadow,
+.erp-layout .shadow-sm,
+.erp-layout .shadow-lg { box-shadow: var(--erp-shadow) !important; }
+
+.erp-layout .bg-primary,
+.erp-layout .btn-primary {
+  background: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
+  color: #fff !important;
+}
+.erp-layout .btn-primary:hover { background: var(--erp-primary-hover) !important; }
+.erp-layout .bg-primary-subtle { background: var(--erp-primary-soft) !important; }
+.erp-layout .bg-success-subtle { background: var(--erp-success-soft) !important; }
+.erp-layout .bg-warning-subtle { background: var(--erp-warning-soft) !important; }
+.erp-layout .bg-danger-subtle { background: var(--erp-danger-soft) !important; }
+.erp-layout .bg-info-subtle { background: var(--erp-info-soft) !important; }
+
+/* Controls */
+.erp-main :where(.form-control, .form-select, .erp-input, input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  min-height: var(--erp-control-height);
+  background: var(--erp-surface-raised) !important;
+  color: var(--erp-text-main) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+.erp-main :where(.form-control, .form-select, .erp-input, input, select, textarea):focus {
+  border-color: var(--erp-primary) !important;
+  box-shadow: 0 0 0 3px rgba(109, 40, 217, .12) !important;
+}
+
+.erp-main :where(label, .erp-label) {
+  color: var(--erp-text-default);
+  font-weight: 750;
+}
+
+.erp-main :where(.btn, .erp-btn-primary, .packages-submit, .requests-refresh) {
+  min-height: 40px;
+  border-radius: var(--erp-radius-sm) !important;
+  font-weight: 800;
+  box-shadow: none !important;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.erp-main :where(.btn, button):hover { transform: translateY(-1px); }
+.erp-main :where(.btn, button):active { transform: translateY(0); }
+
+.erp-layout .btn-dark {
+  background: var(--erp-text-main) !important;
+  border-color: var(--erp-text-main) !important;
+}
+.erp-layout .btn-success {
+  background: var(--erp-success) !important;
+  border-color: var(--erp-success) !important;
+}
+.erp-layout .btn-danger {
+  background: var(--erp-danger) !important;
+  border-color: var(--erp-danger) !important;
+}
+.erp-layout .btn-outline-primary {
+  color: var(--erp-primary) !important;
+  border-color: rgba(109, 40, 217, .35) !important;
+  background: var(--erp-surface) !important;
+}
+.erp-layout .btn-outline-primary:hover { color: #fff !important; background: var(--erp-primary) !important; }
+.erp-layout .btn-outline-danger {
+  color: var(--erp-danger) !important;
+  border-color: rgba(194, 65, 85, .35) !important;
+  background: var(--erp-surface) !important;
+}
+
+/* Tabs and filters */
+.erp-main :where(.nav-tabs, .attendance-filters, .requests-tabs) {
+  gap: 7px !important;
+  border: 0 !important;
+}
+.erp-main .nav-tabs .nav-link {
+  min-height: 38px;
+  color: var(--erp-text-muted) !important;
+  background: var(--erp-surface-muted) !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--erp-radius-sm) !important;
+  font-weight: 800;
+}
+.erp-main .nav-tabs .nav-link.active {
+  color: var(--erp-primary) !important;
+  background: var(--erp-primary-soft) !important;
+  border-color: rgba(109, 40, 217, .18) !important;
+}
+
+/* Tables */
+.erp-main :where(.table-responsive, .attendance-table-wrap) {
+  border-radius: var(--erp-radius-md);
+}
+.erp-main :where(.table, .erp-table, .table-custom, .attendance-table) {
+  color: var(--erp-text-default) !important;
+  margin-bottom: 0;
+}
+.erp-main :where(.table, .erp-table, .table-custom, .attendance-table) thead th {
+  background: var(--erp-surface-muted) !important;
+  color: var(--erp-text-muted) !important;
+  border-color: var(--erp-border) !important;
+  font-size: .75rem;
+  font-weight: 850;
+  letter-spacing: .01em;
+  padding-block: 13px !important;
+}
+.erp-main :where(.table, .erp-table, .table-custom, .attendance-table) tbody td {
+  background: var(--erp-surface) !important;
+  color: var(--erp-text-default) !important;
+  border-color: var(--erp-border) !important;
+  padding-block: 14px !important;
+}
+.erp-main :where(.table, .erp-table, .table-custom, .attendance-table) tbody tr:hover td {
+  background: #faf8ff !important;
+}
+
+/* Badges and alerts */
+.erp-main .badge,
+.erp-main :where(.status, [class*="status--"]) {
+  border-radius: 999px !important;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.erp-layout .badge.bg-success { background: var(--erp-success) !important; }
+.erp-layout .badge.bg-danger { background: var(--erp-danger) !important; }
+.erp-layout .badge.bg-warning { background: var(--erp-warning) !important; color: #fff !important; }
+.erp-layout .badge.bg-secondary { background: var(--erp-text-muted) !important; }
+.erp-main :where(.alert, [role="alert"]) {
+  border-radius: var(--erp-radius-sm) !important;
+  border-width: 1px !important;
+  box-shadow: none !important;
+}
+
+/* Modals and drawers */
+.erp-main :where(.modal-content, .erp-modal-content) {
+  color: var(--erp-text-default);
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow-raised) !important;
+}
+.erp-main .modal-header {
+  background: var(--erp-surface) !important;
+  color: var(--erp-text-main) !important;
+  border-bottom: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) var(--erp-radius-lg) 0 0 !important;
+}
+.erp-main .modal-header.bg-danger { border-top: 4px solid var(--erp-danger) !important; }
+.erp-main .modal-header.bg-dark { border-top: 4px solid var(--erp-text-main) !important; }
+.erp-main .modal-header.bg-primary { border-top: 4px solid var(--erp-primary) !important; }
+.erp-main .modal-header.text-white,
+.erp-main .modal-header.text-white :where(h1,h2,h3,h4,h5,h6) { color: var(--erp-text-main) !important; }
+.erp-main .modal-header .btn-close { filter: none !important; }
+.erp-main .modal-footer { border-top: 1px solid var(--erp-border) !important; }
+
+/* Finance: remove unrelated gradients and use semantic edge accents */
+.erp-main .wallet-card {
+  color: var(--erp-text-default) !important;
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-md) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.erp-main .wallet-card:hover { transform: translateY(-2px) !important; box-shadow: var(--erp-shadow) !important; }
+.erp-main .wallet-card.gradient-success { border-top: 3px solid var(--erp-success) !important; }
+.erp-main .wallet-card.gradient-danger { border-top: 3px solid var(--erp-danger) !important; }
+.erp-main .wallet-card.gradient-primary { border-top: 3px solid var(--erp-primary) !important; }
+.erp-main .wallet-card :where(h1,h2,h3,h4,h5,h6,p,span) { color: inherit; }
+.erp-main .month-selector {
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: var(--erp-radius-sm) !important;
+  box-shadow: none !important;
+}
+
+/* Clients */
+.erp-main .erp-clients-details {
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-top: 3px solid var(--erp-primary) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.erp-main .erp-client-actions-grid {
+  background: var(--erp-surface-muted) !important;
+  border-color: var(--erp-border) !important;
+  border-radius: var(--erp-radius-md) !important;
+}
+.erp-main .mobile-client-card { border-radius: var(--erp-radius-md); }
+
+/* Calendar and bookings */
+.erp-main .erp-calendar-inner {
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-top: 3px solid var(--erp-primary) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.erp-main .fc .fc-button-primary {
+  background: var(--erp-surface) !important;
+  border: 1px solid var(--erp-border) !important;
+  color: var(--erp-text-default) !important;
+  border-radius: var(--erp-radius-sm) !important;
+  box-shadow: none !important;
+}
+.erp-main .fc .fc-button-primary:hover,
+.erp-main .fc .fc-button-primary.fc-button-active {
+  background: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
+  color: #fff !important;
+}
+.erp-main .fc .fc-day-today { background: var(--erp-primary-soft) !important; }
+.erp-main .fc-theme-standard td,
+.erp-main .fc-theme-standard th { border-color: var(--erp-border) !important; }
+.erp-main .fc .fc-col-header-cell { background: var(--erp-surface-muted); }
+
+/* Reminders and settings legacy pages */
+.erp-main .setting-section,
+.erp-main .tab-content > .tab-pane > .row > [class*="col-"] > .card {
+  overflow: hidden;
+}
+.erp-main .setting-section > .border-bottom { border-color: var(--erp-border) !important; }
+.erp-main .hover-elevate:hover { transform: translateY(-2px) !important; }
+
+/* Align newer module palettes to the shell */
+.erp-main :where(.requests-summary, .request-card, .packages-summary, .packages-table-wrap, .projects-shell, .offer-shell, .attendance-workspace) {
+  border-color: var(--erp-border) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.erp-main :where(.requests-tabs button.active, .packages-submit, .attendance-filters button.active) {
+  background: var(--erp-primary) !important;
+  border-color: var(--erp-primary) !important;
+  color: #fff !important;
+}
+
+/* Remove obsolete deleted sidebar identity rules */
+.erp-brand-container,
+.erp-user-card,
+.erp-user-avatar { display: none !important; }
+
+/* Legacy standalone dark modules now inherit the same enterprise shell. */
+.erp-main .sold-packages,
+.erp-main .offers-command,
+.erp-main .projects-command {
+  --erp-surface: #fffefa;
+  --erp-bg: #f6f5f1;
+  --erp-border: #dedcd5;
+  --erp-text-main: #171a27;
+  --erp-text-muted: #6f7380;
+  --erp-primary: #6d28d9;
+  --offer-bg: #f6f5f1;
+  --offer-surface: #fffefa;
+  --offer-surface2: #f1f0eb;
+  --offer-border: #dedcd5;
+  --offer-text: #171a27;
+  --offer-muted: #6f7380;
+  --offer-violet: #6d28d9;
+  --pc-bg: #f6f5f1;
+  --pc-panel: #fffefa;
+  --pc-panel2: #f1f0eb;
+  --pc-line: #dedcd5;
+  --pc-text: #171a27;
+  --pc-muted: #6f7380;
+  --pc-violet: #6d28d9;
+  --pc-cyan: #2476a6;
+  color: var(--erp-text-default) !important;
+  background: transparent !important;
+  padding: 0 !important;
+  min-height: auto !important;
+}
+
+.erp-main :where(.sold-packages, .offers-command, .projects-command) :where(h1,h2,h3,h4,h5,h6) {
+  color: var(--erp-text-main) !important;
+}
+
+/* Sold packages */
+.erp-main .packages-header > div > span,
+.erp-main .packages-dialog-kicker { color: var(--erp-primary) !important; }
+.erp-main .packages-header > button,
+.erp-main .packages-submit {
+  background: var(--erp-primary) !important;
+  box-shadow: none !important;
+}
+.erp-main .packages-summary {
+  background: var(--erp-surface) !important;
+  border-color: var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow) !important;
+  overflow: hidden;
+}
+.erp-main .packages-summary article { border-color: var(--erp-border) !important; }
+.erp-main .packages-summary svg { color: var(--erp-primary) !important; }
+.erp-main .packages-filters label,
+.erp-main .packages-refresh,
+.erp-main .package-actions :where(button,select),
+.erp-main .package-balance,
+.erp-main .package-mobile-card {
+  background: var(--erp-surface) !important;
+  border-color: var(--erp-border) !important;
+  color: var(--erp-text-default) !important;
+  border-radius: var(--erp-radius-sm) !important;
+  box-shadow: none !important;
+}
+.erp-main .packages-filters option,
+.erp-main .package-actions option,
+.erp-main .packages-dialog option { background: #fff !important; color: var(--erp-text-main) !important; }
+.erp-main .packages-table-wrap,
+.erp-main .packages-empty {
+  background: var(--erp-surface) !important;
+  border-color: var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow) !important;
+}
+.erp-main .packages-table-wrap th { background: var(--erp-surface-muted) !important; color: var(--erp-text-muted) !important; }
+.erp-main .packages-table-wrap td { background: var(--erp-surface) !important; border-color: var(--erp-border) !important; }
+.erp-main .packages-table-wrap td > b { color: var(--erp-primary) !important; }
+.erp-main .package-balance-labels b { color: var(--erp-text-main) !important; }
+.erp-main .package-balance-bar { background: #e9e6df !important; border-radius: 999px; }
+.erp-main .packages-empty h3 { color: var(--erp-text-main) !important; }
+.erp-main .packages-dialog {
+  background: var(--erp-surface) !important;
+  border-color: var(--erp-border) !important;
+  border-top-color: var(--erp-primary) !important;
+  color: var(--erp-text-default) !important;
+}
+.erp-main .packages-expiry-preview,
+.erp-main .packages-adjust-preview { background: var(--erp-primary-soft) !important; border-color: var(--erp-primary) !important; }
+
+/* Offers and invoices */
+.erp-main .offers-command-head > div > span { color: var(--erp-primary) !important; }
+.erp-main .offers-command-head > button,
+.erp-main .offer-add-service button,
+.erp-main .offer-total-strip > button { background: var(--erp-primary) !important; box-shadow: none !important; }
+.erp-main .offers-metrics,
+.erp-main .offer-fields,
+.erp-main .offer-lines,
+.erp-main .offer-total-strip,
+.erp-main .offer-table-wrap,
+.erp-main .invoice-grid > article,
+.erp-main .offer-empty,
+.erp-main .offer-dialog {
+  background: var(--erp-surface) !important;
+  border-color: var(--erp-border) !important;
+  color: var(--erp-text-default) !important;
+  border-radius: var(--erp-radius-lg);
+  box-shadow: var(--erp-shadow) !important;
+}
+.erp-main .offers-metrics { overflow: hidden; }
+.erp-main .offers-metrics article { border-color: var(--erp-border) !important; }
+.erp-main .offers-modes button,
+.erp-main .offer-row-actions button,
+.erp-main .offer-print {
+  background: var(--erp-surface) !important;
+  color: var(--erp-text-default) !important;
+  border-color: var(--erp-border) !important;
+}
+.erp-main .offers-modes button.active { background: var(--erp-primary) !important; color: #fff !important; border-color: var(--erp-primary) !important; }
+.erp-main .offer-section-title > span { background: var(--erp-primary-soft) !important; color: var(--erp-primary) !important; border-radius: var(--erp-radius-sm); }
+.erp-main .offer-line-stack article,
+.erp-main .offer-total-strip .grand,
+.erp-main .invoice-value,
+.erp-main .offer-detail-totals {
+  background: var(--erp-surface-muted) !important;
+  border-color: var(--erp-border) !important;
+  color: var(--erp-text-default) !important;
+  border-radius: var(--erp-radius-sm);
+}
+.erp-main .offer-line-stack article strong,
+.erp-main .offer-total-strip .grand strong,
+.erp-main .invoice-value strong,
+.erp-main .offer-detail-totals > strong { color: var(--erp-primary) !important; }
+.erp-main .offer-table-wrap th { background: var(--erp-surface-muted) !important; }
+.erp-main .offer-table-wrap td { background: var(--erp-surface) !important; border-color: var(--erp-border) !important; }
+.erp-main .offer-empty h3 { color: var(--erp-text-main) !important; }
+.erp-main .offer-dialog { border-top-color: var(--erp-primary) !important; }
+
+/* Projects, content calendar and task pipeline */
+.erp-main .projects-head span,
+.erp-main .dialog-kicker { color: var(--erp-primary) !important; }
+.erp-main .projects-head > button,
+.erp-main .dialog-submit { background: var(--erp-primary) !important; box-shadow: none !important; }
+.erp-main .projects-metrics article,
+.erp-main .project-card,
+.erp-main .projects-toolbar,
+.erp-main .calendar-main,
+.erp-main .calendar-focus,
+.erp-main .tasks-pipeline > section,
+.erp-main .tasks-pipeline article,
+.erp-main .project-dialog,
+.erp-main .detail-columns > section {
+  background: var(--erp-surface) !important;
+  color: var(--erp-text-default) !important;
+  border-color: var(--erp-border) !important;
+  border-radius: var(--erp-radius-md) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.erp-main .projects-metrics article { border-top-color: var(--erp-primary) !important; }
+.erp-main .projects-toolbar nav button,
+.erp-main .projects-refresh,
+.erp-main .detail-actions button {
+  background: transparent !important;
+  color: var(--erp-text-muted) !important;
+  border-color: var(--erp-border) !important;
+}
+.erp-main .projects-toolbar nav button.active { background: var(--erp-primary-soft) !important; color: var(--erp-primary) !important; }
+.erp-main .projects-filters label { background: var(--erp-surface-raised) !important; border-color: var(--erp-border) !important; }
+.erp-main .projects-filters :where(input,select),
+.erp-main .tasks-pipeline select { color: var(--erp-text-main) !important; background: var(--erp-surface-raised) !important; }
+.erp-main :where(.projects-filters, .form-grid, .tasks-pipeline) option { background: #fff !important; color: var(--erp-text-main) !important; }
+.erp-main .project-card p,
+.erp-main .project-dates,
+.erp-main .project-card footer,
+.erp-main .calendar-focus :where(p,footer,time),
+.erp-main .tasks-pipeline :where(p,footer) { color: var(--erp-text-muted) !important; }
+.erp-main .project-dates,
+.erp-main .project-card footer,
+.erp-main .calendar-main > header,
+.erp-main .calendar-focus > article,
+.erp-main .detail-columns > section > header,
+.erp-main .detail-columns > section > article { border-color: var(--erp-border) !important; }
+.erp-main .project-progress i { background: #e6e3dc !important; }
+.erp-main .project-progress b { background: var(--erp-primary) !important; }
+.erp-main .calendar-weekdays { background: var(--erp-surface-muted) !important; color: var(--erp-text-muted) !important; }
+.erp-main .calendar-weekdays span { border-color: var(--erp-border) !important; }
+.erp-main .calendar-grid > button {
+  background: var(--erp-surface) !important;
+  color: var(--erp-text-main) !important;
+  border-color: var(--erp-border) !important;
+}
+.erp-main .calendar-grid > button:hover { background: var(--erp-primary-soft) !important; }
+.erp-main .calendar-grid > button.selected { background: var(--erp-primary-soft) !important; box-shadow: inset 0 0 0 2px var(--erp-primary) !important; }
+.erp-main .content-dot { background: var(--erp-surface-muted) !important; }
+.erp-main .tasks-pipeline > section > header span { background: var(--erp-surface-muted) !important; color: var(--erp-text-muted) !important; }
+.erp-main .projects-empty h3 { color: var(--erp-text-main) !important; }
+.erp-main .project-dialog { border-top: 4px solid var(--erp-primary) !important; }
+.erp-main .dialog-close { background: var(--erp-surface-muted) !important; color: var(--erp-text-main) !important; border-color: var(--erp-border) !important; }
+.erp-main .form-grid label { color: var(--erp-text-default) !important; }
+.erp-main .detail-note { background: var(--erp-primary-soft) !important; border-color: var(--erp-primary) !important; color: var(--erp-text-default) !important; }
+
+/* Requests summary must not introduce an unrelated dark tile. */
+.erp-main .requests-summary {
+  border-radius: var(--erp-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--erp-shadow);
+}
+.erp-main .requests-summary .total { background: var(--erp-primary-soft) !important; }
+.erp-main .requests-summary .total :where(span,strong) { color: var(--erp-text-main) !important; }
+
+/*
+ * Strict computed typography contract.
+ * This final layer neutralizes legacy rem values, inline font declarations and
+ * component-level `font: inherit` shorthands. Icon glyph fonts are excluded.
+ */
+.erp-layout,
+.erp-layout :where(
+  main, section, article, header, footer, nav, aside, form, fieldset,
+  div, p, span:not(.fc-icon), a, strong, b, em, time, small, label, legend,
+  button, input, select, textarea, table, thead, tbody, tr, th, td,
+  dl, dt, dd, ul, ol, li, h1, h2, h3, h4, h5, h6, code, pre, bdi
+) {
+  font-family: var(--erp-font-family) !important;
+}
+
+/* Unclassified readable copy always starts at the body size; semantic roles follow. */
+.erp-layout .erp-main :where(
+  section, article, header, footer, nav, aside, form, fieldset,
+  div, dl, ul, ol,
+  p, span:not(.fc-icon), a, strong, b, em, time, label, legend,
+  button, input, select, textarea, th, td, dt, dd, li
+) {
+  font-size: var(--erp-font-size-body) !important;
+  line-height: var(--erp-line-height-body) !important;
+}
+
+.erp-layout .erp-main :where(p, span, a, time, label, legend, input, select, textarea, th, td, dt, dd, li) {
+  font-weight: var(--erp-weight-regular) !important;
+}
+
+.erp-layout .erp-main :where(strong, b, .fw-bold) {
+  font-weight: var(--erp-weight-semibold) !important;
+}
+
+/* Headings are semantic, not derived from whichever tag a legacy page happened to use. */
+.erp-layout .erp-main :where(h1, h2, h3, h4, h5, h6) {
+  font-size: var(--erp-font-size-card) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: var(--erp-line-height-heading) !important;
+}
+
+.erp-layout .erp-main :is(
+  .ops-panel__heading h2,
+  .pending-requests-title,
+  .offer-section-title h3,
+  .calendar-main > header h2,
+  .drawer-section h3,
+  .setting-section > div:first-child h5,
+  .modal-title,
+  .erp-section-title
+) {
+  font-size: var(--erp-font-size-section) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: var(--erp-line-height-heading) !important;
+}
+
+.erp-layout .erp-main :is(
+  .card h2, .card h3, .card h4, .card h5, .card h6,
+  .request-card h3,
+  .project-card h2,
+  .invoice-grid h3,
+  .mobile-client-card h5,
+  .packages-empty h3,
+  .offer-empty h3,
+  .projects-empty h3,
+  .ops-empty h3,
+  .attendance-empty h2,
+  .tasks-pipeline h3,
+  .tasks-pipeline h4,
+  .calendar-focus h3,
+  .calendar-focus h4
+) {
+  font-size: var(--erp-font-size-card) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: var(--erp-line-height-heading) !important;
+}
+
+/* Every route-level heading resolves to one page-title token. */
+.erp-layout .erp-main :is(
+  .ops-commandbar__identity h1,
+  .packages-header h2,
+  .offers-command-head h2,
+  .projects-head h1,
+  .requests-header h2,
+  .attendance-head h1,
+  .erp-header h2,
+  #servicesSection > .d-flex:first-child h5
+) {
+  font-size: var(--erp-font-size-page) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: var(--erp-line-height-heading) !important;
+}
+
+.erp-layout .erp-main > div:not([class]) > div:first-of-type :is(h1, h2, h3),
+.erp-layout .erp-main > .container-fluid > .d-flex:first-of-type :is(h1, h2, h3),
+.erp-layout .erp-main > .container-fluid > .mb-4:first-of-type :is(h1, h2, h3) {
+  font-size: var(--erp-font-size-page) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: var(--erp-line-height-heading) !important;
+}
+
+/* Supporting copy and labels use the secondary role consistently. */
+.erp-layout .erp-main :is(
+  .ops-commandbar__identity p,
+  .packages-header p,
+  .offers-command-head p,
+  .projects-head p,
+  .requests-header p,
+  .attendance-head p,
+  .erp-header p,
+  .request-card-note,
+  .project-card p,
+  .calendar-focus p,
+  .tasks-pipeline p,
+  .packages-dialog > p,
+  .requests-dialog > p,
+  .offer-dialog p,
+  .project-dialog p,
+  .text-muted
+) {
+  font-size: var(--erp-font-size-secondary) !important;
+  line-height: var(--erp-line-height-body) !important;
+}
+
+.erp-layout .erp-main :where(label, legend, .erp-label) {
+  font-size: var(--erp-font-size-secondary) !important;
+  font-weight: var(--erp-weight-semibold) !important;
+  line-height: var(--erp-line-height-body) !important;
+}
+
+/* Controls are deliberately 14px on every viewport and in every module. */
+.erp-layout :is(.erp-nav-link, .erp-mobile-header h4),
+.erp-layout .erp-main :where(
+  button, .btn, .nav-link,
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea,
+  .form-control, .form-select, .erp-input,
+  .fc-button
+) {
+  font-size: var(--erp-font-size-control) !important;
+  font-weight: var(--erp-weight-semibold) !important;
+  line-height: 1.45 !important;
+}
+
+.erp-layout .erp-bottom-nav-item {
+  font-size: var(--erp-font-size-caption) !important;
+  font-weight: var(--erp-weight-semibold) !important;
+  line-height: 1.35 !important;
+}
+
+/* Table content is dense but never smaller than the caption floor. */
+.erp-layout .erp-main :where(table, .table, .erp-table, .table-custom, .attendance-table) tbody td {
+  font-size: var(--erp-font-size-secondary) !important;
+  line-height: 1.5 !important;
+}
+
+.erp-layout .erp-main :where(table, .table, .erp-table, .table-custom, .attendance-table) thead th {
+  font-size: var(--erp-font-size-caption) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: 1.5 !important;
+}
+
+/* Captions and metadata share a hard 12px floor. */
+.erp-layout .erp-main :is(
+  small,
+  .small,
+  .badge,
+  .status,
+  [class*="status--"],
+  [class*="-status"],
+  [class*="eyebrow"],
+  [class*="kicker"],
+  [class*="-meta"],
+  [class*="-caption"],
+  .priority,
+  .ops-preview-label,
+  .ops-panel__footer,
+  .runway__hours,
+  .runway__resource,
+  .runway-booking em,
+  .runway-booking__time,
+  .calendar-weekdays,
+  .content-dot,
+  .requests-owner-only,
+  .fc-event,
+  .fc-col-header-cell-cushion
+) {
+  font-size: var(--erp-font-size-caption) !important;
+  font-weight: var(--erp-weight-semibold) !important;
+  line-height: 1.45 !important;
+}
+
+.erp-layout .erp-main :is(
+  .ops-health strong,
+  .attendance-strip strong,
+  .requests-summary strong,
+  .packages-summary strong,
+  .offers-metrics strong,
+  .projects-metrics strong,
+  .offer-total-strip .grand strong,
+  .invoice-value strong,
+  .drawer-breakdown strong,
+  .wallet-card h2,
+  .wallet-card h3,
+  .erp-stat-card h3
+) {
+  font-size: var(--erp-font-size-kpi) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: 1.25 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-layout .erp-main .fc .fc-toolbar-title {
+  font-size: var(--erp-font-size-section) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: var(--erp-line-height-heading) !important;
+}
+
+.erp-layout .erp-main .fc .fc-daygrid-day-number {
+  font-size: var(--erp-font-size-secondary) !important;
+  line-height: 1.45 !important;
+}
+
+/* Final hard stops for legacy tables and shell notification badges. */
+.erp-layout .erp-main thead th {
+  font-size: var(--erp-font-size-caption) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: 1.5 !important;
+}
+
+.erp-layout .erp-main tbody td {
+  font-size: var(--erp-font-size-secondary) !important;
+  line-height: 1.5 !important;
+}
+
+.erp-layout .badge {
+  font-family: var(--erp-font-family) !important;
+  font-size: var(--erp-font-size-caption) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: 1.35 !important;
+}
+
+@media (max-width: 992px) {
+  .erp-layout {
+    --erp-font-size-page: 21px;
+    --erp-font-size-section: 18px;
+    --erp-font-size-card: 15px;
+    --erp-font-size-body: 14px;
+    --erp-font-size-secondary: 13px;
+    --erp-font-size-caption: 12px;
+    --erp-font-size-control: 14px;
+    --erp-font-size-kpi: 20px;
+  }
+  .erp-main { padding: 12px 12px 94px !important; }
+  .erp-main > :where(.container-fluid, main) { width: 100%; min-width: 0; }
+  .erp-main .setting-section { padding: 16px !important; }
+  .erp-main :where(.card, .erp-card, .setting-section) { border-radius: var(--erp-radius-md) !important; }
+  .erp-main .modal-dialog { margin: 10px; }
+  .erp-main .modal-content { max-height: calc(100dvh - 20px); overflow-y: auto; }
+}
+
+/* Keep mobile page actions as labelled CTAs instead of collapsing them to icon squares. */
+@media (max-width: 700px) {
+  .erp-layout .erp-main :is(.packages-header, .offers-command-head) {
+    flex-wrap: wrap;
+  }
+
+  .erp-layout .erp-main :is(.packages-header > button, .offers-command-head > button) {
+    flex: 0 0 auto;
+    width: auto !important;
+    max-width: 100%;
+    min-width: max-content;
+    height: auto !important;
+    min-height: 44px;
+    padding: 10px 14px !important;
+    white-space: nowrap;
+  }
+}
+
+/* Shared route hero: the Dashboard command bar becomes the ERP-wide page identity. */
+.erp-layout .erp-main .erp-page-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  gap: 20px;
+  align-items: center;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 22px 24px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 9% -35%, rgba(139, 92, 246, .24), transparent 37%),
+    #101528;
+  border: 1px solid #252c43;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(16, 21, 40, .12);
+}
+
+.erp-layout .erp-main .erp-page-hero::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 6px;
+  background: linear-gradient(180deg, #8b5cf6, #5b21b6);
+}
+
+.erp-layout .erp-main .erp-page-hero__identity {
+  min-width: 0;
+}
+
+.erp-layout .erp-main .erp-page-hero__identity h1 {
+  margin: 4px 0;
+  color: #ffffff !important;
+  font-size: var(--erp-font-size-page) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: var(--erp-line-height-heading) !important;
+}
+
+.erp-layout .erp-main .erp-page-hero__identity p {
+  max-width: 680px;
+  margin: 0;
+  color: #b8c0d6 !important;
+  font-size: var(--erp-font-size-secondary) !important;
+  line-height: var(--erp-line-height-body) !important;
+}
+
+.erp-layout .erp-main .erp-page-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #c4b5fd !important;
+  font-size: var(--erp-font-size-caption) !important;
+  font-weight: var(--erp-weight-bold) !important;
+  line-height: 1.45 !important;
+  letter-spacing: .025em;
+}
+
+.erp-layout .erp-main .erp-page-hero__eyebrow svg {
+  flex: 0 0 auto;
+  color: #a78bfa;
+}
+
+.erp-layout .erp-main .erp-page-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.erp-layout .erp-main .erp-page-hero__actions > :is(button, a),
+.erp-layout .erp-main .erp-page-hero__action {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: auto !important;
+  min-width: max-content;
+  min-height: 44px;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 10px 14px !important;
+  color: #f8faff !important;
+  background: #1a2138 !important;
+  border: 1px solid #38425e !important;
+  border-radius: 7px !important;
+  box-shadow: none !important;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.erp-layout .erp-main .erp-page-hero__actions > [data-variant="primary"],
+.erp-layout .erp-main .erp-page-hero__action[data-variant="primary"] {
+  color: #ffffff !important;
+  background: #6d28d9 !important;
+  border-color: #7c3aed !important;
+}
+
+.erp-layout .erp-main .erp-page-hero__actions > :is(button, a):hover,
+.erp-layout .erp-main .erp-page-hero__action:hover {
+  color: #ffffff !important;
+  background: #252d48 !important;
+  border-color: #8b5cf6 !important;
+}
+
+.erp-layout .erp-main .erp-page-hero__actions > [data-variant="primary"]:hover,
+.erp-layout .erp-main .erp-page-hero__action[data-variant="primary"]:hover {
+  background: #7c3aed !important;
+}
+
+.erp-layout .erp-main .erp-page-hero__actions > :is(button, a):focus-visible,
+.erp-layout .erp-main .erp-page-hero__action:focus-visible,
+.erp-layout .erp-main .erp-page-hero__details :is(button, input, select):focus-visible {
+  outline: 3px solid #c4b5fd !important;
+  outline-offset: 2px;
+}
+
+.erp-layout .erp-main .erp-page-hero__actions > :is(button, a):disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+.erp-layout .erp-main .erp-page-hero__details {
+  min-height: 44px;
+  padding-inline-start: 18px;
+  border-inline-start: 1px solid #343d58;
+  color: #ffffff;
+}
+
+.erp-layout .erp-main .erp-page-hero__details,
+.erp-layout .erp-main .erp-page-hero__details > :where(div, label) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.erp-layout .erp-main .erp-page-hero__details :where(label, span) {
+  color: #b8c0d6 !important;
+}
+
+.erp-layout .erp-main .erp-page-hero__details :is(input, select) {
+  min-height: 40px;
+  color: #ffffff !important;
+  background: #080d1b !important;
+  border: 1px solid #404a68 !important;
+  border-radius: 7px !important;
+}
+
+.erp-layout .erp-main .erp-page-hero__details button {
+  min-height: 40px;
+  color: #ffffff !important;
+  background: transparent !important;
+  border: 1px solid #4d5877 !important;
+}
+
+.erp-layout .erp-main .erp-page-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: -4px 0 18px;
+}
+
+.erp-layout .erp-main .erp-page-tools__search {
+  position: relative;
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+
+.erp-layout .erp-main .erp-page-tools__search svg {
+  position: absolute;
+  inset-inline-start: 14px;
+  top: 50%;
+  z-index: 1;
+  color: var(--erp-text-muted);
+  transform: translateY(-50%);
+}
+
+.erp-layout .erp-main .erp-page-tools__search input {
+  width: 100%;
+  min-height: 44px;
+  padding-inline: 42px 14px !important;
+}
+
+.erp-layout .erp-main .erp-page-tools > :is(button, select) {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .erp-layout .erp-main .erp-page-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .erp-layout .erp-main .erp-page-hero__details {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    min-height: 0;
+    padding-block-start: 14px;
+    padding-inline-start: 0;
+    border-block-start: 1px solid #343d58;
+    border-inline-start: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .erp-layout .erp-main .erp-page-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+    padding: 17px;
+  }
+
+  .erp-layout .erp-main .erp-page-hero__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .erp-layout .erp-main .erp-page-hero__actions > :is(button, a),
+  .erp-layout .erp-main .erp-page-hero__action {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  .erp-layout .erp-main .erp-page-hero__details,
+  .erp-layout .erp-main .erp-page-hero__details > :where(div, label) {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .erp-layout .erp-main .erp-page-hero__details {
+    flex-direction: column;
+  }
+
+  .erp-layout .erp-main .erp-page-hero__details > :where(div, label) {
+    flex: 1 1 auto;
+  }
+
+  .erp-layout .erp-main .erp-page-tools {
+    align-items: stretch;
+  }
+
+  .erp-layout .erp-main .erp-page-tools__search,
+  .erp-layout .erp-main .erp-page-tools > :is(button, select) {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@media print {
+  .erp-sidebar, .erp-bottom-nav, .erp-sidebar-actions { display: none !important; }
+  .erp-main { margin: 0 !important; width: 100% !important; background: #fff !important; }
+}

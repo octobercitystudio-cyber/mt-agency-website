@@ -21,7 +21,7 @@ const Contact = () => {
             <h2 className="section-title">
               {t('contact.title1')} <span className="text-gradient">{t('contact.title2')}</span>
             </h2>
-            <p className="contact-desc" style={{maxWidth: '600px', margin: '0 auto 30px', color: 'var(--color-silver)'}}>
+            <p className="contact-desc">
               {t('contact.description')}
             </p>
             

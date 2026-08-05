@@ -31,56 +31,31 @@ body[dir="ltr"], html[lang="en"] body {
   --current-font: var(--font-latin);
 }
 
-/* Fix English punctuation while keeping right alignment */
-html[lang="en"] h1, 
-html[lang="en"] h2, 
-html[lang="en"] h3, 
-html[lang="en"] h4, 
-html[lang="en"] h5, 
-html[lang="en"] h6, 
-html[lang="en"] p, 
-html[lang="en"] span, 
-html[lang="en"] a,
-html[lang="en"] li,
-html[lang="en"] input,
-html[lang="en"] textarea,
-html[lang="en"] button {
+html[lang="en"][dir="ltr"] body {
   direction: ltr;
-  text-align: right;
 }
 
-/* Restore specific alignments to match Arabic layout */
-html[lang="en"] .counter-number,
-html[lang="en"] .counter-text,
-html[lang="en"] .counter-text h2,
-html[lang="en"] .counter-text p,
-html[lang="en"] .counter-section,
-html[lang="en"] .service-card,
-html[lang="en"] .service-title,
-html[lang="en"] .service-desc,
-html[lang="en"] .stat-item h3,
-html[lang="en"] .stat-item span,
-html[lang="en"] .hero-logo-fallback {
+html[lang="en"][dir="ltr"] .app-container {
+  direction: ltr;
+  text-align: left;
+}
+
+html[lang="en"][dir="ltr"] .app-container :is(h1, h2, h3, h4, h5, h6, p, li, label, input, textarea, button, a) {
+  direction: ltr;
+}
+
+html[lang="en"][dir="ltr"] .app-container :is(input[type="tel"], input[type="email"], input[type="url"]) {
+  direction: ltr;
+  text-align: left;
+}
+
+html[lang="en"][dir="ltr"] .app-container :is(.section-title, .hero-title, .hero-subtitle, .hero-actions, .service-card, .stat-item, .contact-header, .footer-bottom) {
   text-align: center;
 }
 
-html[lang="en"] .about-text p,
-html[lang="en"] .about-text {
-  text-align: justify;
-  text-align-last: center;
-}
-
-@media (max-width: 992px) {
-  html[lang="en"] .hero-container,
-  html[lang="en"] .hero-title,
-  html[lang="en"] .hero-subtitle {
-    text-align: center;
-  }
-}
-
-/* Adjust English hero title to fit on one line */
-html[lang="en"] .hero-title {
-  font-size: 3.2rem;
+html[lang="en"][dir="ltr"] .app-container .about-text {
+  text-align: left;
+  text-align-last: auto;
 }
 
 /* Center all main section titles globally */
@@ -90,6 +65,80 @@ html[lang="en"] .section-title {
   margin-bottom: var(--spacing-lg);
   display: block;
   width: 100%;
+}
+
+@media (max-width: 768px) {
+  html[lang="en"][dir="ltr"] .app-container .container {
+    width: min(90%, 34rem);
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .section-title {
+    font-size: clamp(2rem, 10vw, 2.65rem);
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container :is(.hero-title, .hero-subtitle, .contact-desc) {
+    text-wrap: balance;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .hero-title {
+    font-size: clamp(2rem, 10.5vw, 2.75rem);
+    line-height: 1.12;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container :is(.hero-subtitle, .about-text, .service-desc, .footer-desc, .contact-desc) {
+    font-size: 1rem;
+    line-height: 1.65;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .about-content {
+    padding: clamp(1.35rem, 7vw, 2rem);
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .about-text p,
+  html[lang="en"][dir="ltr"] .app-container .portfolio-info,
+  html[lang="en"][dir="ltr"] .app-container .contact-form,
+  html[lang="en"][dir="ltr"] .app-container .contact-form h3,
+  html[lang="en"][dir="ltr"] .app-container .footer-col {
+    text-align: left;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container :is(.btn-primary, .btn-secondary, .filter-btn, .studio-tab-btn) {
+    white-space: normal;
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .contact-details-row {
+    align-items: stretch;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .contact-item {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    border-radius: 18px;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .contact-form :is(input, textarea) {
+    font-family: var(--font-latin);
+    text-align: left;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .footer-grid {
+    text-align: left;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .footer-col h3::after {
+    right: auto;
+    left: 0;
+    transform: none;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container :is(.footer-links a, .footer-contact-item) {
+    justify-content: flex-start;
+  }
 }
 
 html {

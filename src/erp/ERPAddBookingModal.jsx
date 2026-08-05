@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { CalendarPlus, Trash2, DollarSign, X, CheckCircle, Truck, Pointer } from 'lucide-react';
 import { format } from 'date-fns';
@@ -6,6 +6,8 @@ import { ar } from 'date-fns/locale';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import BusinessTimeSelect from '../components/BusinessTimeSelect';
+import { calculateDurationMinutes, isValidBusinessBooking } from '../lib/businessFormat';
 
 const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = '' }) => {
   const [clients, setClients] = useState([]);
@@ -29,30 +31,10 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     schedule_extra: false
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchData();
-      if (prefilledClientName) {
-        // Find client color if clients are already loaded
-        const client = clients.find(c => c.name === prefilledClientName);
-        setNewBooking(prev => ({
-          ...prev,
-          client_name: prefilledClientName,
-          color: client?.color || '#4318ff',
-          category: '', service: '', dates: [], paid: 0, discount: 0, discount_reason: '', base_price: 0, schedule_extra: false
-        }));
-      } else {
-        setNewBooking({
-          client_name: '', color: '#4318ff', category: '', service: '', dates: [], delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'فودافون كاش', notes: '', schedule_extra: false
-        });
-      }
-    }
-  }, [isOpen, prefilledClientName]);
-
-  const fetchData = async () => {
+  async function fetchData() {
     setLoading(true);
     const { data: bData } = await supabase.from('bookings').select('*');
-    const { data: cData } = await supabase.from('clients').select('name, color');
+    const { data: cData } = await supabase.from('clients').select('id,name,color');
     const { data: sData } = await supabase.from('services').select('*');
 
     if (bData) setBookings(bData);
@@ -66,7 +48,20 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     if (sData) setServices(sData);
     
     setLoading(false);
-  };
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { if (isOpen) {
+      fetchData();
+      if (prefilledClientName) {
+        const client = clients.find(c => c.name === prefilledClientName);
+        setNewBooking(prev => ({ ...prev, client_name: prefilledClientName, color: client?.color || '#4318ff', category: '', service: '', dates: [], paid: 0, discount: 0, discount_reason: '', base_price: 0, schedule_extra: false }));
+      } else {
+        setNewBooking({ client_name: '', color: '#4318ff', category: '', service: '', dates: [], delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'فودافون كاش', notes: '', schedule_extra: false });
+      }
+    } }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, prefilledClientName]);
 
   const getClientColor = (clientName) => {
     const client = clients.find(c => c.name === clientName);
@@ -131,39 +126,21 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       return;
     }
 
-    if (newBooking.paid > 0) {
-      await supabase.from('finance').insert([{
-        type: 'إيراد',
-        amount: newBooking.paid,
-        method: newBooking.payment_method,
-        detail: `دفعة من ${newBooking.client_name} لخدمة ${newBooking.service}`,
-        date: format(new Date(), 'yyyy-MM-dd'),
-        entity: 'الشركة'
-      }]);
-
-      const { data: clientData } = await supabase.from('clients').select('id, points').eq('name', newBooking.client_name).single();
-      if (clientData) {
-        const { data: cfg } = await supabase.from('app_config').select('key, value');
-        let pSpent = 100, pEarn = 1;
-        cfg?.forEach(c => {
-          if (c.key === 'points_egp_spent') pSpent = Number(c.value) || 100;
-          if (c.key === 'points_earned') pEarn = Number(c.value) || 1;
-        });
-        const pointsToAdd = Math.floor((newBooking.paid / pSpent) * pEarn);
-        const newPoints = (clientData.points || 0) + pointsToAdd;
-        await supabase.from('clients').update({ points: newPoints, points_updated_at: new Date().toISOString().split('T')[0] }).eq('id', clientData.id);
-      }
+    const selectedService = services.find(service => service.name === newBooking.service);
+    const minimumMinutes = Math.max(15, Number(selectedService?.minimum_booking_minutes || 60));
+    const incrementMinutes = Math.max(15, Number(selectedService?.booking_increment_minutes || 15));
+    if (needsDates && newBooking.dates.some((date) => !isValidBusinessBooking(date.start_time, date.end_time, minimumMinutes) || calculateDurationMinutes(date.start_time, date.end_time) % incrementMinutes !== 0)) {
+      alert(`مواعيد الحجز من 12:00 م إلى 12:00 ص، بحد أدنى ${minimumMinutes} دقيقة وبزيادات ${incrementMinutes} دقيقة حسب إعدادات الخدمة.`);
+      return;
     }
 
-    let bookingsToInsert = [];
-    
-    if (needsDates) {
-      bookingsToInsert = newBooking.dates.map(d => {
+    if (!needsDates) return alert('هذه الخدمة تُدار من صفحة الباقات أو المشروعات، وليس من جدول الاستديو.');
+    if (Number(newBooking.paid) > 0) return alert('سجّل الدفعة من صفحة الباقات أو المالية لربطها بسجل العميل بدقة.');
+
+    const bookingsToInsert = newBooking.dates.map(d => {
         let hours = 0;
         if (d.start_time && d.end_time) {
-          const [startH, startM] = d.start_time.split(':').map(Number);
-          const [endH, endM] = d.end_time.split(':').map(Number);
-          const diffInMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+          const diffInMinutes = calculateDurationMinutes(d.start_time, d.end_time);
           hours = diffInMinutes > 0 ? +(diffInMinutes / 60).toFixed(2) : 0;
         }
 
@@ -183,26 +160,9 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
           payment: newBooking.paid
         };
       });
-      bookingsToInsert.forEach((b, i) => { if(i > 0) b.payment = 0; });
-    } else {
-      bookingsToInsert = [{
-        client_name: newBooking.client_name,
-        service: newBooking.service,
-        date: format(new Date(), 'yyyy-MM-dd'),
-        start_time: '',
-        end_time: '',
-        actual_hours: 0,
-        custom_price: newBooking.base_price,
-        discount: newBooking.discount,
-        discount_reason: newBooking.discount_reason,
-        delivery_date: newBooking.delivery_date || null,
-        status: 'مؤكد',
-        notes: newBooking.notes,
-        payment: newBooking.paid
-      }];
-    }
+    bookingsToInsert.forEach((b, i) => { if(i > 0) b.payment = 0; });
 
-    const { error } = await supabase.from('bookings').insert(bookingsToInsert);
+    const client=clients.find(item=>item.name===newBooking.client_name);const service=services.find(item=>item.name===newBooking.service);if(!client||!service)return alert('اختر عميلًا وخدمة مسجلين.');const results=[];for(const item of bookingsToInsert)results.push(await supabase.request('/bookings/request',{method:'POST',body:JSON.stringify({client_id:client.id,service_id:service.id,service:service.name,date:item.date,start_time:item.start_time,end_time:item.end_time,status:'confirmed',notes:item.notes})}));const error=results.find(result=>result.error)?.error;
 
     if (!error) {
       alert('تم إضافة الحجز بنجاح');
@@ -318,11 +278,11 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>من الساعة</label>
-                        <input type="time" value={dRow.start_time} onChange={(e) => updateDateRow(idx, 'start_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
+                        <BusinessTimeSelect min="12:00" max="23:00" value={dRow.start_time} onChange={(e) => updateDateRow(idx, 'start_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>إلى الساعة</label>
-                        <input type="time" value={dRow.end_time} onChange={(e) => updateDateRow(idx, 'end_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
+                        <BusinessTimeSelect min="13:00" max="24:00" value={dRow.end_time} onChange={(e) => updateDateRow(idx, 'end_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
                       </div>
                       <button type="button" onClick={() => removeDateRow(idx)} style={{ background: 'var(--erp-bg)', color: 'var(--erp-danger)', border: 'none', width: '42px', height: '42px', borderRadius: '50%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                         <Trash2 size={18} />

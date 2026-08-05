@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 import './Hero.css';
@@ -11,10 +11,10 @@ const Hero = () => {
   const heroData = siteData.hero;
 
   const sliderImages = [
-    '/hero-service-1-tiny.webp', // Photography
-    '/hero-service-2-tiny.webp', // AI Video
-    '/hero-service-3-tiny.webp', // Creative Design
-    '/hero-service-4-tiny.webp'  // Social Media
+    '/hero-service-1-v2.png', // Photography
+    '/hero-service-2-v2.png', // AI Video
+    '/hero-service-3-v2.png', // Creative Design
+    '/hero-service-4-v2.png'  // Social Media
   ];
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -41,8 +41,8 @@ const Hero = () => {
                 src={img} 
                 alt={`${altTexts[index]} - MT Agency`}
                 className={`hero-slider-img ${index === currentImageIndex ? 'active' : ''}`}
-                width="600" height="600"
-                fetchpriority={index === 0 ? "high" : "auto"}
+                width="1254" height="1254"
+                fetchPriority={index === 0 ? "high" : "auto"}
                 loading={index === 0 ? "eager" : "lazy"}
               />
             )})}

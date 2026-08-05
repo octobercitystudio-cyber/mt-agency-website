@@ -1,8 +1,10 @@
-import React, { Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
 import Header from '../components/Header';
 import Hero from '../components/Hero';
 import useScrollSpy from '../hooks/useScrollSpy';
 import SEO from '../components/SEO';
+import PublicPromotions from '../components/PublicPromotions';
+import '../components/GoldenTicketTheme.css';
 
 // Lazy load below-the-fold components
 const About = lazy(() => import('../components/About'));
@@ -11,7 +13,6 @@ const Portfolio = lazy(() => import('../components/Portfolio'));
 const StudioShowcase = lazy(() => import('../components/StudioShowcase'));
 const Contact = lazy(() => import('../components/Contact'));
 const Footer = lazy(() => import('../components/Footer'));
-const PromoModal = lazy(() => import('../components/PromoModal'));
 
 const sectionData = {
   home: { title: null, desc: null },
@@ -36,6 +37,7 @@ const HomePage = () => {
         url={activeSection !== 'home' ? `/#${activeSection}` : ''}
       />
       <Header />
+      <PublicPromotions />
       <Hero />
       <Suspense fallback={<div style={{ minHeight: '100px' }}></div>}>
         <About />
@@ -44,7 +46,6 @@ const HomePage = () => {
         <StudioShowcase />
         <Contact />
         <Footer />
-        <PromoModal />
       </Suspense>
     </main>
   );

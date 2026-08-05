@@ -1,0 +1,31 @@
+SET NAMES utf8mb4;
+
+CREATE TABLE IF NOT EXISTS promotions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
+  internal_title VARCHAR(180) NOT NULL,
+  public_title VARCHAR(180) NOT NULL,
+  badge VARCHAR(60) NULL,
+  description TEXT NOT NULL,
+  original_price DECIMAL(12,2) NULL,
+  promotional_price DECIMAL(12,2) NULL,
+  discount_text VARCHAR(100) NULL,
+  starts_at DATETIME NOT NULL,
+  ends_at DATETIME NOT NULL,
+  cta_label VARCHAR(80) NOT NULL DEFAULT 'اشترك في العرض',
+  cta_url VARCHAR(500) NOT NULL DEFAULT '#contact',
+  status VARCHAR(24) NOT NULL DEFAULT 'draft',
+  popup_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  banner_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  priority SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  terms TEXT NULL,
+  version INT UNSIGNED NOT NULL DEFAULT 1,
+  created_by BIGINT UNSIGNED NULL,
+  archived_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_promotions_public (status, starts_at, ends_at, archived_at, priority),
+  KEY idx_promotions_org (organization_id, created_at),
+  CONSTRAINT fk_promotions_org FOREIGN KEY (organization_id) REFERENCES organizations(id),
+  CONSTRAINT fk_promotions_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

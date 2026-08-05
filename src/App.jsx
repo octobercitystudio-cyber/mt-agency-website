@@ -24,12 +24,16 @@ const ERPDashboard = lazy(() => import('./erp/ERPDashboard'));
 const ERPClients = lazy(() => import('./erp/ERPClients'));
 const ERPBookings = lazy(() => import('./erp/ERPBookings'));
 const ERPFinance = lazy(() => import('./erp/ERPFinance'));
+const ERPFormationFund = lazy(() => import('./erp/ERPFormationFund'));
+const ERPSocialProfits = lazy(() => import('./erp/ERPSocialProfits'));
 const ERPSettings = lazy(() => import('./erp/ERPSettings'));
 const ERPReminders = lazy(() => import('./erp/ERPReminders'));
 const ERPOfferGenerator = lazy(() => import('./erp/ERPOfferGenerator'));
+const ERPPromotions = lazy(() => import('./erp/ERPPromotions'));
 const ERPRequests = lazy(() => import('./erp/ERPRequests'));
 const ERPPackages = lazy(() => import('./erp/ERPPackages'));
 const ERPProjects = lazy(() => import('./erp/ERPProjects'));
+const ERPAttendance = lazy(() => import('./erp/ERPAttendance'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -141,13 +145,17 @@ function App() {
               <Route index element={<ERPDashboard />} />
               <Route path="clients" element={<ERPClients />} />
               <Route path="bookings" element={<ERPBookings />} />
+              <Route path="attendance" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance', 'staff']}><ERPAttendance /></RoleProtectedRoute>} />
               <Route path="requests" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPRequests /></RoleProtectedRoute>} />
               <Route path="packages" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPPackages /></RoleProtectedRoute>} />
               <Route path="projects" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'staff']}><ERPProjects /></RoleProtectedRoute>} />
-              <Route path="finance" element={<RoleProtectedRoute roles={['owner', 'admin', 'finance']}><ERPFinance /></RoleProtectedRoute>} />
+              <Route path="finance" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPFinance /></RoleProtectedRoute>} />
+              <Route path="formation-fund" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPFormationFund /></RoleProtectedRoute>} />
+              <Route path="social-profits" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPSocialProfits /></RoleProtectedRoute>} />
               <Route path="settings" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPSettings /></RoleProtectedRoute>} />
               <Route path="reminders" element={<ERPReminders />} />
               <Route path="offer-generator" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPOfferGenerator /></RoleProtectedRoute>} />
+              <Route path="offers" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPPromotions /></RoleProtectedRoute>} />
             </Route>
             <Route 
               path="/adminmt/*" 

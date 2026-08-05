@@ -1,5 +1,24 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { supabase } from '../supabaseClient';
+import { activateDemoMode, deactivateDemoMode } from '../lib/demoDataClient';
+import './DataContext.css';
+
+const OFFICIAL_CONTACT_EMAIL = 'info@multitaskagency.com';
+const LOCAL_PREVIEW_SESSION_KEY = 'mt_agency_local_preview_session';
+const staffRoles = ['owner', 'admin', 'operations', 'finance', 'staff'];
+
+const restoreLocalPreviewSession = () => {
+  if (!import.meta.env.DEV) return null;
+  try {
+    const user = JSON.parse(sessionStorage.getItem(LOCAL_PREVIEW_SESSION_KEY) || 'null');
+    if (!user?.is_local_preview || !user?.role) return null;
+    activateDemoMode(user.role);
+    return user;
+  } catch {
+    sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
+    return null;
+  }
+};
 
 // Default data (matches current static state)
 const defaultData = {
@@ -45,7 +64,7 @@ const defaultData = {
     addressEn: "6th of October City, Giza, Egypt",
     phone: "01114466646",
     phone2: "+201094084424",
-    email: "info@multitaskagency.com",
+    email: OFFICIAL_CONTACT_EMAIL,
     facebook: "#",
     instagram: "#",
     youtube: "#"
@@ -99,26 +118,38 @@ const defaultData = {
   }
 };
 
+const withOfficialContactEmail = (data) => ({
+  ...data,
+  contact: {
+    ...(data?.contact || {}),
+    email: OFFICIAL_CONTACT_EMAIL,
+  },
+  formSettings: {
+    ...(data?.formSettings || {}),
+    receivingEmail: OFFICIAL_CONTACT_EMAIL,
+  },
+});
+
 const DataContext = createContext();
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useData = () => useContext(DataContext);
 
 export const DataProvider = ({ children }) => {
+  const [restoredPreview] = useState(restoreLocalPreviewSession);
   const [siteData, setSiteData] = useState(() => {
     const cached = localStorage.getItem('mt_agency_data_v5');
-    return cached ? JSON.parse(cached) : defaultData;
+    return withOfficialContactEmail(cached ? JSON.parse(cached) : defaultData);
   });
-  const [isAdminAuth, setIsAdminAuth] = useState(false);
-  const [isErpAuth, setIsErpAuth] = useState(false);
-  const [isClientAuth, setIsClientAuth] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [isAdminAuth, setIsAdminAuth] = useState(restoredPreview?.role === 'owner' || restoredPreview?.role === 'admin');
+  const [isErpAuth, setIsErpAuth] = useState(staffRoles.includes(restoredPreview?.role));
+  const [isClientAuth, setIsClientAuth] = useState(restoredPreview?.role === 'client');
+  const [currentUser, setCurrentUser] = useState(restoredPreview);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const applySession = (session) => {
     const user = session?.user || null;
     const role = user?.role;
-    const staffRoles = ['owner', 'admin', 'operations', 'finance', 'staff'];
     setCurrentUser(user);
     setIsClientAuth(role === 'client');
     setIsErpAuth(staffRoles.includes(role));
@@ -160,7 +191,7 @@ export const DataProvider = ({ children }) => {
             });
           }
           
-          setSiteData({ ...defaultData, ...parsedData });
+          setSiteData(withOfficialContactEmail({ ...defaultData, ...parsedData }));
         } else {
           setSiteData(defaultData);
         }
@@ -175,9 +206,11 @@ export const DataProvider = ({ children }) => {
     loadData();
 
     // Authentication is decided by the server role, never by localStorage.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      applySession(session);
-    });
+    if (!restoredPreview) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        applySession(session);
+      });
+    }
 
     const {
       data: { subscription },
@@ -188,7 +221,7 @@ export const DataProvider = ({ children }) => {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [restoredPreview]);
 
   useEffect(() => {
     localStorage.setItem('mt_agency_data_v5', JSON.stringify(siteData));
@@ -272,10 +305,49 @@ export const DataProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    if (import.meta.env.DEV && currentUser?.is_local_preview) {
+      deactivateDemoMode();
+      sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
+      applySession(null);
+      return;
+    }
     await supabase.auth.signOut();
   };
 
   const loginErp = async (username, password) => {
+    if (import.meta.env.DEV && username === 'local-owner' && password === 'local-preview') {
+      activateDemoMode('owner');
+      const localOwner = {
+        id: 'local-owner',
+        full_name: 'مالك النظام (معاينة محلية)',
+        email: 'owner@local.test',
+        phone: '',
+        role: 'owner',
+        permissions: ['*'],
+        is_local_preview: true,
+      };
+      sessionStorage.setItem(LOCAL_PREVIEW_SESSION_KEY, JSON.stringify(localOwner));
+      applySession({ user: localOwner });
+      return localOwner;
+    }
+
+    if (import.meta.env.DEV && username === 'local-client' && password === 'local-preview') {
+      activateDemoMode('client');
+      const localClient = {
+        id: 'local-client',
+        client_id: 'local-client-preview',
+        full_name: 'سارة أحمد (معاينة محلية)',
+        email: 'client@local.test',
+        phone: '01000000000',
+        role: 'client',
+        permissions: ['client_portal'],
+        is_local_preview: true,
+      };
+      sessionStorage.setItem(LOCAL_PREVIEW_SESSION_KEY, JSON.stringify(localClient));
+      applySession({ user: localClient });
+      return localClient;
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email: username,
       identifier: username,
@@ -290,19 +362,30 @@ export const DataProvider = ({ children }) => {
   };
 
   const logoutErp = async () => {
+    if (import.meta.env.DEV && currentUser?.is_local_preview) {
+      deactivateDemoMode();
+      sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
+      applySession(null);
+      return;
+    }
     await supabase.auth.signOut();
   };
 
   if (!isDataLoaded) {
     return (
-      <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0a0a0a', color: '#fff'}}>
-        <div style={{textAlign: 'center'}}>
-          <div className="spinner" style={{width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--color-vibrant-purple)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 15px'}}></div>
-          <p>جاري تحميل البيانات...</p>
-        </div>
-        <style>{`
-          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        `}</style>
+      <div
+        className="data-loading"
+        role="status"
+        aria-live="polite"
+        aria-label="جاري تحميل البيانات"
+      >
+        <img
+          className="data-loading__logo"
+          src="/logo.webp"
+          alt=""
+          aria-hidden="true"
+        />
+        <span className="data-loading__status-copy">جاري تحميل البيانات...</span>
       </div>
     );
   }

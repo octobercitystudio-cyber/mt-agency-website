@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Menu, X, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -10,12 +10,40 @@ const Header = () => {
   const { isErpAuth } = useData();
   const [lang, setLang] = useState(i18n.language);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const headerRef = useRef(null);
+
+  useEffect(() => {
+    const applyLanguage = nextLanguage => {
+      const next = String(nextLanguage || '').startsWith('en') ? 'en' : 'ar';
+      setLang(next);
+      document.documentElement.lang = next;
+      document.documentElement.dir = next === 'en' ? 'ltr' : 'rtl';
+    };
+    applyLanguage(i18n.resolvedLanguage || i18n.language);
+    i18n.on('languageChanged', applyLanguage);
+    return () => i18n.off('languageChanged', applyLanguage);
+  }, [i18n]);
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return undefined;
+    const root = document.documentElement;
+    const publishHeight = () => root.style.setProperty('--public-header-height', `${Math.ceil(header.getBoundingClientRect().height)}px`);
+    publishHeight();
+    const observer = new ResizeObserver(publishHeight);
+    observer.observe(header);
+    window.addEventListener('resize', publishHeight);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', publishHeight);
+      root.style.removeProperty('--public-header-height');
+    };
+  }, []);
 
   const toggleLanguage = () => {
     const newLang = lang === 'ar' ? 'en' : 'ar';
-    setLang(newLang);
     i18n.changeLanguage(newLang);
-    document.documentElement.lang = newLang;
+    setIsMenuOpen(false);
   };
 
   const navLinks = [
@@ -28,7 +56,7 @@ const Header = () => {
   ];
 
   return (
-    <div className="top-bar">
+    <div className="top-bar" ref={headerRef}>
       {/* Right Column: Logo & Language & Hamburger */}
       <div className="top-bar-right">
         <a href="#home" className="logo-link">

@@ -1,7 +1,17 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 import './StudioShowcase.css';
+
+const STUDIO_FALLBACKS = [
+  '/studios/studio-01.jpg',
+  '/studios/studio-03.jpg',
+  '/studios/studio-05.jpg',
+  '/studios/studio-06.jpg',
+  '/studios/studio-07.jpg',
+  '/studios/studio-08.jpg',
+  '/studios/studio-10.jpg',
+];
 
 const StudioShowcase = () => {
   const { t, i18n } = useTranslation();
@@ -10,7 +20,7 @@ const StudioShowcase = () => {
   const isEnglish = i18n.language === 'en';
 
   const tabs = siteData.studioCategories || [];
-  const studioData = siteData.studio;
+  const studioData = siteData.studio || {};
 
   return (
     <section id="studio" className="showcase-section">
@@ -32,9 +42,19 @@ const StudioShowcase = () => {
         </div>
         
         <div className="showcase-grid">
-          {studioData[activeTab] && studioData[activeTab].map(img => (
-            <div key={img.id || img.url} className="showcase-item">
-              <img src={img.url} alt={`${isEnglish ? 'MT Agency Studio - ' : 'استوديو تصوير إم تي إيجنسي - '}${img.alt || ''}`} loading="lazy" />
+          {studioData[activeTab] && studioData[activeTab].map((img, index) => (
+            <div
+              key={img.id || img.url}
+              className="showcase-item"
+              style={{ backgroundImage: `url("${STUDIO_FALLBACKS[index % STUDIO_FALLBACKS.length]}")` }}
+            >
+              <img
+                src={img.url}
+                alt={`${isEnglish ? 'MT Agency Studio - ' : 'استوديو تصوير إم تي إيجنسي - '}${img.alt || ''}`}
+                loading="lazy"
+                decoding="async"
+                onError={(event) => { event.currentTarget.hidden = true; }}
+              />
               <div className="showcase-overlay">
                 <div className="overlay-icon">✦</div>
               </div>

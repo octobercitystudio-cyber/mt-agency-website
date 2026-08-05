@@ -27,6 +27,30 @@ const UnifiedLogin = () => {
     setLoading(false);
   };
 
+  const handleLocalPreview = async () => {
+    setLoading(true);
+    setError('');
+    const user = await loginErp('local-owner', 'local-preview');
+    if (user) {
+      navigate('/erp');
+      return;
+    }
+    setError('تعذر فتح المعاينة المحلية.');
+    setLoading(false);
+  };
+
+  const handleLocalClientPreview = async () => {
+    setLoading(true);
+    setError('');
+    const user = await loginErp('local-client', 'local-preview');
+    if (user) {
+      navigate('/dashboard');
+      return;
+    }
+    setError('تعذر فتح معاينة العميل المحلية.');
+    setLoading(false);
+  };
+
   return (
     <div className="unified-login-container">
       <div className="unified-login-box premium-glass" style={{maxWidth: '400px'}}>
@@ -72,6 +96,29 @@ const UnifiedLogin = () => {
             <button type="submit" className="btn-modern-primary w-100" disabled={loading} style={{marginTop: '10px'}}>
               {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
             </button>
+
+            {import.meta.env.DEV && (
+              <div style={{display: 'grid', gap: '8px', marginTop: '12px'}}>
+                <button
+                  type="button"
+                  className="w-100"
+                  disabled={loading}
+                  onClick={handleLocalPreview}
+                  style={{padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,.2)', background: 'rgba(255,255,255,.08)', color: '#fff', fontWeight: 800, cursor: 'pointer'}}
+                >
+                  دخول تجريبي كمالك
+                </button>
+                <button
+                  type="button"
+                  className="w-100"
+                  disabled={loading}
+                  onClick={handleLocalClientPreview}
+                  style={{padding: '12px', borderRadius: '10px', border: '1px solid rgba(139,92,246,.45)', background: 'rgba(109,40,217,.22)', color: '#fff', fontWeight: 800, cursor: 'pointer'}}
+                >
+                  دخول تجريبي كعميل
+                </button>
+              </div>
+            )}
           </form>
         </div>
 

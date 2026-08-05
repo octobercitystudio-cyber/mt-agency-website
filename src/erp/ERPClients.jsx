@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { UserPlus, Edit, Trash2, Search, Phone, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText, Camera, Calendar, Tag, Play } from 'lucide-react';
+import { UserPlus, Edit, Trash2, Search, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText, Camera, Calendar, Tag, Play, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ERPAddBookingModal from './ERPAddBookingModal';
 import { useData } from '../store/DataContext';
+import ERPPageHero from './ERPPageHero';
+import { ClientDirectory, ClientProfileDrawer } from './ERPClientCRM';
+import BusinessTimeSelect from '../components/BusinessTimeSelect';
+import { effectivePackageStatus, formatEGP, formatTime12, normalizeTime, packageFinancialSummary } from '../lib/businessFormat';
+import './ERPClients.css';
 
 let globalClientsCache = null;
-let globalSystemServicesCache = null;
 let globalClientsLastFetch = 0;
 
 const ERPClients = () => {
@@ -34,7 +38,8 @@ const ERPClients = () => {
   
   // Modal states
   const [isEditing, setIsEditing] = useState(false);
-  const [currentClient, setCurrentClient] = useState({ name: '', phone1: '', phone2: '', email: '', job: '', color: '#4318ff', debt: 0, points: 0, enablePortal: true, portalPassword: '' });
+  const emptyClient = { name: '', company_name: '', contact_person: '', phone1: '', phone2: '', email: '', job: '', address: '', city: '', tax_number: '', commercial_registration: '', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, notes: '', color: '#4318ff', debt: 0, points: 0, enablePortal: true, portalPassword: '' };
+  const [currentClient, setCurrentClient] = useState(emptyClient);
   const [clientSaveState, setClientSaveState] = useState({ busy: false, type: '', message: '' });
   const [accessPassword, setAccessPassword] = useState('');
   const [accessBusy, setAccessBusy] = useState(false);
@@ -43,90 +48,22 @@ const ERPClients = () => {
   const [financeMethod, setFinanceMethod] = useState('كاش');
   
   const [sortBy, setSortBy] = useState('active');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [balanceFilter, setBalanceFilter] = useState('all');
+  const [profileFilter, setProfileFilter] = useState('all');
+  const [clientListError, setClientListError] = useState('');
   const [whatsappMsg, setWhatsappMsg] = useState('');
 
   // Active Packages Data
   const [activePackages, setActivePackages] = useState([]);
-  const [systemServices, setSystemServices] = useState(globalSystemServicesCache || []);
 
   // Bulk Edit State
   const [selectedIds, setSelectedIds] = useState([]);
 
-  useEffect(() => {
-    const init = async () => {
-      await fetchServices();
-      fetchClients();
-    };
-    init();
-  }, []);
-
-  const fetchServices = async () => {
-    if (globalSystemServicesCache) {
-      setSystemServices(globalSystemServicesCache);
-    }
-    const { data } = await supabase.from('services').select('*');
-    if (data) {
-      setSystemServices(data);
-      globalSystemServicesCache = data;
-    }
-  };
-
-  useEffect(() => {
-    if (selectedClient) {
-      fetchActivePackages(selectedClient.name);
-    } else {
-      setActivePackages([]);
-    }
-  }, [selectedClient]);
-
-  const fetchActivePackages = async (clientName) => {
-    const { data: allBookings, error } = await supabase.from('bookings').select('*').eq('client_name', clientName);
-    if (error || !allBookings) { setActivePackages([]); return; }
-
-    const pkgMap = {};
-    allBookings.forEach(b => {
-      if (b.service && b.service.includes('(مؤرشف)')) return;
-      const sName = b.service;
-      if (!pkgMap[sName]) {
-        pkgMap[sName] = { service: sName, used_hours: 0, used_reels: 0, paid: 0, custom_price: -1, custom_expiry: '', delivery_date: '', discount: 0 };
-      }
-      if (b.status !== 'دفعة') pkgMap[sName].used_hours += (parseFloat(b.actual_hours) || 0);
-      if (['منتهي', 'مؤرشف', 'نشط'].includes(b.status)) pkgMap[sName].used_reels += (parseInt(b.actual_reels) || 0);
-      if (b.status === 'دفعة') pkgMap[sName].paid += (parseFloat(b.payment) || 0);
-
-      if (b.custom_expiry) pkgMap[sName].custom_expiry = b.custom_expiry;
-      if (b.delivery_date) pkgMap[sName].delivery_date = b.delivery_date;
-      if (parseFloat(b.custom_price) > -1) pkgMap[sName].custom_price = parseFloat(b.custom_price);
-    });
-
-    const activeList = [];
-    Object.values(pkgMap).forEach(pkg => {
-      const sDef = systemServices.find(s => s.name === pkg.service);
-      let totalHours = 0, totalReels = 0, price = pkg.custom_price > -1 ? pkg.custom_price : 0;
-      
-      if (sDef) {
-        totalHours = parseFloat(sDef.total_hours) || 0;
-        totalReels = parseInt(sDef.total_reels) || 0;
-        if (price === 0) price = parseFloat(sDef.price) || 0;
-      } else {
-        const name = pkg.service || '';
-        const hoursMatch = name.match(/(\d+)\s*ساعة/);
-        if (hoursMatch) totalHours = parseInt(hoursMatch[1]);
-        const reelsMatch = name.match(/(\d+)\s*فيديو/);
-        if (reelsMatch) totalReels = parseInt(reelsMatch[1]);
-      }
-      
-      const remainingPaid = price - pkg.paid;
-      const hasRemainingHours = totalHours > 0 && pkg.used_hours < totalHours;
-      const hasRemainingReels = totalReels > 0 && pkg.used_reels < totalReels;
-      const owesMoney = remainingPaid > 0;
-      const isJustBooked = pkg.used_hours === 0 && pkg.used_reels === 0;
-      
-      if (hasRemainingHours || hasRemainingReels || owesMoney || isJustBooked) {
-        activeList.push({ ...pkg, total_hours: totalHours, total_reels: totalReels, price: price });
-      }
-    });
-    setActivePackages(activeList);
+  const fetchActivePackages = async (clientId) => {
+    const { data, error } = await supabase.from('client_packages').select('*').eq('client_id', clientId).eq('status', 'active').order('expires_at', { ascending: true });
+    if (error || !data) { setActivePackages([]); return; }
+    setActivePackages(data.filter(pkg => effectivePackageStatus(pkg) === 'active').map(pkg => ({ ...pkg, service: pkg.name, total_hours: pkg.billing_unit === 'hour' ? Number(pkg.purchased_quantity) : 0, total_reels: pkg.billing_unit === 'reel' ? Number(pkg.purchased_quantity) : 0, used_hours: pkg.billing_unit === 'hour' ? Number(pkg.consumed_quantity) : 0, used_reels: pkg.billing_unit === 'reel' ? Number(pkg.consumed_quantity) : 0, paid: Number(pkg.paid_amount), price: Number(pkg.total_price), discount: 0, custom_expiry: pkg.expires_at })));
   };
 
   const formatHours = (decimalVal) => {
@@ -140,6 +77,7 @@ const ERPClients = () => {
   };
 
   const fetchClients = async (force = false) => {
+    setClientListError('');
     if (globalClientsCache) {
       setClients(globalClientsCache);
       setLoading(false);
@@ -150,6 +88,7 @@ const ERPClients = () => {
     
     const { data, error } = await supabase.from('clients').select('*').order('id', { ascending: false });
     const { data: allBookingsData } = await supabase.from('bookings').select('*');
+    const { data: allPackagesData } = await supabase.from('client_packages').select('*').eq('status', 'active');
     const { data: configData } = await supabase.from('app_config').select('key, value').eq('key', 'points_validity_months');
     const validityMonths = configData && configData[0] ? parseInt(configData[0].value) || 0 : 0;
 
@@ -168,58 +107,32 @@ const ERPClients = () => {
         }
       }
 
-      const activeBookingsByClient = {};
+      const activePackagesByClient = {};
       const packageDebtByClient = {};
+      const upcomingBookingByClient = {};
+      const now = new Date();
 
-      (allBookingsData || []).forEach(b => {
-         if (b.status === 'نشط' && b.service && !b.service.includes('مؤرشف')) {
-             if(!activeBookingsByClient[b.client_name]) activeBookingsByClient[b.client_name] = [];
-             activeBookingsByClient[b.client_name].push(b.service);
-         }
+      (allPackagesData || []).filter(pkg => effectivePackageStatus(pkg) === 'active').forEach(pkg => {
+        if(!activePackagesByClient[pkg.client_id])activePackagesByClient[pkg.client_id]=[];
+        activePackagesByClient[pkg.client_id].push(pkg.name);
+        const due=packageFinancialSummary(pkg).outstandingCents;
+        const threshold=Number(pkg.payment_due_quantity||0);
+        if(due>0&&(threshold<=0||Number(pkg.consumed_quantity)>=threshold))packageDebtByClient[pkg.client_id]=true;
       });
 
-      // Calculate dynamic package debt
-      const pkgMap = {};
-      (allBookingsData || []).forEach(b => {
-        if (!b.client_name || !b.service || b.service.includes('(مؤرشف)')) return;
-        const key = `${b.client_name}_${b.service}`;
-        if (!pkgMap[key]) {
-          pkgMap[key] = { client: b.client_name, service: b.service, used_hours: 0, paid: 0, custom_price: -1, discount: 0 };
-        }
-        if (b.status !== 'دفعة') {
-          pkgMap[key].used_hours += (parseFloat(b.actual_hours) || 0);
-          if (parseFloat(b.custom_price) > -1) pkgMap[key].custom_price = Math.max(pkgMap[key].custom_price, parseFloat(b.custom_price));
-          pkgMap[key].discount = Math.max(pkgMap[key].discount, parseFloat(b.discount) || 0);
-        } else {
-          pkgMap[key].paid += (parseFloat(b.payment) || 0);
-        }
-      });
-
-      const srvs = globalSystemServicesCache || systemServices || [];
-      Object.values(pkgMap).forEach(pkg => {
-        const sDef = srvs.find(s => s.name === pkg.service);
-        if (!sDef) return;
-
-        const basePrice = parseFloat(sDef.price) || 0;
-        const finalPrice = pkg.custom_price > -1 ? pkg.custom_price : Math.max(0, basePrice - pkg.discount);
-        const debt = finalPrice - pkg.paid;
-
-        if (debt > 0) {
-          let owes = true;
-          if (sDef.category === 'باقة شهرية' && sDef.payment_due_hours > 0) {
-            owes = pkg.used_hours >= sDef.payment_due_hours;
-          }
-          if (owes) {
-            packageDebtByClient[pkg.client] = true;
-          }
-        }
-      });
+      (allBookingsData || [])
+        .filter(booking => booking.client_name && booking.date && new Date(`${booking.date}T${booking.start_time || '00:00:00'}`) >= now && !['ملغي', 'منتهي', 'cancelled', 'completed'].includes(booking.status))
+        .sort((a, b) => new Date(`${a.date}T${a.start_time || '00:00:00'}`) - new Date(`${b.date}T${b.start_time || '00:00:00'}`))
+        .forEach(booking => {
+          if (!upcomingBookingByClient[booking.client_id]) upcomingBookingByClient[booking.client_id] = booking;
+        });
 
       const enrichedData = data.map(c => ({
         ...c,
-        isActive: !!activeBookingsByClient[c.name],
-        packagesList: activeBookingsByClient[c.name] || [],
-        hasPackageDebt: !!packageDebtByClient[c.name]
+        isActive: !!activePackagesByClient[c.id],
+        packagesList: activePackagesByClient[c.id] || [],
+        hasPackageDebt: !!packageDebtByClient[c.id],
+        nextBooking: upcomingBookingByClient[c.id] || null,
       }));
       setClients(enrichedData);
       globalClientsCache = enrichedData;
@@ -227,10 +140,15 @@ const ERPClients = () => {
         const updated = enrichedData.find(c => c.id === selectedClient.id);
         setSelectedClient(updated || null);
       }
+    } else {
+      setClientListError(error?.message || 'تعذر الوصول إلى بيانات العملاء الآن. حاول مرة أخرى.');
     }
     globalClientsLastFetch = Date.now();
     setLoading(false);
   };
+
+  useEffect(() => { const timer = window.setTimeout(() => fetchClients(), 0); return () => window.clearTimeout(timer); }, []); // Initial remote load.
+  useEffect(() => { const timer = window.setTimeout(() => selectedClient ? fetchActivePackages(selectedClient.id) : setActivePackages([]), 0); return () => window.clearTimeout(timer); }, [selectedClient]);
 
   const handleSaveClient = async (e) => {
     e.preventDefault();
@@ -238,7 +156,11 @@ const ERPClients = () => {
     if (isEditing) {
       const { error } = await supabase.from('clients').update({ 
           name: currentClient.name, phone1: currentClient.phone1, phone2: currentClient.phone2, email: currentClient.email || null,
-          job: currentClient.job, color: currentClient.color
+          company_name: currentClient.company_name || null, contact_person: currentClient.contact_person || null,
+          job: currentClient.job, address: currentClient.address || null, city: currentClient.city || null,
+          tax_number: currentClient.tax_number || null, commercial_registration: currentClient.commercial_registration || null,
+          preferred_contact: currentClient.preferred_contact, whatsapp_opt_in: currentClient.whatsapp_opt_in ? 1 : 0,
+          notes: currentClient.notes || null, color: currentClient.color
       }).eq('id', currentClient.id);
       if (error) {
         setClientSaveState({ busy: false, type: 'error', message: error.message || 'تعذر تحديث بيانات العميل.' });
@@ -252,8 +174,10 @@ const ERPClients = () => {
       }
       const { error } = await supabase.request('/clients', {
         method: 'POST',
-        body: JSON.stringify({ name: currentClient.name, phone1: currentClient.phone1, phone2: currentClient.phone2 || null,
-          email: currentClient.email || null, job: currentClient.job || null, color: currentClient.color,
+        body: JSON.stringify({ name: currentClient.name, company_name: currentClient.company_name || null, contact_person: currentClient.contact_person || null, phone1: currentClient.phone1, phone2: currentClient.phone2 || null,
+          email: currentClient.email || null, job: currentClient.job || null, address: currentClient.address || null, city: currentClient.city || null,
+          tax_number: currentClient.tax_number || null, commercial_registration: currentClient.commercial_registration || null,
+          preferred_contact: currentClient.preferred_contact, whatsapp_opt_in: currentClient.whatsapp_opt_in ? 1 : 0, notes: currentClient.notes || null, color: currentClient.color,
           portal_password: currentClient.enablePortal ? currentClient.portalPassword : '' }),
       });
       if (error) {
@@ -329,34 +253,23 @@ const ERPClients = () => {
     if (financeAction === 'pay_debt') {
       const newDebt = Math.max(0, (selectedClient.debt || 0) - financeAmount);
       await supabase.from('clients').update({ debt: newDebt, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
-      await supabase.from('finance').insert([{ type: 'إيراد', amount: financeAmount, method: financeMethod, detail: `سداد مديونية من العميل ${selectedClient.name}`, date: today, entity: 'الشركة' }]);
+      await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({ entry_kind: 'income', category: 'legacy_client_debt', client_id: selectedClient.id, amount: financeAmount, method: financeMethod, detail: `سداد مديونية من العميل ${selectedClient.name}`, date: today, entity: 'الشركة' }) });
     } else {
       const newCredit = (selectedClient.credit || 0) + financeAmount;
       await supabase.from('clients').update({ credit: newCredit, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
-      await supabase.from('finance').insert([{ type: 'إيراد', amount: financeAmount, method: financeMethod, detail: `إيداع رصيد للعميل ${selectedClient.name}`, date: today, entity: 'الشركة' }]);
+      await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({ entry_kind: 'income', category: 'client_credit', client_id: selectedClient.id, amount: financeAmount, method: financeMethod, detail: `إيداع رصيد للعميل ${selectedClient.name}`, date: today, entity: 'الشركة' }) });
     }
     setIsFinanceModalOpen(false);
     setFinanceAmount(0);
     fetchClients();
   };
 
-  const startSession = async (clientName, packageName) => {
+  const startSession = async (clientId, packageId) => {
     try {
-      const { error } = await supabase.from('bookings').insert([{
-        client_name: clientName,
-        service: packageName || 'غير محدد',
-        date: new Date().toISOString().split('T')[0],
-        start_time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-        end_time: '',
-        actual_hours: 0,
-        custom_price: 0,
-        discount: 0,
-        discount_reason: '',
-        delivery_date: null,
-        status: 'active_timer',
-        notes: new Date().toISOString(),
-        payment: 0
-      }]);
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
+      const { data: matches, error: lookupError } = await supabase.from('bookings').select('id').eq('client_id', clientId).eq('client_package_id', packageId).eq('date', today).eq('status', 'confirmed').order('start_time', { ascending: true }).limit(1);
+      if (lookupError || !matches?.length) return alert('لا يوجد موعد مؤكد اليوم مرتبط بهذه الباقة. أنشئ الحجز أولًا.');
+      const { error } = await supabase.request(`/bookings/${matches[0].id}/session/start`, { method: 'POST', body: '{}' });
       if (error) {
         console.error(error);
         alert('حدث خطأ أثناء بدء الجلسة');
@@ -485,20 +398,22 @@ const ERPClients = () => {
   };
 
   const handleEditAppointmentClick = (row) => {
-    setCurrentEditAppointment({ ...row });
+    if (row.status !== 'confirmed') {
+      alert('يمكن تعديل موعد الحجز المؤكد فقط. الحالات الأخرى تُدار من شاشة الحجوزات والتايمر.');
+      return;
+    }
+    setCurrentEditAppointment({ ...row, start_time: normalizeTime(row.start_time), end_time: normalizeTime(row.end_time, { endOfDay: true }) });
     setIsEditAppointmentModalOpen(true);
   };
 
   const handleSaveEditAppointment = async (e) => {
     e.preventDefault();
-    const { error } = await supabase.from('bookings').update({
+    const { error } = await supabase.request(`/bookings/${currentEditAppointment.id}/admin-reschedule`, { method: 'POST', body: JSON.stringify({
+      date: currentEditAppointment.date,
       start_time: currentEditAppointment.start_time,
       end_time: currentEditAppointment.end_time,
-      actual_hours: currentEditAppointment.actual_hours,
-      actual_reels: currentEditAppointment.actual_reels,
-      status: currentEditAppointment.status,
       notes: currentEditAppointment.notes
-    }).eq('id', currentEditAppointment.id);
+    }) });
 
     if (!error) {
       setIsEditAppointmentModalOpen(false);
@@ -509,10 +424,10 @@ const ERPClients = () => {
   };
 
   const handleDeleteAppointment = async (id) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا الموعد نهائياً؟')) {
-      await supabase.from('bookings').delete().eq('id', id);
-      openHistory('bookings');
-    }
+    if (!window.confirm('هل تريد إلغاء الموعد دون خصم؟ سيظل محفوظًا في سجل العميل.')) return;
+    const { error } = await supabase.request(`/bookings/${id}/admin-cancel`, { method: 'POST', body: JSON.stringify({ charge: false, reason: 'إلغاء إداري من ملف العميل' }) });
+    if (error) return alert(error.message || 'تعذر إلغاء الموعد.');
+    openHistory('bookings');
   };
 
   const toggleSelectAll = (e) => {
@@ -525,12 +440,16 @@ const ERPClients = () => {
     else setSelectedIds([...selectedIds, id]);
   };
 
-  let sortedClients = clients.filter(c => 
-    c.name.includes(searchTerm) || 
-    (c.phone1 && c.phone1.includes(searchTerm)) || 
-    (c.phone2 && c.phone2.includes(searchTerm)) || 
-    (c.job && c.job.includes(searchTerm))
-  );
+  const normalizedSearch = searchTerm.trim().toLocaleLowerCase('ar');
+  let sortedClients = clients.filter(c => {
+    const matchesSearch = !normalizedSearch || [c.name, c.phone1, c.phone2, c.job, c.email]
+      .some(value => String(value || '').toLocaleLowerCase('ar').includes(normalizedSearch));
+    const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? c.isActive : !c.isActive);
+    const hasDue = Number(c.debt) > 0 || c.hasPackageDebt;
+    const matchesBalance = balanceFilter === 'all' || (balanceFilter === 'due' ? hasDue : balanceFilter === 'credit' ? Number(c.credit) > 0 : !hasDue && Number(c.credit || 0) <= 0);
+    const matchesProfile = profileFilter === 'all' || (profileFilter === 'profiled' ? Boolean(c.job) : !c.job);
+    return matchesSearch && matchesStatus && matchesBalance && matchesProfile;
+  });
 
   if (sortBy === 'active') {
     sortedClients.sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0) || b.id - a.id);
@@ -538,45 +457,102 @@ const ERPClients = () => {
     sortedClients.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
   }
 
+  const openNewClient = () => {
+    setIsEditing(false);
+    setClientSaveState({ busy: false, type: '', message: '' });
+    setAccessPassword('');
+    setCurrentClient(emptyClient);
+    setIsClientModalOpen(true);
+  };
+
+  const openEditClient = client => {
+    setCurrentClient({ ...client, email: client.email || '', portalPassword: '' });
+    setAccessPassword('');
+    setClientSaveState({ busy: false, type: '', message: '' });
+    setIsEditing(true);
+    setIsClientModalOpen(true);
+  };
+
+  const openBookingForClient = client => {
+    setBookingClientName(client.name);
+    setIsAddBookingModalOpen(true);
+  };
+
+  const resetDirectory = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setBalanceFilter('all');
+    setProfileFilter('all');
+    setSortBy('active');
+  };
+
+  const filtersActive = Boolean(searchTerm || statusFilter !== 'all' || balanceFilter !== 'all' || profileFilter !== 'all' || sortBy !== 'active');
+  const activeClientCount = clients.filter(client => client.isActive).length;
+  const dueClientCount = clients.filter(client => Number(client.debt) > 0 || client.hasPackageDebt).length;
+
   return (
     <div>
       {/* Header and Controls */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
-        <div>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, fontWeight: 'bold', color: 'var(--erp-text-main)' }}>
-            <UserPlus color="#4318ff" /> قاعدة العملاء
-          </h2>
+      <ERPPageHero
+        icon={UserPlus}
+        eyebrow="إدارة العلاقات"
+        title="قاعدة العملاء"
+        description="بيانات العملاء، أرصدتهم، باقاتهم وسجل التعاملات في مساحة واحدة."
+        details={<div className="client-hero-summary"><div><span>إجمالي العملاء</span><strong>{clients.length.toLocaleString('ar-EG')}</strong></div><div><span>عملاء نشطون</span><strong>{activeClientCount.toLocaleString('ar-EG')}</strong></div><div><span>حسابات مستحقة</span><strong>{dueClientCount.toLocaleString('ar-EG')}</strong></div></div>}
+        actions={<button data-variant="primary" className="erp-new-client-btn" onClick={openNewClient}><UserPlus size={18} /> عميل جديد</button>}
+      />
+
+      <main className="client-crm-page">
+        <section className="client-crm-toolbar" aria-label="بحث وتصفية العملاء">
+          <label className="client-crm-search"><Search size={18} /><input type="search" placeholder="ابحث بالاسم أو الهاتف أو النوع..." value={searchTerm} onChange={event => setSearchTerm(event.target.value)} /></label>
+          <select aria-label="تصفية حسب الحالة" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
+            <option value="all">كل الحالات</option><option value="active">نشطون فقط</option><option value="inactive">غير نشطين</option>
+          </select>
+          <select aria-label="تصفية حسب الرصيد" value={balanceFilter} onChange={event => setBalanceFilter(event.target.value)}>
+            <option value="all">كل الأرصدة</option><option value="due">عليهم مستحقات</option><option value="credit">لديهم رصيد</option><option value="clear">حسابات صافية</option>
+          </select>
+          <select aria-label="ترتيب العملاء" value={sortBy} onChange={event => setSortBy(event.target.value)}>
+            <option value="active">النشطون أولًا</option><option value="default">الأحدث إضافة</option><option value="alpha">أبجديًا</option>
+          </select>
+          <button className="client-crm-toolbar__reset" type="button" onClick={resetDirectory} disabled={!filtersActive}><RotateCcw size={17} /> إعادة الضبط</button>
+        </section>
+
+        <div className="client-crm-secondary-filter">
+          <span>نوع الملف</span>
+          <button type="button" className={profileFilter === 'all' ? 'active' : ''} onClick={() => setProfileFilter('all')}>الكل</button>
+          <button type="button" className={profileFilter === 'profiled' ? 'active' : ''} onClick={() => setProfileFilter('profiled')}>نوع مسجل</button>
+          <button type="button" className={profileFilter === 'unprofiled' ? 'active' : ''} onClick={() => setProfileFilter('unprofiled')}>غير مكتمل</button>
         </div>
-        
-        <div style={{ flex: '1', maxWidth: '350px', position: 'relative' }}>
-          <Search size={18} style={{ position: 'absolute', right: '18px', top: '50%', transform: 'translateY(-50%)', color: '#a3aed1' }} />
+
+        <div className="client-crm-resultbar"><span>عرض <strong>{sortedClients.length.toLocaleString('ar-EG')}</strong> من {clients.length.toLocaleString('ar-EG')}</span>{loading && <span>جارٍ التحديث…</span>}</div>
+        {selectedIds.length > 0 && <div className="client-crm-bulkbar"><span>تم تحديد {selectedIds.length.toLocaleString('ar-EG')} عميل</span><button type="button" onClick={handleBulkDelete}><Trash2 size={17} /> حذف المحدد نهائيًا</button></div>}
+
+        <ClientDirectory clients={sortedClients} loading={loading} error={clientListError} selectedIds={selectedIds} onToggleAll={toggleSelectAll} onToggleOne={toggleSelectOne} onOpen={setSelectedClient} onBook={openBookingForClient} onEdit={openEditClient} onDelete={client => deleteClient(client.id, client.name)} onRetry={() => fetchClients(true)} />
+      </main>
+
+      {selectedClient && <ClientProfileDrawer client={selectedClient} activePackages={activePackages} formatHours={formatHours} onClose={() => setSelectedClient(null)} onEdit={() => openEditClient(selectedClient)} onBook={() => openBookingForClient(selectedClient)} onOpenCalendar={() => navigate('/erp/bookings')} onWhatsApp={openWhatsApp} onFinance={action => { setFinanceAction(action); setFinanceMethod('كاش'); setIsFinanceModalOpen(true); }} onStartSession={startSession} onOpenHistory={openHistory} />}
+
+      <div hidden>
+      <div className="erp-page-tools" aria-label="بحث وفرز العملاء">
+        <label className="erp-page-tools__search">
+          <Search size={18} />
           <input 
             type="text" 
             placeholder="ابحث باسم العميل..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ 
-              width: '100%', padding: '10px 45px 10px 15px', borderRadius: '50rem', border: 'none', 
-              boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', fontWeight: 'bold', color: '#4318ff', outline: 'none' 
-            }}
           />
-        </div>
-        
-        <div style={{ display: 'flex', gap: '10px' }}>
-          {selectedIds.length > 0 && (
-            <button onClick={handleBulkDelete} style={{ background: '#dc3545', color: 'var(--erp-surface)', padding: '10px 20px', borderRadius: '50rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
-              <Trash2 size={18} /> حذف المحدد ({selectedIds.length}) نهائياً
-            </button>
-          )}
-          <select className="mobile-hidden" value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '10px 15px', borderRadius: '50rem', border: '1px solid #dee2e6', background: 'var(--erp-surface)', color: 'var(--erp-text-main)', fontWeight: 'bold', outline: 'none', cursor: 'pointer' }}>
-            <option value="active">العملاء النشطين أولاً</option>
-            <option value="default">حسب الإضافة (الأحدث)</option>
-            <option value="alpha">أبجدياً (أ - ي)</option>
-          </select>
-          <button className="erp-new-client-btn" onClick={() => { setIsEditing(false); setClientSaveState({ busy: false, type: '', message: '' }); setAccessPassword(''); setCurrentClient({ name: '', phone1: '', phone2: '', email: '', job: '', color: '#4318ff', debt: 0, points: 0, enablePortal: true, portalPassword: '' }); setIsClientModalOpen(true); }} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 20px', borderRadius: '50rem', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }}>
-            <UserPlus size={18} /> عميل جديد
+        </label>
+        {selectedIds.length > 0 && (
+          <button onClick={handleBulkDelete} className="btn btn-danger">
+            <Trash2 size={18} /> حذف المحدد ({selectedIds.length}) نهائياً
           </button>
-        </div>
+        )}
+        <select className="mobile-hidden" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+          <option value="active">العملاء النشطين أولاً</option>
+          <option value="default">حسب الإضافة (الأحدث)</option>
+          <option value="alpha">أبجدياً (أ - ي)</option>
+        </select>
       </div>
 
       {/* Main Layout */}
@@ -734,19 +710,19 @@ const ERPClients = () => {
                   <button onClick={() => navigate('/erp/bookings')} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <CalendarPlus size={20} /> <span style={{ fontSize: '0.8rem' }}>حجز جديد</span>
                   </button>
-                  <button onClick={() => { setFinanceAction('deposit'); setIsFinanceModalOpen(true); }} style={{ background: '#0dcaf0', color: '#000', color: 'var(--erp-text-main)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
+                  <button onClick={() => { setFinanceAction('deposit'); setIsFinanceModalOpen(true); }} style={{ background: '#0dcaf0', color: 'var(--erp-text-main)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <Wallet size={20} /> <span style={{ fontSize: '0.8rem' }}>إيداع رصيد</span>
                   </button>
-                  <button onClick={() => { setFinanceAction('pay_debt'); setIsFinanceModalOpen(true); }} style={{ background: '#ffc107', color: '#000', color: 'var(--erp-text-main)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
+                  <button onClick={() => { setFinanceAction('pay_debt'); setIsFinanceModalOpen(true); }} style={{ background: '#ffc107', color: 'var(--erp-text-main)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <DollarSign size={20} /> <span style={{ fontSize: '0.8rem' }}>سداد مديونية</span>
                   </button>
-                  <button onClick={openWhatsApp} style={{ background: '#198754', color: '#fff', color: 'var(--erp-surface)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
+                  <button onClick={openWhatsApp} style={{ background: '#198754', color: 'var(--erp-surface)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <MessageCircle size={20} /> <span style={{ fontSize: '0.8rem' }}>إرسال تقرير</span>
                   </button>
                 </div>
                 
                 {activePackages.some(pkg => pkg.total_hours > 0 || pkg.total_reels > 0) && (
-                  <button onClick={() => startSession(selectedClient.name, activePackages[0].service)} style={{ width: '100%', background: '#dc3545', color: 'var(--erp-surface)', padding: '1.5rem', borderRadius: '1rem', fontWeight: 'bold', fontSize: '1.5rem', border: '3px solid #ffcccc', boxShadow: '0 0.5rem 1rem rgba(0,0,0,.15)', marginTop: '15px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', animation: 'pulse 2s infinite' }}>
+                  <button onClick={() => startSession(selectedClient.id, activePackages[0].id)} style={{ width: '100%', background: '#dc3545', color: 'var(--erp-surface)', padding: '1.5rem', borderRadius: '1rem', fontWeight: 'bold', fontSize: '1.5rem', border: '3px solid #ffcccc', boxShadow: '0 0.5rem 1rem rgba(0,0,0,.15)', marginTop: '15px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', animation: 'pulse 2s infinite' }}>
                     <Play fill="currentColor" /> ابدأ التصوير الآن
                   </button>
                 )}
@@ -755,7 +731,7 @@ const ERPClients = () => {
               {selectedClient.debt > 0 && (
                 <div style={{ background: 'rgba(220, 53, 69, 0.15)', border: '1px solid #f5c2c7', padding: '15px', borderRadius: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
                   <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '0.9rem' }}>إجمالي المديونية المتأخرة المستحقة:</span>
-                  <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '1.25rem', margin: 0 }}>{selectedClient.debt} ج</span>
+                  <span style={{ color: '#dc3545', fontWeight: 'bold', fontSize: '1.25rem', margin: 0 }}>{formatEGP(selectedClient.debt)}</span>
                 </div>
               )}
 
@@ -817,15 +793,15 @@ const ERPClients = () => {
                           <div className="erp-package-stats" style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                             <div style={{ flex: 1, background: 'rgba(220, 53, 69, 0.15)', borderRadius: '10px', padding: '12px 5px', textAlign: 'center', border: '1px solid #f5c2c7' }}>
                               <div style={{ fontSize: '0.8rem', color: '#dc3545', marginBottom: '2px', fontWeight: 'bold' }}>المتبقي</div>
-                              <div style={{ fontWeight: 'bold', color: '#dc3545', fontSize: '1rem' }}>{remainingPaid} ج</div>
+                              <div style={{ fontWeight: 'bold', color: '#dc3545', fontSize: '1rem' }}>{formatEGP(remainingPaid)}</div>
                             </div>
                             <div style={{ flex: 1, background: 'rgba(25, 135, 84, 0.15)', borderRadius: '10px', padding: '12px 5px', textAlign: 'center', border: '1px solid #badbcc' }}>
                               <div style={{ fontSize: '0.8rem', color: '#198754', marginBottom: '2px', fontWeight: 'bold' }}>المدفوع</div>
-                              <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1rem' }}>{pkg.paid} ج</div>
+                              <div style={{ fontWeight: 'bold', color: '#198754', fontSize: '1rem' }}>{formatEGP(pkg.paid)}</div>
                             </div>
                             <div style={{ flex: 1, border: '1px solid #dee2e6', borderRadius: '10px', padding: '12px 5px', textAlign: 'center', background: 'var(--erp-bg)' }}>
                               <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)', marginBottom: '2px', fontWeight: 'bold' }}>التكلفة</div>
-                              <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1rem' }}>{pkg.price} ج</div>
+                              <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1rem' }}>{formatEGP(pkg.price)}</div>
                             </div>
                           </div>
 
@@ -864,26 +840,32 @@ const ERPClients = () => {
           )}
         </div>
       </div>
+      </div>
 
       {/* --- MODALS --- */}
       {/* 1. Client Modal */}
       {isClientModalOpen && (
         <div className="erp-modal-overlay" onClick={() => setIsClientModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '500px', borderRadius: '1.5rem', padding: '30px', border: 'none', boxShadow: '0 1rem 3rem rgba(0,0,0,.175)' }}>
+          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '720px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '1.5rem', padding: '30px', border: 'none', boxShadow: '0 1rem 3rem rgba(0,0,0,.175)' }}>
             <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '25px', color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
               <UserPlus color="#ffc107" /> {isEditing ? 'تعديل بيانات العميل' : 'تسجيل عميل جديد'}
             </h4>
             <form onSubmit={handleSaveClient} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الاسم بالكامل</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentClient.name} onChange={e => setCurrentClient({...currentClient, name: e.target.value})} required /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', display: 'block' }}>اسم الشركة / العلامة</label><input value={currentClient.company_name || ''} onChange={e => setCurrentClient({...currentClient,company_name:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div><div><label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', display: 'block' }}>شخص التواصل</label><input value={currentClient.contact_person || ''} onChange={e => setCurrentClient({...currentClient,contact_person:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>واتساب (أساسي)</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'rgba(25, 135, 84, 0.15)', color: '#198754', fontWeight: 'bold' }} value={currentClient.phone1} onChange={e => setCurrentClient({...currentClient, phone1: e.target.value})} required /></div>
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>رقم ثانٍ (اختياري)</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.phone2} onChange={e => setCurrentClient({...currentClient, phone2: e.target.value})} /></div>
               </div>
               <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>البريد الإلكتروني (اختياري)</label><input type="email" dir="ltr" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.email || ''} onChange={e => setCurrentClient({...currentClient, email: e.target.value})} placeholder="client@example.com" /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>العنوان</label><input value={currentClient.address || ''} onChange={e => setCurrentClient({...currentClient,address:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>المدينة</label><input value={currentClient.city || ''} onChange={e => setCurrentClient({...currentClient,city:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>الرقم الضريبي</label><input value={currentClient.tax_number || ''} onChange={e => setCurrentClient({...currentClient,tax_number:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>السجل التجاري</label><input value={currentClient.commercial_registration || ''} onChange={e => setCurrentClient({...currentClient,commercial_registration:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div></div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الوظيفة / ملاحظة</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.job} onChange={e => setCurrentClient({...currentClient, job: e.target.value})} /></div>
                 <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>اللون</label><input type="color" style={{ width: '100%', padding: '5px', borderRadius: '0.5rem', border: 'none', height: '45px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }} value={currentClient.color} onChange={e => setCurrentClient({...currentClient, color: e.target.value})} /></div>
               </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'15px',alignItems:'end'}}><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>وسيلة التواصل المفضلة</label><select value={currentClient.preferred_contact || 'whatsapp'} onChange={e => setCurrentClient({...currentClient,preferred_contact:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}><option value="whatsapp">واتساب</option><option value="phone">مكالمة</option><option value="email">بريد إلكتروني</option></select></div><label style={{display:'flex',alignItems:'center',gap:'8px',padding:'12px',borderRadius:'.5rem',background:'rgba(25,135,84,.08)',fontSize:'.78rem',fontWeight:700}}><input type="checkbox" checked={Boolean(Number(currentClient.whatsapp_opt_in ?? 1))} onChange={e => setCurrentClient({...currentClient,whatsapp_opt_in:e.target.checked?1:0})}/>موافق على إشعارات واتساب</label></div>
+              <div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>ملاحظات العميل</label><textarea rows="2" value={currentClient.notes || ''} onChange={e => setCurrentClient({...currentClient,notes:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)',resize:'vertical'}}/></div>
               {!isEditing && <div style={{ background: 'rgba(67,24,255,.07)', border: '1px solid rgba(67,24,255,.2)', borderRadius: '12px', padding: '14px' }}>
                 <label style={{ display: 'flex', gap: '9px', alignItems: 'center', color: 'var(--erp-text-main)', fontSize: '.82rem', fontWeight: 800, cursor: 'pointer' }}><input type="checkbox" checked={Boolean(currentClient.enablePortal)} onChange={e => setCurrentClient({ ...currentClient, enablePortal: e.target.checked, portalPassword: '' })}/> تفعيل دخول العميل إلى لوحته</label>
                 <p style={{ color: 'var(--erp-text-muted)', fontSize: '.7rem', margin: '7px 0 0' }}>سيستخدم العميل رقم الهاتف الأساسي مع كلمة المرور للدخول.</p>
@@ -931,7 +913,7 @@ const ERPClients = () => {
       {isWhatsAppModalOpen && selectedClient && (
         <div className="erp-modal-overlay" onClick={() => setIsWhatsAppModalOpen(false)}>
           <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '600px', borderRadius: '1.5rem', padding: 0, overflow: 'hidden' }}>
-            <div style={{ background: '#198754', color: '#fff', padding: '25px', color: 'var(--erp-surface)' }}>
+            <div style={{ background: '#198754', padding: '25px', color: 'var(--erp-surface)' }}>
               <h4 style={{ margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <MessageCircle /> معاينة وإرسال التقرير
               </h4>
@@ -940,7 +922,7 @@ const ERPClients = () => {
               <textarea style={{ width: '100%', padding: '20px', borderRadius: '1rem', border: 'none', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', resize: 'none', minHeight: '200px', fontWeight: 'bold', color: 'var(--erp-text-main)', lineHeight: '1.6' }} value={whatsappMsg} onChange={e => setWhatsappMsg(e.target.value)}></textarea>
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button onClick={() => { navigator.clipboard.writeText(whatsappMsg); alert('تم النسخ!'); }} style={{ flex: 1, padding: '12px', borderRadius: '50rem', border: '1px solid #dee2e6', background: 'var(--erp-surface)', color: 'var(--erp-text-main)', fontWeight: 'bold', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>نسخ النص</button>
-                <button onClick={() => window.open(`https://wa.me/2${selectedClient.phone1}?text=${encodeURIComponent(whatsappMsg)}`, '_blank')} style={{ flex: 1, padding: '12px', borderRadius: '50rem', border: 'none', background: '#198754', color: '#fff', color: 'var(--erp-surface)', fontWeight: 'bold', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>إرسال عبر واتساب الآن</button>
+                <button onClick={() => window.open(`https://wa.me/2${selectedClient.phone1}?text=${encodeURIComponent(whatsappMsg)}`, '_blank')} style={{ flex: 1, padding: '12px', borderRadius: '50rem', border: 'none', background: '#198754', color: 'var(--erp-surface)', fontWeight: 'bold', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>إرسال عبر واتساب الآن</button>
               </div>
             </div>
           </div>
@@ -1043,7 +1025,7 @@ const ERPClients = () => {
                           <>
                             <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', direction: 'ltr', textAlign: 'right' }}>{row.date}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6' }}>{row.detail}</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center', fontWeight: 'bold', color: row.type === 'وارد' ? '#198754' : '#dc3545' }}>{row.amount} ج</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center', fontWeight: 'bold', color: row.type === 'وارد' ? '#198754' : '#dc3545' }}>{formatEGP(row.amount)}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>{row.method}</td>
                           </>
                         ) : (
@@ -1057,7 +1039,7 @@ const ERPClients = () => {
                             </td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)' }}>{row.service}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontSize: '0.85rem' }}>
-                              {(row.start_time && row.start_time !== '' && row.start_time !== '00:00') ? `${row.start_time} - ${row.end_time || '?'}` : '-'}
+                              {(row.start_time && row.start_time !== '' && row.start_time !== '00:00') ? `${formatTime12(row.start_time)} - ${formatTime12(row.end_time, '?')}` : '-'}
                             </td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}>
                               {row.actual_hours > 0 ? (
@@ -1083,7 +1065,7 @@ const ERPClients = () => {
                                 {row.status || 'مؤكد'}
                               </span>
                             </td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{row.payment || 0} ج</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>{formatEGP(row.payment || 0)}</td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', whiteSpace: 'nowrap' }}>
                               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
                                 <button onClick={(e) => { e.stopPropagation(); handleEditAppointmentClick(row); }} style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd', border: 'none', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center' }} title="تعديل">
@@ -1126,24 +1108,12 @@ const ERPClients = () => {
               <Edit color="#0d6efd" /> تعديل موعد التصوير
             </h4>
             <form onSubmit={handleSaveEditAppointment} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>تاريخ الموعد</label><input required type="date" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.date || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, date: e.target.value})} /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>وقت البدء</label><input type="time" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.start_time || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, start_time: e.target.value})} /></div>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>وقت الانتهاء</label><input type="time" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.end_time || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, end_time: e.target.value})} /></div>
+                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>وقت البدء</label><BusinessTimeSelect min="12:00" max="23:00" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.start_time || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, start_time: e.target.value})} /></div>
+                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>وقت الانتهاء</label><BusinessTimeSelect min="13:00" max="24:00" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.end_time || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, end_time: e.target.value})} /></div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الساعات الفعلية</label><input type="number" step="0.25" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.actual_hours || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, actual_hours: e.target.value})} /></div>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الريلز المصورة</label><input type="number" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.actual_reels || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, actual_reels: e.target.value})} /></div>
-              </div>
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الحالة</label>
-                <select style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentEditAppointment.status || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, status: e.target.value})}>
-                  <option value="نشط">نشط (تحت التنفيذ)</option>
-                  <option value="مؤكد">مؤكد (قادم)</option>
-                  <option value="منتهي">منتهي</option>
-                  <option value="مؤرشف">مؤرشف</option>
-                  <option value="دفعة">دفعة (مالية)</option>
-                </select>
-              </div>
+              <p style={{ margin: 0, padding: '10px 12px', borderRadius: '10px', background: 'rgba(13,110,253,.08)', color: '#0d6efd', fontSize: '.8rem', fontWeight: 700 }}>الساعات الفعلية وحالة الجلسة تُحدّثان تلقائيًا من تايمر التصوير لضمان دقة الحساب.</p>
               <div>
                 <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>ملاحظات</label>
                 <textarea style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)', fontWeight: 'bold', resize: 'vertical' }} value={currentEditAppointment.notes || ''} onChange={e => setCurrentEditAppointment({...currentEditAppointment, notes: e.target.value})} />

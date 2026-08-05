@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, ShieldAlert, Truck, Pointer, Check, Ban, RefreshCw, Send } from 'lucide-react';
+import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useLocation } from 'react-router-dom';
 import { useData } from '../store/DataContext';
+import BusinessTimeSelect from '../components/BusinessTimeSelect';
+import { calculateDurationMinutes, formatBookingDate, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
+import ERPPageHero from './ERPPageHero';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
@@ -33,19 +36,6 @@ const ERPBookings = () => {
   const [decisionError, setDecisionError] = useState('');
   const [alternativeModal, setAlternativeModal] = useState({ open: false, booking: null, date: '', start_time: '12:00', end_time: '13:00', note: '' });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    if (location.state?.openAddModalFor && clients.length > 0 && services.length > 0) {
-      setNewBooking(prev => ({ ...prev, client_name: location.state.openAddModalFor }));
-      setIsModalOpen(true);
-      // Clean up state so it doesn't reopen on refresh
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state, clients, services]);
-
   const isAdmin = ['owner', 'admin', 'operations'].includes(currentUser?.role);
   const [newBooking, setNewBooking] = useState({
     client_name: '',
@@ -63,10 +53,6 @@ const ERPBookings = () => {
     schedule_extra: false
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async (force = false) => {
     if (globalBookingsCache && globalClientsCache && globalServicesCache) {
       setBookings(globalBookingsCache);
@@ -79,7 +65,7 @@ const ERPBookings = () => {
     }
     
     const { data: bData } = await supabase.from('bookings').select('*').order('date', { ascending: false });
-    const { data: cData } = await supabase.from('clients').select('name, color');
+    const { data: cData } = await supabase.from('clients').select('id,name,color');
     const { data: sData } = await supabase.from('services').select('*');
 
     if (bData) {
@@ -99,6 +85,13 @@ const ERPBookings = () => {
     setLoading(false);
   };
 
+  useEffect(() => { const timer = window.setTimeout(() => fetchData(), 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => {
+    if (!(location.state?.openAddModalFor && clients.length > 0 && services.length > 0)) return undefined;
+    const timer = window.setTimeout(() => { setNewBooking(prev => ({ ...prev, client_name: location.state.openAddModalFor })); setIsModalOpen(true); window.history.replaceState({}, document.title); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [location.state, clients, services]);
+
   const getClientColor = (clientName) => {
     const client = clients.find(c => c.name === clientName);
     return client?.color || '#4318ff';
@@ -107,6 +100,7 @@ const ERPBookings = () => {
   const statusMeta = {
     pending: { label: 'بانتظار التأكيد', color: '#d99124' },
     confirmed: { label: 'مؤكد', color: '#20a66a' },
+    in_progress: { label: 'تصوير جارٍ', color: '#7c3aed' },
     alternative_proposed: { label: 'موعد بديل مقترح', color: '#268bd2' },
     rejected: { label: 'مرفوض', color: '#d84b5d' },
     cancel_requested: { label: 'طلب إلغاء', color: '#d99124' },
@@ -121,12 +115,12 @@ const ERPBookings = () => {
 
   const calendarEvents = bookings.map(b => ({
     id: b.id,
-    title: `${(b.start_time || '').slice(0, 5)} · ${b.client_name}`,
+    title: `${formatTime12(b.start_time, '')} · ${b.client_name}`,
     start: b.date,
     color: getStatusMeta(b.status).color,
     extendedProps: {
       booking_id: b.id,
-      time: `${b.start_time} - ${b.end_time}`,
+      time: `${formatTime12(b.start_time)} - ${formatTime12(b.end_time)}`,
       status: b.status || 'مؤكد',
       service: b.service
     }
@@ -172,25 +166,29 @@ const ERPBookings = () => {
     }
   };
 
-  const handleCompleteBooking = async () => {
+  const handleStartBooking = async () => {
     if (!selectedBookingDetails) return;
-    if (window.confirm('تأكيد إتمام الموعد؟ سيتم تغيير الحالة إلى "منتهي".')) {
-      const { error } = await supabase.from('bookings').update({ status: 'منتهي' }).eq('id', selectedBookingDetails.id);
-      if (!error) {
-        fetchData();
-        window.bootstrap.Modal.getInstance(document.getElementById('bookingDetailsModal'))?.hide();
-      }
-    }
+    if (!window.confirm('بدء جلسة التصوير الآن وتشغيل التايمر؟')) return;
+    setDecisionBusy(`start-${selectedBookingDetails.id}`);
+    const { error } = await supabase.request(`/bookings/${selectedBookingDetails.id}/session/start`, { method: 'POST' });
+    setDecisionBusy(null);
+    if (error) return setDecisionError(error.message || 'تعذر بدء جلسة التصوير.');
+    await fetchData(true);
+    window.dispatchEvent(new Event('erpRequestsUpdated'));
+    window.bootstrap.Modal.getInstance(document.getElementById('bookingDetailsModal'))?.hide();
   };
 
-  const deleteBooking = async (id) => {
-    if (window.confirm('بصفتك المالك (مدير النظام)، هل تريد حذف هذا الموعد نهائياً من التقويم والسجلات؟')) {
-      const { error } = await supabase.from('bookings').delete().eq('id', id);
-      if (!error) {
-        fetchData();
-        window.bootstrap.Modal.getInstance(document.getElementById('bookingDetailsModal'))?.hide();
-      }
-    }
+  const cancelBooking = async (id) => {
+    if (!window.confirm('هل تريد إلغاء هذا الموعد؟ سيظل محفوظًا في السجل ولن تُخصم ساعات منه.')) return;
+    setDecisionBusy(`cancel-${id}`);
+    const { error } = await supabase.request(`/bookings/${id}/admin-cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ charge: false, reason: 'إلغاء إداري دون خصم' }),
+    });
+    setDecisionBusy(null);
+    if (error) return setDecisionError(error.message || 'تعذر إلغاء الموعد.');
+    await fetchData(true);
+    window.bootstrap.Modal.getInstance(document.getElementById('bookingDetailsModal'))?.hide();
   };
 
   const addDateRow = (dateStr = format(new Date(), 'yyyy-MM-dd')) => {
@@ -252,36 +250,17 @@ const ERPBookings = () => {
       return;
     }
 
-    // Strict Validations
     const srvObj = services.find(s => s.name === newBooking.service);
-    if (newBooking.category === 'باقة شهرية') {
-      const minDeposit = (newBooking.base_price || 0) * 0.5;
-      if (newBooking.paid < minDeposit) {
-        alert('الباقات الشهرية تتطلب دفع 50% على الأقل كعربون (مقدم).');
-        return;
-      }
-    }
+    const minimumMinutes = Math.max(15, Number(srvObj?.minimum_booking_minutes || 60));
+    const incrementMinutes = Math.max(15, Number(srvObj?.booking_increment_minutes || 15));
 
     if (needsDates) {
       for (const d of newBooking.dates) {
         if (d.start_time && d.end_time) {
-          const [startH, startM] = d.start_time.split(':').map(Number);
-          const [endH, endM] = d.end_time.split(':').map(Number);
-          const diffInMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-          
-          if (newBooking.category === 'تصوير بالساعة' || newBooking.category === 'باقة شهرية') {
-            if (diffInMinutes < 60) {
-              alert('الحد الأدنى لحجز جلسة التصوير هو ساعة واحدة.');
-              return;
-            }
-          }
-          
-          if (newBooking.category === 'باقة يومية') {
-            const requiredMins = (srvObj?.total_hours || 0) * 60;
-            if (diffInMinutes < requiredMins) {
-              alert(`الباقة اليومية تشترط أن تكون مدة الحجز في الجلسة الواحدة لا تقل عن إجمالي ساعات الباقة (${srvObj?.total_hours || 0} ساعات)`);
-              return;
-            }
+          const diffInMinutes = calculateDurationMinutes(d.start_time, d.end_time);
+          if (!isValidBusinessBooking(d.start_time, d.end_time, minimumMinutes) || diffInMinutes % incrementMinutes !== 0) {
+            alert(`مواعيد الحجز من 12:00 م إلى 12:00 ص، بحد أدنى ${minimumMinutes} دقيقة وبزيادات ${incrementMinutes} دقيقة حسب إعدادات الخدمة.`);
+            return;
           }
         }
       }
@@ -293,9 +272,7 @@ const ERPBookings = () => {
       bookingsToInsert = newBooking.dates.map(d => {
         let hours = 0;
         if (d.start_time && d.end_time) {
-          const [startH, startM] = d.start_time.split(':').map(Number);
-          const [endH, endM] = d.end_time.split(':').map(Number);
-          const diffInMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+          const diffInMinutes = calculateDurationMinutes(d.start_time, d.end_time);
           hours = diffInMinutes > 0 ? +(diffInMinutes / 60).toFixed(2) : 0;
         }
 
@@ -342,20 +319,29 @@ const ERPBookings = () => {
       }];
     }
 
-    const { data: insertedBookings, error } = await supabase.from('bookings').insert(bookingsToInsert).select();
+    if (!bookingsToInsert.every(item => item.date && item.start_time && item.end_time)) return alert('هذه الخدمة تُدار من الباقات أو المشروعات، وليس من جدول الاستديو.');
+    if (Number(newBooking.paid) > 0) return alert('سجّل دفعة العميل من صفحة الباقات أو المالية لربطها محاسبيًا بشكل صحيح.');
+    const client = clients.find(item => item.name === newBooking.client_name);
+    const service = services.find(item => item.name === newBooking.service);
+    if (!client || !service) return alert('اختر عميلًا وخدمة مسجلين.');
+    const results = [];
+    for (const item of bookingsToInsert) results.push(await supabase.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_id: client.id, service_id: service.id, service: service.name, date: item.date, start_time: item.start_time, end_time: item.end_time, status: 'confirmed', notes: item.notes }) }));
+    const error = results.find(result => result.error)?.error;
+    const insertedBookings = results.filter(result => !result.error).map(result => result.data);
 
     if (!error) {
       // Record money only after every booking row has been accepted by the server.
       // This prevents a rejected/conflicting appointment from creating false revenue.
       if (newBooking.paid > 0) {
-        await supabase.from('finance').insert([{
-          type: 'إيراد',
+        await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+          entry_kind: 'income', category: 'client_revenue', client_id: client.id,
+          source_type: 'service', source_id: service.id,
           amount: newBooking.paid,
           method: newBooking.payment_method,
           detail: `دفعة من ${newBooking.client_name} لخدمة ${newBooking.service}`,
           date: format(new Date(), 'yyyy-MM-dd'),
           entity: 'الشركة'
-        }]);
+        }) });
 
         const { data: clientData } = await supabase.from('clients').select('id, points').eq('name', newBooking.client_name).single();
         if (clientData) {
@@ -472,25 +458,13 @@ const ERPBookings = () => {
       `}</style>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '15px' }}>
-        <div>
-          <h3 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', margin: 0, display: 'flex', alignItems: 'center' }}>
-            <CalendarIcon style={{ marginRight: '10px', color: 'var(--erp-primary)' }} /> إدارة المواعيد والتقويم
-          </h3>
-          <p style={{ color: 'var(--erp-text-muted)', fontSize: '0.9rem', margin: '5px 0 0 0' }}>
-            اضغط مرتين للحجز.
-            {isAdmin && <span style={{ color: 'var(--erp-danger)', fontWeight: 'bold', marginRight: '5px' }}>
-              <ShieldAlert size={14} style={{ display: 'inline', marginLeft: '3px' }} /> بصفتك مدير: يمكنك حجز تواريخ سابقة، أو حذف أي موعد.
-            </span>}
-          </p>
-        </div>
-        <button 
-          style={{ background: 'var(--erp-primary)', color: 'white', border: 'none', borderRadius: '50px', padding: '10px 25px', fontWeight: 'bold', display: 'flex', alignItems: 'center', boxShadow: '0 4px 10px rgba(67, 24, 255, 0.2)', cursor: 'pointer' }}
-          onClick={() => setIsModalOpen(true)}
-        >
-          <CalendarPlus size={18} style={{ marginLeft: '8px' }} /> حجز موعد / إضافة خدمة
-        </button>
-      </div>
+      <ERPPageHero
+        icon={CalendarIcon}
+        eyebrow="جدول الاستديو"
+        title="إدارة المواعيد والتقويم"
+        description={<>{'اضغط مرتين على التقويم لبدء حجز جديد.'}{isAdmin && <> · يمكنك تعديل الموعد أو إلغاؤه مع الاحتفاظ بالسجل المحاسبي.</>}</>}
+        actions={<button data-variant="primary" onClick={() => setIsModalOpen(true)}><CalendarPlus size={18} /> حجز موعد / إضافة خدمة</button>}
+      />
 
       <section className="pending-requests-panel" aria-labelledby="pending-requests-title">
         <div className="pending-requests-head">
@@ -502,9 +476,9 @@ const ERPBookings = () => {
           <div style={{ padding: '22px', textAlign: 'center', color: 'var(--erp-text-muted)', border: '1px dashed var(--erp-border)', borderRadius: '10px', fontSize: '.82rem' }}><CheckCircle size={23} style={{ marginBottom: '7px', color: 'var(--erp-success)' }}/><div>لا توجد طلبات جديدة بانتظار القرار.</div></div>
         ) : <div className="pending-requests-list">{pendingBookings.map(booking => <article className="pending-request-card" key={booking.id}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}><h5>{booking.client_name}</h5><span className="booking-status-pill" style={{ background: getStatusMeta(booking.status).color }}>{getStatusMeta(booking.status).label}</span></div>
-          <div className="pending-request-meta"><span><CalendarIcon size={13}/> {booking.date}</span><span dir="ltr"><Clock size={13}/> {(booking.start_time || '').slice(0,5)} – {(booking.end_time || '').slice(0,5)}</span><span>{booking.service}</span></div>
+          <div className="pending-request-meta"><span><CalendarIcon size={13}/> {formatBookingDate(booking.date)}</span><span><Clock size={13}/> {formatTime12(booking.start_time)} – {formatTime12(booking.end_time)}</span><span>{booking.service}</span></div>
           {booking.notes && <p style={{ color: 'var(--erp-text-muted)', fontSize: '.73rem', lineHeight: 1.7, margin: '0 0 12px' }}>{booking.notes}</p>}
-          <div className="pending-request-actions"><button className="confirm" disabled={Boolean(decisionBusy)} onClick={() => submitDecision(booking, 'confirm')}><Check size={15}/> {decisionBusy === `confirm-${booking.id}` ? 'جارٍ التأكيد...' : 'تأكيد'}</button><button className="alternative" disabled={Boolean(decisionBusy)} onClick={() => setAlternativeModal({ open: true, booking, date: booking.date, start_time: (booking.start_time || '12:00').slice(0,5), end_time: (booking.end_time || '13:00').slice(0,5), note: '' })}><CalendarPlus size={15}/> موعد بديل</button><button className="reject" disabled={Boolean(decisionBusy)} onClick={() => { if (window.confirm(`رفض طلب ${booking.client_name}؟`)) submitDecision(booking, 'reject'); }}><Ban size={15}/> {decisionBusy === `reject-${booking.id}` ? 'جارٍ الرفض...' : 'رفض'}</button></div>
+          <div className="pending-request-actions"><button className="confirm" disabled={Boolean(decisionBusy)} onClick={() => submitDecision(booking, 'confirm')}><Check size={15}/> {decisionBusy === `confirm-${booking.id}` ? 'جارٍ التأكيد...' : 'تأكيد'}</button><button className="alternative" disabled={Boolean(decisionBusy)} onClick={() => setAlternativeModal({ open: true, booking, date: booking.date, start_time: normalizeTime(booking.start_time || '12:00'), end_time: normalizeTime(booking.end_time || '13:00', { endOfDay: true }), note: '' })}><CalendarPlus size={15}/> موعد بديل</button><button className="reject" disabled={Boolean(decisionBusy)} onClick={() => { if (window.confirm(`رفض طلب ${booking.client_name}؟`)) submitDecision(booking, 'reject'); }}><Ban size={15}/> {decisionBusy === `reject-${booking.id}` ? 'جارٍ الرفض...' : 'رفض'}</button></div>
         </article>)}</div>}
       </section>
 
@@ -578,7 +552,7 @@ const ERPBookings = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                         <div className="timeline-time" style={{ color: getClientColor(b.client_name), fontFamily: 'monospace' }}>
                           <Clock size={14} style={{ display: 'inline', marginLeft: '5px' }} />
-                          {b.start_time}
+                          {formatTime12(b.start_time)}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           {b.status === 'منتهي' ? (
@@ -693,11 +667,11 @@ const ERPBookings = () => {
                         </div>
                         <div style={{ flex: 1 }}>
                           <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>من الساعة</label>
-                          <input type="time" value={dRow.start_time} onChange={(e) => updateDateRow(idx, 'start_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
+                          <BusinessTimeSelect min="12:00" max="23:00" value={dRow.start_time} onChange={(e) => updateDateRow(idx, 'start_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
                         </div>
                         <div style={{ flex: 1 }}>
                           <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>إلى الساعة</label>
-                          <input type="time" value={dRow.end_time} onChange={(e) => updateDateRow(idx, 'end_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
+                          <BusinessTimeSelect min="13:00" max="24:00" value={dRow.end_time} onChange={(e) => updateDateRow(idx, 'end_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
                         </div>
                         <button type="button" onClick={() => removeDateRow(idx)} style={{ background: 'var(--erp-bg)', color: 'var(--erp-danger)', border: 'none', width: '42px', height: '42px', borderRadius: '50%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                           <Trash2 size={18} />
@@ -795,8 +769,8 @@ const ERPBookings = () => {
                   
                   <div className="d-flex justify-content-between align-items-center mb-4">
                     <h4 className="fw-bold text-primary m-0">{selectedBookingDetails.client_name}</h4>
-                    <span className={`badge ${selectedBookingDetails.status === 'منتهي' ? 'bg-success' : 'bg-warning text-dark'} rounded-pill px-3 py-2 fs-6`}>
-                      {selectedBookingDetails.status}
+                    <span className="badge rounded-pill px-3 py-2 fs-6" style={{ background: getStatusMeta(selectedBookingDetails.status).color, color: '#fff' }}>
+                      {getStatusMeta(selectedBookingDetails.status).label}
                     </span>
                   </div>
 
@@ -810,16 +784,16 @@ const ERPBookings = () => {
                     <div className="col-12 col-md-6">
                       <div className="p-3 bg-white rounded-4 border shadow-sm h-100">
                         <small className="text-muted d-block mb-1 fw-bold">التاريخ</small>
-                        <div className="fw-bold text-dark" style={{direction: 'ltr'}}>{selectedBookingDetails.date}</div>
+                        <div className="fw-bold text-dark">{formatBookingDate(selectedBookingDetails.date)}</div>
                       </div>
                     </div>
                     <div className="col-12">
                       <div className="p-3 bg-white rounded-4 border shadow-sm">
                         <small className="text-muted d-block mb-1 fw-bold">التوقيت</small>
                         <div className="fw-bold text-dark d-flex align-items-center gap-2">
-                          <span className="text-primary">{selectedBookingDetails.start_time}</span> 
+                          <span className="text-primary">{formatTime12(selectedBookingDetails.start_time)}</span>
                           <i className="fas fa-arrow-left text-muted"></i> 
-                          <span className="text-danger">{selectedBookingDetails.end_time}</span>
+                          <span className="text-danger">{formatTime12(selectedBookingDetails.end_time)}</span>
                         </div>
                       </div>
                     </div>
@@ -850,17 +824,19 @@ const ERPBookings = () => {
                   )}
 
                   <div className="d-flex gap-2 mt-4">
-                    {selectedBookingDetails.status !== 'منتهي' && (
-                      <button className="btn btn-success flex-grow-1 py-3 rounded-4 fw-bold" onClick={handleCompleteBooking}>
-                        <i className="fas fa-check-circle me-1"></i> إتمام الموعد (تصوير)
+                    {selectedBookingDetails.status === 'confirmed' && (
+                      <button disabled={decisionBusy === `start-${selectedBookingDetails.id}`} className="btn btn-success flex-grow-1 py-3 rounded-4 fw-bold" onClick={handleStartBooking}>
+                        <i className="fas fa-play-circle me-1"></i> {decisionBusy === `start-${selectedBookingDetails.id}` ? 'جارٍ التشغيل...' : 'بدء جلسة التصوير'}
                       </button>
                     )}
-                    {isAdmin && (
-                      <button className="btn btn-outline-danger py-3 rounded-4 fw-bold px-4" onClick={() => deleteBooking(selectedBookingDetails.id)}>
-                        <i className="fas fa-trash-alt me-1"></i> حذف الموعد
+                    {selectedBookingDetails.status === 'in_progress' && <div className="alert alert-primary flex-grow-1 m-0 py-3 rounded-4 fw-bold">التايمر يعمل الآن — أنهِ الجلسة من شريط التايمر.</div>}
+                    {isAdmin && !['in_progress', 'completed', 'cancelled', 'منتهي'].includes(selectedBookingDetails.status) && (
+                      <button disabled={decisionBusy === `cancel-${selectedBookingDetails.id}`} className="btn btn-outline-danger py-3 rounded-4 fw-bold px-4" onClick={() => cancelBooking(selectedBookingDetails.id)}>
+                        <i className="fas fa-ban me-1"></i> {decisionBusy === `cancel-${selectedBookingDetails.id}` ? 'جارٍ الإلغاء...' : 'إلغاء الموعد'}
                       </button>
                     )}
                   </div>
+                  {decisionError && <div className="alert alert-danger mt-3 mb-0">{decisionError}</div>}
 
                 </div>
               </>
@@ -876,9 +852,9 @@ const ERPBookings = () => {
             {decisionError && <div className="decision-error" style={{ marginTop: '15px' }}>{decisionError}</div>}
             <form onSubmit={submitAlternative} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '20px' }}>
               <label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>التاريخ البديل<input required type="date" value={alternativeModal.date} onChange={e => setAlternativeModal({ ...alternativeModal, date: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>من<input required type="time" min="12:00" max="21:00" step="900" value={alternativeModal.start_time} onChange={e => setAlternativeModal({ ...alternativeModal, start_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>إلى<input required type="time" min="13:00" max="22:00" step="900" value={alternativeModal.end_time} onChange={e => setAlternativeModal({ ...alternativeModal, end_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>من<BusinessTimeSelect required min="12:00" max="23:00" value={alternativeModal.start_time} onChange={e => setAlternativeModal({ ...alternativeModal, start_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>إلى<BusinessTimeSelect required min="13:00" max="24:00" value={alternativeModal.end_time} onChange={e => setAlternativeModal({ ...alternativeModal, end_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label></div>
               <label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>ملاحظة للعميل<textarea rows="3" value={alternativeModal.note} onChange={e => setAlternativeModal({ ...alternativeModal, note: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)', resize: 'vertical' }}/></label>
-              <p style={{ padding: '10px', background: 'rgba(38,139,210,.08)', color: '#267ab0', borderRight: '3px solid #268bd2', margin: 0, fontSize: '.7rem' }}>أقل مدة ساعة، والزيادة كل 15 دقيقة، ضمن مواعيد العمل من 12 ظهرًا إلى 10 مساءً.</p>
+              <p style={{ padding: '10px', background: 'rgba(38,139,210,.08)', color: '#267ab0', borderRight: '3px solid #268bd2', margin: 0, fontSize: '.7rem' }}>أقل مدة ساعة، والزيادة كل 15 دقيقة، ضمن مواعيد العمل من 12:00 م إلى 12:00 ص.</p>
               <button type="submit" disabled={Boolean(decisionBusy)} style={{ border: 0, borderRadius: '9px', background: '#268bd2', color: 'white', padding: '12px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>{decisionBusy ? <RefreshCw size={16} className="client-spin"/> : <Send size={16}/>} إرسال الموعد البديل</button>
             </form>
           </div>

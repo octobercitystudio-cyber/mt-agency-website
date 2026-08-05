@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { format, addMonths } from 'date-fns';
+import { ListTodo } from 'lucide-react';
+import ERPPageHero from './ERPPageHero';
+import { formatDateTime12, formatEGP } from '../lib/businessFormat';
 
 let globalRemindersCache = null;
 let globalRemindersLastFetch = 0;
@@ -119,15 +122,14 @@ const ERPReminders = () => {
 
   const handlePaySubmit = async (e) => {
     e.preventDefault();
-    // Insert into finance
-    await supabase.from('finance').insert([{
-      type: 'مصروف',
+    await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+      entry_kind: 'expense', category: 'reminder_expense',
       amount: payData.amount,
       method: payData.method,
       detail: `سداد تذكير: ${payData.title}`,
       date: payData.date,
       entity: payData.entity
-    }]);
+    }) });
 
     // Complete the reminder
     const rem = reminders.find(r => r.id === payData.reminder_id);
@@ -178,12 +180,13 @@ const ERPReminders = () => {
         .nav-tabs .nav-link.active { background-color: #4318ff !important; color: white !important; }
       `}</style>
 
-      <div className="d-flex justify-content-between align-items-center mb-4 mt-3 px-3">
-        <h3 className="fw-bold text-dark m-0"><i className="fas fa-tasks text-primary me-2"></i> إدارة المهام والتذكيرات</h3>
-        <button className="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" onClick={handleOpenAddModal}>
-          <i className="fas fa-plus-circle me-1"></i> إضافة مهمة / تذكير جديد
-        </button>
-      </div>
+      <ERPPageHero
+        icon={ListTodo}
+        eyebrow="المتابعة والتنبيهات"
+        title="إدارة المهام والتذكيرات"
+        description="رتّب مهام الفريق والمواعيد المتكررة والاستحقاقات القادمة."
+        actions={<button data-variant="primary" onClick={handleOpenAddModal}><i className="fas fa-plus-circle"></i> إضافة مهمة / تذكير جديد</button>}
+      />
 
       <ul className="nav nav-tabs mb-4 border-0 px-3" role="tablist">
         <li className="nav-item me-2" role="presentation">
@@ -215,13 +218,13 @@ const ERPReminders = () => {
                       <h5 className="fw-bold text-dark mb-3">{t.title}</h5>
                       <div className="bg-light p-3 rounded-3 mb-auto border border-light-subtle">
                         <div className="small fw-bold text-dark mb-1"><i className="far fa-calendar-alt text-primary me-2"></i> الموعد المستحق:</div>
-                        <div className="font-monospace text-muted ps-4 mb-2" dir="ltr" style={{textAlign: 'right'}}>{format(new Date(t.due_date), 'yyyy-MM-dd | hh:mm a')}</div>
+                        <div className="text-muted ps-4 mb-2">{formatDateTime12(t.due_date)}</div>
                         
                         {t.amount > 0 && (
                           <>
                             <hr className="opacity-10 my-2" />
                             <div className="small fw-bold text-success mb-1"><i className="fas fa-money-bill-wave me-2"></i> المبلغ المطلوب:</div>
-                            <div className="font-monospace fw-bold text-success ps-4 fs-5">{t.amount} <span className="fs-6 text-muted fw-normal">ج.م</span></div>
+                            <div className="fw-bold text-success ps-4 fs-5">{formatEGP(t.amount)}</div>
                           </>
                         )}
                       </div>

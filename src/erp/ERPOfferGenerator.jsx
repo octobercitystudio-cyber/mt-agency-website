@@ -3,11 +3,14 @@ import { Banknote, Check, Eye, FileCheck2, FilePlus2, FileText, Plus, Printer, R
 import { supabase } from '../supabaseClient';
 import { useData } from '../store/DataContext';
 import './ERPOfferGenerator.css';
+import { safeUiError } from '../lib/uiError';
+import { formatEGP } from '../lib/businessFormat';
+import ERPPageHero from './ERPPageHero';
 
 const defaultValidity = () => { const date = new Date(); date.setDate(date.getDate() + 15); return date.toISOString().slice(0, 10); };
 const emptyForm = () => ({ client_id: '', title: 'عرض خدمات MT Agency', valid_until: defaultValidity(), discount: 0, notes: '', items: [] });
 const STATUS = { draft: ['مسودة','draft'], sent: ['مرسل للعميل','sent'], accepted: ['مقبول','accepted'], expired: ['منتهي','expired'] };
-const money = value => `${Number(value || 0).toLocaleString('ar-EG')} ج`;
+const money = formatEGP;
 const unitName = unit => ({ hour:'ساعة', reel:'ريل', day:'يوم', month:'شهر', project:'مشروع' })[unit] || unit;
 const arabicDate = value => {
   if (!value) return '—';
@@ -43,7 +46,7 @@ export default function ERPOfferGenerator() {
       supabase.from('services').select('*').eq('is_active',1).order('name',{ascending:true}),
     ]);
     const failed=[offersResult,invoicesResult,clientsResult,servicesResult].find(result=>result.error);
-    if(failed?.error)setError(failed.error.message||'تعذر تحميل العروض والفواتير.');
+    if(failed?.error)setError(safeUiError(failed.error,'تعذر تحميل العروض والفواتير الآن.'));
     else{setOffers(offersResult.data||[]);setInvoices(invoicesResult.data||[]);setClients(clientsResult.data||[]);setServices(servicesResult.data||[])}
     setLoading(false);
   },[]);
@@ -63,14 +66,14 @@ export default function ERPOfferGenerator() {
   const updateItem=(key,field,value)=>setForm(prev=>({...prev,items:prev.items.map(item=>item.key===key?{...item,[field]:value}:item)}));
   const removeItem=key=>setForm(prev=>({...prev,items:prev.items.filter(item=>item.key!==key)}));
 
-  const saveDraft=async event=>{event.preventDefault();if(!form.items.length)return setError('أضف بند خدمة واحدًا على الأقل.');setBusy('save');setError('');const{error:requestError}=await supabase.request('/offers',{method:'POST',body:JSON.stringify({...form,client_id:Number(form.client_id),discount:finalDiscount,items:form.items.map(item=>({service_id:item.service_id,description:item.description,quantity:Number(item.quantity),unit:item.unit,unit_price:Number(item.unit_price)}))})});setBusy('');if(requestError)return setError(requestError.message||'تعذر حفظ العرض.');setForm(emptyForm());setNotice('تم حفظ عرض السعر كمسودة. يمكنك إرساله من سجل العروض.');setMode('offers');await fetchData()};
-  const sendOffer=async offer=>{if(!canCompose)return;if(!window.confirm(`إرسال العرض ${offer.offer_number} للعميل؟`))return;setBusy(`send-${offer.id}`);const{error:requestError}=await supabase.request(`/offers/${offer.id}/send`,{method:'POST',body:'{}'});setBusy('');if(requestError)return setError(requestError.message||'تعذر إرسال العرض.');setNotice('تم إرسال العرض إلى بوابة العميل.');await fetchData()};
-  const viewOffer=async(event,offer)=>{detailTrigger.current=event.currentTarget;setDetailLoading(true);setDetail({id:offer.id});const{data,error:requestError}=await supabase.request(`/offers/${offer.id}`,{method:'GET'});setDetailLoading(false);if(requestError){setDetail(null);return setError(requestError.message||'تعذر تحميل تفاصيل العرض.')}setDetail(data)};
+  const saveDraft=async event=>{event.preventDefault();if(!form.items.length)return setError('أضف بند خدمة واحدًا على الأقل.');setBusy('save');setError('');const{error:requestError}=await supabase.request('/offers',{method:'POST',body:JSON.stringify({...form,client_id:Number(form.client_id),discount:finalDiscount,items:form.items.map(item=>({service_id:item.service_id,description:item.description,quantity:Number(item.quantity),unit:item.unit,unit_price:Number(item.unit_price)}))})});setBusy('');if(requestError)return setError(safeUiError(requestError,'تعذر حفظ العرض.'));setForm(emptyForm());setNotice('تم حفظ عرض السعر كمسودة. يمكنك إرساله من سجل العروض.');setMode('offers');await fetchData()};
+  const sendOffer=async offer=>{if(!canCompose)return;if(!window.confirm(`إرسال العرض ${offer.offer_number} للعميل؟`))return;setBusy(`send-${offer.id}`);const{error:requestError}=await supabase.request(`/offers/${offer.id}/send`,{method:'POST',body:'{}'});setBusy('');if(requestError)return setError(safeUiError(requestError,'تعذر إرسال العرض.'));setNotice('تم إرسال العرض إلى بوابة العميل.');await fetchData()};
+  const viewOffer=async(event,offer)=>{detailTrigger.current=event.currentTarget;setDetailLoading(true);setDetail({id:offer.id});const{data,error:requestError}=await supabase.request(`/offers/${offer.id}`,{method:'GET'});setDetailLoading(false);if(requestError){setDetail(null);return setError(safeUiError(requestError,'تعذر تحميل تفاصيل العرض.'))}setDetail(data)};
   const closeDetail=useCallback(()=>setDetail(null),[]);
   useEffect(()=>{if(!detail)return undefined;const dialog=detailRef.current;const focusables=()=>Array.from(dialog?.querySelectorAll('button:not([disabled]),[href],[tabindex]:not([tabindex="-1"])')||[]);const onKey=event=>{if(event.key==='Escape'){event.preventDefault();closeDetail()}else if(event.key==='Tab'){const items=focusables();if(!items.length)return;const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}};document.addEventListener('keydown',onKey);document.body.style.overflow='hidden';requestAnimationFrame(()=>focusables()[0]?.focus());return()=>{document.removeEventListener('keydown',onKey);document.body.style.overflow='';requestAnimationFrame(()=>detailTrigger.current?.focus())}},[detail,closeDetail]);
 
   return <div className="offers-command" dir="rtl">
-    <header className="offers-command-head"><div><span><FileCheck2/> {canCompose?'مسار المبيعات':'المتابعة المالية'}</span><h2>{canCompose?'العروض والفواتير':'الفواتير'}</h2><p>{canCompose?'أنشئ العرض، احفظه، ثم أرسله للعميل ليقبله من بوابته.':'تابع الفواتير الصادرة والمدفوعات والأرصدة المتبقية.'}</p></div>{canCompose&&<button onClick={()=>setMode('compose')}><FilePlus2/> عرض جديد</button>}</header>
+    <ERPPageHero icon={FileCheck2} eyebrow={canCompose?'مسار المبيعات':'المتابعة المالية'} title={canCompose?'العروض والفواتير':'الفواتير'} description={canCompose?'أنشئ العرض، احفظه، ثم أرسله للعميل ليقبله من بوابته.':'تابع الفواتير الصادرة والمدفوعات والأرصدة المتبقية.'} actions={canCompose&&<button data-variant="primary" onClick={()=>setMode('compose')}><FilePlus2/> عرض جديد</button>}/>
     <section className="offers-metrics">{canCompose?<><Metric label="مسودات" value={metrics.draft}/><Metric label="بانتظار العميل" value={metrics.sent} tone="amber"/><Metric label="عروض مقبولة" value={metrics.accepted} tone="green"/><Metric label="قيمة العروض" value={money(metrics.value)} tone="cyan"/></>:<><Metric label="عدد الفواتير" value={invoiceMetrics.count}/><Metric label="فواتير صادرة" value={invoiceMetrics.issued} tone="amber"/><Metric label="إجمالي الفواتير" value={money(invoiceMetrics.value)} tone="green"/><Metric label="الرصيد المتبقي" value={money(invoiceMetrics.due)} tone="cyan"/></>}</section>
     {notice&&<div className="offer-feedback success"><Check/> {notice}</div>}{error&&<div className="offer-feedback error"><X/><span>{error}</span><button onClick={()=>setError('')}>إخفاء</button></div>}
     <nav className="offers-modes">{canCompose&&<><button className={mode==='compose'?'active':''} onClick={()=>setMode('compose')}><FilePlus2/> تركيب عرض</button><button className={mode==='offers'?'active':''} onClick={()=>setMode('offers')}><FileText/> سجل العروض <span>{offers.length}</span></button></>}<button className={mode==='invoices'?'active':''} onClick={()=>setMode('invoices')}><Banknote/> الفواتير <span>{invoices.length}</span></button><button className="refresh" onClick={fetchData}><RefreshCw className={loading?'offer-spin':''}/> تحديث</button></nav>

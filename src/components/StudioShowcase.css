@@ -10,10 +10,6 @@
   animation: fadeIn 0.5s ease;
 }
 
-#studio .section-title {
-  font-size: clamp(1.2rem, 3.5vw, 2.2rem);
-}
-
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -58,10 +54,14 @@
   overflow: hidden;
   aspect-ratio: 16 / 9;
   border-radius: var(--border-radius);
+  background-color: #170b25;
+  background-position: center;
+  background-size: cover;
   cursor: pointer;
 }
 
 .showcase-item img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
