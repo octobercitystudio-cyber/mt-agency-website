@@ -1,4 +1,4 @@
-name: Deploy MT Agency to Hostinger
+name: Verify MT Agency production bundle
 
 on:
   push:
@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  verify-production-bundle:
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -32,31 +32,14 @@ jobs:
           VITE_API_URL: /api
         run: npm run build
 
-      - name: Add Hostinger API to deployment package
-        run: |
-          cp -R api dist/api
-          cp public/.htaccess dist/.htaccess
-
       - name: Verify deployment package
         run: |
           test -f dist/index.html
           test -f dist/.htaccess
-          test -f dist/api/index.php
-          test -f dist/api/.htaccess
-          test ! -f dist/api/config.php
+          test -f api/index.php
+          test -f api/.htaccess
+          test ! -f api/config.php
 
-      - name: Deploy to Hostinger
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./dist/
-          # The default Hostinger FTP account is rooted at the hosting account and
-          # keeps each domain under domains/<domain>/public_html.
-          server-dir: ./domains/multitaskagency.com/public_html/
-          exclude: |
-            **/.git*
-            **/.git*/**
-            api/config.php
-            api/uploads/**
+      # Hostinger's Git integration watches main and deploys the verified commit
+      # directly to public_html. Keeping FTP out avoids a second writer and
+      # preserves the server-only api/config.php file.
