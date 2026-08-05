@@ -5,9 +5,12 @@ RewriteEngine On
 # routes API requests to api/index.php and protects its local config.
 RewriteRule ^api(/|$) - [L,NC]
 
+# Keep automated SSL certificate validation available to the hosting layer.
+RewriteRule ^\.well-known/acme-challenge/ - [L,NC]
+
 # Hostinger Git deployment checks out the repository at the web root.
 # Deny source, migrations, tests, internal docs, and workflow files.
-RewriteRule ^(?:src|database|tests|docs|scripts|\.github|node_modules|public)(?:/|$) - [F,L,NC]
+RewriteRule ^(?:src|database|tests|docs|scripts|scratch|artifacts|\.git|\.github|\.builds|node_modules|public)(?:/|$) - [F,L,NC]
 
 <FilesMatch "^(?:\.env(?:\..*)?|package(?:-lock)?\.json|vite\.config\.(?:js|mjs|ts)|README(?:\..*)?|AGENTS\.md)$">
   Require all denied
@@ -20,6 +23,13 @@ RewriteRule ^dist/ - [L,NC]
 RewriteCond %{DOCUMENT_ROOT}/dist/$1 -f [OR]
 RewriteCond %{DOCUMENT_ROOT}/dist/$1 -d
 RewriteRule ^(.+)$ dist/$1 [L]
+
+# A Git checkout can contain legacy databases, helper scripts, and other
+# repository-root files. If a request did not match the production bundle,
+# never serve an existing raw file or directory from public_html.
+RewriteCond %{DOCUMENT_ROOT}/$1 -f [OR]
+RewriteCond %{DOCUMENT_ROOT}/$1 -d
+RewriteRule ^(.+)$ - [F,L]
 
 # React Router fallback.
 RewriteRule ^ dist/index.html [L]
