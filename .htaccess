@@ -1,0 +1,25 @@
+Options -Indexes
+RewriteEngine On
+
+# Keep the PHP API at its stable public URL. The nested api/.htaccess
+# routes API requests to api/index.php and protects its local config.
+RewriteRule ^api(/|$) - [L,NC]
+
+# Hostinger Git deployment checks out the repository at the web root.
+# Deny source, migrations, tests, internal docs, and workflow files.
+RewriteRule ^(?:src|database|tests|docs|scripts|\.github|node_modules|public)(?:/|$) - [F,L,NC]
+
+<FilesMatch "^(?:\.env(?:\..*)?|package(?:-lock)?\.json|vite\.config\.(?:js|mjs|ts)|README(?:\..*)?|AGENTS\.md)$">
+  Require all denied
+</FilesMatch>
+
+# Allow the committed production bundle to serve its own files.
+RewriteRule ^dist/ - [L,NC]
+
+# Map public asset requests to the Vite production bundle.
+RewriteCond %{DOCUMENT_ROOT}/dist/$1 -f [OR]
+RewriteCond %{DOCUMENT_ROOT}/dist/$1 -d
+RewriteRule ^(.+)$ dist/$1 [L]
+
+# React Router fallback.
+RewriteRule ^ dist/index.html [L]

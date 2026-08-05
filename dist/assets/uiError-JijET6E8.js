@@ -1,0 +1,1 @@
+var e=/sqlstate|schema cache|relation\s+['"`].+['"`]\s+does not exist|table\s+['"`].+['"`]|column\s+['"`]|database|postgres|mysql|supabase|fetch failed|networkerror|failed to fetch/i;function t(t,n=`تعذر إكمال العملية الآن. حاول مرة أخرى.`){let r=String(t?.message||t||``).trim();return!r||e.test(r)?n:/[\u0600-\u06ff]/.test(r)?r:n}export{t};
