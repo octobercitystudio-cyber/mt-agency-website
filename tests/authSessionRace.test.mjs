@@ -34,3 +34,9 @@ test('the owner shell and dashboard are bundled with the login application', () 
   assert.match(appSource, /import ERPDashboard from '\.\/erp\/ERPDashboard'/);
   assert.doesNotMatch(appSource, /lazy\(\(\) => import\('\.\/erp\/ERPLayout'\)\)/);
 });
+
+test('route protection uses the server user role as its single source of truth', () => {
+  assert.match(appSource, /ERP_ROLES\.includes\(currentUser\?\.role\)/);
+  assert.match(appSource, /currentUser\?\.role !== 'client'/);
+  assert.doesNotMatch(appSource, /const \{ isErpAuth \} = useData\(\)/);
+});

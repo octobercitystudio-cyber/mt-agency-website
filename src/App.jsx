@@ -7,6 +7,8 @@ import { DataProvider, useData } from './store/DataContext';
 import ERPLayout from './erp/ERPLayout';
 import ERPDashboard from './erp/ERPDashboard';
 
+const ERP_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
+
 // Lazy Load Admin Components
 const AdminLayout = lazy(() => import('./admin/AdminLayout'));
 const AdminLogin = lazy(() => import('./admin/AdminLogin'));
@@ -37,20 +39,20 @@ const ERPAttendance = lazy(() => import('./erp/ERPAttendance'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
-  const { isAdminAuth } = useData();
-  if (!isAdminAuth) return <Navigate to="/adminmt/login" replace />;
+  const { currentUser } = useData();
+  if (!['owner', 'admin'].includes(currentUser?.role)) return <Navigate to="/adminmt/login" replace />;
   return children;
 };
 
 const ErpProtectedRoute = ({ children }) => {
-  const { isErpAuth } = useData();
-  if (!isErpAuth) return <Navigate to="/login" replace />;
+  const { currentUser } = useData();
+  if (!ERP_ROLES.includes(currentUser?.role)) return <Navigate to="/login" replace />;
   return children;
 };
 
 const ClientProtectedRoute = ({ children }) => {
-  const { isClientAuth } = useData();
-  if (!isClientAuth) return <Navigate to="/login" replace />;
+  const { currentUser } = useData();
+  if (currentUser?.role !== 'client') return <Navigate to="/login" replace />;
   return children;
 };
 
