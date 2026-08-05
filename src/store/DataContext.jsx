@@ -140,6 +140,18 @@ const withOfficialContactEmail = (data) => ({
   },
 });
 
+const readCachedSiteData = () => {
+  try {
+    const cached = localStorage.getItem('mt_agency_data_v5');
+    return withOfficialContactEmail(cached ? JSON.parse(cached) : defaultData);
+  } catch {
+    // A partially written legacy cache must never prevent the login screen
+    // or the public website from rendering.
+    localStorage.removeItem('mt_agency_data_v5');
+    return withOfficialContactEmail(defaultData);
+  }
+};
+
 const DataContext = createContext();
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -147,10 +159,7 @@ export const useData = () => useContext(DataContext);
 
 export const DataProvider = ({ children }) => {
   const [restoredPreview] = useState(restoreLocalPreviewSession);
-  const [siteData, setSiteData] = useState(() => {
-    const cached = localStorage.getItem('mt_agency_data_v5');
-    return withOfficialContactEmail(cached ? JSON.parse(cached) : defaultData);
-  });
+  const [siteData, setSiteData] = useState(readCachedSiteData);
   const [isAdminAuth, setIsAdminAuth] = useState(restoredPreview?.role === 'owner' || restoredPreview?.role === 'admin');
   const [isErpAuth, setIsErpAuth] = useState(staffRoles.includes(restoredPreview?.role));
   const [isClientAuth, setIsClientAuth] = useState(restoredPreview?.role === 'client');
