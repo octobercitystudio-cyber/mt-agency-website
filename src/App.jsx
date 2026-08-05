@@ -4,6 +4,8 @@ import HomePage from './pages/HomePage';
 import UnifiedLogin from './pages/UnifiedLogin';
 import ClientDashboard from './pages/ClientDashboard';
 import { DataProvider, useData } from './store/DataContext';
+import ERPLayout from './erp/ERPLayout';
+import ERPDashboard from './erp/ERPDashboard';
 
 // Lazy Load Admin Components
 const AdminLayout = lazy(() => import('./admin/AdminLayout'));
@@ -19,8 +21,6 @@ const AdminSettings = lazy(() => import('./admin/AdminSettings'));
 const AdminSEO = lazy(() => import('./admin/AdminSEO'));
 
 // Lazy Load ERP Components
-const ERPLayout = lazy(() => import('./erp/ERPLayout'));
-const ERPDashboard = lazy(() => import('./erp/ERPDashboard'));
 const ERPClients = lazy(() => import('./erp/ERPClients'));
 const ERPBookings = lazy(() => import('./erp/ERPBookings'));
 const ERPFinance = lazy(() => import('./erp/ERPFinance'));
