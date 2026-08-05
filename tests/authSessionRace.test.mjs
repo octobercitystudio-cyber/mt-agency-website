@@ -26,7 +26,8 @@ test('a broken legacy cache cannot blank the login application', () => {
 
 test('login waits for session restoration and routes users by role', () => {
   assert.match(loginSource, /disabled=\{loading \|\| !isAuthReady\}/);
-  assert.match(loginSource, /user\.role === 'client' \? '\/dashboard' : '\/erp'/);
+  assert.match(loginSource, /STAFF_ROLES\.includes\(user\.role\)/);
+  assert.match(loginSource, /STAFF_ROLES\.includes\(currentUser\.role\)/);
 });
 
 test('the owner shell and dashboard are bundled with the login application', () => {

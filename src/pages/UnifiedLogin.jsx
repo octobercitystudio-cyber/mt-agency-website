@@ -4,6 +4,8 @@ import { useData } from '../store/DataContext';
 import { Lock, User } from 'lucide-react';
 import './UnifiedLogin.css';
 
+const STAFF_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
+
 const UnifiedLogin = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -15,7 +17,11 @@ const UnifiedLogin = () => {
 
   useEffect(() => {
     if (!isAuthReady || !currentUser?.role) return;
-    navigate(currentUser.role === 'client' ? '/dashboard' : '/erp', { replace: true });
+    if (currentUser.role === 'client') {
+      navigate('/dashboard', { replace: true });
+    } else if (STAFF_ROLES.includes(currentUser.role)) {
+      navigate('/erp', { replace: true });
+    }
   }, [currentUser, isAuthReady, navigate]);
 
   const handleLogin = async (e) => {
@@ -27,7 +33,15 @@ const UnifiedLogin = () => {
     try {
       const user = await loginErp(identifier.trim(), password);
       if (user) {
-        navigate(user.role === 'client' ? '/dashboard' : '/erp', { replace: true });
+        if (user.role === 'client') {
+          navigate('/dashboard', { replace: true });
+          return;
+        }
+        if (STAFF_ROLES.includes(user.role)) {
+          navigate('/erp', { replace: true });
+          return;
+        }
+        setError('هذا الحساب لا يملك صلاحية دخول لوحة النظام.');
         return;
       }
       setError('بيانات الدخول غير صحيحة أو غير مسجلة لدينا.');
