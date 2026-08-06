@@ -327,8 +327,7 @@ export const DataProvider = ({ children }) => {
       password: password
     });
     if (error) {
-      alert("خطأ في تسجيل الدخول: " + error.message);
-      return false;
+      throw error;
     }
     applySession(data.session);
     return data.user || true;
@@ -387,8 +386,7 @@ export const DataProvider = ({ children }) => {
       password: password
     });
     if (error) {
-      alert("خطأ في تسجيل الدخول: " + error.message);
-      return false;
+      throw error;
     }
     applySession(data.session);
     return data.user || true;

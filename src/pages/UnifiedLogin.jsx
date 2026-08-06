@@ -45,8 +45,8 @@ const UnifiedLogin = () => {
         return;
       }
       setError('بيانات الدخول غير صحيحة أو غير مسجلة لدينا.');
-    } catch {
-      setError('تعذر الاتصال بالخادم. حاول مرة أخرى.');
+    } catch (loginError) {
+      setError(loginError?.message || 'تعذر الاتصال بالخادم. حاول مرة أخرى.');
     } finally {
       setLoading(false);
     }

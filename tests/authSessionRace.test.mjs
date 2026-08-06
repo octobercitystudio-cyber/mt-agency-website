@@ -28,6 +28,8 @@ test('login waits for session restoration and routes users by role', () => {
   assert.match(loginSource, /disabled=\{loading \|\| !isAuthReady\}/);
   assert.match(loginSource, /STAFF_ROLES\.includes\(user\.role\)/);
   assert.match(loginSource, /STAFF_ROLES\.includes\(currentUser\.role\)/);
+  assert.match(loginSource, /loginError\?\.message/);
+  assert.doesNotMatch(dataContextSource, /alert\("خطأ في تسجيل الدخول: " \+ error\.message\)/);
 });
 
 test('the owner shell and dashboard are bundled with the login application', () => {
