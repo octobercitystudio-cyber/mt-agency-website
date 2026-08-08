@@ -13,6 +13,11 @@ const ROLE_DETAILS = {
   staff: { label: 'موظف محدود', note: 'وصول محدود حسب مهام الموظف.' },
 };
 
+const formatServicePrice = value => {
+  const price = Number(value);
+  return (Number.isFinite(price) ? price : 0).toFixed(1);
+};
+
 const ERPSettings = () => {
   const { currentUser } = useData();
   const isOwner = currentUser?.role === 'owner';
@@ -463,7 +468,7 @@ const ERPSettings = () => {
                     <tr key={s.id}>
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
                       <td className="fw-bold" style={{color: '#0d6efd'}}>{s.total_hours} س</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
                       <td className="text-start ps-4">
                         {renderServiceActions(s)}
                       </td>
@@ -496,7 +501,7 @@ const ERPSettings = () => {
                         {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
                       </td>
                       <td className="fw-bold text-muted">{s.validity_days} يوم</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
                       <td className="text-start ps-4">
                         {renderServiceActions(s)}
                       </td>
@@ -529,7 +534,7 @@ const ERPSettings = () => {
                         {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
                       </td>
                       <td className="fw-bold text-muted">{s.validity_days} يوم</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
                       <td className="text-start ps-4">
                         {renderServiceActions(s)}
                       </td>
@@ -561,7 +566,7 @@ const ERPSettings = () => {
                         {s.total_reels} فيديو <br/>
                       </td>
                       <td className="fw-bold text-muted">{s.validity_days ? `${s.validity_days} يوم` : '-'}</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
                       <td className="text-start ps-4">
                         {renderServiceActions(s)}
                       </td>
@@ -591,7 +596,7 @@ const ERPSettings = () => {
                       <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
                       <td><span className="badge bg-secondary-subtle text-secondary border rounded-pill">{s.category}</span></td>
                       <td className="fw-bold text-muted">-</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{s.price.toFixed(1)}</td>
+                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
                       <td className="text-start ps-4">
                         {renderServiceActions(s)}
                       </td>
