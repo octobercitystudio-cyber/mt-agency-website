@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import { calculateDurationMinutes, formatBookingDate, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
@@ -23,6 +23,7 @@ let globalBookingsLastFetch = 0;
 const ERPBookings = () => {
   const { currentUser } = useData();
   const location = useLocation();
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState(globalBookingsCache || []);
   const [clients, setClients] = useState(globalClientsCache || []);
   const [services, setServices] = useState(globalServicesCache || []);
@@ -87,10 +88,17 @@ const ERPBookings = () => {
 
   useEffect(() => { const timer = window.setTimeout(() => fetchData(), 0); return () => window.clearTimeout(timer); }, []);
   useEffect(() => {
-    if (!(location.state?.openAddModalFor && clients.length > 0 && services.length > 0)) return undefined;
-    const timer = window.setTimeout(() => { setNewBooking(prev => ({ ...prev, client_name: location.state.openAddModalFor })); setIsModalOpen(true); window.history.replaceState({}, document.title); }, 0);
+    const requestedClient = location.state?.openAddModalFor;
+    const shouldOpenCreate = location.state?.openCreateBooking === true;
+    if (!shouldOpenCreate && !requestedClient) return undefined;
+    if (requestedClient && (clients.length === 0 || services.length === 0)) return undefined;
+    const timer = window.setTimeout(() => {
+      if (requestedClient) setNewBooking(prev => ({ ...prev, client_name: requestedClient }));
+      setIsModalOpen(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }, 0);
     return () => window.clearTimeout(timer);
-  }, [location.state, clients, services]);
+  }, [location.pathname, location.state, clients.length, services.length, navigate]);
 
   const getClientColor = (clientName) => {
     const client = clients.find(c => c.name === clientName);

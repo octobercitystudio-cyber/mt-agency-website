@@ -3,6 +3,7 @@ import {
   Archive, CalendarClock, Check, CirclePause, Copy, Eye, LayoutPanelTop,
   Megaphone, MonitorUp, Pencil, Plus, RefreshCw, Rocket, Save, Sparkles, Tag, X,
 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import ERPPageHero from './ERPPageHero';
 import { formatDateTime12, formatEGP } from '../lib/businessFormat';
 import { promotionApi } from '../lib/promotionApi';
@@ -41,6 +42,8 @@ const remaining = (end, now) => {
 };
 
 export default function ERPPromotions() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [promotions, setPromotions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -76,6 +79,15 @@ export default function ERPPromotions() {
   const openCreate = event => { triggerRef.current = event?.currentTarget || null; setEditingId(null); setForm(emptyPromotion()); setPreviewMode('popup'); setError(''); setDrawerOpen(true); };
   const openEdit = (promotion, event) => { triggerRef.current = event?.currentTarget || null; setEditingId(promotion.id); setForm(toForm(promotion)); setPreviewMode(promotion.popup_enabled ? 'popup' : 'banner'); setError(''); setDrawerOpen(true); };
   const closeDrawer = useCallback(() => { setDrawerOpen(false); setEditingId(null); }, []);
+
+  useEffect(() => {
+    if (location.state?.openCreatePromotion !== true) return undefined;
+    const timer = window.setTimeout(() => {
+      openCreate();
+      navigate(location.pathname, { replace: true, state: null });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
     if (!drawerOpen) return undefined;

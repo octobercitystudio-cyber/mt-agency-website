@@ -148,9 +148,9 @@ const ERPDashboard = () => {
         title={`أهلًا، ${currentUser?.full_name || 'مستخدم النظام'}`}
         description={<>{roleLabels[currentUser?.role] || currentUser?.role} · {new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long' }).format(clock)} · <bdi>{new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }).format(clock)}</bdi></>}
         actions={<>
-          <Link data-variant="primary" className="ops-action ops-action--primary" to="/erp/bookings"><Plus size={17} /> حجز جديد</Link>
-          <Link className="ops-action" to="/erp/clients"><UserPlus size={17} /> عميل جديد</Link>
-          {['owner','admin'].includes(currentUser?.role) && <Link className="ops-action" to="/erp/offers"><FileCheck2 size={17} /> عرض حصري</Link>}
+          <Link data-variant="primary" className="ops-action ops-action--primary" to="/erp/bookings" state={{ openCreateBooking: true }}><Plus size={17} /> حجز جديد</Link>
+          <Link className="ops-action" to="/erp/clients" state={{ openCreateClient: true }}><UserPlus size={17} /> عميل جديد</Link>
+          {['owner','admin'].includes(currentUser?.role) && <Link className="ops-action" to="/erp/offers" state={{ openCreatePromotion: true }}><FileCheck2 size={17} /> عرض حصري</Link>}
         </>}
         details={<div className="ops-attendance-chip">
           <div><span>حضورك اليوم</span><strong>{attendance.loading ? 'جارٍ التحقق…' : !attendance.data?.self?.tracked ? 'غير خاضع للتتبع' : selfRecord?.check_out_at ? 'تم الانصراف' : selfRecord ? `دخول ${formatTime12(selfRecord.check_in_at)}` : 'لم يُسجل'}</strong></div>
@@ -173,7 +173,7 @@ const ERPDashboard = () => {
                 <span className="runway__resource">الاستديو الرئيسي</span>
                 {Array.from({ length: 13 }, (_, index) => <i key={index} style={{ top: `${(index / 12) * 100}%` }} />)}
                 {currentMarker !== null && <span className="runway__now" style={{ top: `${currentMarker}%` }}><b>الآن</b></span>}
-                {timelineBookings.length === 0 && <button className="runway-empty-slot" type="button" onClick={() => navigate('/erp/bookings')}><CalendarDays size={24} /><strong>اليوم متاح بالكامل</strong><small>12:00 م — 12:00 ص</small><span><Plus size={15} /> إضافة أول حجز</span></button>}
+                {timelineBookings.length === 0 && <button className="runway-empty-slot" type="button" onClick={() => navigate('/erp/bookings', { state: { openCreateBooking: true } })}><CalendarDays size={24} /><strong>اليوم متاح بالكامل</strong><small>12:00 م — 12:00 ص</small><span><Plus size={15} /> إضافة أول حجز</span></button>}
                 {timelineBookings.map((booking, index) => (
                   <button key={booking.id} className={`runway-booking runway-booking--${booking.normalizedStatus}`} style={{ top: `${booking.top}%`, height: `${booking.height}%`, insetInlineStart: `${(index % 2) * 48}%`, width: timelineBookings.length > 1 ? '47%' : '96%' }} onClick={() => navigate('/erp/bookings')}>
                     <span className="runway-booking__time"><bdi>{formatTime12(booking.start)}–{formatTime12(booking.end)}</bdi></span>

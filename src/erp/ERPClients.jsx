@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserPlus, Edit, Trash2, Search, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText, Camera, Calendar, Tag, Play, RotateCcw } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import ERPAddBookingModal from './ERPAddBookingModal';
 import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
@@ -12,9 +12,11 @@ import './ERPClients.css';
 
 let globalClientsCache = null;
 let globalClientsLastFetch = 0;
+const emptyClient = { name: '', company_name: '', contact_person: '', phone1: '', phone2: '', email: '', job: '', address: '', city: '', tax_number: '', commercial_registration: '', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, notes: '', color: '#4318ff', debt: 0, points: 0, enablePortal: true, portalPassword: '' };
 
 const ERPClients = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser: sessionUser } = useData();
   const [clients, setClients] = useState(globalClientsCache || []);
   const [loading, setLoading] = useState(!globalClientsCache);
@@ -38,7 +40,6 @@ const ERPClients = () => {
   
   // Modal states
   const [isEditing, setIsEditing] = useState(false);
-  const emptyClient = { name: '', company_name: '', contact_person: '', phone1: '', phone2: '', email: '', job: '', address: '', city: '', tax_number: '', commercial_registration: '', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, notes: '', color: '#4318ff', debt: 0, points: 0, enablePortal: true, portalPassword: '' };
   const [currentClient, setCurrentClient] = useState(emptyClient);
   const [clientSaveState, setClientSaveState] = useState({ busy: false, type: '', message: '' });
   const [accessPassword, setAccessPassword] = useState('');
@@ -464,6 +465,19 @@ const ERPClients = () => {
     setCurrentClient(emptyClient);
     setIsClientModalOpen(true);
   };
+
+  useEffect(() => {
+    if (location.state?.openCreateClient !== true) return undefined;
+    const timer = window.setTimeout(() => {
+      setIsEditing(false);
+      setClientSaveState({ busy: false, type: '', message: '' });
+      setAccessPassword('');
+      setCurrentClient(emptyClient);
+      setIsClientModalOpen(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [location.pathname, location.state, navigate]);
 
   const openEditClient = client => {
     setCurrentClient({ ...client, email: client.email || '', portalPassword: '' });
