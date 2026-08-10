@@ -9,12 +9,6 @@ export const CUSTOM_SERVICE_TYPES = [
   { value: 'ai_video', label: 'فيديوهات الذكاء الاصطناعي' },
 ];
 
-export const isStudioPackageService = service => {
-  if (!service) return false;
-  const unit = String(service.billing_unit || '').toLowerCase();
-  const category = String(service.category || '').trim().toLowerCase();
-  return ['hour', 'day', 'month'].includes(unit)
-    && (Number(service.total_hours || 0) > 0 || ['studio', 'تصوير بالساعة', 'باقة يومية', 'باقة شهرية'].includes(category));
-};
+export { isSellablePackageTemplate as isStudioPackageService } from './clientPackageDraft.js';
 
 export const customServiceLabel = type => CUSTOM_SERVICE_TYPES.find(item => item.value === type)?.label || 'خدمة مخصصة';

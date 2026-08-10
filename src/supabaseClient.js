@@ -5,7 +5,12 @@ import { demoClient, isDemoModeActive } from './lib/demoDataClient';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const useHostinger = import.meta.env.VITE_DATA_PROVIDER === 'hostinger';
+const configuredProvider = String(import.meta.env.VITE_DATA_PROVIDER || 'hostinger').trim().toLowerCase();
+const useHostinger = configuredProvider !== 'supabase';
+
+if (!useHostinger && (!supabaseUrl || !supabaseAnonKey)) {
+  throw new Error('Supabase was selected without VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY. Use Hostinger or provide both values.');
+}
 
 const productionClient = useHostinger
   ? hostingerClient

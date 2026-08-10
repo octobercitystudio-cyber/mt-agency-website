@@ -4,13 +4,16 @@ import { supabase } from '../supabaseClient';
 import useModalDialog from '../hooks/useModalDialog';
 import { emptyClient } from './clientForm';
 import ClientCredentialSecurity from './ClientCredentialSecurity';
+import { clientModalAppearance } from './clientModalAppearance';
+import { resolveClientModalSaveResult } from './clientModalFlow';
 import './ERPClientModal.css';
 
 const fieldStyle = { width: '100%', padding: '12px', borderRadius: '.5rem', border: 'none', background: 'var(--erp-bg)' };
 const labelStyle = { fontSize: '.8rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' };
 
-export default function ERPClientModal({ isOpen, onClose, onSuccess, client = emptyClient, canManageAccess = false, returnFocusRef, nested = false }) {
+export default function ERPClientModal({ isOpen, onClose, onSuccess, client = emptyClient, canManageAccess = false, returnFocusRef, nested = false, appearance = 'default' }) {
   const isEditing = Boolean(client?.id);
+  const appearanceContract = clientModalAppearance(appearance);
   const [draft, setDraft] = useState(() => ({ ...emptyClient, ...client }));
   const [saveState, setSaveState] = useState({ busy: false, type: '', message: '' });
   const close = useCallback(() => { if (!saveState.busy) onClose(); }, [onClose, saveState.busy]);
@@ -39,11 +42,12 @@ export default function ERPClientModal({ isOpen, onClose, onSuccess, client = em
     const result = isEditing
       ? await supabase.from('clients').update(payload).eq('id', draft.id)
       : await supabase.request('/clients', { method: 'POST', body: JSON.stringify(payload) });
-    if (result.error) {
-      setSaveState({ busy: false, type: 'error', message: result.error.message || (isEditing ? 'تعذر تحديث بيانات العميل.' : 'تعذر إنشاء العميل.') });
+    const outcome = resolveClientModalSaveResult({ result, isEditing, draft, payload });
+    if (!outcome.ok) {
+      setSaveState({ busy: false, type: 'error', message: outcome.message });
       return;
     }
-    const savedClient = { ...payload, ...(result.data || {}), id: result.data?.id || draft.id };
+    const savedClient = outcome.savedClient;
     setSaveState({ busy: false, type: 'success', message: isEditing ? 'تم تحديث بيانات العميل بنجاح.' : 'تم إنشاء العميل وبيانات دخوله بأمان.' });
     window.dispatchEvent(new CustomEvent('erpClientsUpdated'));
     await onSuccess?.(savedClient);
@@ -51,8 +55,8 @@ export default function ERPClientModal({ isOpen, onClose, onSuccess, client = em
   };
 
   if (!isOpen) return null;
-  return <div className={`erp-modal-overlay${nested ? ' erp-client-modal-overlay--nested' : ''}`} onMouseDown={event => { event.stopPropagation(); if (event.target === event.currentTarget) close(); }}>
-    <div ref={dialogRef} className="erp-modal-content" role="dialog" aria-modal="true" aria-labelledby="client-modal-title" style={{ maxWidth: '720px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '1.5rem', padding: '30px', border: 'none', boxShadow: '0 1rem 3rem rgba(0,0,0,.175)' }}>
+  return <div className={`erp-modal-overlay${nested ? ' erp-client-modal-overlay--nested' : ''}${appearanceContract.overlayClass ? ` ${appearanceContract.overlayClass}` : ''}`} data-appearance={appearanceContract.name} style={appearanceContract.tokens} onMouseDown={event => { event.stopPropagation(); if (event.target === event.currentTarget) close(); }}>
+    <div ref={dialogRef} className={`erp-modal-content erp-client-modal-content${appearanceContract.contentClass ? ` ${appearanceContract.contentClass}` : ''}`} role="dialog" aria-modal="true" aria-labelledby="client-modal-title" style={{ maxWidth: '720px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '1.5rem', padding: '30px', border: 'none', boxShadow: '0 1rem 3rem rgba(0,0,0,.175)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', marginBottom: '25px' }}>
         <h2 id="client-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, color: 'var(--erp-text-main)', fontSize: '1.1rem', fontWeight: 'bold' }}><UserPlus color="#ffc107" /> {isEditing ? 'تعديل بيانات العميل' : 'تسجيل عميل جديد'}</h2>
         <button type="button" className="erp-client-modal-close" onClick={close} aria-label="إغلاق نموذج العميل"><X /></button>
@@ -69,8 +73,8 @@ export default function ERPClientModal({ isOpen, onClose, onSuccess, client = em
         <div><label style={labelStyle}>ملاحظات العميل</label><textarea rows="2" value={draft.notes || ''} onChange={e => update('notes', e.target.value)} style={{ ...fieldStyle, resize: 'vertical' }}/></div>
         {!isEditing && <p className="erp-client-modal-security-note">بعد حفظ العميل، افتح بياناته واستخدم قسم «الدخول والأمان» لإنشاء بيانات دخول مؤقتة وآمنة.</p>}
         {isEditing && canManageAccess && <ClientCredentialSecurity clientId={draft.id} />}
-        {saveState.message && <div role={saveState.type === 'error' ? 'alert' : 'status'} style={{ padding: '11px 13px', borderRadius: '9px', fontSize: '.76rem', background: saveState.type === 'error' ? 'rgba(220,53,69,.1)' : 'rgba(25,135,84,.1)', color: saveState.type === 'error' ? '#dc3545' : '#198754' }}>{saveState.message}</div>}
-        <button type="submit" disabled={saveState.busy} style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: isEditing ? 'var(--erp-text-main)' : '#0d6efd', color: 'var(--erp-surface)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '15px', opacity: saveState.busy ? .6 : 1 }}>{saveState.busy ? 'جارٍ الحفظ...' : isEditing ? 'تحديث البيانات' : 'حفظ العميل'}</button>
+        {saveState.message && <div className={`erp-client-modal-message ${saveState.type}`} role={saveState.type === 'error' ? 'alert' : 'status'} style={{ padding: '11px 13px', borderRadius: '9px', fontSize: '.76rem', background: saveState.type === 'error' ? 'rgba(220,53,69,.1)' : 'rgba(25,135,84,.1)', color: saveState.type === 'error' ? '#dc3545' : '#198754' }}>{saveState.message}</div>}
+        <button type="submit" className="erp-client-modal-submit" disabled={saveState.busy} style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: isEditing ? 'var(--erp-text-main)' : '#0d6efd', color: 'var(--erp-surface)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '15px', opacity: saveState.busy ? .6 : 1 }}>{saveState.busy ? 'جارٍ الحفظ...' : isEditing ? 'تحديث البيانات' : 'حفظ العميل'}</button>
       </form>
     </div>
   </div>;

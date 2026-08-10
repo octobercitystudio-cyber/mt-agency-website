@@ -41,7 +41,7 @@ test('a created client keeps a non-default saved color through refresh, selectio
   activateDemoMode('owner');
   const saved = await demoClient.request('/clients', {
     method: 'POST',
-    body: JSON.stringify({ name: 'عميل اللون السماوي', phone1: '01012345678', color: '#0ea5e9' }),
+    body: JSON.stringify({ name: 'عميل اللون السماوي', phone1: '01077778888', color: '#0ea5e9' }),
   });
   assert.equal(saved.error, null);
   const refreshed = await demoClient.from('clients').select('id,name,color');
@@ -58,9 +58,11 @@ test('a created client keeps a non-default saved color through refresh, selectio
 });
 
 test('shared client modal returns the saved client without breaking existing callbacks', async () => {
-  const source = await load('src/erp/ERPClientModal.jsx');
+  const [source, flow] = await Promise.all([load('src/erp/ERPClientModal.jsx'), import('../src/erp/clientModalFlow.js')]);
 
-  assert.match(source, /const savedClient = \{ \.\.\.payload, \.\.\.\(result\.data \|\| \{\}\), id: result\.data\?\.id \|\| draft\.id \}/);
+  const outcome = flow.resolveClientModalSaveResult({ result: { data: { id: 91, portal_access: false }, error: null }, isEditing: false, draft: {}, payload: { name: 'عميل جديد', color: '#0ea5e9' } });
+  assert.equal(outcome.ok, true); assert.equal(outcome.shouldClose, true); assert.deepEqual(outcome.savedClient, { name: 'عميل جديد', color: '#0ea5e9', id: 91, portal_access: false });
+  assert.match(source, /const savedClient = outcome\.savedClient/);
   assert.match(source, /await onSuccess\?\.\(savedClient\)/);
   assert.match(source, /returnFocusRef/);
   assert.match(source, /event\.stopPropagation\(\)/);

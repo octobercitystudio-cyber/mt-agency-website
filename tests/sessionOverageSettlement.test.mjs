@@ -47,7 +47,7 @@ test('fresh eligibility and sale-confirm-reschedule-cancel-edit-preview keep exa
   const today = database().bookings.find(row => row.id === 301).date;
   const futureDate = new Date(`${today}T12:00:00`); futureDate.setDate(futureDate.getDate() + 1);
   const future = futureDate.toISOString().slice(0, 10);
-  const sale = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ client_id: 6, service_id: 101, name: 'باقة تسلسل الدقائق', billing_unit: 'hour', quantity: 5, total_price: 5000, paid_amount: 0, starts_at: today, validity_days: 30 }) });
+  const sale = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ client_id: 6, service_id: 101, name: 'باقة تسلسل الدقائق', billing_unit: 'hour', quantity: 5, payment_due_quantity: 5, deposit_percent_snapshot: 30, overage_price_snapshot: 1400, total_price: 5000, paid_amount: 0, payment_method: 'cash', notes: '', starts_at: today, validity_days: 30, idempotency_key: 'session-overage-minute-sequence-package' }) });
   assert.equal(sale.error, null); const packageId = sale.data.id;
   assert.equal(database().client_packages.find(row => row.id === packageId).purchased_minutes, 300);
 

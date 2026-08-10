@@ -103,6 +103,20 @@ function normalizePhone(string $phone): string {
     return $phone;
 }
 
+function loginPhoneCandidates(string $identifier): array {
+    if (str_contains($identifier, '@')) return [];
+    $digits = preg_replace('/\D+/', '', $identifier) ?? '';
+    $national = normalizePhone($identifier);
+    if ($national === '') return [];
+    $candidates = [$digits, $national];
+    if (str_starts_with($national, '0') && strlen($national) === 11) {
+        $subscriber = substr($national, 1);
+        $candidates[] = '20' . $subscriber;
+        $candidates[] = '0020' . $subscriber;
+    }
+    return array_values(array_unique(array_filter($candidates)));
+}
+
 function whatsappPhone(string $phone): string {
     $phone = normalizePhone($phone);
     if (str_starts_with($phone, '0') && strlen($phone) === 11) return '20' . substr($phone, 1);
@@ -182,6 +196,12 @@ function validPassword(string $password): bool {
     return $length >= 12 && $length <= 128
         && preg_match('/[\p{L}]/u', $password) === 1
         && preg_match('/\d/', $password) === 1
+        && preg_match('/[\x00-\x1F\x7F]/', $password) !== 1;
+}
+
+function validClientPassword(string $password): bool {
+    $length = preg_match_all('/./us', $password, $characters);
+    return $length !== false && $length >= 6 && $length <= 128
         && preg_match('/[\x00-\x1F\x7F]/', $password) !== 1;
 }
 
@@ -572,10 +592,19 @@ function inferCustomServiceType(array $item): string {
     return 'advertising';
 }
 
+function normalizedStudioPackageUnit(array $item): ?string {
+    $unit=strtolower(trim((string)($item['billing_unit']??$item['unit']??'')));
+    if($unit==='reel'||((float)($item['total_reels']??0)>0&&(float)($item['total_hours']??0)<=0))return 'reel';
+    return in_array($unit,['hour','day','month'],true)?'hour':null;
+}
+
 function isStudioPackageOfferItem(array $item): bool {
-    $unit=(string)($item['billing_unit']??$item['unit']??'');$category=strtolower(trim((string)($item['service_category']??'')));
-    return in_array($unit,['hour','day','month'],true)
-        && ((float)($item['total_hours']??0)>0||in_array($category,['studio','تصوير بالساعة','باقة يومية','باقة شهرية'],true));
+    if(isset($item['is_active'])&&(int)$item['is_active']!==1)return false;
+    if((int)($item['is_draft']??0)===1||!empty($item['archived_at']))return false;
+    $rawUnit=strtolower(trim((string)($item['billing_unit']??$item['unit']??'')));$category=strtolower(trim((string)($item['service_category']??$item['category']??'')));$serviceType=strtolower(trim((string)($item['service_type']??'')));
+    if(in_array($rawUnit,['project','custom'],true)||in_array($category,['graphics','graphic','montage','editing','custom','custom_project','project'],true)||in_array($serviceType,['graphics','graphic','montage','editing','custom','custom_project','project'],true))return false;
+    $unit=normalizedStudioPackageUnit($item);
+    return $unit==='reel'?(float)($item['total_reels']??0)>0:($unit==='hour'&&(float)($item['total_hours']??0)>0);
 }
 
 function normalizedProjectItems(mixed $items, float $fallbackPrice, string $fallbackDescription, float $fallbackQuantity, string $fallbackUnit): array {
@@ -1116,9 +1145,17 @@ if ($path === '/auth/login' && $method === 'POST') {
     $password = (string)($payload['password'] ?? '');
     if ($identifier === '' || $password === '') fail('أدخل رقم الهاتف أو البريد وكلمة المرور.', 422, 'validation_error');
     enforceLoginRateLimit($pdo, $identifier);
-    $phone = normalizePhone($identifier);
-    $stmt = $pdo->prepare('SELECT * FROM users WHERE is_active = 1 AND (LOWER(email) = LOWER(?) OR phone = ? OR phone = ?) LIMIT 1');
-    $stmt->execute([$identifier, $identifier, $phone]);
+    $phoneCandidates = loginPhoneCandidates($identifier);
+    $params = [$identifier];
+    $phoneSql = '';
+    if ($phoneCandidates) {
+        $marks = implode(',', array_fill(0, count($phoneCandidates), '?'));
+        $cleanPhone = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'(',''),')',''),'+',''),'.','')";
+        $phoneSql = " OR $cleanPhone IN ($marks)";
+        array_push($params, ...$phoneCandidates);
+    }
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE (LOWER(email) = LOWER(?)$phoneSql) ORDER BY is_active DESC, id DESC LIMIT 1");
+    $stmt->execute($params);
     $found = $stmt->fetch();
     $temporaryExpired = $found && ($found['password_status'] ?? '') === 'temporary'
         && !empty($found['temporary_expires_at']) && strtotime((string)$found['temporary_expires_at']) <= time();
@@ -1126,6 +1163,11 @@ if ($path === '/auth/login' && $method === 'POST') {
         recordLoginFailure($pdo, $identifier, $found ?: null);
         usleep(random_int(300000, 650000));
         fail('بيانات الدخول غير صحيحة.', 401, 'invalid_credentials');
+    }
+    if (empty($found['is_active'])) {
+        clearAccountLoginLimit($pdo, $identifier);
+        usleep(random_int(300000, 650000));
+        fail('دخول هذا الحساب موقوف. تواصل مع إدارة الشركة لإعادة تفعيله.', 403, 'account_disabled');
     }
     clearAccountLoginLimit($pdo, $identifier);
     if (password_needs_rehash((string)$found['password_hash'], PASSWORD_DEFAULT)) {
@@ -1181,11 +1223,12 @@ if ($path === '/auth/password' && $method === 'PATCH') {
     $payload = body();
     $current = (string)($payload['current_password'] ?? '');
     $next = (string)($payload['password'] ?? '');
-    if (!validPassword($next)) fail('كلمة المرور الجديدة يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 422, 'weak_password');
     $pdo->beginTransaction();
     try {
         $stmt=$pdo->prepare('SELECT * FROM users WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$user['id'],$user['organization_id']]);$account=$stmt->fetch();
         if(!$account){$pdo->rollBack();fail('الحساب غير موجود.',404,'account_not_found');}
+        $clientPassword=(string)$account['role']==='client';
+        if(!($clientPassword?validClientPassword($next):validPassword($next))){$pdo->rollBack();fail($clientPassword?'كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.':'كلمة المرور الجديدة يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.',422,'weak_password');}
         $forced=!empty($account['must_change_password']);
         if(!$forced&&!password_verify($current,(string)$account['password_hash'])){$pdo->rollBack();fail('كلمة المرور الحالية غير صحيحة.',422,'invalid_password');}
         if(password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية أو المؤقتة.',422,'password_reuse');}
@@ -1328,9 +1371,9 @@ function ownerRecordImpact(PDO $pdo,array $user,string $entity,int $id,bool $loc
     }elseif($entity==='resources'){
         $links=['bookings'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM bookings WHERE organization_id=? AND resource_id=?',[$organizationId,$id])];$action='deactivate';$explanation='سيُعطّل المورد للحجوزات الجديدة، وتبقى المواعيد السابقة محفوظة.';
     }elseif($entity==='services'){
-        $links=['packages'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM client_packages WHERE organization_id=? AND service_id=?',[$organizationId,$id]),'bookings'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM bookings WHERE organization_id=? AND service_id=?',[$organizationId,$id]),'invoices'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM invoice_items ii JOIN invoices i ON i.id=ii.invoice_id WHERE i.organization_id=? AND ii.service_id=?',[$organizationId,$id]),'offers'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM offer_items oi JOIN offers o ON o.id=oi.offer_id WHERE o.organization_id=? AND oi.service_id=?',[$organizationId,$id])];$safe=!empty($record['is_draft'])&&array_sum($links)===0;$action=$safe?'hard_delete':'archive';$explanation=$safe?'الخدمة مسودة غير مستخدمة ويمكن حذفها.':'الخدمة مستخدمة في سجل تجاري؛ ستُؤرشف وتُمنع من المبيعات الجديدة.';
+        $links=['packages'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM client_packages WHERE organization_id=? AND service_id=?',[$organizationId,$id]),'bookings'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM bookings WHERE organization_id=? AND service_id=?',[$organizationId,$id]),'invoices'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM invoice_items ii JOIN invoices i ON i.id=ii.invoice_id WHERE i.organization_id=? AND ii.service_id=?',[$organizationId,$id]),'offers'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM offer_items oi JOIN offers o ON o.id=oi.offer_id WHERE o.organization_id=? AND oi.service_id=?',[$organizationId,$id]),'settlements'=>ownerLinkedCount($pdo,'SELECT COUNT(*) FROM session_settlement_allocations a JOIN session_settlements s ON s.id=a.settlement_id WHERE s.organization_id=? AND a.service_id=?',[$organizationId,$id])];$safe=array_sum($links)===0;$action=$safe?'hard_delete':'archive';$explanation=$safe?'الخدمة غير مستخدمة ويمكن حذفها نهائيًا.':'الخدمة مستخدمة في سجل تجاري؛ ستُؤرشف وتُمنع من المبيعات الجديدة مع بقاء الباقات المباعة والحجوزات.';
     }
-    $labels=['bookings'=>'الحجوزات','packages'=>'الباقات','projects'=>'المشروعات','offers'=>'العروض','invoices'=>'الفواتير','payments'=>'الدفعات','finance'=>'الحسابات','requests'=>'الطلبات','notifications'=>'الإشعارات','sessions'=>'جلسات التصوير','ledger'=>'حركات الساعات','history'=>'تاريخ الحالة','completed_stages'=>'مراحل مكتملة','published_content'=>'محتوى منشور','items'=>'البنود','attendance'=>'سجلات الحضور','tasks'=>'المهام','audit'=>'سجل التدقيق'];
+    $labels=['bookings'=>'الحجوزات','packages'=>'الباقات','projects'=>'المشروعات','offers'=>'العروض','invoices'=>'الفواتير','payments'=>'الدفعات','finance'=>'الحسابات','requests'=>'الطلبات','notifications'=>'الإشعارات','sessions'=>'جلسات التصوير','settlements'=>'توزيعات تسوية الجلسات','ledger'=>'حركات الساعات','history'=>'تاريخ الحالة','completed_stages'=>'مراحل مكتملة','published_content'=>'محتوى منشور','items'=>'البنود','attendance'=>'سجلات الحضور','tasks'=>'المهام','audit'=>'سجل التدقيق'];
     return ['entity'=>$entity,'id'=>$id,'record_name'=>(string)($record[$definition['name']]??('#'.$id)),'record'=>$record,'action'=>$action,'result_title'=>['hard_delete'=>'السجل مؤهل للحذف النهائي','archive'=>'أرشفة آمنة تحفظ التاريخ','cancel'=>'إلغاء موثق يحفظ الروابط','deactivate'=>'تعطيل الوصول مع حفظ السجل'][$action]??'إجراء آمن','explanation'=>$explanation,'links'=>$links,'link_labels'=>$labels,'total_links'=>array_sum($links),'requires_confirmation'=>$action==='hard_delete'];
 }
 
@@ -1490,23 +1533,33 @@ function enrichedFinanceEntry(PDO $pdo, int $organizationId, array $entry): arra
     return $entry;
 }
 
+function normalizedServiceCategoryPayload(array $payload,?array $before=null): array {
+    $category=preg_replace('/\s+/u',' ',trim((string)($payload['category']??($before['category']??''))));
+    $length=mb_strlen($category);if($length<2||$length>80||!preg_match('/[\p{L}\p{N}]/u',$category))fail('اسم تصنيف الخدمة يجب أن يكون واضحًا ومن 2 إلى 80 حرفًا.',422,'invalid_service_category');
+    $retired=['خدمة إضافية','خدمات إضافية (جرافيك وغيرها)'];$sameLegacy=$before&&in_array((string)$before['category'],$retired,true)&&$category===(string)$before['category'];if(in_array($category,$retired,true)&&!$sameLegacy)fail('تصنيف خدمات إضافية متوقف. اختر جرافيك أو مونتاج أو اسم تصنيف مخصص.',422,'retired_service_category');
+    $projectCategories=['جرافيك','مونتاج'];$fixed=['تصوير بالساعة','باقة يومية','باقة شهرية','باقة ريلز'];$projectStyle=in_array($category,$projectCategories,true)||(!in_array($category,$fixed,true)&&!$sameLegacy);
+    $payload['category']=$category;if($projectStyle){$payload['billing_unit']='project';$payload['auto_start_timer']=0;$payload['total_hours']=0;$payload['payment_due_hours']=0;$payload['total_reels']=0;}
+    elseif($category==='باقة ريلز')$payload['billing_unit']='reel';else $payload['billing_unit']='hour';
+    return $payload;
+}
+
 if ($path === '/services' && $method === 'POST') {
-    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$reason=ownerCorrectionReason($payload);$name=trim((string)($payload['name']??''));$unit=(string)($payload['billing_unit']??'hour');
+    $user=requireUser($user);requireRole($user,['owner']);$payload=normalizedServiceCategoryPayload(body());$reason=ownerCorrectionReason($payload);$name=trim((string)($payload['name']??''));$unit=(string)($payload['billing_unit']??'hour');
     if($name===''||!in_array($unit,['hour','reel','day','month','project'],true))fail('اسم الخدمة ووحدة احتساب صحيحة مطلوبان.',422,'invalid_service');
     $minimum=max(15,(int)($payload['minimum_booking_minutes']??60));$increment=max(15,(int)($payload['booking_increment_minutes']??15));if($minimum%15!==0||$increment%15!==0)fail('حدود الحجز يجب أن تكون بزيادات 15 دقيقة.',422,'invalid_booking_policy');
     $price=packageMoney(max(0,packageMoneyCents($payload['price']??0)));$pdo->beginTransaction();try{$stmt=$pdo->prepare('INSERT INTO services (organization_id,name,category,billing_unit,price,total_hours,payment_due_hours,deposit_percent,overage_price,total_reels,validity_days,minimum_booking_minutes,booking_increment_minutes,auto_start_timer,is_active,is_draft) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');$stmt->execute([$user['organization_id'],$name,trim((string)($payload['category']??'service')),$unit,$price,max(0,(float)($payload['total_hours']??0)),max(0,(float)($payload['payment_due_hours']??0)),max(0,min(100,(float)($payload['deposit_percent']??0))),packageMoney(max(0,packageMoneyCents($payload['overage_price']??0))),max(0,(int)($payload['total_reels']??0)),max(1,(int)($payload['validity_days']??90)),$minimum,$increment,!empty($payload['auto_start_timer'])?1:0,array_key_exists('is_active',$payload)?(int)(bool)$payload['is_active']:1,!empty($payload['is_draft'])?1:0]);$id=(int)$pdo->lastInsertId();audit($pdo,$user,'owner_create_service','services',$id,null,['name'=>$name,'reason'=>$reason]);$pdo->commit();respond(['id'=>$id],201);}catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
 if (preg_match('#^/services/(\d+)$#',$path,$m)&&$method==='PATCH') {
-    $user=requireUser($user);requireRole($user,['owner']);$id=(int)$m[1];$payload=body();$reason=ownerCorrectionReason($payload);$pdo->beginTransaction();try{$stmt=$pdo->prepare('SELECT * FROM services WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$id,$user['organization_id']]);$before=$stmt->fetch();if(!$before){$pdo->rollBack();fail('الخدمة غير موجودة.',404,'service_not_found');}
+    $user=requireUser($user);requireRole($user,['owner']);$id=(int)$m[1];$payload=body();$reason=ownerCorrectionReason($payload);$pdo->beginTransaction();try{$stmt=$pdo->prepare('SELECT * FROM services WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$id,$user['organization_id']]);$before=$stmt->fetch();if(!$before){$pdo->rollBack();fail('الخدمة غير موجودة.',404,'service_not_found');}$payload=normalizedServiceCategoryPayload($payload,$before);
     $allowed=['name','category','billing_unit','total_hours','payment_due_hours','deposit_percent','total_reels','validity_days','minimum_booking_minutes','booking_increment_minutes','auto_start_timer','is_active','is_draft'];$values=[];foreach($allowed as $field)$values[$field]=array_key_exists($field,$payload)?$payload[$field]:$before[$field];$values['price']=packageMoney(max(0,packageMoneyCents($payload['price']??$before['price'])));$values['overage_price']=packageMoney(max(0,packageMoneyCents($payload['overage_price']??$before['overage_price'])));
     if(trim((string)$values['name'])===''||!in_array((string)$values['billing_unit'],['hour','reel','day','month','project'],true)){$pdo->rollBack();fail('بيانات الخدمة غير صحيحة.',422,'invalid_service');}foreach(['minimum_booking_minutes','booking_increment_minutes'] as $field)if((int)$values[$field]<15||(int)$values[$field]%15!==0){$pdo->rollBack();fail('حدود الحجز يجب أن تكون بزيادات 15 دقيقة.',422,'invalid_booking_policy');}
     $pdo->prepare('UPDATE services SET name=?,category=?,billing_unit=?,price=?,total_hours=?,payment_due_hours=?,deposit_percent=?,overage_price=?,total_reels=?,validity_days=?,minimum_booking_minutes=?,booking_increment_minutes=?,auto_start_timer=?,is_active=?,is_draft=?,version=version+1 WHERE id=? AND organization_id=?')->execute([trim((string)$values['name']),trim((string)$values['category']),(string)$values['billing_unit'],$values['price'],max(0,(float)$values['total_hours']),max(0,(float)$values['payment_due_hours']),max(0,min(100,(float)$values['deposit_percent'])),$values['overage_price'],max(0,(int)$values['total_reels']),max(1,(int)$values['validity_days']),(int)$values['minimum_booking_minutes'],(int)$values['booking_increment_minutes'],!empty($values['auto_start_timer'])?1:0,!empty($values['is_active'])?1:0,!empty($values['is_draft'])?1:0,$id,$user['organization_id']]);$afterStmt=$pdo->prepare('SELECT * FROM services WHERE id=?');$afterStmt->execute([$id]);$after=$afterStmt->fetch();ownerAdjustment($pdo,$user,'services',$id,'template_edit',packageMoneyCents($after['price'])-packageMoneyCents($before['price']),0,$reason,$before,$after);audit($pdo,$user,'owner_update_service','services',$id,$before,$after+['reason'=>$reason]);$pdo->commit();respond($after);}catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
 if (preg_match('#^/services/(\d+)/archive$#',$path,$m)&&$method==='POST') {
-    $user=requireUser($user);requireRole($user,['owner']);$id=(int)$m[1];$payload=body();$reason=ownerCorrectionReason($payload);$hard=!empty($payload['hard_delete']);$pdo->beginTransaction();try{$stmt=$pdo->prepare('SELECT * FROM services WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$id,$user['organization_id']]);$service=$stmt->fetch();if(!$service){$pdo->rollBack();fail('الخدمة غير موجودة.',404,'service_not_found');}$refs=0;foreach(['client_packages','offer_items','invoice_items','bookings'] as $table){$column=$table==='client_packages'||$table==='bookings'?'service_id':'service_id';$join=$table==='offer_items'?' JOIN offers parent ON parent.id=offer_items.offer_id ':($table==='invoice_items'?' JOIN invoices parent ON parent.id=invoice_items.invoice_id ':'');$orgWhere=$join?'parent.organization_id=?':'organization_id=?';$count=$pdo->prepare("SELECT COUNT(*) FROM $table$join WHERE $table.$column=? AND $orgWhere");$count->execute([$id,$user['organization_id']]);$refs+=(int)$count->fetchColumn();}
-    if($hard&&$refs===0&&!empty($service['is_draft'])&&($payload['confirmation']??'')==='DELETE'){audit($pdo,$user,'hard_delete_unused_service','services',$id,$service,['reason'=>$reason]);$pdo->prepare('DELETE FROM services WHERE id=? AND organization_id=?')->execute([$id,$user['organization_id']]);$pdo->commit();respond(['id'=>$id,'deleted'=>true,'archived'=>false]);}
+    $user=requireUser($user);requireRole($user,['owner']);$id=(int)$m[1];$payload=body();$reason=ownerCorrectionReason($payload);$hard=!empty($payload['hard_delete']);$pdo->beginTransaction();try{$stmt=$pdo->prepare('SELECT * FROM services WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$id,$user['organization_id']]);$service=$stmt->fetch();if(!$service){$pdo->rollBack();fail('الخدمة غير موجودة.',404,'service_not_found');}$refs=0;foreach(['client_packages','offer_items','invoice_items','bookings'] as $table){$join=$table==='offer_items'?' JOIN offers parent ON parent.id=offer_items.offer_id ':($table==='invoice_items'?' JOIN invoices parent ON parent.id=invoice_items.invoice_id ':'');$orgWhere=$join?'parent.organization_id=?':'organization_id=?';$count=$pdo->prepare("SELECT COUNT(*) FROM $table$join WHERE $table.service_id=? AND $orgWhere");$count->execute([$id,$user['organization_id']]);$refs+=(int)$count->fetchColumn();}$settlements=$pdo->prepare('SELECT COUNT(*) FROM session_settlement_allocations a JOIN session_settlements s ON s.id=a.settlement_id WHERE s.organization_id=? AND a.service_id=?');$settlements->execute([$user['organization_id'],$id]);$refs+=(int)$settlements->fetchColumn();
+    if($hard&&$refs===0&&($payload['confirmation']??'')==='DELETE'){audit($pdo,$user,'hard_delete_unused_service','services',$id,$service,['reason'=>$reason]);$pdo->prepare('DELETE FROM services WHERE id=? AND organization_id=?')->execute([$id,$user['organization_id']]);$pdo->commit();respond(['id'=>$id,'deleted'=>true,'archived'=>false]);}
     $pdo->prepare('UPDATE services SET is_active=0,archive_reason=?,archived_by=?,archived_at=NOW(),version=version+1 WHERE id=? AND organization_id=?')->execute([$reason,$user['id'],$id,$user['organization_id']]);audit($pdo,$user,'archive_service','services',$id,$service,['is_active'=>0,'reason'=>$reason,'references'=>$refs]);$pdo->commit();respond(['id'=>$id,'deleted'=>false,'archived'=>true,'references'=>$refs]);}catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
@@ -1773,26 +1826,35 @@ if (preg_match('#^/client-packages/(\d+)/details$#',$path,$m)&&$method==='GET') 
 }
 
 if ($path === '/client-packages' && $method === 'POST') {
-    $user=requireUser($user);requireRole($user,['owner','admin','operations']);$payload=body();
-    $clientId=(int)($payload['client_id']??0);$serviceId=(int)($payload['service_id']??0);$starts=(string)($payload['starts_at']??date('Y-m-d'));
-    $stmt=$pdo->prepare('SELECT * FROM services WHERE id=? AND organization_id=? AND is_active=1 LIMIT 1');$stmt->execute([$serviceId,$user['organization_id']]);$service=$stmt->fetch();if(!$service)fail('الخدمة غير موجودة.',404);
-    if(!isStudioPackageOfferItem(['billing_unit'=>$service['billing_unit'],'service_category'=>$service['category'],'total_hours'=>$service['total_hours']]))fail('هذه الخدمة تدار من المشروعات والمحتوى وليست من باقات الاستديو المباعة.',422,'custom_service_requires_project');
-    $stmt=$pdo->prepare('SELECT id FROM clients WHERE id=? AND organization_id=? LIMIT 1');$stmt->execute([$clientId,$user['organization_id']]);if(!$stmt->fetch())fail('العميل غير موجود.',404);
-    $unit=(string)($payload['billing_unit']??$service['billing_unit']);$quantity=(float)($payload['quantity']??($unit==='reel'?$service['total_reels']:$service['total_hours']));$price=(float)($payload['total_price']??$service['price']);$paid=(float)($payload['paid_amount']??0);
-    $allowedUnits=['hour','day','month'];if(!in_array($unit,$allowedUnits,true))fail('وحدة احتساب باقة الاستديو غير صحيحة.',422,'invalid_billing_unit');
-    if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$starts)||!DateTimeImmutable::createFromFormat('!Y-m-d',$starts))fail('تاريخ بداية الباقة غير صحيح.',422,'invalid_start_date');
-    $validity=max(1,(int)($payload['validity_days']??$service['validity_days']??90));$expires=(new DateTimeImmutable($starts))->modify('+'.$validity.' days')->format('Y-m-d');
-    if($quantity<=0)fail('كمية الباقة يجب أن تكون أكبر من صفر.',422);
-    if($price<0||$paid<0||$paid>$price)fail('السعر والمدفوع يجب أن يكونا موجبين، ولا يمكن أن يتجاوز المدفوع إجمالي الباقة.',422,'invalid_payment_amount');
+    $user=requireUser($user);requireRole($user,['owner','admin','operations']);$payload=body();$organizationId=(int)$user['organization_id'];
+    $idempotencyKey=trim((string)($payload['idempotency_key']??''));if($idempotencyKey===''||strlen($idempotencyKey)>128||!preg_match('/^[A-Za-z0-9._:-]+$/',$idempotencyKey))fail('مفتاح أمان عملية البيع غير صحيح. أعد فتح نافذة إضافة الباقة.',422,'invalid_idempotency_key');
+    $clientId=(int)($payload['client_id']??0);$serviceId=(int)($payload['service_id']??0);$starts=trim((string)($payload['starts_at']??''));$validity=(int)($payload['validity_days']??0);
+    $requestHash=hash('sha256',json_encode(['client_id'=>$clientId,'service_id'=>$serviceId,'name'=>trim((string)($payload['name']??'')),'billing_unit'=>(string)($payload['billing_unit']??''),'starts_at'=>$starts,'validity_days'=>$validity,'quantity'=>(string)($payload['quantity']??''),'payment_due_quantity'=>(string)($payload['payment_due_quantity']??''),'deposit_percent_snapshot'=>(string)($payload['deposit_percent_snapshot']??''),'overage_price_snapshot'=>(string)($payload['overage_price_snapshot']??''),'total_price'=>(string)($payload['total_price']??''),'paid_amount'=>(string)($payload['paid_amount']??''),'payment_method'=>(string)($payload['payment_method']??''),'notes'=>trim((string)($payload['notes']??''))],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+    $existingRequest=$pdo->prepare('SELECT request_hash,status,response_json FROM client_package_sale_requests WHERE organization_id=? AND idempotency_key=? LIMIT 1');$existingRequest->execute([$organizationId,$idempotencyKey]);$existing=$existingRequest->fetch();
+    if($existing){if(!hash_equals((string)$existing['request_hash'],$requestHash))fail('مفتاح العملية مستخدم لبيانات مختلفة.',409,'idempotency_payload_mismatch');if($existing['status']==='completed'&&!empty($existing['response_json']))respond(json_decode($existing['response_json'],true)+['idempotent'=>true]);fail('عملية بيع الباقة نفسها قيد التنفيذ. حاول مرة أخرى.',409,'request_in_progress');}
+    $abortPackageSale=static function(string $message,int $status=422,string $code='invalid_package_sale')use($pdo):never{if($pdo->inTransaction())$pdo->rollBack();fail($message,$status,$code);};
     $pdo->beginTransaction();try{
-        $paymentDueQuantity=$unit==='hour'?max(0,(float)($service['payment_due_hours']??0)):0;$depositPercent=max(0,min(100,(float)($service['deposit_percent']??0)));$overagePrice=max(0,(float)($service['overage_price']??0));
+        $pdo->prepare("INSERT INTO client_package_sale_requests (organization_id,idempotency_key,request_hash,status,created_by) VALUES (?,?,?,'processing',?)")->execute([$organizationId,$idempotencyKey,$requestHash,$user['id']]);$requestId=(int)$pdo->lastInsertId();
+        $stmt=$pdo->prepare('SELECT * FROM services WHERE id=? AND organization_id=? AND is_active=1 FOR UPDATE');$stmt->execute([$serviceId,$organizationId]);$service=$stmt->fetch();if(!$service)$abortPackageSale('الخدمة غير موجودة.',404,'service_not_found');
+        if(!isStudioPackageOfferItem($service))$abortPackageSale('هذه الخدمة تدار من المشروعات والمحتوى وليست من باقات الاستديو المباعة.',422,'custom_service_requires_project');
+        $stmt=$pdo->prepare('SELECT id,name FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$clientId,$organizationId]);$client=$stmt->fetch();if(!$client)$abortPackageSale('العميل غير موجود.',404,'client_not_found');
+        $unit=normalizedStudioPackageUnit($service);if((string)($payload['billing_unit']??$unit)!==$unit)$abortPackageSale('وحدة الرصيد يجب أن تطابق نوع قالب الخدمة.',422,'invalid_billing_unit');
+        $date=DateTimeImmutable::createFromFormat('!Y-m-d',$starts);if(!$date||$date->format('Y-m-d')!==$starts||$validity<1||$validity>3650)$abortPackageSale('تاريخ بداية الباقة أو مدة الصلاحية غير صحيح.',422,'invalid_package_dates');
+        $expires=$date->modify('+'.$validity.' days')->format('Y-m-d');if(!empty($payload['expires_at'])&&(string)$payload['expires_at']!==$expires)$abortPackageSale('تاريخ الانتهاء لا يطابق تاريخ البداية ومدة الصلاحية.',422,'expiry_mismatch');
+        $name=trim((string)($payload['name']??$service['name']));if($name===''||mb_strlen($name)>180)$abortPackageSale('اسم الباقة مطلوب وبحد أقصى 180 حرفًا.',422,'invalid_package_name');
+        $quantity=(float)($payload['quantity']??($unit==='reel'?$service['total_reels']:$service['total_hours']));if($quantity<=0||($unit==='reel'&&floor($quantity)!=$quantity))$abortPackageSale('رصيد الباقة غير صحيح.',422,'invalid_package_quantity');
+        $paymentDueQuantity=(float)($payload['payment_due_quantity']??($unit==='hour'?($service['payment_due_hours']??0):0));if($paymentDueQuantity<0||$paymentDueQuantity>$quantity)$abortPackageSale('حد الاستحقاق يجب أن يكون بين صفر ورصيد الباقة.',422,'invalid_payment_due_quantity');
+        $depositPercent=(float)($payload['deposit_percent_snapshot']??$service['deposit_percent']??0);if($depositPercent<0||$depositPercent>100)$abortPackageSale('نسبة المقدم يجب أن تكون بين صفر و100.',422,'invalid_deposit_percent');
+        $overageCents=packageMoneyCents($payload['overage_price_snapshot']??$service['overage_price']??0);$priceCents=packageMoneyCents($payload['total_price']??$service['price']);$paidCents=packageMoneyCents($payload['paid_amount']??0);if($overageCents<0||$priceCents<0||$paidCents<0||$paidCents>$priceCents)$abortPackageSale('السعر والمدفوع أو سعر الزيادة غير صحيح.',422,'invalid_payment_amount');
+        $overagePrice=packageMoney($overageCents);$price=packageMoney($priceCents);$paid=packageMoney($paidCents);$method=trim((string)($payload['payment_method']??'cash'));if(!in_array($method,['cash','bank_transfer','vodafone_cash','instapay'],true))$abortPackageSale('طريقة الدفع غير صحيحة.',422,'invalid_payment_method');$notes=trim((string)($payload['notes']??''));
         $purchasedMinutes=$unit==='hour'?(int)round($quantity*60):null;$paymentDueMinutes=$unit==='hour'?(int)round($paymentDueQuantity*60):null;
-        $stmt=$pdo->prepare("INSERT INTO client_packages (organization_id,client_id,service_id,name,billing_unit,purchased_quantity,purchased_minutes,held_quantity,held_minutes,consumed_quantity,consumed_minutes,payment_due_quantity,payment_due_minutes,deposit_percent_snapshot,overage_price_snapshot,total_price,paid_amount,starts_at,expires_at,status) VALUES (?,?,?,?,?,?,?,0,0,0,0,?,?,?,?,?,?,?,?,'active')");
-        $stmt->execute([$user['organization_id'],$clientId,$serviceId,$payload['name']??$service['name'],$unit,$unit==='hour'?settlementHours($purchasedMinutes):$quantity,$purchasedMinutes,$paymentDueQuantity,$paymentDueMinutes,$depositPercent,$overagePrice,$price,$paid,$starts,$expires]);$id=(int)$pdo->lastInsertId();
+        $stmt=$pdo->prepare("INSERT INTO client_packages (organization_id,client_id,service_id,name,notes,billing_unit,purchased_quantity,purchased_minutes,held_quantity,held_minutes,consumed_quantity,consumed_minutes,payment_due_quantity,payment_due_minutes,deposit_percent_snapshot,overage_price_snapshot,total_price,paid_amount,starts_at,expires_at,status) VALUES (?,?,?,?,?,?,?, ?,0,0,0,0,?,?,?,?,?,?,?,?, 'active')");
+        $stmt->execute([$organizationId,$clientId,$serviceId,$name,$notes?:null,$unit,$unit==='hour'?settlementHours($purchasedMinutes):$quantity,$purchasedMinutes,$unit==='hour'?settlementHours($paymentDueMinutes):$paymentDueQuantity,$paymentDueMinutes,$depositPercent,$overagePrice,$price,$paid,$starts,$expires]);$id=(int)$pdo->lastInsertId();
         insertPackageUsage($pdo,['id'=>$id,'billing_unit'=>$unit],null,'opening',$quantity,'إنشاء الباقة','package:'.$id.':opening',$user['id']);
-        if($paid>0){$client=$pdo->prepare('SELECT name FROM clients WHERE id=?');$client->execute([$clientId]);$clientName=$client->fetchColumn();$method=(string)($payload['payment_method']??'cash');$pdo->prepare("INSERT INTO payments (organization_id,client_id,client_name,amount,method,status,reference,reviewed_by,reviewed_at) VALUES (?,?,?,?,?,'approved',?,?,NOW())")->execute([$user['organization_id'],$clientId,$clientName,$paid,$method,'package-'.$id.'-opening',$user['id']]);$paymentId=(int)$pdo->lastInsertId();$pdo->prepare('INSERT INTO payment_allocations (organization_id,client_id,payment_id,payment_proof_id,client_package_id,invoice_id,amount) VALUES (?,?,?,NULL,?,NULL,?)')->execute([$user['organization_id'],$clientId,$paymentId,$id,$paid]);$pdo->prepare("INSERT INTO finance (organization_id,client_id,type,entry_kind,category,amount,method,detail,date,entity,source_type,source_id,correlation_id,is_system,created_by) VALUES (?,?,?,'income','package_payment',?,?,?,?,?,'payment',?,?,?,1,?)")->execute([$user['organization_id'],$clientId,'إيراد',$paid,$method,'دفعة إنشاء باقة '.$service['name'],date('Y-m-d'),'الشركة',$paymentId,'payment:'.$paymentId,$user['id']]);}
-        audit($pdo,$user,'create','client_packages',$id,null,['client_id'=>$clientId,'service_id'=>$serviceId,'quantity'=>$quantity,'expires_at'=>$expires]);queueClientWhatsAppSummary($pdo,(int)$user['organization_id'],$clientId);$pdo->commit();respond(['id'=>$id,'expires_at'=>$expires],201);
-    }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+        $paymentId=null;if($paidCents>0){$pdo->prepare("INSERT INTO payments (organization_id,client_id,client_name,amount,method,status,reference,reviewed_by,reviewed_at) VALUES (?,?,?,?,?,'approved',?,?,NOW())")->execute([$organizationId,$clientId,$client['name'],$paid,$method,'package-'.$id.'-opening',$user['id']]);$paymentId=(int)$pdo->lastInsertId();$pdo->prepare('INSERT INTO payment_allocations (organization_id,client_id,payment_id,payment_proof_id,client_package_id,invoice_id,amount) VALUES (?,?,?,NULL,?,NULL,?)')->execute([$organizationId,$clientId,$paymentId,$id,$paid]);$pdo->prepare("INSERT INTO finance (organization_id,client_id,type,entry_kind,category,amount,method,detail,date,entity,source_type,source_id,correlation_id,is_system,created_by) VALUES (?,?,?,'income','package_payment',?,?,?,?,?,'payment',?,?,?,1,?)")->execute([$organizationId,$clientId,'إيراد',$paid,$method,'دفعة إنشاء باقة '.$name,cairoNow()->format('Y-m-d'),'الشركة',$paymentId,'payment:'.$paymentId,$user['id']]);}
+        audit($pdo,$user,'create','client_packages',$id,null,['client_id'=>$clientId,'service_id'=>$serviceId,'billing_unit'=>$unit,'quantity'=>$unit==='hour'?settlementHours($purchasedMinutes):$quantity,'payment_due_quantity'=>$unit==='hour'?settlementHours($paymentDueMinutes):$paymentDueQuantity,'deposit_percent_snapshot'=>$depositPercent,'overage_price_snapshot'=>$overagePrice,'total_price'=>$price,'paid_amount'=>$paid,'expires_at'=>$expires,'idempotency_key'=>$idempotencyKey]);$eventId=recordChangeEvent($pdo,$organizationId,$clientId,'client_packages','client_packages',$id,'created');appNotification($pdo,$organizationId,$clientId,'client','package_created','تمت إضافة باقة جديدة','أضيفت باقة '.$name.' إلى حسابك.','client_packages',$id,'change-event:'.$eventId.':package_created','success','home');queueClientWhatsAppSummary($pdo,$organizationId,$clientId);
+        $response=['id'=>$id,'expires_at'=>$expires,'payment_id'=>$paymentId,'billing_unit'=>$unit,'purchased_quantity'=>$unit==='hour'?settlementHours($purchasedMinutes):$quantity,'paid_amount'=>$paid,'idempotent'=>false];$pdo->prepare("UPDATE client_package_sale_requests SET status='completed',response_json=?,completed_at=NOW() WHERE id=?")->execute([json_encode($response,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),$requestId]);$pdo->commit();respond($response,201);
+    }catch(PDOException $e){if($pdo->inTransaction())$pdo->rollBack();if(($e->errorInfo[1]??0)===1062){$existingRequest->execute([$organizationId,$idempotencyKey]);$existing=$existingRequest->fetch();if($existing&&!hash_equals((string)$existing['request_hash'],$requestHash))fail('مفتاح العملية مستخدم لبيانات مختلفة.',409,'idempotency_payload_mismatch');if($existing&&$existing['status']==='completed'&&!empty($existing['response_json']))respond(json_decode($existing['response_json'],true)+['idempotent'=>true]);fail('عملية بيع الباقة نفسها قيد التنفيذ. حاول مرة أخرى.',409,'request_in_progress');}throw $e;}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
 }
 
 if ($path === '/offers' && $method === 'POST') {
@@ -1914,13 +1976,13 @@ if (preg_match('#^/clients/(\d+)/credentials$#',$path,$m)&&$method==='GET') {
 if (preg_match('#^/clients/(\d+)/credentials/password$#',$path,$m)&&$method==='POST') {
     $user=requireUser($user);requireRole($user,['owner']);$clientId=(int)$m[1];$payload=body();$next=(string)($payload['new_password']??'');$confirmation=(string)($payload['confirm_password']??'');$requireChange=!empty($payload['require_change']);
     if(!hash_equals($next,$confirmation))fail('تأكيد كلمة المرور غير مطابق.',422,'password_confirmation_mismatch');
-    if(!validPassword($next))fail('كلمة المرور الجديدة يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.',422,'weak_password');
+    if(!validClientPassword($next))fail('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.',422,'weak_password');
     $limit=$pdo->prepare("SELECT COUNT(*) FROM audit_logs WHERE organization_id=? AND user_id=? AND action='client_password_set' AND created_at>DATE_SUB(NOW(),INTERVAL 15 MINUTE)");$limit->execute([$user['organization_id'],$user['id']]);if((int)$limit->fetchColumn()>=10)fail('تم الوصول للحد الآمن لتغيير كلمات المرور. حاول بعد 15 دقيقة.',429,'credential_change_rate_limited');
     $pdo->beginTransaction();
-    try{$client=$pdo->prepare('SELECT id,name,email,phone1 FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$client->execute([$clientId,$user['organization_id']]);$clientRow=$client->fetch();if(!$clientRow){$pdo->rollBack();fail('العميل غير موجود.',404,'client_not_found');}
+    try{$client=$pdo->prepare('SELECT id,name,email,phone1 FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$client->execute([$clientId,$user['organization_id']]);$clientRow=$client->fetch();if(!$clientRow){$pdo->rollBack();fail('العميل غير موجود.',404,'client_not_found');}$clientPhone=normalizePhone((string)$clientRow['phone1'])?:trim((string)$clientRow['phone1']);
         $stmt=$pdo->prepare("SELECT * FROM users WHERE client_id=? AND organization_id=? AND role='client' FOR UPDATE");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();$accessEnabled=$account?!empty($account['is_active']):false;
-        if($account){if(password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.',422,'password_reuse');}if(passwordWasUsed($pdo,(int)$account['organization_id'],(int)$account['id'],$next)){$pdo->rollBack();fail('لا يمكن إعادة استخدام كلمة مرور سابقة.',422,'password_history_reuse');}retainPasswordHash($pdo,$account,'owner_password_set');$accountId=(int)$account['id'];$version=(int)$account['credential_version']+1;$pdo->prepare("UPDATE users SET full_name=?,email=?,phone=?,password_hash=?,password_changed_at=NOW(),password_status='active',must_change_password=?,temporary_expires_at=NULL,credential_version=? WHERE id=?")->execute([$clientRow['name'],$clientRow['email'],$clientRow['phone1'],password_hash($next,PASSWORD_DEFAULT),$requireChange?1:0,$version,$accountId]);}
-        else{$pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,password_changed_at) VALUES (?,?,?,?,?,?,'client',0,'active',?,1,NOW())")->execute([$user['organization_id'],$clientId,$clientRow['name'],$clientRow['email'],$clientRow['phone1'],password_hash($next,PASSWORD_DEFAULT),$requireChange?1:0]);$accountId=(int)$pdo->lastInsertId();}
+        if($account){if(password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.',422,'password_reuse');}if(passwordWasUsed($pdo,(int)$account['organization_id'],(int)$account['id'],$next)){$pdo->rollBack();fail('لا يمكن إعادة استخدام كلمة مرور سابقة.',422,'password_history_reuse');}retainPasswordHash($pdo,$account,'owner_password_set');$accountId=(int)$account['id'];$version=(int)$account['credential_version']+1;$pdo->prepare("UPDATE users SET full_name=?,email=?,phone=?,password_hash=?,password_changed_at=NOW(),password_status='active',must_change_password=?,temporary_expires_at=NULL,credential_version=? WHERE id=?")->execute([$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($next,PASSWORD_DEFAULT),$requireChange?1:0,$version,$accountId]);}
+        else{$pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,password_changed_at) VALUES (?,?,?,?,?,?,'client',0,'active',?,1,NOW())")->execute([$user['organization_id'],$clientId,$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($next,PASSWORD_DEFAULT),$requireChange?1:0]);$accountId=(int)$pdo->lastInsertId();}
         $pdo->prepare('DELETE FROM api_sessions WHERE user_id=?')->execute([$accountId]);$pdo->prepare('UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND used_at IS NULL')->execute([$accountId]);
         audit($pdo,$user,'client_password_set','users',$accountId,null,['client_id'=>$clientId,'require_change'=>$requireChange,'access_enabled'=>$accessEnabled,'sessions_revoked'=>true]);$pdo->commit();respond(['updated'=>true,'has_password'=>true,'access_enabled'=>$accessEnabled,'portal_access'=>$accessEnabled?'enabled':'disabled','must_change_password'=>$requireChange]);
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
@@ -1930,11 +1992,11 @@ if (preg_match('#^/clients/(\d+)/credentials/temporary$#',$path,$m)&&$method==='
     $user=requireUser($user);requireRole($user,['owner']);$clientId=(int)$m[1];
     $limit=$pdo->prepare("SELECT COUNT(*) FROM audit_logs WHERE organization_id=? AND user_id=? AND action='temporary_credential_issued' AND created_at>DATE_SUB(NOW(),INTERVAL 15 MINUTE)");$limit->execute([$user['organization_id'],$user['id']]);if((int)$limit->fetchColumn()>=5)fail('تم الوصول للحد الآمن لإنشاء بيانات الدخول. حاول بعد 15 دقيقة.',429,'credential_issue_rate_limited');
     $temporary=temporaryPassword();$expires=(new DateTimeImmutable('+24 hours'))->format('Y-m-d H:i:s');$pdo->beginTransaction();
-    try{$client=$pdo->prepare('SELECT id,name,email,phone1 FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$client->execute([$clientId,$user['organization_id']]);$clientRow=$client->fetch();if(!$clientRow){$pdo->rollBack();fail('العميل غير موجود.',404,'client_not_found');}
+    try{$client=$pdo->prepare('SELECT id,name,email,phone1 FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$client->execute([$clientId,$user['organization_id']]);$clientRow=$client->fetch();if(!$clientRow){$pdo->rollBack();fail('العميل غير موجود.',404,'client_not_found');}$clientPhone=normalizePhone((string)$clientRow['phone1'])?:trim((string)$clientRow['phone1']);
         $stmt=$pdo->prepare("SELECT * FROM users WHERE client_id=? AND organization_id=? AND role='client' FOR UPDATE");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();
         $portalEnabled=$account?!empty($account['is_active']):false;
-        if($account){$accountId=(int)$account['id'];$version=(int)$account['credential_version']+1;retainPasswordHash($pdo,$account,'temporary_issued');$pdo->prepare("UPDATE users SET full_name=?,email=?,phone=?,password_hash=?,password_status='temporary',must_change_password=1,credential_version=?,temporary_expires_at=? WHERE id=?")->execute([$clientRow['name'],$clientRow['email'],$clientRow['phone1'],password_hash($temporary,PASSWORD_DEFAULT),$version,$expires,$accountId]);}
-        else{$pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,temporary_expires_at) VALUES (?,?,?,?,?,?,'client',0,'temporary',1,1,?)")->execute([$user['organization_id'],$clientId,$clientRow['name'],$clientRow['email'],$clientRow['phone1'],password_hash($temporary,PASSWORD_DEFAULT),$expires]);$accountId=(int)$pdo->lastInsertId();}
+        if($account){$accountId=(int)$account['id'];$version=(int)$account['credential_version']+1;retainPasswordHash($pdo,$account,'temporary_issued');$pdo->prepare("UPDATE users SET full_name=?,email=?,phone=?,password_hash=?,password_status='temporary',must_change_password=1,credential_version=?,temporary_expires_at=? WHERE id=?")->execute([$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($temporary,PASSWORD_DEFAULT),$version,$expires,$accountId]);}
+        else{$pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,temporary_expires_at) VALUES (?,?,?,?,?,?,'client',0,'temporary',1,1,?)")->execute([$user['organization_id'],$clientId,$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($temporary,PASSWORD_DEFAULT),$expires]);$accountId=(int)$pdo->lastInsertId();}
         $pdo->prepare('DELETE FROM api_sessions WHERE user_id=?')->execute([$accountId]);$pdo->prepare('UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND used_at IS NULL')->execute([$accountId]);
         audit($pdo,$user,'temporary_credential_issued','users',$accountId,null,['client_id'=>$clientId,'expires_at'=>$expires,'sessions_revoked'=>true]);$pdo->commit();
         respond(['temporary_password'=>$temporary,'expires_at'=>$expires,'login_identifier'=>$clientRow['phone1']?:$clientRow['email'],'portal_access'=>$portalEnabled?'enabled':'disabled'],201);
@@ -2171,10 +2233,10 @@ if ($path === '/bookings/request' && $method === 'POST') {
     $serviceId = isset($payload['service_id']) ? (int)$payload['service_id'] : null;
     $serviceName = trim((string)($payload['service'] ?? 'حجز استديو'));
     $minimumMinutes=60;$incrementMinutes=15;
-    if ($serviceId) { $s = $pdo->prepare('SELECT name,minimum_booking_minutes,booking_increment_minutes FROM services WHERE id = ? AND organization_id = ? AND is_active=1'); $s->execute([$serviceId,$user['organization_id']]);$service=$s->fetch();if(!$service)fail('الخدمة غير موجودة.',404);$serviceName=(string)$service['name'];$minimumMinutes=max(15,(int)$service['minimum_booking_minutes']);$incrementMinutes=max(15,(int)$service['booking_increment_minutes']); }
+    if ($serviceId && !$packageId) { $s = $pdo->prepare('SELECT name,minimum_booking_minutes,booking_increment_minutes FROM services WHERE id = ? AND organization_id = ? AND is_active=1'); $s->execute([$serviceId,$user['organization_id']]);$service=$s->fetch();if(!$service)fail('الخدمة غير موجودة.',404);$serviceName=(string)$service['name'];$minimumMinutes=max(15,(int)$service['minimum_booking_minutes']);$incrementMinutes=max(15,(int)$service['booking_increment_minutes']); }
     $requestedQuantity=$minutes/60;$package=null;$project=null;
     if ($packageId) {
-        $p = $pdo->prepare("SELECT cp.*,s.name AS package_service_name,s.minimum_booking_minutes AS package_minimum_minutes,s.booking_increment_minutes AS package_increment_minutes FROM client_packages cp JOIN services s ON s.id=cp.service_id AND s.organization_id=cp.organization_id AND s.is_active=1 WHERE cp.id = ? AND cp.client_id = ? AND cp.organization_id=? AND cp.status = 'active' AND cp.starts_at<=? AND cp.expires_at >= ?");
+        $p = $pdo->prepare("SELECT cp.*,s.name AS package_service_name,s.minimum_booking_minutes AS package_minimum_minutes,s.booking_increment_minutes AS package_increment_minutes FROM client_packages cp JOIN services s ON s.id=cp.service_id AND s.organization_id=cp.organization_id WHERE cp.id = ? AND cp.client_id = ? AND cp.organization_id=? AND cp.status = 'active' AND cp.starts_at<=? AND cp.expires_at >= ?");
         $p->execute([$packageId,$clientId,$user['organization_id'],$date,$date]);$package=$p->fetch();if(!$package)fail('الباقة غير فعالة أو منتهية.',422,'invalid_package');if($serviceId&&$serviceId!==(int)$package['service_id'])fail('الخدمة المختارة لا تطابق خدمة الباقة.',422,'package_service_mismatch');$serviceId=(int)$package['service_id'];$serviceName=(string)$package['package_service_name'];$minimumMinutes=max(15,(int)$package['package_minimum_minutes']);$incrementMinutes=max(15,(int)$package['package_increment_minutes']);if($package['billing_unit']==='reel'){$requestedQuantity=max(1,(float)($payload['requested_reels']??$payload['requested_quantity']??1));}
     }
     if ($projectId) {

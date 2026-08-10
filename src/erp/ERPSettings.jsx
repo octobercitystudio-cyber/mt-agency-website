@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Cropper from 'cropperjs';
 import { Settings } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
 import OwnerRecordActions from './OwnerRecordActions';
+import { CUSTOM_CATEGORY_VALUE, FIXED_SERVICE_CATEGORIES, applyCategoryDefaults, buildServiceCategoryGroups, categoryCustomValue, categoryEditorValue, resolveServiceCategory, serviceUsesProjectFields } from '../lib/serviceCategories';
+import useModalDialog from '../hooks/useModalDialog';
 
 const ROLE_DETAILS = {
   owner: { label: 'مالك', note: 'صلاحيات كاملة وإدارة الحسابات.' },
@@ -39,11 +41,15 @@ const ERPSettings = () => {
   const [currentLogo, setCurrentLogo] = useState('https://via.placeholder.com/150?text=No+Logo');
 
   // Form states
-  const emptyService = { name: '', category: 'باقة شهرية', billing_unit: 'hour', price: '', total_hours: 0, payment_due_hours: 0, deposit_percent: 0, overage_price: 0, validity_days: 90, total_reels: 0, minimum_booking_minutes: 60, booking_increment_minutes: 15, auto_start_timer: 1, reason: '' };
+  const emptyService = { name: '', category: 'باقة شهرية', categorySelection: 'باقة شهرية', customCategory: '', billing_unit: 'hour', price: '', total_hours: 0, payment_due_hours: 0, deposit_percent: 0, overage_price: 0, validity_days: 90, total_reels: 0, minimum_booking_minutes: 60, booking_increment_minutes: 15, auto_start_timer: 1, reason: '' };
   const [addForm, setAddForm] = useState(emptyService);
   const [editForm, setEditForm] = useState({ id: '', ...emptyService });
-  const [archiveForm, setArchiveForm] = useState({ open: false, service: null, loading: false, references: 0, breakdown: {}, reason: '', confirmed: false, deleteConfirmation: '', error: '' });
+  const [activeServiceCategory, setActiveServiceCategory] = useState('تصوير بالساعة');
+  const [serviceFormError, setServiceFormError] = useState('');
+  const [serviceModal, setServiceModal] = useState(null);
   const serviceDialogTriggerRef = useRef(null);
+  const addServiceDialogRef = useModalDialog(serviceModal === 'add', () => setServiceModal(null), { returnFocusRef: serviceDialogTriggerRef });
+  const editServiceDialogRef = useModalDialog(serviceModal === 'edit', () => setServiceModal(null), { returnFocusRef: serviceDialogTriggerRef });
   const [addUserForm, setAddUserForm] = useState({ full_name: '', email: '', phone: '', password: '', role: 'staff' });
   const [userState, setUserState] = useState({ busy: false, type: '', message: '' });
 
@@ -73,28 +79,6 @@ const ERPSettings = () => {
   };
 
   useEffect(() => { const timer = window.setTimeout(fetchData, 0); return () => window.clearTimeout(timer); }, [isOwner]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const ids = ['addServiceModal', 'editServiceModal'];
-    const cleanups = ids.map(id => {
-      const modal = document.getElementById(id); if (!modal) return () => {};
-      const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-      const focusables = () => [...modal.querySelectorAll(focusableSelector)].filter(element => element.offsetParent !== null);
-      const onShown = () => window.requestAnimationFrame(() => (modal.querySelector('[data-service-initial]') || focusables()[0])?.focus());
-      const onHidden = () => window.requestAnimationFrame(() => serviceDialogTriggerRef.current?.focus());
-      const onKeyDown = event => {
-        if (!modal.classList.contains('show')) return;
-        if (event.key === 'Escape') { event.preventDefault(); window.bootstrap.Modal.getOrCreateInstance(modal).hide(); return; }
-        if (event.key !== 'Tab') return; const items = focusables(); if (!items.length) { event.preventDefault(); return; }
-        const first = items[0]; const last = items[items.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-      };
-      modal.addEventListener('shown.bs.modal', onShown); modal.addEventListener('hidden.bs.modal', onHidden); document.addEventListener('keydown', onKeyDown);
-      return () => { modal.removeEventListener('shown.bs.modal', onShown); modal.removeEventListener('hidden.bs.modal', onHidden); document.removeEventListener('keydown', onKeyDown); };
-    });
-    return () => cleanups.forEach(cleanup => cleanup());
-  }, []);
 
   const handleSavePointsSettings = async (e) => {
     e.preventDefault();
@@ -127,13 +111,16 @@ const ERPSettings = () => {
   const handleAddService = async (e) => {
     e.preventDefault();
     if (!isOwner) return;
+    const resolvedCategory = resolveServiceCategory(addForm.categorySelection, addForm.customCategory);
+    if (resolvedCategory.error) { setServiceFormError(resolvedCategory.error); return; }
+    setServiceFormError('');
     const btn = e.nativeEvent.submitter;
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الحفظ...';
     
     const { error } = await supabase.request('/services', { method: 'POST', body: JSON.stringify({
       name: addForm.name,
-      category: addForm.category,
+      category: resolvedCategory.category,
       billing_unit: addForm.billing_unit,
       price: Number(addForm.price) || 0,
       total_hours: Number(addForm.total_hours) || 0,
@@ -151,7 +138,7 @@ const ERPSettings = () => {
     if (!error) {
       await fetchData();
       setAddForm(emptyService);
-      window.bootstrap.Modal.getInstance(document.getElementById('addServiceModal'))?.hide();
+      setServiceModal(null);
     } else {
       alert('حدث خطأ أثناء حفظ الخدمة');
     }
@@ -161,13 +148,16 @@ const ERPSettings = () => {
   const handleEditService = async (e) => {
     e.preventDefault();
     if (!isOwner) return;
+    const resolvedCategory = resolveServiceCategory(editForm.categorySelection, editForm.customCategory);
+    if (resolvedCategory.error) { setServiceFormError(resolvedCategory.error); return; }
+    setServiceFormError('');
     const btn = e.nativeEvent.submitter;
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الحفظ...';
     
     const { error } = await supabase.request(`/services/${editForm.id}`, { method: 'PATCH', body: JSON.stringify({
       name: editForm.name,
-      category: editForm.category,
+      category: resolvedCategory.category,
       billing_unit: editForm.billing_unit,
       price: Number(editForm.price) || 0,
       total_hours: Number(editForm.total_hours) || 0,
@@ -184,32 +174,13 @@ const ERPSettings = () => {
 
     if (!error) {
       await fetchData();
-      window.bootstrap.Modal.getInstance(document.getElementById('editServiceModal'))?.hide();
+      setServiceModal(null);
     } else {
       alert('حدث خطأ أثناء تعديل الخدمة');
     }
     btn.innerHTML = originalText;
   };
 
-  const openArchiveService = async (service, event) => {
-    if (!isOwner) return;
-    serviceDialogTriggerRef.current = event.currentTarget;
-    setArchiveForm({ open: true, service, loading: true, references: 0, breakdown: {}, reason: '', confirmed: false, deleteConfirmation: '', error: '' });
-    const tables = [['client_packages','باقات مباعة'],['bookings','حجوزات'],['offer_items','عروض'],['invoice_items','فواتير']];
-    const results = await Promise.all(tables.map(async ([table,label]) => { const { data } = await supabase.from(table).select('id').eq('service_id', service.id); return [label,(data||[]).length]; }));
-    const breakdown = Object.fromEntries(results); const references = results.reduce((sum,[,count]) => sum+count,0);
-    setArchiveForm(current => current.open && Number(current.service?.id) === Number(service.id) ? { ...current, loading: false, references, breakdown } : current);
-  };
-
-  const submitArchiveService = async event => {
-    event.preventDefault(); const service = archiveForm.service; if (!service) return;
-    const hardDelete = Boolean(Number(service.is_draft)) && archiveForm.references === 0;
-    setArchiveForm(current => ({ ...current, loading: true, error: '' }));
-    const { error }=await supabase.request(`/services/${service.id}/archive`,{method:'POST',body:JSON.stringify({reason:archiveForm.reason,hard_delete:hardDelete,confirmation:hardDelete?archiveForm.deleteConfirmation:''})});
-    if(error)return setArchiveForm(current=>({...current,loading:false,error:error.message||'تعذر تنفيذ الإجراء الآمن.'}));
-    setArchiveForm(current=>({...current,open:false,loading:false})); await fetchData();
-  };
-  const closeArchiveService = useCallback(() => setArchiveForm(current => ({ ...current, open: false })), []);
 
   const handleAddUser = async (e) => {
     e.preventDefault();
@@ -363,17 +334,26 @@ const ERPSettings = () => {
 
   const openEditModal = (s, event) => {
     serviceDialogTriggerRef.current = event.currentTarget;
-    setEditForm({ ...s, reason: '' });
-    const modal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('editServiceModal'));
-    modal.show();
+    setServiceFormError('');
+    setEditForm({ ...s, categorySelection: categoryEditorValue(s.category), customCategory: categoryCustomValue(s.category), reason: '' });
+    setServiceModal('edit');
   };
 
   const renderServiceActions = (service) => isOwner ? (
-    <div className="d-flex gap-2 justify-content-start flex-row-reverse">
-      <button className="btn action-btn btn-delete-action" onClick={event => openArchiveService(service, event)} title="أرشفة آمنة" aria-label={`أرشفة أو حذف خدمة ${service.name}`}><i className="fas fa-archive" aria-hidden="true"></i><span>أرشفة</span></button>
-      <button className="btn action-btn btn-edit-action" onClick={event => openEditModal(service, event)} title="تعديل" aria-label={`تعديل خدمة ${service.name}`}><i className="fas fa-edit" aria-hidden="true"></i><span>تعديل</span></button>
-    </div>
+    <OwnerRecordActions
+      user={currentUser}
+      entity="services"
+      record={service}
+      label={service.name}
+      onEdit={event => openEditModal(service, event)}
+      onChanged={async () => { await fetchData(); window.dispatchEvent(new CustomEvent('erpServicesUpdated')); }}
+      actionLabel="حذف الخدمة"
+    />
   ) : null;
+
+  const serviceGroups = buildServiceCategoryGroups(services);
+  const visibleServiceGroups = serviceGroups.filter(group => group.services.length > 0 || FIXED_SERVICE_CATEGORIES.some(item => item.value === group.value));
+  const selectedServiceGroup = visibleServiceGroups.find(group => group.value === activeServiceCategory) || visibleServiceGroups[0];
 
   return (
     <>
@@ -426,6 +406,21 @@ const ERPSettings = () => {
         .table-custom thead th { border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 700; font-size: 0.9rem; padding-bottom: 15px; padding-top: 15px; }
         .table-custom tbody td { padding: 20px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         .table-custom tbody tr:last-child td { border-bottom: none; }
+        .service-category-nav { display:flex; gap:9px; overflow-x:auto; padding:18px 2px 12px; scrollbar-width:thin; }
+        .service-category-pill { min-height:44px; flex:0 0 auto; display:inline-flex; align-items:center; gap:9px; padding:8px 13px; border:1px solid #d8e0ec; border-radius:10px; background:#fff; color:#334155; font-weight:850; }
+        .service-category-pill b { min-width:24px; padding:2px 6px; border-radius:7px; background:#eef2ff; color:#3730a3; }
+        .service-category-pill.active { border-color:#4338ca; color:#312e81; box-shadow:0 0 0 3px rgba(67,56,202,.12); }
+        .service-category-pill--graphics.active { border-color:#7c3aed; color:#6d28d9; } .service-category-pill--montage.active { border-color:#0284c7; color:#0369a1; }
+        .service-category-badge { display:inline-flex; padding:5px 9px; border-radius:8px; background:#eef2ff; color:#3730a3; font-weight:800; font-size:.76rem; }
+        .service-category-badge--graphics { background:#f3e8ff; color:#6d28d9; } .service-category-badge--montage { background:#e0f2fe; color:#0369a1; }
+        .service-empty-state { min-height:230px; display:grid; place-items:center; align-content:center; gap:8px; padding:28px; text-align:center; color:#64748b; border:1px dashed #cbd5e1; border-radius:12px; }
+        .service-empty-state i { font-size:28px; color:#4338ca; } .service-empty-state h6,.service-empty-state p { margin:0; } .service-empty-state button { min-height:44px; border:0; border-radius:9px; background:#312e81; color:#fff; padding:8px 18px; font-weight:850; }
+        .service-category-preview { display:flex; align-items:center; gap:10px; min-height:52px; padding:10px 12px; border:1px solid #dbe3ef; background:#fff; border-radius:10px; color:#334155; }
+        .service-category-preview b { color:#312e81; } .service-form-error { color:#b91c1c; font-weight:800; font-size:.82rem; }
+        .service-category-nav :focus-visible,.service-category-panel :focus-visible { outline:3px solid #3478db; outline-offset:2px; }
+        .service-form-overlay { z-index:10070; padding:18px; overflow:auto; align-items:center; justify-content:center; }
+        .service-form-overlay .modal-dialog { width:min(720px,100%); margin:auto; }
+        .service-form-overlay .modal-content { max-height:calc(100dvh - 36px); overflow:auto; }
         
         .action-btn { min-width: 44px; min-height: 44px; padding: 8px 10px; display: inline-flex; gap: 6px; align-items: center; justify-content: center; border-radius: 8px; transition: 0.2s; font-size: 0.8rem; font-weight: 800; }
         .action-btn span { display: inline; }
@@ -448,7 +443,7 @@ const ERPSettings = () => {
         .service-archive-confirm { grid-template-columns:22px 1fr!important; align-items:start; } .service-archive-confirm input { width:20px; height:20px; }
         .service-archive-dialog>button:last-child { width:100%; min-height:48px; margin-top:16px; border:0; border-radius:10px; background:#b91c1c; color:#fff; font-weight:900; } .service-archive-dialog>button:disabled { opacity:.5; }
         .service-archive-dialog :is(button,input,textarea):focus-visible { outline:3px solid #3478db; outline-offset:2px; }
-        @media(max-width:600px){ .service-archive-overlay{padding:0}.service-archive-dialog{width:100%;min-height:100dvh;max-height:100dvh;border-radius:0;padding:18px 14px 28px}.service-impact-strip{grid-template-columns:1fr}.action-btn{min-width:44px;padding:8px} }
+        @media(max-width:600px){ .service-archive-overlay,.service-form-overlay{padding:0}.service-archive-dialog{width:100%;min-height:100dvh;max-height:100dvh;border-radius:0;padding:18px 14px 28px}.service-form-overlay{align-items:stretch}.service-form-overlay .modal-dialog{width:100%;margin:0;min-height:100dvh}.service-form-overlay .modal-content{min-height:100dvh;max-height:100dvh;border-radius:0!important}.service-impact-strip{grid-template-columns:1fr}.action-btn{min-width:44px;padding:8px} }
       `}</style>
 
       <ERPPageHero
@@ -456,7 +451,7 @@ const ERPSettings = () => {
         eyebrow="إدارة النظام"
         title="الإعدادات والخدمات"
         description="أدر الخدمات والباقات وحسابات الفريق ونظام النقاط والنسخ الاحتياطي."
-        actions={isOwner ? <button data-variant="primary" data-bs-toggle="modal" data-bs-target="#addServiceModal" onClick={event => { serviceDialogTriggerRef.current = event.currentTarget; }}><i className="fas fa-plus"></i> إضافة خدمة / باقة جديدة</button> : null}
+        actions={isOwner ? <button data-variant="primary" onClick={event => { serviceDialogTriggerRef.current = event.currentTarget; setAddForm(emptyService); setServiceFormError(''); setServiceModal('add'); }}><i className="fas fa-plus"></i> إضافة خدمة / باقة جديدة</button> : null}
       />
 
       <div className="setting-section" id="servicesSection">
@@ -469,170 +464,12 @@ const ERPSettings = () => {
           تعديلات قالب الخدمة تطبق على المبيعات الجديدة فقط؛ الباقات المباعة تحتفظ بلقطة السعر والكمية وشروطها الأصلية.
         </div>
 
-        <ul className="nav nav-tabs border-0 flex-row flex-nowrap gap-3 mb-4" id="servicesTabs" role="tablist">
-          <li className="nav-item" role="presentation"><button className="nav-link active" id="hourly-tab" data-bs-toggle="tab" data-bs-target="#hourly" type="button" role="tab">التصوير بالساعة</button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab">الباقات اليومية <i className="fas fa-cog opacity-50"></i></button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab">الباقات الشهرية <i className="fas fa-calendar-alt opacity-50"></i></button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="reels-tab" data-bs-toggle="tab" data-bs-target="#reels" type="button" role="tab">باقات الريلز <i className="fas fa-video opacity-50"></i></button></li>
-          <li className="nav-item" role="presentation"><button className="nav-link" id="others-tab" data-bs-toggle="tab" data-bs-target="#others" type="button" role="tab">خدمات إضافية <i className="fas fa-star opacity-50"></i></button></li>
-        </ul>
+        <div className="service-category-nav" role="tablist" aria-label="تصنيفات الخدمات">
+          {visibleServiceGroups.map(group => <button key={group.value} type="button" role="tab" aria-selected={selectedServiceGroup?.value === group.value} className={`service-category-pill service-category-pill--${group.tone} ${selectedServiceGroup?.value === group.value ? 'active' : ''}`} onClick={() => setActiveServiceCategory(group.value)}><span>{group.label}</span><b>{group.services.length.toLocaleString('ar-EG')}</b></button>)}
+        </div>
 
-        <div className="tab-content" id="servicesTabsContent">
-          {/* Hourly */}
-          <div className="tab-pane fade show active" id="hourly" role="tabpanel">
-            <div className="table-responsive">
-              <table className="table table-custom table-borderless align-middle w-100 text-center">
-                <thead>
-                  <tr>
-                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الخدمة</th>
-                    <th style={{width: '20%'}}>الساعات</th>
-                    <th style={{width: '30%'}}>السعر (ج.م)</th>
-                    <th className="text-start ps-4" style={{width: '20%'}}>إجراءات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {services.filter(s => s.category === 'تصوير بالساعة').map(s => (
-                    <tr key={s.id}>
-                      <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
-                      <td className="fw-bold" style={{color: '#0d6efd'}}>{s.total_hours} س</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
-                      <td className="text-start ps-4">
-                        {renderServiceActions(s)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Daily */}
-          <div className="tab-pane fade" id="daily" role="tabpanel">
-            <div className="table-responsive">
-              <table className="table table-custom table-borderless align-middle w-100 text-center">
-                <thead>
-                  <tr>
-                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الباقة</th>
-                    <th style={{width: '20%'}}>تفاصيل الباقة</th>
-                    <th style={{width: '15%'}}>الصلاحية</th>
-                    <th style={{width: '20%'}}>السعر (ج.م)</th>
-                    <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {services.filter(s => s.category === 'باقة يومية').map(s => (
-                    <tr key={s.id}>
-                      <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
-                      <td className="fw-bold" style={{color: '#0d6efd'}}>
-                        {s.total_hours} س <br/>
-                        {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
-                      </td>
-                      <td className="fw-bold text-muted">{s.validity_days} يوم</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
-                      <td className="text-start ps-4">
-                        {renderServiceActions(s)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Monthly */}
-          <div className="tab-pane fade" id="monthly" role="tabpanel">
-            <div className="table-responsive">
-              <table className="table table-custom table-borderless align-middle w-100 text-center">
-                <thead>
-                  <tr>
-                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الباقة</th>
-                    <th style={{width: '20%'}}>تفاصيل الباقة</th>
-                    <th style={{width: '15%'}}>الصلاحية</th>
-                    <th style={{width: '20%'}}>السعر (ج.م)</th>
-                    <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {services.filter(s => s.category === 'باقة شهرية').map(s => (
-                    <tr key={s.id}>
-                      <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
-                      <td className="fw-bold" style={{color: '#0d6efd'}}>
-                        {s.total_hours} س <br/>
-                        {s.payment_due_hours > 0 && <small className="text-danger" style={{fontSize: '0.7rem'}}>استحقاق السداد بعد: {s.payment_due_hours} س</small>}
-                      </td>
-                      <td className="fw-bold text-muted">{s.validity_days} يوم</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
-                      <td className="text-start ps-4">
-                        {renderServiceActions(s)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Reels */}
-          <div className="tab-pane fade" id="reels" role="tabpanel">
-            <div className="table-responsive">
-              <table className="table table-custom table-borderless align-middle w-100 text-center">
-                <thead>
-                  <tr>
-                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الباقة</th>
-                    <th style={{width: '20%'}}>عدد الفيديوهات</th>
-                    <th style={{width: '15%'}}>الصلاحية</th>
-                    <th style={{width: '20%'}}>السعر (ج.م)</th>
-                    <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {services.filter(s => s.category === 'باقة ريلز').map(s => (
-                    <tr key={s.id}>
-                      <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
-                      <td className="fw-bold" style={{color: '#0d6efd'}}>
-                        {s.total_reels} فيديو <br/>
-                      </td>
-                      <td className="fw-bold text-muted">{s.validity_days ? `${s.validity_days} يوم` : '-'}</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
-                      <td className="text-start ps-4">
-                        {renderServiceActions(s)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Others */}
-          <div className="tab-pane fade" id="others" role="tabpanel">
-            <div className="table-responsive">
-              <table className="table table-custom table-borderless align-middle w-100 text-center">
-                <thead>
-                  <tr>
-                    <th className="text-end pe-4" style={{width: '30%'}}>اسم الخدمة</th>
-                    <th style={{width: '20%'}}>التصنيف</th>
-                    <th style={{width: '15%'}}>التفاصيل</th>
-                    <th style={{width: '20%'}}>السعر (ج.م)</th>
-                    <th className="text-start ps-4" style={{width: '15%'}}>إجراءات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {services.filter(s => s.category === 'خدمة إضافية').map(s => (
-                    <tr key={s.id}>
-                      <td className="text-end pe-4 fw-bold text-dark">{s.name}</td>
-                      <td><span className="badge bg-secondary-subtle text-secondary border rounded-pill">{s.category}</span></td>
-                      <td className="fw-bold text-muted">-</td>
-                      <td className="fw-bold" style={{color: '#198754'}}>{formatServicePrice(s.price)}</td>
-                      <td className="text-start ps-4">
-                        {renderServiceActions(s)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+        <div className="service-category-panel" role="tabpanel" aria-label={selectedServiceGroup?.label}>
+          {selectedServiceGroup?.services.length ? <div className="table-responsive"><table className="table table-custom table-borderless align-middle w-100 text-center"><thead><tr><th className="text-end pe-4">اسم الخدمة</th><th>التصنيف</th><th>الوحدة / الكمية</th><th>السعر (ج.م)</th><th>الحالة</th><th className="text-start ps-4">الإجراءات</th></tr></thead><tbody>{selectedServiceGroup.services.map(s => <tr key={s.id}><td className="text-end pe-4 fw-bold text-dark">{s.name}</td><td><span className={`service-category-badge service-category-badge--${selectedServiceGroup.tone}`}>{s.category || 'غير مصنف'}</span></td><td className="fw-bold text-muted">{s.billing_unit === 'hour' ? `${Number(s.total_hours || 0).toLocaleString('ar-EG')} ساعة` : s.billing_unit === 'reel' ? `${Number(s.total_reels || 0).toLocaleString('ar-EG')} ريل` : 'مشروع'}</td><td className="fw-bold" style={{color:'#198754'}}>{formatServicePrice(s.price)}</td><td><span className={`badge ${Number(s.is_active ?? 1) ? 'bg-success' : 'bg-secondary'}`}>{Number(s.is_active ?? 1) ? 'نشطة' : 'مؤرشفة'}</span></td><td className="text-start ps-4">{renderServiceActions(s)}</td></tr>)}</tbody></table></div> : <div className="service-empty-state"><i className="fas fa-layer-group" aria-hidden="true"></i><h6>لا توجد خدمات في تصنيف «{selectedServiceGroup?.label}»</h6><p>يمكنك إنشاء أول خدمة في هذا التصنيف وستظهر هنا مباشرة.</p>{isOwner && <button type="button" onClick={event => { serviceDialogTriggerRef.current = event.currentTarget; const next = applyCategoryDefaults(emptyService, selectedServiceGroup?.value || 'باقة شهرية'); setAddForm({...next,category:selectedServiceGroup?.value || 'باقة شهرية'}); setServiceFormError(''); setServiceModal('add'); }}>إضافة خدمة</button>}</div>}
         </div>
       </div>
 
@@ -811,45 +648,44 @@ const ERPSettings = () => {
         </div>
       )}
 
-      {/* ADD SERVICE MODAL (Bootstrap native) */}
-      <div className="modal fade" id="addServiceModal" tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="add-service-title">
-        <div className="modal-dialog modal-dialog-centered">
+      {/* ADD SERVICE MODAL */}
+      {serviceModal === 'add' && <div className="erp-modal-overlay service-form-overlay" onMouseDown={event => event.target === event.currentTarget && setServiceModal(null)}>
+        <div ref={addServiceDialogRef} className="modal-dialog modal-dialog-centered" role="dialog" aria-modal="true" aria-labelledby="add-service-title">
           <form onSubmit={handleAddService} className="modal-content border-0 shadow-lg rounded-5">
             <div className="modal-header bg-primary text-white border-0 p-4">
               <h5 id="add-service-title" className="fw-bold m-0"><i className="fas fa-plus-circle me-2 text-warning"></i> تسجيل خدمة أو باقة جديدة</h5>
-              <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق نافذة إضافة الخدمة"></button>
+              <button type="button" className="btn-close btn-close-white" onClick={() => setServiceModal(null)} aria-label="إغلاق نافذة إضافة الخدمة"></button>
             </div>
             <div className="modal-body p-4 bg-light">
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">اسم الباقة / الخدمة</label>
-                <input data-service-initial type="text" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.name} onChange={e => setAddForm({...addForm, name: e.target.value})} required />
+                <input data-dialog-initial data-service-initial type="text" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.name} onChange={e => setAddForm({...addForm, name: e.target.value})} required />
               </div>
               <div className="row g-3 mb-3">
                 <div className="col-md-4">
                   <label className="small fw-bold text-muted mb-1">التصنيف</label>
-                  <select className="form-select border-0 py-2 fw-bold shadow-sm text-primary" value={addForm.category} onChange={e => setAddForm({...addForm, category: e.target.value, billing_unit: e.target.value === 'باقة ريلز' ? 'reel' : addForm.billing_unit})} required>
-                    <option value="تصوير بالساعة">تصوير بالساعة</option>
-                    <option value="باقة يومية">باقات يومية</option>
-                    <option value="باقة شهرية">باقات شهرية</option>
-                    <option value="باقة ريلز">باقات ريلز</option>
-                    <option value="خدمة إضافية">خدمات إضافية (جرافيك وغيرها)</option>
+                  <select className="form-select border-0 py-2 fw-bold shadow-sm text-primary" value={addForm.categorySelection} onChange={e => { setServiceFormError(''); setAddForm(applyCategoryDefaults(addForm, e.target.value)); }} required>
+                    {FIXED_SERVICE_CATEGORIES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+                    <option value={CUSTOM_CATEGORY_VALUE}>تصنيف مخصص…</option>
                   </select>
                 </div>
+                {addForm.categorySelection === CUSTOM_CATEGORY_VALUE && <div className="col-md-8"><label className="small fw-bold text-muted mb-1">اسم التصنيف المخصص</label><input type="text" minLength="2" maxLength="80" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.customCategory} onChange={e => { setServiceFormError(''); setAddForm({...addForm,customCategory:e.target.value}); }} required /></div>}
+                <div className="col-12"><div className="service-category-preview" role="status"><span className={`service-category-badge service-category-badge--${addForm.categorySelection === 'جرافيك' ? 'graphics' : addForm.categorySelection === 'مونتاج' ? 'montage' : 'custom'}`}>{addForm.categorySelection === CUSTOM_CATEGORY_VALUE ? (addForm.customCategory.trim() || 'تصنيف مخصص') : addForm.categorySelection}</span><span>{serviceUsesProjectFields(addForm.categorySelection) ? <><b>خدمة مشروع</b> · بدون تايمر تصوير</> : <><b>خدمة استديو / ريلز</b> · حسب إعدادات الحجز</>}</span></div></div>
                 <div className="col-md-4">
                   <label className="small fw-bold text-muted mb-1">السعر (ج.م)</label>
                   <input type="number" className="form-control border-0 py-2 fw-bold text-success shadow-sm" value={addForm.price} onChange={e => setAddForm({...addForm, price: e.target.value})} required />
                 </div>
-                <div className="col-md-4"><label className="small fw-bold text-muted mb-1">وحدة الاحتساب</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={addForm.billing_unit} onChange={e => setAddForm({...addForm,billing_unit:e.target.value})}><option value="hour">ساعة</option><option value="reel">ريل</option><option value="day">يوم</option><option value="month">شهر</option><option value="project">مشروع</option></select></div>
+                <div className="col-md-4"><label className="small fw-bold text-muted mb-1">وحدة الاحتساب</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={addForm.billing_unit} disabled={serviceUsesProjectFields(addForm.categorySelection)} onChange={e => setAddForm({...addForm,billing_unit:e.target.value})}><option value="hour">ساعة</option><option value="reel">ريل</option><option value="day">يوم</option><option value="month">شهر</option><option value="project">مشروع</option></select></div>
               </div>
               
               <div className="row g-3 mb-4">
-                {showField(addForm.category, 'hours') && (
+                {showField(addForm.categorySelection, 'hours') && (
                   <div className="col-6 hours-div">
                     <label className="small fw-bold text-muted mb-1">إجمالي الساعات</label>
                     <input type="number" step="0.5" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.total_hours} onChange={e => setAddForm({...addForm, total_hours: e.target.value})} />
                   </div>
                 )}
-                {showField(addForm.category, 'due_hours') && (
+                {showField(addForm.categorySelection, 'due_hours') && (
                   <div className="col-6 due-hours-div">
                     <label className="small fw-bold text-muted mb-1">استحقاق الدفع بعد</label>
                     <div className="input-group shadow-sm rounded-3 overflow-hidden">
@@ -858,13 +694,13 @@ const ERPSettings = () => {
                     </div>
                   </div>
                 )}
-                {showField(addForm.category, 'validity') && (
+                {showField(addForm.categorySelection, 'validity') && (
                   <div className="col-6 validity-div">
                     <label className="small fw-bold text-muted mb-1">الصلاحية (بالأيام)</label>
                     <input type="number" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.validity_days} onChange={e => setAddForm({...addForm, validity_days: e.target.value})} />
                   </div>
                 )}
-                {showField(addForm.category, 'reels') && (
+                {showField(addForm.categorySelection, 'reels') && (
                   <div className="col-6 reels-div">
                     <label className="small fw-bold text-muted mb-1">عدد الفيديوهات (الريلز)</label>
                     <input type="number" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.total_reels} onChange={e => setAddForm({...addForm, total_reels: e.target.value})} />
@@ -874,55 +710,55 @@ const ERPSettings = () => {
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">سعر الوحدة الزائدة</label><input type="number" min="0" step="0.01" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.overage_price} onChange={e => setAddForm({...addForm,overage_price:e.target.value})}/></div>
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">أقل حجز بالدقائق</label><input type="number" min="15" step="15" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.minimum_booking_minutes} onChange={e => setAddForm({...addForm,minimum_booking_minutes:e.target.value})}/></div>
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">زيادة الحجز كل</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={addForm.booking_increment_minutes} onChange={e => setAddForm({...addForm,booking_increment_minutes:e.target.value})}><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">60 دقيقة</option></select></div>
-                <div className="col-12 form-check form-switch px-5"><input className="form-check-input" type="checkbox" checked={Boolean(Number(addForm.auto_start_timer))} onChange={e => setAddForm({...addForm,auto_start_timer:e.target.checked?1:0})}/><label className="form-check-label fw-bold">تشغيل تايمر التصوير تلقائيًا في الموعد</label></div>
+                {!serviceUsesProjectFields(addForm.categorySelection) && <div className="col-12 form-check form-switch px-5"><input className="form-check-input" type="checkbox" checked={Boolean(Number(addForm.auto_start_timer))} onChange={e => setAddForm({...addForm,auto_start_timer:e.target.checked?1:0})}/><label className="form-check-label fw-bold">تشغيل تايمر التصوير تلقائيًا في الموعد</label></div>}
                 <div className="col-12"><label className="small fw-bold text-muted mb-1">سبب الإنشاء</label><textarea minLength="5" required className="form-control border-0 shadow-sm" rows="2" value={addForm.reason} onChange={e => setAddForm({...addForm,reason:e.target.value})} placeholder="اكتب سببًا واضحًا يظهر في سجل التدقيق" /></div>
+                {serviceFormError && <div className="col-12 service-form-error" role="alert">{serviceFormError}</div>}
               </div>
-              <button type="submit" className="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow submit-btn" data-bs-dismiss="modal">حفظ وإضافة للنظام</button>
+              <button type="submit" className="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow submit-btn">حفظ وإضافة للنظام</button>
             </div>
           </form>
         </div>
-      </div>
+      </div>}
 
-      {/* EDIT SERVICE MODAL (Bootstrap native) */}
-      <div className="modal fade" id="editServiceModal" tabIndex="-1" data-bs-backdrop="static" role="dialog" aria-modal="true" aria-labelledby="edit-service-title" aria-describedby="edit-service-description">
-        <div className="modal-dialog modal-dialog-centered">
+      {/* EDIT SERVICE MODAL */}
+      {serviceModal === 'edit' && <div className="erp-modal-overlay service-form-overlay">
+        <div ref={editServiceDialogRef} className="modal-dialog modal-dialog-centered" role="dialog" aria-modal="true" aria-labelledby="edit-service-title" aria-describedby="edit-service-description">
           <form onSubmit={handleEditService} className="modal-content border-0 shadow-lg rounded-5">
             <div className="modal-header bg-dark text-white border-0 p-4">
               <h5 id="edit-service-title" className="fw-bold m-0"><i className="fas fa-edit me-2 text-warning"></i> تعديل تفاصيل الخدمة/الباقة</h5>
-              <button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق نافذة تعديل الخدمة"></button>
+              <button type="button" className="btn-close btn-close-white" onClick={() => setServiceModal(null)} aria-label="إغلاق نافذة تعديل الخدمة"></button>
             </div>
             <div className="modal-body p-4 bg-light">
               <p id="edit-service-description" className="alert alert-warning border-0 small">هذا تعديل على قالب البيع الجديد فقط؛ الباقات المباعة تحتفظ بالسعر والكمية والشروط الأصلية.</p>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">اسم الباقة / الخدمة</label>
-                <input data-service-initial type="text" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} required />
+                <input data-dialog-initial data-service-initial type="text" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} required />
               </div>
               <div className="row g-3 mb-3">
                 <div className="col-md-4">
                   <label className="small fw-bold text-muted mb-1">التصنيف</label>
-                  <select className="form-select border-0 py-2 fw-bold shadow-sm text-primary" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})} required>
-                    <option value="تصوير بالساعة">تصوير بالساعة</option>
-                    <option value="باقة يومية">باقات يومية</option>
-                    <option value="باقة شهرية">باقات شهرية</option>
-                    <option value="باقة ريلز">باقات ريلز</option>
-                    <option value="خدمة إضافية">خدمات إضافية (جرافيك وغيرها)</option>
+                  <select className="form-select border-0 py-2 fw-bold shadow-sm text-primary" value={editForm.categorySelection} onChange={e => { setServiceFormError(''); setEditForm(applyCategoryDefaults(editForm, e.target.value)); }} required>
+                    {FIXED_SERVICE_CATEGORIES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+                    <option value={CUSTOM_CATEGORY_VALUE}>تصنيف مخصص…</option>
                   </select>
                 </div>
+                {editForm.categorySelection === CUSTOM_CATEGORY_VALUE && <div className="col-md-8"><label className="small fw-bold text-muted mb-1">اسم التصنيف المخصص</label><input type="text" minLength="2" maxLength="80" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.customCategory} onChange={e => { setServiceFormError(''); setEditForm({...editForm,customCategory:e.target.value}); }} required /></div>}
+                <div className="col-12"><div className="service-category-preview" role="status"><span className={`service-category-badge service-category-badge--${editForm.categorySelection === 'جرافيك' ? 'graphics' : editForm.categorySelection === 'مونتاج' ? 'montage' : 'custom'}`}>{editForm.categorySelection === CUSTOM_CATEGORY_VALUE ? (editForm.customCategory.trim() || 'تصنيف مخصص') : editForm.categorySelection}</span><span>{serviceUsesProjectFields(editForm.categorySelection) ? <><b>خدمة مشروع</b> · بدون تايمر تصوير</> : <><b>خدمة استديو / ريلز</b> · حسب إعدادات الحجز</>}</span></div></div>
                 <div className="col-md-4">
                   <label className="small fw-bold text-muted mb-1">السعر (ج.م)</label>
                   <input type="number" className="form-control border-0 py-2 fw-bold text-success shadow-sm" value={editForm.price} onChange={e => setEditForm({...editForm, price: e.target.value})} required />
                 </div>
-                <div className="col-md-4"><label className="small fw-bold text-muted mb-1">وحدة الاحتساب</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={editForm.billing_unit || 'hour'} onChange={e => setEditForm({...editForm,billing_unit:e.target.value})}><option value="hour">ساعة</option><option value="reel">ريل</option><option value="day">يوم</option><option value="month">شهر</option><option value="project">مشروع</option></select></div>
+                <div className="col-md-4"><label className="small fw-bold text-muted mb-1">وحدة الاحتساب</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={editForm.billing_unit || 'hour'} disabled={serviceUsesProjectFields(editForm.categorySelection)} onChange={e => setEditForm({...editForm,billing_unit:e.target.value})}><option value="hour">ساعة</option><option value="reel">ريل</option><option value="day">يوم</option><option value="month">شهر</option><option value="project">مشروع</option></select></div>
               </div>
               
               <div className="row g-3 mb-4">
-                {showField(editForm.category, 'hours') && (
+                {showField(editForm.categorySelection, 'hours') && (
                   <div className="col-6 hours-div">
                     <label className="small fw-bold text-muted mb-1">إجمالي الساعات</label>
                     <input type="number" step="0.5" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.total_hours} onChange={e => setEditForm({...editForm, total_hours: e.target.value})} />
                   </div>
                 )}
-                {showField(editForm.category, 'due_hours') && (
+                {showField(editForm.categorySelection, 'due_hours') && (
                   <div className="col-6 due-hours-div">
                     <label className="small fw-bold text-muted mb-1">استحقاق الدفع بعد</label>
                     <div className="input-group shadow-sm rounded-3 overflow-hidden">
@@ -931,35 +767,34 @@ const ERPSettings = () => {
                     </div>
                   </div>
                 )}
-                {showField(editForm.category, 'validity') && (
+                {showField(editForm.categorySelection, 'validity') && (
                   <div className="col-6 validity-div">
                     <label className="small fw-bold text-muted mb-1">الصلاحية (بالأيام)</label>
                     <input type="number" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.validity_days} onChange={e => setEditForm({...editForm, validity_days: e.target.value})} />
                   </div>
                 )}
-                {showField(editForm.category, 'reels') && (
+                {showField(editForm.categorySelection, 'reels') && (
                   <div className="col-6 reels-div">
                     <label className="small fw-bold text-muted mb-1">عدد الفيديوهات (الريلز)</label>
                     <input type="number" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.total_reels} onChange={e => setEditForm({...editForm, total_reels: e.target.value})} />
                   </div>
                 )}
-                {!showField(editForm.category, 'validity') && <div className="col-6"><label className="small fw-bold text-muted mb-1">صلاحية القالب بالأيام</label><input type="number" min="1" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.validity_days || 90} onChange={e => setEditForm({...editForm,validity_days:e.target.value})}/></div>}
+                {!showField(editForm.categorySelection, 'validity') && <div className="col-6"><label className="small fw-bold text-muted mb-1">صلاحية القالب بالأيام</label><input type="number" min="1" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.validity_days || 90} onChange={e => setEditForm({...editForm,validity_days:e.target.value})}/></div>}
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">الدفعة المقدمة %</label><input type="number" min="0" max="100" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.deposit_percent || 0} onChange={e => setEditForm({...editForm,deposit_percent:e.target.value})}/></div>
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">سعر الوحدة الزائدة</label><input type="number" min="0" step="0.01" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.overage_price || 0} onChange={e => setEditForm({...editForm,overage_price:e.target.value})}/></div>
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">أقل حجز بالدقائق</label><input type="number" min="15" step="15" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.minimum_booking_minutes || 60} onChange={e => setEditForm({...editForm,minimum_booking_minutes:e.target.value})}/></div>
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">زيادة الحجز كل</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={editForm.booking_increment_minutes || 15} onChange={e => setEditForm({...editForm,booking_increment_minutes:e.target.value})}><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">60 دقيقة</option></select></div>
-                <div className="col-12 form-check form-switch px-5"><input className="form-check-input" type="checkbox" checked={Boolean(Number(editForm.auto_start_timer ?? 1))} onChange={e => setEditForm({...editForm,auto_start_timer:e.target.checked?1:0})}/><label className="form-check-label fw-bold">تشغيل تايمر التصوير تلقائيًا في الموعد</label></div>
+                {!serviceUsesProjectFields(editForm.categorySelection) && <div className="col-12 form-check form-switch px-5"><input className="form-check-input" type="checkbox" checked={Boolean(Number(editForm.auto_start_timer ?? 1))} onChange={e => setEditForm({...editForm,auto_start_timer:e.target.checked?1:0})}/><label className="form-check-label fw-bold">تشغيل تايمر التصوير تلقائيًا في الموعد</label></div>}
                 <div className="col-12"><label className="small fw-bold text-muted mb-1">حالة القالب</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={Number(editForm.is_active ?? 1)} onChange={e => setEditForm({...editForm,is_active:Number(e.target.value)})}><option value="1">نشط للمبيعات الجديدة</option><option value="0">موقوف عن المبيعات الجديدة</option></select></div>
                 <div className="col-12 service-impact-strip" aria-label="معاينة أثر تعديل قالب الخدمة"><article><span>سعر القالب</span><b>{Number(services.find(item=>Number(item.id)===Number(editForm.id))?.price||0).toLocaleString('ar-EG')} ← {Number(editForm.price||0).toLocaleString('ar-EG')} ج.م</b></article><article><span>الصلاحية</span><b>{services.find(item=>Number(item.id)===Number(editForm.id))?.validity_days||90} ← {editForm.validity_days||90} يوم</b></article><article><span>الباقات المباعة</span><b>لا تتغير</b></article></div>
                 <div className="col-12"><label className="small fw-bold text-muted mb-1">سبب التعديل</label><textarea minLength="5" required className="form-control border-0 shadow-sm" rows="2" value={editForm.reason || ''} onChange={e => setEditForm({...editForm,reason:e.target.value})} placeholder="مثال: تحديث سعر القالب للمبيعات الجديدة" /></div>
+                {serviceFormError && <div className="col-12 service-form-error" role="alert">{serviceFormError}</div>}
               </div>
-              <button type="submit" className="btn btn-dark w-100 py-3 rounded-pill fw-bold shadow submit-btn" data-bs-dismiss="modal">حفظ التعديلات في الخلفية</button>
+              <button type="submit" className="btn btn-dark w-100 py-3 rounded-pill fw-bold shadow submit-btn">حفظ التعديلات في الخلفية</button>
             </div>
           </form>
         </div>
-      </div>
-
-      {archiveForm.open && <ServiceArchiveDialog state={archiveForm} setState={setArchiveForm} triggerRef={serviceDialogTriggerRef} onClose={closeArchiveService} onSubmit={submitArchiveService}/>}
+      </div>}
 
       {/* ADD USER MODAL (Bootstrap native) */}
       {isOwner && <div className="modal fade" id="addUserModal" tabIndex="-1" data-bs-backdrop="static">
@@ -1000,21 +835,5 @@ const ERPSettings = () => {
     </>
   );
 };
-
-function ServiceArchiveDialog({ state, setState, triggerRef, onClose, onSubmit }) {
-  const dialogRef = useRef(null);
-  const hardDelete = Boolean(Number(state.service?.is_draft)) && state.references === 0;
-  useEffect(() => {
-    const dialog = dialogRef.current; const trigger = triggerRef.current; const selector = 'button:not([disabled]),input:not([disabled]),textarea:not([disabled])';
-    const focusables = () => [...(dialog?.querySelectorAll(selector) || [])]; const previousOverflow = document.body.style.overflow;
-    const background = [...document.querySelectorAll('.erp-sidebar,.erp-mobile-header,.erp-bottom-nav,#servicesSection,.erp-page-hero')];
-    const previous = background.map(element => ({ element, inert: element.inert, hidden: element.getAttribute('aria-hidden') }));
-    background.forEach(element => { element.inert = true; element.setAttribute('aria-hidden','true'); }); document.body.style.overflow='hidden';
-    window.requestAnimationFrame(() => dialog?.querySelector('[data-service-archive-initial]')?.focus());
-    const keydown = event => { if (event.key === 'Escape') { event.preventDefault(); onClose(); return; } if (event.key !== 'Tab') return; const items=focusables(); if(!items.length)return; const first=items[0],last=items[items.length-1]; if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();} };
-    document.addEventListener('keydown',keydown); return () => { document.removeEventListener('keydown',keydown); document.body.style.overflow=previousOverflow; previous.forEach(({element,inert,hidden})=>{element.inert=inert;if(hidden===null)element.removeAttribute('aria-hidden');else element.setAttribute('aria-hidden',hidden);}); window.requestAnimationFrame(()=>trigger?.focus()); };
-  }, [onClose, triggerRef]);
-  return <div className="erp-modal-overlay service-archive-overlay" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}><form ref={dialogRef} className="service-archive-dialog" role="dialog" aria-modal="true" aria-labelledby="service-archive-title" aria-describedby="service-archive-description" onSubmit={onSubmit}><button data-service-archive-initial type="button" className="service-archive-close" aria-label="إغلاق مراجعة أرشفة الخدمة" onClick={onClose}>×</button><span className="service-archive-kicker">إجراء مالك موثق</span><h2 id="service-archive-title">{state.loading?'فحص ارتباطات الخدمة…':hardDelete?'حذف مسودة الخدمة نهائيًا':'أرشفة الخدمة'}</h2><p id="service-archive-description">{state.service?.name} · {hardDelete?'لم يعثر الفحص على مبيعات أو حجوزات أو عروض أو فواتير مرتبطة.':'الخدمة مستخدمة أو ليست مسودة؛ سيبقى تاريخها كاملًا.'}</p><section className="service-impact-strip"><article><span>قالب الخدمة</span><b>{hardDelete?'حذف نهائي':'إيقاف وأرشفة'}</b></article><article><span>المراجع المرتبطة</span><b>{state.loading?'جارٍ الفحص':state.references}</b></article><article><span>الباقات المباعة</span><b>لقطاتها لا تتغير</b></article></section>{!state.loading&&Object.keys(state.breakdown).length>0&&<div className="service-reference-breakdown">{Object.entries(state.breakdown).map(([label,count])=><span key={label}>{label} <b>{count}</b></span>)}</div>}{state.error&&<div className="alert alert-danger" role="alert">{state.error}</div>}<label>سبب {hardDelete?'الحذف':'الأرشفة'}<textarea required minLength="5" rows="3" value={state.reason} onChange={event=>setState({...state,reason:event.target.value})}/></label><label className="service-archive-confirm"><input type="checkbox" checked={state.confirmed} onChange={event=>setState({...state,confirmed:event.target.checked})}/> {hardDelete?'أفهم أن الحذف نهائي ولا يمكن التراجع عنه':'أفهم أن الخدمة ستتوقف للمبيعات الجديدة فقط'}</label>{hardDelete&&<label>اكتب DELETE للتأكيد<input value={state.deleteConfirmation} onChange={event=>setState({...state,deleteConfirmation:event.target.value})} autoComplete="off"/></label>}<button disabled={state.loading||state.reason.trim().length<5||!state.confirmed||(hardDelete&&state.deleteConfirmation!=='DELETE')}>{state.loading?'جارٍ فحص الأثر…':hardDelete?'حذف المسودة نهائيًا':'أرشفة الخدمة مع حفظ التاريخ'}</button></form></div>;
-}
 
 export default ERPSettings;

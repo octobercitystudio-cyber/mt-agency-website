@@ -1,17 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, LoaderCircle, LockKeyhole, UserRound } from 'lucide-react';
 import { useData } from '../store/DataContext';
-import { Lock, User } from 'lucide-react';
 import './UnifiedLogin.css';
 
 const STAFF_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
+
+const loginErrorMessage = loginError => {
+  if (loginError?.code === 'validation_error') return 'أدخل رقم الهاتف أو البريد الإلكتروني وكلمة المرور.';
+  if (loginError?.code === 'invalid_credentials') return 'رقم الهاتف أو البريد أو كلمة المرور غير صحيحة.';
+  if (loginError?.code === 'account_disabled') return 'دخول هذا الحساب موقوف. تواصل مع إدارة الشركة لإعادة تفعيله.';
+  if (loginError?.code === 'login_temporarily_blocked') return 'توقفت محاولات الدخول مؤقتًا للحماية. انتظر قليلًا ثم حاول مرة أخرى.';
+  if (loginError?.status >= 500 || !loginError?.code || loginError?.code === 'api_error') return 'تعذر الاتصال بخدمة تسجيل الدخول. تحقق من الإنترنت ثم حاول مرة أخرى.';
+  return loginError?.message || 'تعذر تسجيل الدخول الآن. حاول مرة أخرى.';
+};
 
 const UnifiedLogin = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
   const { loginErp, isAuthReady, currentUser } = useData();
   const navigate = useNavigate();
 
@@ -24,29 +32,29 @@ const UnifiedLogin = () => {
     }
   }, [currentUser, isAuthReady, navigate]);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!isAuthReady) return;
+  const handleLogin = async event => {
+    event.preventDefault();
+    if (!isAuthReady || loading) return;
+    if (!identifier.trim() || !password) {
+      setError('أدخل رقم الهاتف أو البريد الإلكتروني وكلمة المرور.');
+      return;
+    }
     setLoading(true);
     setError('');
 
     try {
       const user = await loginErp(identifier.trim(), password);
-      if (user) {
-        if (user.role === 'client') {
-          navigate(user.must_change_password ? '/change-password' : '/dashboard', { replace: true });
-          return;
-        }
-        if (STAFF_ROLES.includes(user.role)) {
-          navigate('/erp', { replace: true });
-          return;
-        }
-        setError('هذا الحساب لا يملك صلاحية دخول لوحة النظام.');
+      if (user?.role === 'client') {
+        navigate(user.must_change_password ? '/change-password' : '/dashboard', { replace: true });
         return;
       }
-      setError('بيانات الدخول غير صحيحة أو غير مسجلة لدينا.');
+      if (user && STAFF_ROLES.includes(user.role)) {
+        navigate('/erp', { replace: true });
+        return;
+      }
+      setError(user ? 'هذا الحساب لا يملك صلاحية دخول لوحة النظام.' : 'رقم الهاتف أو البريد أو كلمة المرور غير صحيحة.');
     } catch (loginError) {
-      setError(loginError?.message || 'تعذر الاتصال بالخادم. حاول مرة أخرى.');
+      setError(loginErrorMessage(loginError));
     } finally {
       setLoading(false);
     }
@@ -76,81 +84,50 @@ const UnifiedLogin = () => {
     setLoading(false);
   };
 
-  return (
-    <div className="unified-login-container">
-      <div className="unified-login-box premium-glass" style={{maxWidth: '400px'}}>
-        <div className="brand-logo" style={{textAlign: 'center', fontSize: '2.5rem', fontWeight: 'bold', color: '#fff', marginBottom: '1rem'}}>
-          MT <span style={{color: 'var(--color-vibrant-purple)'}}>Agency</span>
-        </div>
-        
-        <div className="login-form-container">
-          <form onSubmit={handleLogin}>
-            <h3 style={{color: '#fff', marginBottom: '0.5rem', textAlign: 'center'}}>تسجيل الدخول 👋</h3>
-            <p style={{color: '#8c8c8c', marginBottom: '2rem', textAlign: 'center'}}>أدخل بياناتك للوصول إلى لوحة التحكم الخاصة بك</p>
-            
-            <div style={{position: 'relative'}}>
-              <User size={18} style={{position: 'absolute', right: '15px', top: '15px', color: '#8c8c8c'}} />
-              <input 
-                type="text" 
-                placeholder="رقم الموبايل أو الإيميل" 
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                required
-                dir="ltr"
-                className="unified-input w-100"
-                style={{paddingRight: '45px'}}
-              />
-            </div>
+  return <main className="unified-login-container" dir="rtl">
+    <section className="unified-login-box premium-glass" aria-labelledby="unified-login-title">
+      <div className="brand-logo" aria-label="MT Agency">MT <span>Agency</span></div>
+      <header className="unified-login-heading">
+        <p>بوابة العملاء والفريق</p>
+        <h1 id="unified-login-title">تسجيل الدخول</h1>
+        <span>أدخل بياناتك للوصول إلى لوحة التحكم الخاصة بك.</span>
+      </header>
 
-            <div style={{position: 'relative'}}>
-              <Lock size={18} style={{position: 'absolute', right: '15px', top: '15px', color: '#8c8c8c'}} />
-              <input
-                type="password"
-                placeholder="كلمة المرور"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                dir="ltr"
-                required
-                className="unified-input w-100"
-                style={{paddingRight: '45px'}}
-              />
-            </div>
+      <form className="login-form" onSubmit={handleLogin} noValidate>
+        <label className="unified-field" htmlFor="login-identifier">
+          <span>رقم الهاتف أو البريد الإلكتروني</span>
+          <span className="unified-input-shell">
+            <UserRound aria-hidden="true" />
+            <input id="login-identifier" type="text" inputMode="email" autoComplete="username" placeholder="مثال: 01012345678" value={identifier} onChange={event => { setIdentifier(event.target.value); if (error) setError(''); }} aria-invalid={Boolean(error)} aria-describedby={error ? 'login-error' : undefined} dir="ltr" required />
+          </span>
+        </label>
 
-            {error && <p className="error-msg">{error}</p>}
-            
-            <button type="submit" className="btn-modern-primary w-100" disabled={loading || !isAuthReady} style={{marginTop: '10px'}}>
-              {loading || !isAuthReady ? 'جاري التحقق...' : 'تسجيل الدخول'}
-            </button>
+        <label className="unified-field" htmlFor="login-password">
+          <span>كلمة المرور</span>
+          <span className="unified-input-shell">
+            <LockKeyhole aria-hidden="true" />
+            <input id="login-password" type="password" autoComplete="current-password" placeholder="أدخل كلمة المرور" value={password} onChange={event => { setPassword(event.target.value); if (error) setError(''); }} aria-invalid={Boolean(error)} aria-describedby={error ? 'login-error' : undefined} dir="ltr" required />
+          </span>
+        </label>
 
-            {import.meta.env.DEV && (
-              <div style={{display: 'grid', gap: '8px', marginTop: '12px'}}>
-                <button
-                  type="button"
-                  className="w-100"
-                  disabled={loading}
-                  onClick={handleLocalPreview}
-                  style={{padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,.2)', background: 'rgba(255,255,255,.08)', color: '#fff', fontWeight: 800, cursor: 'pointer'}}
-                >
-                  دخول تجريبي كمالك
-                </button>
-                <button
-                  type="button"
-                  className="w-100"
-                  disabled={loading}
-                  onClick={handleLocalClientPreview}
-                  style={{padding: '12px', borderRadius: '10px', border: '1px solid rgba(139,92,246,.45)', background: 'rgba(109,40,217,.22)', color: '#fff', fontWeight: 800, cursor: 'pointer'}}
-                >
-                  دخول تجريبي كعميل
-                </button>
-              </div>
-            )}
-          </form>
+        <div className="unified-login-feedback" aria-live="polite">
+          {error && <p id="login-error" className="error-msg" role="alert">{error}</p>}
         </div>
 
-        <a href="/" className="back-link">العودة للموقع الرئيسي</a>
-      </div>
-    </div>
-  );
+        <button type="submit" className="unified-login-submit" disabled={loading || !isAuthReady} aria-busy={loading}>
+          <span className="unified-login-submit__icon">{loading || !isAuthReady ? <LoaderCircle className="unified-login-spinner" aria-hidden="true" /> : <ArrowLeft aria-hidden="true" />}</span>
+          <span>{loading ? 'جارٍ تسجيل الدخول…' : !isAuthReady ? 'جارٍ تجهيز الدخول…' : 'تسجيل الدخول'}</span>
+        </button>
+
+        {import.meta.env.DEV && <div className="unified-login-preview" aria-label="خيارات المعاينة المحلية">
+          <button type="button" disabled={loading} onClick={handleLocalPreview}>دخول تجريبي كمالك</button>
+          <button type="button" disabled={loading} onClick={handleLocalClientPreview}>دخول تجريبي كعميل</button>
+        </div>}
+      </form>
+
+      <a href="/" className="back-link">العودة للموقع الرئيسي</a>
+    </section>
+  </main>;
 };
 
 export default UnifiedLogin;

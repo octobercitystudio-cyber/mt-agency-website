@@ -1,1 +1,0 @@
-var e=e=>{if(!e)return!1;let t=String(e.billing_unit||``).toLowerCase(),n=String(e.category||``).trim().toLowerCase();return[`hour`,`day`,`month`].includes(t)&&(Number(e.total_hours||0)>0||[`studio`,`تصوير بالساعة`,`باقة يومية`,`باقة شهرية`].includes(n))};export{e as t};

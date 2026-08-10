@@ -14,6 +14,7 @@ import ERPBookingDetailsDialog from './ERPBookingDetailsDialog';
 import { startStudioSession } from './studioSessionStart';
 import OwnerRecordActions from './OwnerRecordActions';
 import ERPAddBookingModal from './ERPAddBookingModal';
+import { activeServiceCategories, isProjectServiceCategory } from '../lib/serviceCategories';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
@@ -349,7 +350,8 @@ const ERPBookings = () => {
       }
     }
 
-    const needsDates = newBooking.category !== 'باقة ريلز' && newBooking.category !== 'خدمة إضافية' || newBooking.schedule_extra;
+    const bookingService = services.find(s => s.name === newBooking.service);
+    const needsDates = !['reel','project'].includes(String(bookingService?.billing_unit || '')) && !isProjectServiceCategory(newBooking.category) || newBooking.schedule_extra;
     if (needsDates && newBooking.dates.length === 0) {
       alert('يجب تحديد موعد واحد على الأقل في التقويم أو عن طريق الضغط مرتين على اليوم المختار');
       return;
@@ -501,8 +503,10 @@ const ERPBookings = () => {
   };
 
   const remainingPrice = Math.max(0, newBooking.base_price - newBooking.discount - newBooking.paid);
-  const showDelivery = newBooking.category === 'باقة ريلز' || newBooking.category === 'خدمة إضافية';
+  const legacySelectedService = services.find(service => service.name === newBooking.service);
+  const showDelivery = ['reel','project'].includes(String(legacySelectedService?.billing_unit || '')) || isProjectServiceCategory(newBooking.category);
   const showCalendar = !showDelivery || newBooking.schedule_extra;
+  const bookingCategoryGroups = activeServiceCategories(services);
 
   return (
     <div>
@@ -737,11 +741,7 @@ const ERPBookings = () => {
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>التصنيف الرئيسي</label>
                   <select value={newBooking.category} onChange={handleCategoryChange} required style={{ width: '100%', background: 'var(--erp-bg)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-primary)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
                     <option value="" disabled>-- التصنيف --</option>
-                    <option value="تصوير بالساعة">تصوير بالساعة</option>
-                    <option value="باقة يومية">باقات يومية</option>
-                    <option value="باقة شهرية">باقات شهرية</option>
-                    <option value="باقة ريلز">باقات ريلز</option>
-                    <option value="خدمة إضافية">خدمات إضافية</option>
+                    {bookingCategoryGroups.map(group => <option key={group.value} value={group.value}>{group.label} ({group.services.length.toLocaleString('ar-EG')})</option>)}
                   </select>
                 </div>
 
@@ -749,7 +749,7 @@ const ERPBookings = () => {
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>اسم الخدمة</label>
                   <select value={newBooking.service} onChange={handleServiceChange} required disabled={!newBooking.category} style={{ width: '100%', background: 'var(--erp-bg)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
                     <option value="" disabled>-- اختر الخدمة --</option>
-                    {services.filter(s => s.category === newBooking.category).map(s => (
+                    {services.filter(s => Number(s.is_active ?? 1) === 1 && !s.archived_at && s.category === newBooking.category).map(s => (
                       <option key={s.name} value={s.name}>{s.name}</option>
                     ))}
                   </select>
@@ -761,7 +761,7 @@ const ERPBookings = () => {
               {showDelivery && (
                 <div style={{ background: 'rgba(67, 24, 255, 0.05)', padding: '20px', borderRadius: '15px', border: '1px solid rgba(67, 24, 255, 0.2)', marginBottom: '20px', display: 'flex', alignItems: 'center' }}>
                   <input type="checkbox" id="schedExtraCb" checked={newBooking.schedule_extra} onChange={e => setNewBooking({...newBooking, schedule_extra: e.target.checked})} style={{ transform: 'scale(1.5)', marginLeft: '15px', cursor: 'pointer' }} />
-                  <label htmlFor="schedExtraCb" style={{ fontWeight: 'bold', color: 'var(--erp-primary)', cursor: 'pointer', margin: 0 }}>تحديد موعد للخدمة الإضافية/الريلز في التقويم الآن</label>
+                  <label htmlFor="schedExtraCb" style={{ fontWeight: 'bold', color: 'var(--erp-primary)', cursor: 'pointer', margin: 0 }}>تحديد موعد لخدمة المشروع أو الريلز في التقويم الآن</label>
                 </div>
               )}
 

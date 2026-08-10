@@ -2,14 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, Eye, EyeOff, KeyRound, LogOut, Power, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import useModalDialog from '../hooks/useModalDialog';
+import { CLIENT_PASSWORD_HINT, CLIENT_PASSWORD_MAX_LENGTH, CLIENT_PASSWORD_MIN_LENGTH, isValidClientPassword } from '../lib/clientPasswordPolicy';
 import './ClientCredentialSecurity.css';
 
 const emptyPasswordForm = () => ({ new_password: '', confirm_password: '', require_change: false });
 const showDate = value => value ? new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value.replace(' ', 'T'))) : '—';
 const passwordChecks = form => ({
-  length: form.new_password.length >= 12,
-  letter: /\p{L}/u.test(form.new_password),
-  number: /\d/.test(form.new_password),
+  length: isValidClientPassword(form.new_password),
   match: Boolean(form.confirm_password) && form.new_password === form.confirm_password,
 });
 
@@ -66,7 +65,7 @@ export default function ClientCredentialSecurity({ clientId }) {
   const savePassword = async event => {
     event.preventDefault();
     setPasswordError('');
-    if (!checks.length || !checks.letter || !checks.number) { setPasswordError('اكتب كلمة مرور من 12 حرفًا على الأقل وتحتوي حرفًا ورقمًا.'); return; }
+    if (!checks.length) { setPasswordError('اكتب كلمة مرور من 6 خانات على الأقل.'); return; }
     if (!checks.match) { setPasswordError('تأكيد كلمة المرور غير مطابق.'); return; }
     setState(current => ({ ...current, busy: 'password', actionError: '' }));
     const payload = { ...passwordForm };
@@ -138,17 +137,15 @@ export default function ClientCredentialSecurity({ clientId }) {
           {passwordError && <div className="credential-password-error" role="alert">{passwordError}</div>}
           <label htmlFor="owner-client-new-password">كلمة المرور الجديدة</label>
           <div className="credential-password-input">
-            <input id="owner-client-new-password" type={passwordVisible ? 'text' : 'password'} value={passwordForm.new_password} onChange={event => setPasswordForm(current => ({ ...current, new_password: event.target.value }))} autoComplete="new-password" spellCheck="false" dir="ltr" required />
+            <input id="owner-client-new-password" type={passwordVisible ? 'text' : 'password'} value={passwordForm.new_password} onChange={event => setPasswordForm(current => ({ ...current, new_password: event.target.value }))} autoComplete="new-password" minLength={CLIENT_PASSWORD_MIN_LENGTH} maxLength={CLIENT_PASSWORD_MAX_LENGTH} spellCheck="false" dir="ltr" required />
             <button type="button" onClick={() => setPasswordVisible(value => !value)} aria-label={passwordVisible ? 'إخفاء كلمة المرور الجديدة' : 'إظهار كلمة المرور الجديدة'} aria-pressed={passwordVisible}>{passwordVisible ? <EyeOff /> : <Eye />}</button>
           </div>
           <label htmlFor="owner-client-confirm-password">تأكيد كلمة المرور الجديدة</label>
           <div className="credential-password-input">
-            <input id="owner-client-confirm-password" type={passwordVisible ? 'text' : 'password'} value={passwordForm.confirm_password} onChange={event => setPasswordForm(current => ({ ...current, confirm_password: event.target.value }))} autoComplete="new-password" spellCheck="false" dir="ltr" required />
+            <input id="owner-client-confirm-password" type={passwordVisible ? 'text' : 'password'} value={passwordForm.confirm_password} onChange={event => setPasswordForm(current => ({ ...current, confirm_password: event.target.value }))} autoComplete="new-password" maxLength="128" spellCheck="false" dir="ltr" required />
           </div>
           <ul className="credential-password-checks" aria-label="متطلبات كلمة المرور">
-            <li className={checks.length ? 'complete' : ''}><Check />12 حرفًا على الأقل</li>
-            <li className={checks.letter ? 'complete' : ''}><Check />تحتوي حرفًا</li>
-            <li className={checks.number ? 'complete' : ''}><Check />تحتوي رقمًا</li>
+            <li className={checks.length ? 'complete' : ''}><Check />{CLIENT_PASSWORD_HINT}</li>
             <li className={checks.match ? 'complete' : ''}><Check />التأكيد مطابق</li>
           </ul>
           <label className="credential-password-force"><input type="checkbox" checked={passwordForm.require_change} onChange={event => setPasswordForm(current => ({ ...current, require_change: event.target.checked }))} /><span>إلزام العميل بتغييرها عند أول دخول</span></label>

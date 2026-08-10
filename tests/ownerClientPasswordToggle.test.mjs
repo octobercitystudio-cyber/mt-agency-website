@@ -92,13 +92,25 @@ test('new credential starts disabled and enable without a credential fails safel
 test('owner custom password enforces confirmation, canonical policy, current and history reuse checks', async () => {
   const firstPassword = 'HistorySafe2026A';
   const secondPassword = 'HistorySafe2027B';
-  assert.equal((await setPassword(1, 'short1')).error?.code, 'weak_password');
+  assert.equal((await setPassword(1, '12345')).error?.code, 'weak_password', 'five characters remain invalid');
+  assert.equal((await setPassword(1, '123456')).error, null, 'six digits are accepted without letters or symbols');
+  assert.equal((await setPassword(1, 'abcdef')).error, null, 'six letters are accepted without digits or symbols');
+  assert.equal((await setPassword(1, 'a1b2c3')).error, null, 'a six-character mix is accepted');
   assert.equal((await setPassword(1, firstPassword, false, `${firstPassword}x`)).error?.code, 'password_confirmation_mismatch');
   assert.equal((await setPassword(1, firstPassword)).error, null);
   assert.equal((await setPassword(1, firstPassword)).error?.code, 'password_reuse');
   assert.equal((await setPassword(1, secondPassword)).error, null);
   assert.equal((await setPassword(1, firstPassword)).error?.code, 'password_history_reuse');
   assert.equal((await credentialMeta(1)).data.access_enabled, true);
+});
+
+test('forced client password change accepts the same simple six-character policy', async () => {
+  const issued = (await demoClient.request('/clients/1/credentials/temporary', { method: 'POST', body: '{}' })).data;
+  assert.ok(await authenticateDemoClientCredential(issued.login_identifier, issued.temporary_password));
+  assert.equal((await demoClient.auth.updateUser({ password: '98765' })).error?.code, 'weak_password');
+  assert.equal((await demoClient.auth.updateUser({ password: '987654' })).error, null);
+  await demoClient.auth.signOut();
+  assert.ok(await authenticateDemoClientCredential(issued.login_identifier, '987654'));
 });
 
 test('optional owner force-change uses the same password and remains independent from enabled access', async () => {
@@ -248,6 +260,7 @@ test('production and owner UI contracts keep password save independent, scoped, 
   const forcedPasswordBlock = api.slice(api.indexOf("$path === '/auth/password'"), api.indexOf("$path === '/sync'"));
   const genericUserBlock = api.slice(api.indexOf("preg_match('#^/users/(\\d+)$#'"), api.indexOf("$path === '/clients' && $method === 'POST'"));
   assert.ok(passwordBlock.includes("requireRole($user,['owner'])"));
+  assert.ok(passwordBlock.includes('validClientPassword($next)'));
   assert.ok(passwordBlock.includes("organization_id=? AND role='client' FOR UPDATE"));
   assert.ok(passwordBlock.includes('password_hash($next,PASSWORD_DEFAULT)'));
   assert.ok(passwordBlock.includes('passwordWasUsed'));
@@ -258,7 +271,8 @@ test('production and owner UI contracts keep password save independent, scoped, 
   assert.doesNotMatch(passwordBlock, /UPDATE users SET[^\n]*is_active=/, 'password update preserves access');
   assert.match(toggleBlock, /UPDATE users SET is_active=\?,credential_version=credential_version\+1/);
   assert.doesNotMatch(toggleBlock, /password_status=|password_hash=/);
-  assert.ok(loginBlock.includes('WHERE is_active = 1'));
+  assert.doesNotMatch(loginBlock, /WHERE is_active = 1/, 'login may identify a disabled account but must not create a session for it');
+  assert.ok(loginBlock.indexOf('password_verify') < loginBlock.indexOf('account_disabled'));
   assert.doesNotMatch(loginBlock, /password_status[^\n]*disabled|disabled[^\n]*password_status/, 'legacy status cannot override active access');
   assert.doesNotMatch(loginBlock, /UPDATE users SET is_active/);
   assert.ok(sessionBlock.includes('AND u.is_active = 1 LIMIT 1'));
@@ -274,6 +288,8 @@ test('production and owner UI contracts keep password save independent, scoped, 
   assert.match(accessMigration, /COLUMN_NAME IN \('password_status','must_change_password','temporary_expires_at'\)/, 'migration guards its 021 dependency order');
 
   assert.ok(component.includes('/credentials/password'));
+  assert.ok(component.includes('CLIENT_PASSWORD_HINT'));
+  assert.ok(component.includes('CLIENT_PASSWORD_MIN_LENGTH'));
   assert.ok(component.includes('type={passwordVisible ? \'text\' : \'password\'}'));
   assert.ok(component.includes('إظهار كلمة المرور الجديدة'));
   assert.equal(component.includes('current_password'), false);

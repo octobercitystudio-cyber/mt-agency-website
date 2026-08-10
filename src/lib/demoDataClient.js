@@ -5,8 +5,22 @@ import { cairoDateKey, centsToMoney, moneyToCents, packageFinancialSummary, pack
 import { getBookingAvailability } from '../erp/bookingAvailability.js';
 import { buildDemoClientServiceHistory } from './clientServiceHistory.js';
 import { cairoDateTimeToIso, cairoDateTimeToEpoch } from './promotionTime.js';
+import { FIXED_SERVICE_CATEGORIES, RETIRED_SERVICE_CATEGORIES, isFixedServiceCategory, validateCustomCategory } from './serviceCategories.js';
+import { isValidClientPassword } from './clientPasswordPolicy.js';
+import { isSellablePackageTemplate, normalizedPackageUnit, packageDraftExpiry, validatePackageDraft } from './clientPackageDraft.js';
 
 const STORAGE_KEY = 'mt_agency_erp_demo_v12';
+
+const normalizeDemoServiceBody = (body, before = null) => {
+  const category = String(body.category ?? before?.category ?? '').trim().replace(/\s+/g, ' ');
+  const sameLegacy = before && RETIRED_SERVICE_CATEGORIES.includes(before.category) && category === before.category;
+  const customError = !isFixedServiceCategory(category) && !sameLegacy ? validateCustomCategory(category) : '';
+  if (customError || RETIRED_SERVICE_CATEGORIES.includes(category) && !sameLegacy) throw formationDemoError(customError || 'تصنيف خدمات إضافية متوقف.', 'invalid_service_category');
+  const fixed = FIXED_SERVICE_CATEGORIES.some(item => item.value === category);
+  const projectStyle = ['جرافيك', 'مونتاج'].includes(category) || !fixed && !sameLegacy;
+  if (projectStyle) return { ...body, category, billing_unit: 'project', auto_start_timer: 0, total_hours: 0, payment_due_hours: 0, total_reels: 0 };
+  return { ...body, category, billing_unit: category === 'باقة ريلز' ? 'reel' : 'hour' };
+};
 
 let demoMode = false;
 let demoRole = 'owner';
@@ -28,6 +42,7 @@ const createDemoTemporaryPassword = () => {
 };
 const containsControlCharacter = value => [...String(value)].some(character => { const code = character.codePointAt(0); return code < 32 || code === 127; });
 const validDemoPassword = value => String(value).length >= 12 && /\p{L}/u.test(String(value)) && /\d/.test(String(value)) && !containsControlCharacter(value);
+const validDemoClientPassword = isValidClientPassword;
 const rememberDemoVerifier = (clientId, verifier) => {
   const history = demoPasswordHistory.get(Number(clientId)) || [];
   demoPasswordHistory.set(Number(clientId), [verifier, ...history.filter(item => item !== verifier)].slice(0, 5));
@@ -43,7 +58,7 @@ const dateOnly = (offset = 0) => {
 const dateTime = (offset = 0, time = '12:00:00') => `${dateOnly(offset)} ${time}`;
 const nowText = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
 const nowIso = () => new Date().toISOString();
-const clone = value => JSON.parse(JSON.stringify(value));
+const clone = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 
 const demoBookingDurationMinutes = booking => {
   const [startHours, startMinutes] = String(booking?.start_time || '00:00').split(':').map(Number);
@@ -619,6 +634,13 @@ const formationDemoError = (message, code = 'validation_error') => {
   return error;
 };
 
+export const normalizeDemoPhone = value => {
+  let phone = String(value || '').replace(/\D+/g, '');
+  if (phone.startsWith('0020')) phone = phone.slice(4);
+  if (phone.startsWith('20') && phone.length === 12) phone = phone.slice(2);
+  return phone;
+};
+
 const assertDemoBookingAvailable = (database, candidate, excludeBookingId = null) => {
   const availability = getBookingAvailability(candidate, database.bookings, { excludeBookingId });
   if (availability.status === 'available') return availability;
@@ -857,8 +879,8 @@ const demoOwnerImpact = (database, entity, id) => {
   else if (entity === 'invoices') { links = { payments: count('payment_allocations', row => Number(row.invoice_id) === Number(id)), projects: count('projects', row => Number(row.invoice_id) === Number(id)) }; action = 'cancel'; explanation = 'الفواتير لا تُحذف؛ ستُلغى مع بقاء الدفعات والروابط.'; }
   else if (entity === 'users') { links = { attendance: count('attendance_records', row => Number(row.user_id) === Number(id)), tasks: count('project_tasks', row => Number(row.assigned_to) === Number(id)), audit: count('audit_logs', row => Number(row.user_id) === Number(id)) }; action = 'deactivate'; explanation = 'سيُعطّل الحساب مع بقاء الحضور والمهام والتدقيق.'; }
   else if (entity === 'resources') { links = { bookings: count('bookings', row => Number(row.resource_id) === Number(id)) }; action = 'deactivate'; explanation = 'سيُعطّل المورد للحجوزات الجديدة مع بقاء مواعيده السابقة.'; }
-  else if (entity === 'services') { links = { packages: count('client_packages', row => Number(row.service_id) === Number(id)), bookings: count('bookings', row => Number(row.service_id) === Number(id)), invoices: count('invoice_items', row => Number(row.service_id) === Number(id)), offers: count('offer_items', row => Number(row.service_id) === Number(id)) }; action = record.is_draft && !Object.values(links).some(Boolean) ? 'hard_delete' : 'archive'; explanation = action === 'hard_delete' ? 'الخدمة مسودة غير مستخدمة ويمكن حذفها.' : 'ستُؤرشف الخدمة ويظل التاريخ التجاري محفوظًا.'; }
-  const labels = { bookings: 'الحجوزات', packages: 'الباقات', projects: 'المشروعات', offers: 'العروض', invoices: 'الفواتير', payments: 'الدفعات', finance: 'الحسابات', requests: 'الطلبات', notifications: 'الإشعارات', sessions: 'جلسات التصوير', ledger: 'حركات الساعات', history: 'تاريخ الحالة', completed_stages: 'مراحل مكتملة', published_content: 'محتوى منشور', other_stages: 'مراحل أخرى', items: 'البنود', attendance: 'سجلات الحضور', tasks: 'المهام', audit: 'سجل التدقيق' };
+  else if (entity === 'services') { links = { packages: count('client_packages', row => Number(row.service_id) === Number(id)), bookings: count('bookings', row => Number(row.service_id) === Number(id)), invoices: count('invoice_items', row => Number(row.service_id) === Number(id)), offers: count('offer_items', row => Number(row.service_id) === Number(id)), settlements: count('session_settlement_allocations', row => Number(row.service_id) === Number(id)) }; action = !Object.values(links).some(Boolean) ? 'hard_delete' : 'archive'; explanation = action === 'hard_delete' ? 'الخدمة غير مستخدمة ويمكن حذفها نهائيًا.' : 'ستُؤرشف الخدمة ويظل التاريخ التجاري والباقات المباعة محفوظًا.'; }
+  const labels = { bookings: 'الحجوزات', packages: 'الباقات', projects: 'المشروعات', offers: 'العروض', invoices: 'الفواتير', payments: 'الدفعات', finance: 'الحسابات', requests: 'الطلبات', notifications: 'الإشعارات', sessions: 'جلسات التصوير', settlements: 'توزيعات تسوية الجلسات', ledger: 'حركات الساعات', history: 'تاريخ الحالة', completed_stages: 'مراحل مكتملة', published_content: 'محتوى منشور', other_stages: 'مراحل أخرى', items: 'البنود', attendance: 'سجلات الحضور', tasks: 'المهام', audit: 'سجل التدقيق' };
   return { entity, id: Number(id), record_name: record[definition[1]] || `#${id}`, record, action, result_title: ({ hard_delete: 'السجل مؤهل للحذف النهائي', archive: 'أرشفة آمنة تحفظ التاريخ', cancel: 'إلغاء موثق يحفظ الروابط', deactivate: 'تعطيل الوصول مع حفظ السجل' })[action], explanation, links, link_labels: labels, total_links: Object.values(links).reduce((a, b) => a + b, 0), requires_confirmation: action === 'hard_delete' };
 };
 
@@ -952,7 +974,7 @@ const demoRequest = async (path, options = {}) => {
     requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
     const nextPassword = String(body.new_password || ''); const confirmation = String(body.confirm_password || ''); const requireChange = Boolean(body.require_change);
     if (nextPassword !== confirmation) throw formationDemoError('تأكيد كلمة المرور غير مطابق.', 'password_confirmation_mismatch');
-    if (!validDemoPassword(nextPassword)) throw formationDemoError('كلمة المرور الجديدة يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 'weak_password');
+    if (!validDemoClientPassword(nextPassword)) throw formationDemoError('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.', 'weak_password');
     const clientId = Number(client.id); const nextHash = await demoSecretHash(nextPassword); const currentHash = client.password_status === 'temporary' ? demoTemporaryVerifiers.get(clientId) : demoPermanentVerifiers.get(clientId);
     if (currentHash === nextHash) throw formationDemoError('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.', 'password_reuse');
     if ((demoPasswordHistory.get(clientId) || []).includes(nextHash)) throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse');
@@ -983,7 +1005,7 @@ const demoRequest = async (path, options = {}) => {
     requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client?.portal_account_exists) throw formationDemoError('عيّن كلمة مرور أولًا لإنشاء حساب العميل.', 'client_credential_required'); client.portal_enabled = Boolean(body.enabled); client.portal_active_sessions = 0; client.credential_version = Number(client.credential_version || 0) + 1; demoCredentialSessionVersion = null; demoAudit(database, body.enabled ? 'client_portal_enabled' : 'client_portal_disabled', 'users', Number(client.id), null, { client_id: Number(client.id), enabled: Boolean(body.enabled), sessions_revoked: true }); writeDatabase(database); return { enabled: Boolean(body.enabled) };
   }
   if (route === '/auth/password' && options.method === 'PATCH') {
-    if (demoRole !== 'client') throw formationDemoError('غير مصرح.', 'forbidden'); const client = findById(database, 'clients', 1); if (!client?.must_change_password) throw formationDemoError('لا توجد كلمة مرور معلقة للتغيير.', 'password_change_not_required'); if (!validDemoPassword(body.password)) throw formationDemoError('كلمة المرور الجديدة يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 'weak_password'); const clientId = Number(client.id); const nextHash = await demoSecretHash(body.password); const currentHash = client.password_status === 'temporary' ? demoTemporaryVerifiers.get(clientId) : demoPermanentVerifiers.get(clientId); if (nextHash === currentHash) throw formationDemoError('اختر كلمة مرور مختلفة عن كلمة المرور الحالية أو المؤقتة.', 'password_reuse'); if ((demoPasswordHistory.get(clientId) || []).includes(nextHash)) throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse'); if (currentHash) rememberDemoVerifier(clientId, currentHash); demoTemporaryVerifiers.delete(clientId); demoPermanentVerifiers.set(clientId, nextHash); Object.assign(client, { must_change_password: false, password_status: 'active', password_changed_at: nowText(), temporary_expires_at: null, portal_active_sessions: 1, credential_version: Number(client.credential_version || 0) + 1 }); demoCredentialSessionVersion = Number(client.credential_version); demoAudit(database, 'password_changed', 'users', Number(client.id), null, { client_id: Number(client.id), forced: true, sessions_revoked: true }); writeDatabase(database); return { updated: true, session: { active: true }, user: { id: 'local-client', client_id: 'local-client-preview', full_name: `${client.name} (معاينة محلية)`, email: client.email, phone: client.phone1, role: 'client', permissions: ['client_portal'], must_change_password: false, password_status: 'active', credential_version: Number(client.credential_version), credential_managed: true, is_local_preview: true } };
+    if (demoRole !== 'client') throw formationDemoError('غير مصرح.', 'forbidden'); const client = findById(database, 'clients', 1); if (!client?.must_change_password) throw formationDemoError('لا توجد كلمة مرور معلقة للتغيير.', 'password_change_not_required'); if (!validDemoClientPassword(body.password)) throw formationDemoError('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.', 'weak_password'); const clientId = Number(client.id); const nextHash = await demoSecretHash(body.password); const currentHash = client.password_status === 'temporary' ? demoTemporaryVerifiers.get(clientId) : demoPermanentVerifiers.get(clientId); if (nextHash === currentHash) throw formationDemoError('اختر كلمة مرور مختلفة عن كلمة المرور الحالية أو المؤقتة.', 'password_reuse'); if ((demoPasswordHistory.get(clientId) || []).includes(nextHash)) throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse'); if (currentHash) rememberDemoVerifier(clientId, currentHash); demoTemporaryVerifiers.delete(clientId); demoPermanentVerifiers.set(clientId, nextHash); Object.assign(client, { must_change_password: false, password_status: 'active', password_changed_at: nowText(), temporary_expires_at: null, portal_active_sessions: 1, credential_version: Number(client.credential_version || 0) + 1 }); demoCredentialSessionVersion = Number(client.credential_version); demoAudit(database, 'password_changed', 'users', Number(client.id), null, { client_id: Number(client.id), forced: true, sessions_revoked: true }); writeDatabase(database); return { updated: true, session: { active: true }, user: { id: 'local-client', client_id: 'local-client-preview', full_name: `${client.name} (معاينة محلية)`, email: client.email, phone: client.phone1, role: 'client', permissions: ['client_portal'], must_change_password: false, password_status: 'active', credential_version: Number(client.credential_version), credential_managed: true, is_local_preview: true } };
   }
 
   if ((match = route.match(/^\/owner\/records\/([a-z_]+)\/(\d+)\/impact$/)) && (options.method || 'GET') === 'GET') { const impact = demoOwnerImpact(database, match[1], match[2]); const result = clone(impact); delete result.record; return result; }
@@ -1088,30 +1110,55 @@ const demoRequest = async (path, options = {}) => {
     Object.assign(target, safeBody, { updated_at: nowText() }); writeDatabase(database); return { id: Number(match[1]) };
   }
 
-  if (route === '/clients' && options.method === 'POST') { const row = addRow(database, 'clients', { ...body, status: 'active', color: body.color || '#2563eb', points: 0, debt: 0, credit: 0 }); writeDatabase(database); return row; }
+  if (route === '/clients' && options.method === 'POST') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('غير مصرح بإنشاء عميل.', 'forbidden');
+    const name = String(body.name || '').trim();
+    const phone1 = normalizeDemoPhone(body.phone1);
+    if (!name || phone1.length < 10) throw formationDemoError('اسم العميل ورقم الهاتف الصحيح مطلوبان.', 'validation_error');
+    const organizationId = 1;
+    const duplicate = database.clients.some(client => Number(client.organization_id || 1) === organizationId && normalizeDemoPhone(client.phone1) === phone1);
+    if (duplicate) { const error = formationDemoError('رقم الهاتف أو البريد مستخدم بالفعل.', 'duplicate_client'); error.status = 409; throw error; }
+    const preferredContact = ['whatsapp', 'phone', 'email'].includes(body.preferred_contact) ? body.preferred_contact : 'whatsapp';
+    const row = addRow(database, 'clients', { ...body, organization_id: organizationId, name, phone1, phone2: body.phone2 ? normalizeDemoPhone(body.phone2) : null, preferred_contact: preferredContact, whatsapp_opt_in: body.whatsapp_opt_in == null ? 1 : Number(Boolean(Number(body.whatsapp_opt_in))), status: 'active', color: body.color || '#6D28D9', points: 0, debt: 0, credit: 0 });
+    demoAudit(database, 'create', 'clients', row.id, null, { name, phone1, portal_access: false });
+    writeDatabase(database);
+    return { id: row.id, portal_access: false };
+  }
   if ((match = route.match(/^\/clients\/(\d+)\/access$/))) return { client_id: Number(match[1]), demo: true };
 
   if (route === '/services' && options.method === 'POST') {
-    requireDemoOwner(); const reason = demoReason(body); const row = addRow(database, 'services', { ...body, price: centsToMoney(moneyToCents(body.price)), overage_price: centsToMoney(moneyToCents(body.overage_price || 0)), is_active: body.is_active === false ? 0 : 1, is_draft: body.is_draft ? 1 : 0, version: 1 }); demoAudit(database, 'owner_create_service', 'services', row.id, null, { ...row, reason }); writeDatabase(database); return row;
+    requireDemoOwner(); const reason = demoReason(body); const values = normalizeDemoServiceBody(body); const row = addRow(database, 'services', { ...values, price: centsToMoney(moneyToCents(values.price)), overage_price: centsToMoney(moneyToCents(values.overage_price || 0)), is_active: values.is_active === false ? 0 : 1, is_draft: values.is_draft ? 1 : 0, version: 1 }); demoAudit(database, 'owner_create_service', 'services', row.id, null, { ...row, reason }); writeDatabase(database); return row;
   }
   if ((match = route.match(/^\/services\/(\d+)$/)) && options.method === 'PATCH') {
-    requireDemoOwner(); const reason = demoReason(body); const service = findById(database, 'services', match[1]); if (!service) throw formationDemoError('الخدمة غير موجودة.', 'service_not_found'); const before = clone(service); Object.assign(service, body, { price: centsToMoney(moneyToCents(body.price ?? service.price)), overage_price: centsToMoney(moneyToCents(body.overage_price ?? service.overage_price)), version: Number(service.version || 1) + 1, updated_at: nowText() }); demoAudit(database, 'owner_update_service', 'services', service.id, before, { ...clone(service), reason }); writeDatabase(database); return clone(service);
+    requireDemoOwner(); const reason = demoReason(body); const service = findById(database, 'services', match[1]); if (!service) throw formationDemoError('الخدمة غير موجودة.', 'service_not_found'); const before = clone(service); const values = normalizeDemoServiceBody(body, service); Object.assign(service, values, { price: centsToMoney(moneyToCents(values.price ?? service.price)), overage_price: centsToMoney(moneyToCents(values.overage_price ?? service.overage_price)), version: Number(service.version || 1) + 1, updated_at: nowText() }); demoAudit(database, 'owner_update_service', 'services', service.id, before, { ...clone(service), reason }); writeDatabase(database); return clone(service);
   }
   if ((match = route.match(/^\/services\/(\d+)\/archive$/)) && options.method === 'POST') {
-    requireDemoOwner(); const reason = demoReason(body); const service = findById(database, 'services', match[1]); if (!service) throw formationDemoError('الخدمة غير موجودة.', 'service_not_found'); const refs = database.client_packages.filter(row => Number(row.service_id) === Number(service.id)).length + database.bookings.filter(row => Number(row.service_id) === Number(service.id)).length; const before = clone(service); if (body.hard_delete && !refs && service.is_draft && body.confirmation === 'DELETE') { database.services = database.services.filter(row => Number(row.id) !== Number(service.id)); demoAudit(database, 'hard_delete_unused_service', 'services', service.id, before, { reason }); writeDatabase(database); return { id: service.id, deleted: true, archived: false }; } Object.assign(service, { is_active: 0, archive_reason: reason, archived_by: 1, archived_at: nowText(), version: Number(service.version || 1) + 1 }); demoAudit(database, 'archive_service', 'services', service.id, before, clone(service)); writeDatabase(database); return { id: service.id, deleted: false, archived: true, references: refs };
+    requireDemoOwner(); const reason = demoReason(body); const service = findById(database, 'services', match[1]); if (!service) throw formationDemoError('الخدمة غير موجودة.', 'service_not_found'); const refTables = ['client_packages','bookings','offer_items','invoice_items','session_settlement_allocations']; const refs = refTables.reduce((sum, table) => sum + tableRows(database, table).filter(row => Number(row.service_id) === Number(service.id)).length, 0); const before = clone(service); if (body.hard_delete && !refs && body.confirmation === 'DELETE') { database.services = database.services.filter(row => Number(row.id) !== Number(service.id)); demoAudit(database, 'hard_delete_unused_service', 'services', service.id, before, { reason }); writeDatabase(database); return { id: service.id, deleted: true, archived: false }; } Object.assign(service, { is_active: 0, archive_reason: reason, archived_by: 1, archived_at: nowText(), version: Number(service.version || 1) + 1 }); demoAudit(database, 'archive_service', 'services', service.id, before, clone(service)); writeDatabase(database); return { id: service.id, deleted: false, archived: true, references: refs };
   }
   if (route === '/audit-logs' && (options.method || 'GET') === 'GET') { requireDemoOwner(); const entityType = url.searchParams.get('entity_type'); const entityId = Number(url.searchParams.get('entity_id') || 0); return clone(database.audit_logs.filter(row => (!entityType || row.entity_type === entityType) && (!entityId || Number(row.entity_id) === entityId)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))); }
 
   if (route === '/client-packages' && options.method === 'POST') {
-    const service = findById(database, 'services', body.service_id);
-    const expires = new Date(`${body.starts_at}T12:00:00`); expires.setDate(expires.getDate() + Number(body.validity_days || service?.validity_days || 90));
-    const unit = body.billing_unit || service?.billing_unit || 'hour';
-    const purchasedMinutes = unit === 'hour' ? demoSettlementMinutes(body.quantity) : null;
-    const paymentDueMinutes = unit === 'hour' ? demoSettlementMinutes(service?.payment_due_hours || 0) : null;
-    const row = addRow(database, 'client_packages', { client_id: body.client_id, service_id: body.service_id, name: body.name || service?.name, billing_unit: unit, purchased_quantity: unit === 'hour' ? demoSettlementHours(purchasedMinutes) : Number(body.quantity), purchased_minutes: purchasedMinutes, held_quantity: 0, held_minutes: unit === 'hour' ? 0 : null, consumed_quantity: 0, consumed_minutes: unit === 'hour' ? 0 : null, payment_due_quantity: unit === 'hour' ? demoSettlementHours(paymentDueMinutes) : Number(service?.payment_due_hours || 0), payment_due_minutes: paymentDueMinutes, deposit_percent_snapshot: Number(service?.deposit_percent || 0), overage_price_snapshot: Number(service?.overage_price || 0), total_price: Number(body.total_price), overage_amount: 0, paid_amount: Number(body.paid_amount || 0), starts_at: body.starts_at, expires_at: `${expires.getFullYear()}-${pad(expires.getMonth() + 1)}-${pad(expires.getDate())}`, status: 'active' });
-    addDemoPackageUsage(database, row, { movement_type: 'adjustment', quantity: Number(body.quantity), quantity_minutes: purchasedMinutes, reason: 'إنشاء وبيع الباقة', event_key: `package:${row.id}:opening` });
-    if (Number(body.paid_amount) > 0) addRow(database, 'finance', { type: 'إيراد', entry_kind: 'income', category: 'package_payment', client_id: body.client_id, amount: Number(body.paid_amount), method: body.payment_method || 'كاش', detail: `دفعة ${row.name}`, date: dateOnly(), entity: 'الشركة' });
-    writeDatabase(database); return row;
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لبيع باقة.', 'forbidden');
+    const key = String(body.idempotency_key || '').trim(); if (!key || key.length > 128 || !/^[A-Za-z0-9._:-]+$/.test(key)) throw formationDemoError('مفتاح أمان عملية البيع غير صحيح.', 'invalid_idempotency_key');
+    const hash = JSON.stringify({ client_id: Number(body.client_id), service_id: Number(body.service_id), name: String(body.name || '').trim(), billing_unit: body.billing_unit, starts_at: body.starts_at, validity_days: Number(body.validity_days), quantity: String(body.quantity), payment_due_quantity: String(body.payment_due_quantity), deposit_percent_snapshot: String(body.deposit_percent_snapshot), overage_price_snapshot: String(body.overage_price_snapshot), total_price: String(body.total_price), paid_amount: String(body.paid_amount), payment_method: body.payment_method, notes: String(body.notes || '').trim() });
+    const prior = tableRows(database, 'client_package_sale_requests').find(item => item.idempotency_key === key);
+    if (prior) { if (prior.request_hash !== hash) { const mismatch = formationDemoError('مفتاح العملية مستخدم لبيانات مختلفة.', 'idempotency_payload_mismatch'); mismatch.status = 409; throw mismatch; } return { ...clone(prior.response), idempotent: true }; }
+    const service = findById(database, 'services', body.service_id); const client = findById(database, 'clients', body.client_id);
+    if (!service || !isSellablePackageTemplate(service)) throw formationDemoError('الخدمة غير موجودة أو ليست قالب باقة قابلًا للبيع.', 'custom_service_requires_project');
+    if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
+    const unit = normalizedPackageUnit(service); if (body.billing_unit !== unit) throw formationDemoError('وحدة الرصيد يجب أن تطابق نوع قالب الخدمة.', 'invalid_billing_unit');
+    const draft = { ...body, client_id: String(body.client_id), service_id: String(body.service_id) }; const errors = validatePackageDraft(draft); if (Object.keys(errors).length) throw formationDemoError(Object.values(errors)[0], 'invalid_package_sale');
+    if (unit === 'reel' && !Number.isInteger(Number(body.quantity))) throw formationDemoError('رصيد الريلز يجب أن يكون عددًا صحيحًا.', 'invalid_package_quantity');
+    const expiresAt = packageDraftExpiry(draft); if (body.expires_at && body.expires_at !== expiresAt) throw formationDemoError('تاريخ الانتهاء لا يطابق مدة الصلاحية.', 'expiry_mismatch');
+    const working = clone(database); const request = addRow(working, 'client_package_sale_requests', { idempotency_key: key, request_hash: hash, status: 'processing', response: null, created_by: 1 });
+    const failAt = stage => { if (body.__test_fail_at === stage) throw formationDemoError('تعطل تجريبي قبل اعتماد العملية.', 'demo_fault_injected'); };
+    const quantity = Number(body.quantity); const paymentDueQuantity = Number(body.payment_due_quantity || 0); const purchasedMinutes = unit === 'hour' ? demoSettlementMinutes(quantity) : null; const paymentDueMinutes = unit === 'hour' ? demoSettlementMinutes(paymentDueQuantity) : null; const totalCents = moneyToCents(body.total_price); const paidCents = moneyToCents(body.paid_amount); const overageCents = moneyToCents(body.overage_price_snapshot);
+    const row = addRow(working, 'client_packages', { client_id: Number(body.client_id), service_id: Number(body.service_id), name: String(body.name).trim(), notes: String(body.notes || '').trim(), billing_unit: unit, purchased_quantity: unit === 'hour' ? demoSettlementHours(purchasedMinutes) : quantity, purchased_minutes: purchasedMinutes, held_quantity: 0, held_minutes: unit === 'hour' ? 0 : null, consumed_quantity: 0, consumed_minutes: unit === 'hour' ? 0 : null, payment_due_quantity: unit === 'hour' ? demoSettlementHours(paymentDueMinutes) : paymentDueQuantity, payment_due_minutes: paymentDueMinutes, deposit_percent_snapshot: Number(body.deposit_percent_snapshot), overage_price_snapshot: centsToMoney(overageCents), total_price: centsToMoney(totalCents), overage_amount: 0, paid_amount: centsToMoney(paidCents), starts_at: body.starts_at, expires_at: expiresAt, status: 'active', version: 1 }); failAt('package');
+    addDemoPackageUsage(working, row, { movement_type: 'opening', quantity: row.purchased_quantity, quantity_minutes: purchasedMinutes, reason: 'إنشاء وبيع الباقة', event_key: `package:${row.id}:opening` }); failAt('ledger');
+    let payment = null; if (paidCents > 0) { payment = addRow(working, 'payments', { client_id: row.client_id, client_name: client.name, amount: centsToMoney(paidCents), method: body.payment_method, status: 'approved', reference: `package-${row.id}-opening`, reviewed_by: 1, reviewed_at: nowText(), version: 1 }); addRow(working, 'payment_allocations', { client_id: row.client_id, payment_id: payment.id, payment_proof_id: null, client_package_id: row.id, invoice_id: null, amount: centsToMoney(paidCents) }); addRow(working, 'finance', { type: 'إيراد', entry_kind: 'income', category: 'package_payment', client_id: row.client_id, amount: centsToMoney(paidCents), method: body.payment_method, detail: `دفعة إنشاء باقة ${row.name}`, date: dateOnly(), entity: 'الشركة', source_type: 'payment', source_id: payment.id, correlation_id: `payment:${payment.id}`, is_system: 1, version: 1 }); } failAt('finance');
+    demoAudit(working, 'create', 'client_packages', row.id, null, clone(row)); failAt('audit');
+    const response = { id: row.id, expires_at: expiresAt, payment_id: payment?.id || null, billing_unit: unit, purchased_quantity: row.purchased_quantity, paid_amount: row.paid_amount, idempotent: false }; Object.assign(request, { status: 'completed', response: clone(response), completed_at: nowText() });
+    writeDatabase(working); return response;
   }
   if ((match = route.match(/^\/client-packages\/(\d+)$/)) && options.method === 'PATCH') { requireDemoOwner(); const reason = demoReason(body); const pkg = findById(database, 'client_packages', match[1]); if (!pkg) throw formationDemoError('الباقة غير موجودة.', 'package_not_found'); const before = clone(pkg); ['name','notes','starts_at','expires_at','status'].forEach(field => { if (Object.prototype.hasOwnProperty.call(body, field)) pkg[field] = body[field]; }); pkg.version = Number(pkg.version || 1) + 1; pkg.updated_at = nowText(); demoAudit(database, 'owner_update_package', 'client_packages', pkg.id, before, { ...clone(pkg), reason }); writeDatabase(database); return clone(pkg); }
   if ((match = route.match(/^\/client-packages\/(\d+)\/adjust$/))) {

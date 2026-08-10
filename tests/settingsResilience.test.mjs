@@ -11,7 +11,7 @@ test('settings safely formats numeric strings returned by Hostinger', async () =
   assert.match(settings, /const formatServicePrice = value =>/);
   assert.match(settings, /Number\.isFinite\(price\)/);
   assert.doesNotMatch(settings, /s\.price\.toFixed/);
-  assert.equal((settings.match(/formatServicePrice\(s\.price\)/g) || []).length, 5);
+  assert.equal((settings.match(/formatServicePrice\(s\.price\)/g) || []).length, 1);
 });
 
 test('stale lazy-route assets trigger one guarded application refresh', async () => {

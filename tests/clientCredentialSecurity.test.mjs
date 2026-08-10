@@ -39,9 +39,9 @@ test('credential controls are owner-only and forced completion rejects reuse', a
   activateDemoMode('client');
   const reused = await demoClient.auth.updateUser({ password: issued.temporary_password });
   assert.equal(reused.error?.code, 'password_reuse');
-  const weak = await demoClient.auth.updateUser({ password: 'short1' });
+  const weak = await demoClient.auth.updateUser({ password: 'shor1' });
   assert.equal(weak.error?.code, 'weak_password');
-  const changed = await demoClient.auth.updateUser({ password: 'ClientSafe2026!' });
+  const changed = await demoClient.auth.updateUser({ password: 'abcdef' });
   assert.equal(changed.error, null);
   assert.equal(changed.data.user.must_change_password, false);
   assert.equal(await authenticateDemoClientCredential(issued.login_identifier, issued.temporary_password), null, 'the consumed temporary password cannot authenticate again');
@@ -141,7 +141,10 @@ test('production contracts enforce versioned sessions, forced allowlist, token r
   assert.equal(modal.includes('/access'), false);
   assert.ok(security.includes('لن تظهر هذه البيانات مرة أخرى'));
   assert.ok(security.includes('setHandoff(null)'));
-  assert.ok(forced.includes('12 حرفًا على الأقل'));
+  assert.ok(forced.includes('CLIENT_PASSWORD_HINT'));
+  assert.ok(forced.includes('CLIENT_PASSWORD_MIN_LENGTH'));
+  assert.equal(forced.includes('تحتوي حرفًا'), false);
+  assert.equal(forced.includes('تحتوي رقمًا'), false);
   assert.ok(app.includes('/change-password'));
   assert.ok(login.includes("must_change_password ? '/change-password' : '/dashboard'"));
 });
