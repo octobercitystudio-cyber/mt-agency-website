@@ -1,6 +1,6 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
+import { Link } from 'react-router-dom';
 import './Contact.css';
 
 const Contact = () => {
@@ -24,6 +24,7 @@ const Contact = () => {
             <p className="contact-desc">
               {t('contact.description')}
             </p>
+            <Link className="public-preview-link" to="/contact">{isEnglish ? 'Open the full contact page' : 'افتح صفحة التواصل الكاملة'}</Link>
             
             <div className="contact-details-row">
               <div className="contact-item">

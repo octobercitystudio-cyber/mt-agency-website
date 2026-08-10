@@ -1,13 +1,27 @@
 import { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import HomePage from './pages/HomePage';
-import UnifiedLogin from './pages/UnifiedLogin';
-import ClientDashboard from './pages/ClientDashboard';
 import { DataProvider, useData } from './store/DataContext';
-import ERPLayout from './erp/ERPLayout';
-import ERPDashboard from './erp/ERPDashboard';
+import PublicLayout from './layouts/PublicLayout';
 
 const ERP_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
+
+const PrivateSurface = ({ children }) => <><Helmet><meta name="robots" content="noindex, nofollow" /></Helmet>{children}</>;
+
+const UnifiedLogin = lazy(() => import('./pages/UnifiedLogin'));
+const ForcedPasswordChange = lazy(() => import('./pages/ForcedPasswordChange'));
+const ClientDashboard = lazy(() => import('./pages/ClientDashboard'));
+const ERPLayout = lazy(() => import('./erp/ERPLayout'));
+const ERPDashboard = lazy(() => import('./erp/ERPDashboard'));
+const loadPublicPages = () => import('./pages/PublicPages');
+const ServicesIndexPage = lazy(() => loadPublicPages().then((module) => ({ default: module.ServicesIndexPage })));
+const ServiceDetailPage = lazy(() => loadPublicPages().then((module) => ({ default: module.ServiceDetailPage })));
+const AboutPage = lazy(() => loadPublicPages().then((module) => ({ default: module.AboutPage })));
+const PortfolioPage = lazy(() => loadPublicPages().then((module) => ({ default: module.PortfolioPage })));
+const StudiosPage = lazy(() => loadPublicPages().then((module) => ({ default: module.StudiosPage })));
+const ContactPage = lazy(() => loadPublicPages().then((module) => ({ default: module.ContactPage })));
+const PublicNotFound = lazy(() => loadPublicPages().then((module) => ({ default: module.PublicNotFound })));
 
 // Lazy Load Admin Components
 const AdminLayout = lazy(() => import('./admin/AdminLayout'));
@@ -53,6 +67,14 @@ const ErpProtectedRoute = ({ children }) => {
 const ClientProtectedRoute = ({ children }) => {
   const { currentUser } = useData();
   if (currentUser?.role !== 'client') return <Navigate to="/login" replace />;
+  if (currentUser.must_change_password) return <Navigate to="/change-password" replace />;
+  return children;
+};
+
+const ForcedPasswordRoute = ({ children }) => {
+  const { currentUser } = useData();
+  if (currentUser?.role !== 'client') return <Navigate to="/login" replace />;
+  if (!currentUser.must_change_password) return <Navigate to="/dashboard" replace />;
   return children;
 };
 
@@ -70,16 +92,12 @@ const ScrollToTop = () => {
       window.history.scrollRestoration = 'manual';
     }
     
-    // Clear any hash (#portfolio, etc.) from URL on fresh load
-    if (window.location.hash) {
-      window.history.replaceState(null, '', window.location.pathname);
-    }
-    
-    // Force scroll to top with a slight delay to ensure rendering is complete
+    if (pathname === '/' && window.location.hash) return undefined;
     window.scrollTo(0, 0);
     setTimeout(() => {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     }, 100);
+    return undefined;
   }, [pathname]);
 
   // Listen to hash changes (e.g. mobile back button returning to empty hash)
@@ -103,16 +121,26 @@ function App() {
         <ScrollToTop />
         <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0a0a0a', color: '#7a28cb' }}>جاري التحميل...</div>}>
           <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/login" element={<UnifiedLogin />} />
-            <Route path="/dashboard" element={<ClientProtectedRoute><ClientDashboard /></ClientProtectedRoute>} />
-            <Route path="/adminmt/login" element={<AdminLogin />} />
+            <Route element={<PublicLayout />}>
+              <Route index element={<HomePage />} />
+              <Route path="services" element={<ServicesIndexPage />} />
+              <Route path="services/:slug" element={<ServiceDetailPage />} />
+              <Route path="about" element={<AboutPage />} />
+              <Route path="portfolio" element={<PortfolioPage />} />
+              <Route path="studios" element={<StudiosPage />} />
+              <Route path="contact" element={<ContactPage />} />
+              <Route path="*" element={<PublicNotFound />} />
+            </Route>
+            <Route path="/login" element={<PrivateSurface><UnifiedLogin /></PrivateSurface>} />
+            <Route path="/change-password" element={<PrivateSurface><ForcedPasswordRoute><ForcedPasswordChange /></ForcedPasswordRoute></PrivateSurface>} />
+            <Route path="/dashboard" element={<PrivateSurface><ClientProtectedRoute><ClientDashboard /></ClientProtectedRoute></PrivateSurface>} />
+            <Route path="/adminmt/login" element={<PrivateSurface><AdminLogin /></PrivateSurface>} />
             <Route 
               path="/erp/*" 
               element={
-                <ErpProtectedRoute>
+                <PrivateSurface><ErpProtectedRoute>
                   <ERPLayout />
-                </ErpProtectedRoute>
+                </ErpProtectedRoute></PrivateSurface>
               }
             >
               <Route index element={<ERPDashboard />} />
@@ -133,9 +161,9 @@ function App() {
             <Route 
               path="/adminmt/*" 
               element={
-                <ProtectedRoute>
+                <PrivateSurface><ProtectedRoute>
                   <AdminLayout />
-                </ProtectedRoute>
+                </ProtectedRoute></PrivateSurface>
               }
             >
               <Route index element={<Navigate to="hero" replace />} />

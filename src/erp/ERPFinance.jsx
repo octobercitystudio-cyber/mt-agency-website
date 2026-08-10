@@ -887,7 +887,7 @@ function RevenueIdentity({ entry }) {
 }
 
 const FINANCE_CATEGORY_LABELS = {
-  client_revenue: 'إيراد عميل', other_income: 'إيراد آخر', package_payment: 'دفعة باقة', payment_correction: 'تصحيح دفعة',
+  client_revenue: 'إيراد عميل', client_payment: 'دفعة عميل', other_income: 'إيراد آخر', package_payment: 'دفعة باقة', payment_correction: 'تصحيح دفعة',
   rent: 'إيجار', equipment: 'معدات وصيانة', utilities: 'مرافق واتصالات', marketing: 'تسويق وإعلانات',
   transport: 'انتقالات', general_expense: 'مصروف عام', reminder_expense: 'سداد تذكير', wallet_adjustment: 'تسوية خزينة',
   partner_settlement: 'سداد مستحقات', partner_advance: 'سلفة شريك', partner_advance_repayment: 'سداد سلفة', internal_transfer: 'تحويل داخلي',

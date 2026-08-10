@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
+Disallow: /login
+Disallow: /change-password
+Disallow: /dashboard
+Disallow: /erp/
+Disallow: /adminmt/
 
 Sitemap: https://multitaskagency.com/sitemap.xml

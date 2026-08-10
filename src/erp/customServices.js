@@ -12,6 +12,7 @@ export const CUSTOM_SERVICES = {
   social_media: { label: 'إدارة سوشيال', hint: 'باقة شهرية أو مخصصة', icon: Share2, unit: 'شهر', pricing: ['monthly', 'custom'] },
   event_coverage: { label: 'تغطية فعالية', hint: 'حسب التجهيزات والموعد', icon: CalendarCheck2, unit: 'فعالية', pricing: ['custom', 'project'] },
   ai_video: { label: 'فيديو بالذكاء الاصطناعي', hint: 'لكل فيديو أو إنتاج مخصص', icon: Sparkles, unit: 'فيديو', pricing: ['per_video', 'custom'] },
+  custom: { label: 'خدمة مخصصة', hint: 'مرنة بالكامل حسب احتياج العميل', icon: Sparkles, unit: 'مشروع', pricing: ['custom'] },
 };
 
 export const serviceMeta = type => CUSTOM_SERVICES[type] || {

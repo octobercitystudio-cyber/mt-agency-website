@@ -1,86 +1,46 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 
-const SEO = ({ title, description, keywords, url, isPage = false, section = 'home' }) => {
+const SITE_URL = 'https://multitaskagency.com';
+
+const SEO = ({ title, description, keywords, url = '', section = 'home', schema, noIndex = false }) => {
   const { i18n } = useTranslation();
   const { siteData } = useData();
-  const isEn = i18n.language === 'en';
-
+  const isEn = String(i18n.language).startsWith('en');
   const seoData = siteData?.seo || {};
-  const globalSeo = seoData.global || { siteName: "MT Agency", siteNameEn: "MT Agency", defaultImage: "" };
-  
-  // Fallback to home if section is missing or empty
-  const sectionSeo = seoData[section] || seoData['home'] || {
-    titleAr: "إم تي إيجنسي | نصنع التأثير",
-    titleEn: "MT Agency | We Drive Impact",
-    descAr: "إم تي إيجنسي متخصصة في الإنتاج الإعلامي",
-    descEn: "MT Agency specializes in media production",
-    keywordsAr: "إنتاج إعلامي, تسويق رقمي",
-    keywordsEn: "media production, digital marketing"
-  };
-
-  const siteName = isEn ? globalSeo.siteNameEn : globalSeo.siteName;
-  const defaultTitle = (isEn ? sectionSeo.titleEn : sectionSeo.titleAr) || (isEn ? seoData['home']?.titleEn : seoData['home']?.titleAr);
-  const defaultDescription = (isEn ? sectionSeo.descEn : sectionSeo.descAr) || (isEn ? seoData['home']?.descEn : seoData['home']?.descAr);
-  const defaultKeywords = (isEn ? sectionSeo.keywordsEn : sectionSeo.keywordsAr) || (isEn ? seoData['home']?.keywordsEn : seoData['home']?.keywordsAr);
-  const defaultUrl = "https://multitaskagency.com";
-  
-  const finalTitle = title ? `${siteName} | ${title}` : defaultTitle;
-  const finalDescription = description || defaultDescription;
-  const finalKeywords = keywords || defaultKeywords;
-  const finalUrl = url ? `${defaultUrl}${url}` : defaultUrl;
-  const socialImage = globalSeo.defaultImage || "https://multitaskagency.com/logo.png";
-
-  // JSON-LD Structured Data
-  const structuredData = {
-    "@context": "https://schema.org",
-    "@type": "ProfessionalService",
-    "name": siteName,
-    "image": socialImage,
-    "@id": defaultUrl,
-    "url": defaultUrl,
-    "telephone": siteData?.contact?.phone || "",
-    "address": {
-      "@type": "PostalAddress",
-      "addressLocality": "6th of October City",
-      "addressRegion": "Giza",
-      "addressCountry": "EG"
-    },
-    "description": finalDescription,
-    "sameAs": [
-      siteData?.contact?.facebook,
-      siteData?.contact?.instagram,
-      siteData?.contact?.youtube
-    ].filter(Boolean)
-  };
+  const globalSeo = seoData.global || { siteName: 'MT Agency', siteNameEn: 'MT Agency', defaultImage: '' };
+  const sectionSeo = seoData[section] || seoData.home || {};
+  const siteName = (isEn ? globalSeo.siteNameEn : globalSeo.siteName) || 'MT Agency';
+  const fallbackTitle = (isEn ? sectionSeo.titleEn : sectionSeo.titleAr) || `${siteName} | ${isEn ? 'We Drive Impact' : 'نصنع التأثير'}`;
+  const fallbackDescription = (isEn ? sectionSeo.descEn : sectionSeo.descAr) || (isEn ? 'Integrated media production, marketing and digital products.' : 'إنتاج إعلامي وتسويق ومنتجات رقمية متكاملة.');
+  const fallbackKeywords = (isEn ? sectionSeo.keywordsEn : sectionSeo.keywordsAr) || '';
+  const finalTitle = title ? `${title} | ${siteName}` : fallbackTitle;
+  const finalDescription = description || fallbackDescription;
+  const finalKeywords = Array.isArray(keywords) ? keywords.join(', ') : (keywords || fallbackKeywords);
+  const path = url ? (String(url).startsWith('/') ? String(url) : `/${url}`) : '/';
+  const canonicalUrl = `${SITE_URL}${path === '/' ? '/' : path.replace(/\/$/, '')}`;
+  const socialImage = globalSeo.defaultImage || `${SITE_URL}/logo.webp`;
+  const schemas = (Array.isArray(schema) ? schema : schema ? [schema] : []).filter(Boolean);
 
   return (
     <Helmet>
-      {/* Standard Meta */}
       <title>{finalTitle}</title>
       <meta name="description" content={finalDescription} />
-      <meta name="keywords" content={finalKeywords} />
-      
-      {/* Open Graph / Social Media */}
+      {finalKeywords && <meta name="keywords" content={finalKeywords} />}
+      <meta name="robots" content={noIndex ? 'noindex, nofollow' : 'index, follow'} />
+      <link rel="canonical" href={canonicalUrl} />
+      <meta property="og:type" content="website" />
+      <meta property="og:site_name" content={siteName} />
       <meta property="og:title" content={finalTitle} />
       <meta property="og:description" content={finalDescription} />
-      <meta property="og:url" content={finalUrl} />
-      {socialImage && <meta property="og:image" content={socialImage} />}
-      
-      {/* Twitter */}
+      <meta property="og:url" content={canonicalUrl} />
+      <meta property="og:image" content={socialImage} />
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={finalTitle} />
       <meta name="twitter:description" content={finalDescription} />
-      {socialImage && <meta name="twitter:image" content={socialImage} />}
-
-      {/* Structured Data (Only inject on main pages to avoid duplicates) */}
-      {!isPage && (
-        <script type="application/ld+json">
-          {JSON.stringify(structuredData)}
-        </script>
-      )}
+      <meta name="twitter:image" content={socialImage} />
+      {schemas.map((item, index) => <script key={`${item['@type'] || 'schema'}-${index}`} type="application/ld+json">{JSON.stringify(item)}</script>)}
     </Helmet>
   );
 };

@@ -3,6 +3,8 @@
   position: relative;
 }
 
+.service-card{display:block;color:#fff;position:relative}.service-card:hover{color:#fff}.service-card__number{display:block;font-family:var(--font-latin);font-size:.75rem;color:#c678ff;font-weight:900;margin-bottom:18px}.service-card__link{min-height:44px;display:flex;align-items:center;gap:8px;margin-top:16px;color:#fff;font-weight:800;font-size:.82rem}.service-card__link svg,.services-all-link svg{width:17px}.services-all-link{display:flex;justify-content:center;margin-top:34px}.services-all-link a{min-height:48px;padding:11px 18px;display:flex;align-items:center;gap:8px;color:#fff;border-bottom:1px solid #9d4edd;font-weight:800}
+
 .section-title {
   text-align: center;
   font-size: 3rem;

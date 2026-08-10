@@ -8,6 +8,7 @@ import ERPPageHero from './ERPPageHero';
 import { formatDateTime12, formatEGP } from '../lib/businessFormat';
 import { promotionApi } from '../lib/promotionApi';
 import { cairoDateTimeToEpoch } from '../lib/promotionTime';
+import useModalDialog from '../hooks/useModalDialog';
 import './ERPPromotions.css';
 
 const cairoInput = (date = new Date()) => new Intl.DateTimeFormat('sv-SE', {
@@ -35,6 +36,14 @@ const STATUS = {
   active: ['نشط الآن', 'success'], scheduled: ['مجدول', 'info'], paused: ['متوقف', 'warning'], draft: ['مسودة', 'neutral'], expired: ['منتهي', 'danger'],
 };
 const toForm = promotion => ({ ...promotion, starts_at: String(promotion.starts_at).replace(' ', 'T').slice(0, 16), ends_at: String(promotion.ends_at).replace(' ', 'T').slice(0, 16), popup_enabled: Boolean(Number(promotion.popup_enabled)), banner_enabled: Boolean(Number(promotion.banner_enabled)), original_price: promotion.original_price ?? '', promotional_price: promotion.promotional_price ?? '', terms: promotion.terms || '', badge: promotion.badge || '', discount_text: promotion.discount_text || '', public_title_en: promotion.public_title_en || '', badge_en: promotion.badge_en || '', description_en: promotion.description_en || '', discount_text_en: promotion.discount_text_en || '', cta_label_en: promotion.cta_label_en || '' });
+const validatePromotion = form => {
+  if (!form.internal_title.trim() || !form.public_title.trim() || !form.description.trim()) return 'أكمل العنوان الداخلي والعام والوصف.';
+  if (!form.starts_at || !form.ends_at || parseLocal(form.ends_at) <= parseLocal(form.starts_at)) return 'نهاية العرض يجب أن تكون بعد بدايته.';
+  if (form.promotional_price === '' && !form.discount_text.trim()) return 'أدخل السعر الترويجي أو نص قيمة العرض.';
+  if (form.original_price !== '' && form.promotional_price !== '' && Number(form.promotional_price) >= Number(form.original_price)) return 'السعر الترويجي يجب أن يكون أقل من الأصلي.';
+  if (!/^#[-\w]+$/.test(form.cta_url) && !/^\/(?!\/)/.test(form.cta_url) && !/^https?:\/\//i.test(form.cta_url)) return 'أدخل رابطًا داخليًا أو رابط ويب آمنًا.';
+  return '';
+};
 const remaining = (end, now) => {
   const seconds = Math.max(0, Math.floor((parseLocal(end) - now) / 1000));
   const days = Math.floor(seconds / 86400); const hours = Math.floor((seconds % 86400) / 3600); const minutes = Math.floor((seconds % 3600) / 60);
@@ -49,6 +58,7 @@ export default function ERPPromotions() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [filter, setFilter] = useState('all');
+  const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyPromotion);
@@ -76,7 +86,7 @@ export default function ERPPromotions() {
   }, { active: 0, scheduled: 0, expired: 0 }), [promotions, now]);
   const visible = useMemo(() => promotions.filter(promotion => filter === 'all' || effectiveStatus(promotion, now) === filter), [promotions, filter, now]);
 
-  const openCreate = event => { triggerRef.current = event?.currentTarget || null; setEditingId(null); setForm(emptyPromotion()); setPreviewMode('popup'); setError(''); setDrawerOpen(true); };
+  const openCreate = () => { setError(''); setCreateDrawerOpen(true); };
   const openEdit = (promotion, event) => { triggerRef.current = event?.currentTarget || null; setEditingId(promotion.id); setForm(toForm(promotion)); setPreviewMode(promotion.popup_enabled ? 'popup' : 'banner'); setError(''); setDrawerOpen(true); };
   const closeDrawer = useCallback(() => { setDrawerOpen(false); setEditingId(null); }, []);
 
@@ -105,17 +115,8 @@ export default function ERPPromotions() {
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = oldOverflow; window.requestAnimationFrame(() => previous?.focus()); };
   }, [drawerOpen, closeDrawer]);
 
-  const validate = () => {
-    if (!form.internal_title.trim() || !form.public_title.trim() || !form.description.trim()) return 'أكمل العنوان الداخلي والعام والوصف.';
-    if (!form.starts_at || !form.ends_at || parseLocal(form.ends_at) <= parseLocal(form.starts_at)) return 'نهاية العرض يجب أن تكون بعد بدايته.';
-    if (form.promotional_price === '' && !form.discount_text.trim()) return 'أدخل السعر الترويجي أو نص قيمة العرض.';
-    if (form.original_price !== '' && form.promotional_price !== '' && Number(form.promotional_price) >= Number(form.original_price)) return 'السعر الترويجي يجب أن يكون أقل من الأصلي.';
-    if (!/^#[-\w]+$/.test(form.cta_url) && !/^\/(?!\/)/.test(form.cta_url) && !/^https?:\/\//i.test(form.cta_url)) return 'أدخل رابطًا داخليًا أو رابط ويب آمنًا.';
-    return '';
-  };
-
   const save = async event => {
-    event.preventDefault(); const validation = validate(); if (validation) return setError(validation);
+    event.preventDefault(); const validation = validatePromotion(form); if (validation) return setError(validation);
     setBusy('save'); setError(''); setNotice('');
     try {
       await promotionApi.request(editingId ? `/${editingId}` : '', { method: editingId ? 'PATCH' : 'POST', body: JSON.stringify(form) });
@@ -160,7 +161,8 @@ export default function ERPPromotions() {
 
     {loading && !promotions.length ? <PromotionState loading title="جارٍ تجهيز مركز العروض" text="نسترجع الحملات ومواعيد ظهورها." /> : error && !promotions.length ? <PromotionState title="تعذر تحميل العروض" text="تحقق من الاتصال أو تطبيق ترحيل قاعدة البيانات، ثم أعد المحاولة." action="إعادة المحاولة" onAction={load} /> : !visible.length ? <PromotionState title={promotions.length ? 'لا توجد عروض ضمن هذا المرشح' : 'ابدأ أول حملة حصرية'} text={promotions.length ? 'اختر حالة أخرى أو أنشئ عرضًا جديدًا.' : 'أنشئ عرضًا مؤقتًا مع نافذة منبثقة وشريط بيع مستمر للموقع.'} action="إنشاء عرض" onAction={openCreate} /> : <section className="promotion-list" aria-label="قائمة العروض">{visible.map(promotion => <PromotionCard key={promotion.id} promotion={promotion} now={now} busy={busy} onEdit={openEdit} onStatus={changeStatus} onDuplicate={duplicate} onArchive={archive} />)}</section>}
 
-    {drawerOpen && <PromotionDrawer drawerRef={drawerRef} form={form} setForm={setForm} editing={Boolean(editingId)} previewMode={previewMode} setPreviewMode={setPreviewMode} busy={busy} onSave={save} onClose={closeDrawer} />}
+    <ERPCreatePromotionDrawer isOpen={createDrawerOpen} onClose={() => setCreateDrawerOpen(false)} onSuccess={load} />
+    {drawerOpen && <PromotionDrawer drawerRef={drawerRef} form={form} setForm={setForm} editing={Boolean(editingId)} previewMode={previewMode} setPreviewMode={setPreviewMode} busy={busy} error={error} onSave={save} onClose={closeDrawer} />}
   </div>;
 }
 
@@ -179,11 +181,12 @@ function PromotionCard({ promotion, now, busy, onEdit, onStatus, onDuplicate, on
   </article>;
 }
 
-const PromotionDrawer = ({ drawerRef, form, setForm, editing, previewMode, setPreviewMode, busy, onSave, onClose }) => {
+const PromotionDrawer = ({ drawerRef, form, setForm, editing, previewMode, setPreviewMode, busy, error, onSave, onClose }) => {
   const update = (field, value) => setForm(current => ({ ...current, [field]: value }));
   return <div className="promotion-drawer-overlay" onMouseDown={event => event.target === event.currentTarget && onClose()}><aside ref={drawerRef} className="promotion-drawer" role="dialog" aria-modal="true" aria-labelledby="promotion-drawer-title">
     <header><div><span>{editing ? 'تعديل حملة' : 'حملة جديدة'}</span><h2 id="promotion-drawer-title">{editing ? form.internal_title : 'إنشاء عرض حصري'}</h2><p>المحتوى والتوقيت والظهور العام في مسار مراجعة واحد.</p></div><button type="button" onClick={onClose} aria-label="إغلاق محرر العرض"><X /></button></header>
     <form onSubmit={onSave}>
+      {error && <div className="promotion-feedback error" role="alert"><X />{error}</div>}
       <div className="promotion-form-column">
         <fieldset><legend><span>01</span> المحتوى</legend><label>العنوان الداخلي<input value={form.internal_title} onChange={event => update('internal_title', event.target.value)} required placeholder="مثال: حملة افتتاح فرع أكتوبر" /></label><label>العنوان الظاهر للزائر<input value={form.public_title} onChange={event => update('public_title', event.target.value)} required placeholder="صوّر حملتك القادمة بسعر حصري" /></label><div className="promotion-form-grid"><label>شارة قصيرة<input value={form.badge} onChange={event => update('badge', event.target.value)} maxLength="60" /></label><label>الأولوية<input type="number" min="0" max="999" value={form.priority} onChange={event => update('priority', event.target.value)} /></label></div><label>الوصف المقنع<textarea rows="3" value={form.description} onChange={event => update('description', event.target.value)} required placeholder="وصف مختصر يوضح القيمة ويحفز الزائر على اتخاذ الإجراء." /></label></fieldset>
         <fieldset className="promotion-english-fields"><legend><span>EN</span> النسخة الإنجليزية <small>اختيارية</small></legend><label>Public title<input dir="ltr" value={form.public_title_en} onChange={event => update('public_title_en', event.target.value)} maxLength="180" placeholder="Exclusive campaign title" /></label><div className="promotion-form-grid"><label>Badge<input dir="ltr" value={form.badge_en} onChange={event => update('badge_en', event.target.value)} maxLength="60" placeholder="Limited time" /></label><label>CTA label<input dir="ltr" value={form.cta_label_en} onChange={event => update('cta_label_en', event.target.value)} maxLength="80" placeholder="Claim the offer" /></label></div><label>Description<textarea dir="ltr" rows="3" value={form.description_en} onChange={event => update('description_en', event.target.value)} placeholder="A concise English description for visitors." /></label><label>Discount / value text<input dir="ltr" value={form.discount_text_en} onChange={event => update('discount_text_en', event.target.value)} maxLength="100" placeholder="Save EGP 5,100" /></label></fieldset>
@@ -196,6 +199,45 @@ const PromotionDrawer = ({ drawerRef, form, setForm, editing, previewMode, setPr
     </form>
   </aside></div>;
 };
+
+export function ERPCreatePromotionDrawer({ isOpen, onClose, onSuccess }) {
+  const [form, setForm] = useState(emptyPromotion);
+  const [previewMode, setPreviewMode] = useState('popup');
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const close = useCallback(() => { if (!busy) onClose(); }, [busy, onClose]);
+  const drawerRef = useModalDialog(isOpen, close);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = window.setTimeout(() => {
+      setForm(emptyPromotion());
+      setPreviewMode('popup');
+      setError('');
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isOpen]);
+
+  const save = async event => {
+    event.preventDefault();
+    const validation = validatePromotion(form);
+    if (validation) return setError(validation);
+    setBusy('save'); setError('');
+    try {
+      await promotionApi.request('', { method: 'POST', body: JSON.stringify(form) });
+      window.dispatchEvent(new CustomEvent('erpPromotionsUpdated'));
+      await onSuccess?.();
+      onClose();
+    } catch (requestError) {
+      setError(requestError.message || 'تعذر حفظ العرض.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  if (!isOpen) return null;
+  return <PromotionDrawer drawerRef={drawerRef} form={form} setForm={setForm} editing={false} previewMode={previewMode} setPreviewMode={setPreviewMode} busy={busy} error={error} onSave={save} onClose={close} />;
+}
 
 function PromotionPreview({ form, mode }) {
   const value = form.promotional_price !== '' ? formatEGP(form.promotional_price) : form.discount_text || 'قيمة العرض';

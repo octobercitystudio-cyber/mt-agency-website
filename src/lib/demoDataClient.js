@@ -2,11 +2,36 @@ import { getProjectStageTemplate } from './projectStageTemplates.js';
 import { allocateFormationExpense, summarizeFormationFund, toCents } from './formationFundMath.js';
 import { socialAmountToCents, socialCentsToAmount, summarizeSocialProfits } from './socialProfitMath.js';
 import { cairoDateKey, centsToMoney, moneyToCents, packageFinancialSummary, packageQuantitySummary, remainingBusinessDays } from './businessFormat.js';
+import { getBookingAvailability } from '../erp/bookingAvailability.js';
+import { buildDemoClientServiceHistory } from './clientServiceHistory.js';
+import { cairoDateTimeToIso, cairoDateTimeToEpoch } from './promotionTime.js';
 
 const STORAGE_KEY = 'mt_agency_erp_demo_v12';
 
 let demoMode = false;
 let demoRole = 'owner';
+const demoTemporaryVerifiers = new Map();
+const demoPermanentVerifiers = new Map();
+const demoPasswordHistory = new Map();
+let demoCredentialSessionVersion = null;
+
+const demoSecretHash = async value => {
+  const bytes = new TextEncoder().encode(String(value));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+};
+const createDemoTemporaryPassword = () => {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  const bytes = new Uint8Array(20); crypto.getRandomValues(bytes);
+  const generated = [...bytes].map(byte => alphabet[byte % alphabet.length]).join('');
+  return `Aa7!${generated}`;
+};
+const containsControlCharacter = value => [...String(value)].some(character => { const code = character.codePointAt(0); return code < 32 || code === 127; });
+const validDemoPassword = value => String(value).length >= 12 && /\p{L}/u.test(String(value)) && /\d/.test(String(value)) && !containsControlCharacter(value);
+const rememberDemoVerifier = (clientId, verifier) => {
+  const history = demoPasswordHistory.get(Number(clientId)) || [];
+  demoPasswordHistory.set(Number(clientId), [verifier, ...history.filter(item => item !== verifier)].slice(0, 5));
+};
 
 const pad = value => String(value).padStart(2, '0');
 const dateOnly = (offset = 0) => {
@@ -17,11 +42,144 @@ const dateOnly = (offset = 0) => {
 };
 const dateTime = (offset = 0, time = '12:00:00') => `${dateOnly(offset)} ${time}`;
 const nowText = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+const nowIso = () => new Date().toISOString();
 const clone = value => JSON.parse(JSON.stringify(value));
+
+const demoBookingDurationMinutes = booking => {
+  const [startHours, startMinutes] = String(booking?.start_time || '00:00').split(':').map(Number);
+  const [endHours, endMinutes] = String(booking?.end_time || '00:00').split(':').map(Number);
+  let duration = ((endHours * 60) + endMinutes) - ((startHours * 60) + startMinutes);
+  if (duration <= 0) duration += 24 * 60;
+  return duration;
+};
+const demoOfferExpiryIso = value => value ? cairoDateTimeToIso(`${value}T23:59:59`) : null;
+const demoCairoNowIso = () => {
+  const instant = Math.floor(Date.now() / 1000) * 1000;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(instant)).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  const wallUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second)); const offsetMinutes = Math.round((wallUtc - instant) / 60000); const sign = offsetMinutes >= 0 ? '+' : '-'; const absolute = Math.abs(offsetMinutes);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}${sign}${pad(Math.floor(absolute / 60))}:${pad(absolute % 60)}`;
+};
+const demoClientOfferDto = (database, offer, includeItems = false, now = Date.now()) => {
+  const rawItems = database.offer_items.filter(item => Number(item.offer_id) === Number(offer.id));
+  const items = rawItems.map(item => ({ id: Number(item.id), description: String(item.description), quantity: Number(item.quantity), unit: String(item.unit), unit_price: Number(item.unit_price), total: Number(item.total) }));
+  const status = ['sent', 'accepted', 'cancelled'].includes(offer.status) ? offer.status : 'cancelled';
+  const expiresAt = demoOfferExpiryIso(offer.valid_until); let effectiveStatus = status;
+  if (status === 'sent' && expiresAt && cairoDateTimeToEpoch(expiresAt) <= now) effectiveStatus = 'expired';
+  const dto = { id: Number(offer.id), offer_number: String(offer.offer_number), title: String(offer.title), status, effective_status: effectiveStatus, subtotal: Number(offer.subtotal), discount: Number(offer.discount), total: Number(offer.total), valid_until: offer.valid_until || null, expires_at: expiresAt, notes: offer.notes || null, item_count: items.length, item_preview: items.slice(0, 2).map(item => item.description), created_at: offer.created_at ? new Date(offer.created_at.replace(' ', 'T')).toISOString() : null, updated_at: offer.updated_at ? new Date(offer.updated_at.replace(' ', 'T')).toISOString() : null, accepted_at: offer.accepted_at ? new Date(offer.accepted_at.replace(' ', 'T')).toISOString() : null, version: Number(offer.version || 1) };
+  if (includeItems) dto.items = items;
+  return dto;
+};
+const orderDemoClientOffers = items => [...items].sort((a, b) => {
+  const rank = status => status === 'sent' ? 0 : status === 'accepted' ? 1 : 2; const byRank = rank(a.effective_status) - rank(b.effective_status); if (byRank) return byRank;
+  if (a.effective_status === 'sent') return (a.expires_at ? cairoDateTimeToEpoch(a.expires_at) : Number.MAX_SAFE_INTEGER) - (b.expires_at ? cairoDateTimeToEpoch(b.expires_at) : Number.MAX_SAFE_INTEGER) || a.id - b.id;
+  return String(b.accepted_at || b.updated_at || b.created_at || '').localeCompare(String(a.accepted_at || a.updated_at || a.created_at || '')) || b.id - a.id;
+});
+
+const demoActiveSession = (database, session) => {
+  const booking = findById(database, 'bookings', session.booking_id);
+  const pkg = booking?.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null;
+  const requested = Number(booking?.requested_quantity || session.requested_quantity || 0);
+  const packageHeld = Number(pkg?.held_quantity || session.held_quantity || 0);
+  return clone({
+    ...session,
+    started_at_iso: session.started_at_iso || new Date(`${String(session.started_at).replace(' ', 'T')}Z`).toISOString(),
+    client_id: booking?.client_id || session.client_id,
+    client_package_id: booking?.client_package_id || session.client_package_id,
+    client_name: booking?.client_name || session.client_name,
+    service: booking?.service || session.service,
+    package_name: pkg?.name || session.package_name,
+    billing_unit: pkg?.billing_unit || session.billing_unit || 'hour',
+    resource_id: booking?.resource_id || session.resource_id,
+    date: booking?.date,
+    start_time: booking?.start_time,
+    end_time: booking?.end_time,
+    duration_minutes: Number(booking?.duration_minutes || demoBookingDurationMinutes(booking)),
+    requested_quantity: requested,
+    purchased_quantity: pkg?.purchased_quantity,
+    consumed_quantity: pkg?.consumed_quantity,
+    held_quantity: packageHeld,
+    booking_held_quantity: pkg ? demoBookingHeldQuantity(database, booking?.id, pkg.id) : Math.min(packageHeld, requested),
+    booking_status: booking?.status,
+  });
+};
+
+const demoClientActiveSession = session => ({
+  id: Number(session.id),
+  booking_id: Number(session.booking_id),
+  status: 'active',
+  service: session.service || 'جلسة تصوير',
+  package_name: session.package_name || null,
+  started_at_iso: session.started_at_iso,
+  date: session.date || null,
+  start_time: session.start_time || null,
+  end_time: session.end_time || null,
+  booking_status: session.booking_status || 'in_progress',
+});
+
+const demoSettlementMinutes = hours => Math.max(0, Math.round(Number(hours || 0) * 60));
+const demoSettlementHours = minutes => Number((Math.max(0, Number(minutes || 0)) / 60).toFixed(4));
+const demoPackageMinutes = (pkg, name) => Number.isSafeInteger(Number(pkg?.[`${name}_minutes`]))
+  ? Math.max(0, Number(pkg[`${name}_minutes`]))
+  : demoSettlementMinutes(pkg?.[`${name}_quantity`]);
+const mutateDemoPackageQuantities = (pkg, { purchased = 0, held = 0, consumed = 0, purchased_minutes = null, held_minutes = null, consumed_minutes = null } = {}) => {
+  if (pkg.billing_unit === 'hour') {
+    const purchasedMinutes = demoPackageMinutes(pkg, 'purchased') + (Number.isSafeInteger(Number(purchased_minutes)) ? Number(purchased_minutes) : Math.round(Number(purchased) * 60));
+    const heldMinutes = demoPackageMinutes(pkg, 'held') + (Number.isSafeInteger(Number(held_minutes)) ? Number(held_minutes) : Math.round(Number(held) * 60));
+    const consumedMinutes = demoPackageMinutes(pkg, 'consumed') + (Number.isSafeInteger(Number(consumed_minutes)) ? Number(consumed_minutes) : Math.round(Number(consumed) * 60));
+    if (Math.min(purchasedMinutes, heldMinutes, consumedMinutes) < 0 || heldMinutes + consumedMinutes > purchasedMinutes) throw formationDemoError('حركة الدقائق ستتجاوز رصيد الباقة المتاح.', 'package_minute_balance_conflict');
+    Object.assign(pkg, { purchased_minutes: purchasedMinutes, purchased_quantity: demoSettlementHours(purchasedMinutes), held_minutes: heldMinutes, held_quantity: demoSettlementHours(heldMinutes), consumed_minutes: consumedMinutes, consumed_quantity: demoSettlementHours(consumedMinutes) });
+  } else {
+    const next = { purchased_quantity: Number(pkg.purchased_quantity || 0) + Number(purchased), held_quantity: Number(pkg.held_quantity || 0) + Number(held), consumed_quantity: Number(pkg.consumed_quantity || 0) + Number(consumed) };
+    if (Math.min(next.purchased_quantity, next.held_quantity, next.consumed_quantity) < -0.000001 || next.held_quantity + next.consumed_quantity > next.purchased_quantity + 0.000001) throw formationDemoError('حركة الرصيد ستتجاوز كمية الباقة المتاحة.', 'package_quantity_balance_conflict');
+    Object.assign(pkg, next);
+  }
+  return pkg;
+};
+const demoPackageAvailable = pkg => pkg.billing_unit === 'hour'
+  ? Math.max(0, (demoPackageMinutes(pkg, 'purchased') - demoPackageMinutes(pkg, 'held') - demoPackageMinutes(pkg, 'consumed')) / 60)
+  : Math.max(0, Number(pkg.purchased_quantity || 0) - Number(pkg.held_quantity || 0) - Number(pkg.consumed_quantity || 0));
+const addDemoPackageUsage = (database, pkg, { booking_id = null, movement_type, quantity = 0, quantity_minutes = null, reason, event_key }) => {
+  const signed = movement_type === 'adjustment';
+  const minutes = pkg.billing_unit === 'hour' ? (Number.isSafeInteger(Number(quantity_minutes)) ? Number(quantity_minutes) : Math.round(Number(quantity) * 60)) : null;
+  const normalizedMinutes = minutes == null ? null : (signed ? minutes : Math.abs(minutes));
+  const normalizedQuantity = pkg.billing_unit === 'hour' ? Number((normalizedMinutes / 60).toFixed(4)) : (signed ? Number(quantity) : Math.abs(Number(quantity)));
+  return addRow(database, 'package_usage_ledger', { client_package_id: pkg.id, booking_id, movement_type, quantity: normalizedQuantity, quantity_minutes: normalizedMinutes, reason, event_key, created_by: 1 });
+};
+const demoBookingHeldMinutes = (database, bookingId, packageId) => Math.max(0, tableRows(database, 'package_usage_ledger').filter(row => Number(row.booking_id) === Number(bookingId) && Number(row.client_package_id) === Number(packageId)).reduce((sum, row) => {
+  const minutes = Number.isSafeInteger(Number(row.quantity_minutes)) ? Number(row.quantity_minutes) : demoSettlementMinutes(row.quantity);
+  return sum + (row.movement_type === 'hold' ? minutes : ['release', 'consume'].includes(row.movement_type) ? -minutes : 0);
+}, 0));
+const demoBookingHeldQuantity = (database, bookingId, packageId) => demoSettlementHours(demoBookingHeldMinutes(database, bookingId, packageId));
+const demoSettlementHash = value => {
+  const normalize = item => Array.isArray(item) ? item.map(normalize) : item && typeof item === 'object' ? Object.keys(item).sort().reduce((out, key) => ({ ...out, [key]: normalize(item[key]) }), {}) : item;
+  const text = JSON.stringify(normalize(value)); let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) { hash ^= text.charCodeAt(index); hash = Math.imul(hash, 16777619); }
+  return `demo-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+};
+
+const demoSettlementPreview = (database, bookingId, actualMinutes) => {
+  const actual = Number(actualMinutes); if (!Number.isSafeInteger(actual) || actual < 1) throw formationDemoError('حدد مدة تصوير صحيحة بالدقائق.', 'invalid_actual_duration');
+  const booking = findById(database, 'bookings', bookingId); if (!booking) throw formationDemoError('الحجز غير موجود.', 'booking_not_found');
+  const session = tableRows(database, 'booking_sessions').find(row => Number(row.booking_id) === Number(booking.id)); if (!session) throw formationDemoError('لا توجد جلسة تصوير لهذا الحجز.', 'session_not_found');
+  if (session.status !== 'active') throw formationDemoError('جلسة التصوير لم تعد نشطة.', 'invalid_session_state');
+  const pkg = booking.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null;
+  const heldMinutes = pkg ? demoSettlementMinutes(session.booking_held_quantity ?? Math.min(Number(pkg.held_quantity || 0), Number(booking.requested_quantity || 0))) : 0;
+  if (pkg && heldMinutes < 1) throw formationDemoError('لا يوجد رصيد محجوز صالح لهذا الموعد.', 'missing_package_hold');
+  const freeOriginal = pkg?.billing_unit === 'hour' ? Math.max(0, demoPackageMinutes(pkg, 'purchased') - demoPackageMinutes(pkg, 'consumed') - demoPackageMinutes(pkg, 'held')) : 0;
+  const covered = pkg?.billing_unit === 'hour' ? Math.min(actual, heldMinutes + freeOriginal) : actual;
+  const excess = Math.max(0, actual - covered);
+  const today = cairoDateKey();
+  const eligiblePackages = tableRows(database, 'client_packages').filter(row => Number(row.client_id) === Number(booking.client_id) && Number(row.id) !== Number(pkg?.id) && row.billing_unit === 'hour' && row.status === 'active' && String(row.starts_at).slice(0, 10) <= today && String(row.expires_at).slice(0, 10) >= today).map(row => ({ ...row, free_minutes: Math.max(0, demoPackageMinutes(row, 'purchased') - demoPackageMinutes(row, 'consumed') - demoPackageMinutes(row, 'held')) })).filter(row => row.free_minutes >= excess).map(row => ({ id: row.id, name: row.name, service_id: row.service_id, free_minutes: row.free_minutes, remaining_after_minutes: row.free_minutes - excess, expires_at: row.expires_at }));
+  const packageTemplates = tableRows(database, 'services').filter(row => row.billing_unit === 'hour' && Number(row.is_active ?? 1) === 1).map(row => ({ id: row.id, name: row.name, total_minutes: demoSettlementMinutes(row.total_hours), validity_days: row.validity_days, price: centsToMoney(moneyToCents(row.price)), overage_rate: centsToMoney(moneyToCents(row.overage_price)) }));
+  const overageRate = centsToMoney(moneyToCents(pkg?.overage_price_snapshot || findById(database, 'services', booking.service_id)?.overage_price || 0));
+  const version = Number(session.settlement_version || 1);
+  const snapshot = { session_id: session.id, session_version: version, actual_minutes: actual, held_minutes: heldMinutes, free_original_minutes: freeOriginal, covered_minutes: covered, excess_minutes: excess, package_id: pkg?.id || 0, package_minutes: pkg ? [demoPackageMinutes(pkg, 'purchased'), demoPackageMinutes(pkg, 'consumed'), demoPackageMinutes(pkg, 'held')] : [0, 0, 0], eligible: eligiblePackages.map(row => [row.id, row.free_minutes]), rate: overageRate };
+  return { actual_minutes: actual, held_for_booking_minutes: heldMinutes, free_unheld_original_minutes: freeOriginal, covered_minutes: covered, excess_minutes: excess, eligible_packages: eligiblePackages, package_templates: packageTemplates, overage_rate: overageRate, default_mode: eligiblePackages.length ? 'existing_package' : Number(overageRate) > 0 ? 'package_overage' : 'custom_invoice', session_version: version, preview_hash: demoSettlementHash(snapshot) };
+};
 
 const createDemoDatabase = () => ({
   clients: [
-    { id: 1, name: 'سارة أحمد', company_name: 'سارة بيوتي', contact_person: 'سارة أحمد', phone1: '01012345678', phone2: '01124567890', email: 'sara@example.com', job: 'صاحبة علامة تجارية', address: 'الشيخ زايد', city: 'الجيزة', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, color: '#2563eb', notes: 'تفضل مواعيد بعد الساعة 4 مساءً', debt: 0, credit: 500, points: 180, points_updated_at: dateOnly(-12), status: 'active', created_at: dateTime(-120) },
+    { id: 1, name: 'سارة أحمد', company_name: 'سارة بيوتي', contact_person: 'سارة أحمد', phone1: '01012345678', phone2: '01124567890', email: 'sara@example.com', job: 'صاحبة علامة تجارية', address: 'الشيخ زايد', city: 'الجيزة', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, color: '#2563eb', notes: 'تفضل مواعيد بعد الساعة 4 مساءً', debt: 0, credit: 500, points: 180, points_updated_at: dateOnly(-12), status: 'active', portal_account_exists: true, portal_enabled: true, password_status: 'active', must_change_password: false, credential_version: 1, portal_active_sessions: 0, created_at: dateTime(-120) },
     { id: 2, name: 'د. محمد عادل', company_name: 'أكاديمية عادل', contact_person: 'محمد عادل', phone1: '01023456789', email: 'adel@example.com', job: 'مدرب أعمال', address: 'المهندسين', city: 'الجيزة', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, color: '#7c3aed', notes: 'تصوير كورسات تعليمية طويلة', debt: 2500, credit: 0, points: 95, points_updated_at: dateOnly(-25), status: 'active', created_at: dateTime(-95) },
     { id: 3, name: 'محمود سامي', company_name: 'Fit House', contact_person: 'محمود سامي', phone1: '01034567890', email: 'fit@example.com', job: 'مدير تسويق', address: '6 أكتوبر', city: 'الجيزة', preferred_contact: 'phone', whatsapp_opt_in: 1, color: '#059669', notes: 'عميل باقة ريلز شهرية', debt: 0, credit: 0, points: 210, points_updated_at: dateOnly(-5), status: 'active', created_at: dateTime(-80) },
     { id: 4, name: 'نور خالد', company_name: 'Noura Home', contact_person: 'نور خالد', phone1: '01045678901', email: 'noura@example.com', job: 'صاحبة متجر', address: 'التجمع الخامس', city: 'القاهرة', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, color: '#db2777', notes: 'تحتاج اعتماد المحتوى قبل النشر', debt: 0, credit: 1200, points: 70, points_updated_at: dateOnly(-30), status: 'active', created_at: dateTime(-62) },
@@ -51,6 +209,7 @@ const createDemoDatabase = () => ({
     { id: 205, client_id: 4, service_id: 104, name: 'إدارة حسابات أغسطس', billing_unit: 'month', purchased_quantity: 1, held_quantity: 0, consumed_quantity: 0, payment_due_quantity: 0, deposit_percent_snapshot: 100, overage_price_snapshot: 0, total_price: 18000, overage_amount: 0, paid_amount: 18000, starts_at: dateOnly(-4), expires_at: dateOnly(26), status: 'active', source_invoice_id: 702, created_at: dateTime(-4) },
     { id: 206, client_id: 5, service_id: 103, name: 'يوم تصوير العيادة', billing_unit: 'hour', purchased_quantity: 6, held_quantity: 1.5, consumed_quantity: 4.5, payment_due_quantity: 3, deposit_percent_snapshot: 50, overage_price_snapshot: 1300, total_price: 6500, overage_amount: 0, paid_amount: 3250, starts_at: dateOnly(-22), expires_at: dateOnly(8), status: 'active', created_at: dateTime(-22) },
     { id: 207, client_id: 6, service_id: 105, name: 'ريل تجريبي', billing_unit: 'reel', purchased_quantity: 1, held_quantity: 0, consumed_quantity: 1, payment_due_quantity: 1, deposit_percent_snapshot: 100, overage_price_snapshot: 1800, total_price: 1800, overage_amount: 0, paid_amount: 1800, starts_at: dateOnly(-12), expires_at: dateOnly(2), status: 'completed', created_at: dateTime(-12) },
+    { id: 208, client_id: 1, service_id: 103, name: 'يوم تصوير حملة الشتاء', billing_unit: 'hour', purchased_quantity: 6, held_quantity: 0, consumed_quantity: 6, payment_due_quantity: 3, deposit_percent_snapshot: 50, overage_price_snapshot: 1300, total_price: 6500, overage_amount: 0, paid_amount: 6500, starts_at: dateOnly(-95), expires_at: dateOnly(-65), status: 'completed', created_at: dateTime(-95) },
   ],
   bookings: [
     { id: 301, client_id: 1, client_name: 'سارة أحمد', client_package_id: 201, service_id: 101, resource_id: 1, resource_name: 'الاستديو الرئيسي', service: 'تصوير محتوى منتجات', date: dateOnly(0), start_time: '13:00:00', end_time: '15:00:00', status: 'confirmed', requested_quantity: 2, notes: 'تصوير الحملة الصيفية', payment: 0, created_at: dateTime(-5) },
@@ -64,6 +223,7 @@ const createDemoDatabase = () => ({
     { id: 309, client_id: 1, client_name: 'سارة أحمد', client_package_id: null, project_id: 1111, resource_id: 1, resource_name: 'الاستديو الرئيسي', service: 'تصوير 8 ريلز', date: dateOnly(3), start_time: '17:00:00', end_time: '20:00:00', status: 'confirmed', requested_quantity: 8, notes: 'وقت التصوير فقط؛ التكلفة محسوبة بعدد الريلز.', payment: 0, created_at: dateTime(-4) },
     { id: 310, client_id: 2, client_name: 'د. محمد عادل', client_package_id: null, project_id: 1115, resource_id: 1, resource_name: 'الاستديو الرئيسي', service: 'تصوير بودكاست', date: dateOnly(5), start_time: '15:00:00', end_time: '18:00:00', status: 'pending', requested_quantity: 3, notes: 'تصوير حلقتين مع المونتاج.', payment: 0, created_at: dateTime(-2) },
     { id: 311, client_id: 3, client_name: 'محمود سامي', client_package_id: null, project_id: 1117, resource_id: 1, resource_name: 'موقع الإيفنت', service: 'تغطية بطولة Fit House', date: dateOnly(4), start_time: '14:00:00', end_time: '20:00:00', status: 'confirmed', requested_quantity: 6, notes: 'تغطية خارجية بفريق تصوير ثنائي.', payment: 0, created_at: dateTime(-1) },
+    { id: 312, client_id: 1, client_name: 'سارة أحمد', client_package_id: 208, service_id: 103, resource_id: 1, resource_name: 'الاستديو الرئيسي', service: 'جلسة تصوير ملغاة', date: dateOnly(-42), start_time: '18:00:00', end_time: '19:00:00', status: 'cancelled', requested_quantity: 1, payment: 0, created_at: dateTime(-45) },
   ],
   reschedule_requests: [{ id: 401, booking_id: 304, client_id: 4, old_date: dateOnly(4), old_start_time: '14:00:00', proposed_date: dateOnly(5), proposed_start_time: '16:00:00', proposed_end_time: '17:00:00', reason: 'ارتباط بموعد شحن المنتجات', status: 'pending', created_at: dateTime(-1, '10:30:00') }],
   payment_proofs: [
@@ -93,9 +253,10 @@ const createDemoDatabase = () => ({
     { id: 6109, client_id: 1, payment_id: 608, payment_proof_id: null, client_package_id: 202, invoice_id: 701, amount: 500, created_at: dateTime(-6, '16:00:00') },
   ],
   invoices: [
-    { id: 701, client_id: 1, offer_id: 801, invoice_number: 'INV-DEMO-001', subtotal: 8500, discount: 500, total: 8000, paid_amount: 8000, issued_at: dateOnly(-20), due_at: dateOnly(-10), status: 'paid', created_at: dateTime(-20) },
+    { id: 701, client_id: 1, offer_id: null, invoice_number: 'INV-DEMO-001', subtotal: 8500, discount: 500, total: 8000, paid_amount: 8000, issued_at: dateOnly(-20), due_at: dateOnly(-10), status: 'paid', created_at: dateTime(-20) },
     { id: 702, client_id: 4, offer_id: 803, invoice_number: 'INV-DEMO-002', subtotal: 18000, discount: 0, total: 18000, paid_amount: 18000, issued_at: dateOnly(-4), due_at: dateOnly(3), status: 'paid', created_at: dateTime(-4) },
     { id: 703, client_id: 2, offer_id: null, invoice_number: 'INV-DEMO-003', subtotal: 22000, discount: 0, total: 22000, paid_amount: 10000, issued_at: dateOnly(-50), due_at: dateOnly(1), status: 'issued', created_at: dateTime(-50) },
+    { id: 704, client_id: 1, offer_id: 804, invoice_number: 'INV-DEMO-004', subtotal: 9000, discount: 0, total: 9000, paid_amount: 0, issued_at: dateOnly(-12), due_at: dateOnly(-5), status: 'issued', created_at: dateTime(-12) },
     { id: 711, client_id: 1, project_id: 1111, invoice_number: 'INV-PRJ-1111', subtotal: 12000, discount: 0, total: 12000, paid_amount: 6000, issued_at: dateOnly(-10), due_at: dateOnly(5), status: 'issued', created_at: dateTime(-10) },
     { id: 712, client_id: 5, project_id: 1112, invoice_number: 'INV-PRJ-1112', subtotal: 38000, discount: 0, total: 38000, paid_amount: 12000, issued_at: dateOnly(-6), due_at: dateOnly(8), status: 'issued', created_at: dateTime(-6) },
     { id: 713, client_id: 1, project_id: 1113, invoice_number: 'INV-PRJ-1113', subtotal: 42000, discount: 0, total: 42000, paid_amount: 21000, issued_at: dateOnly(-24), due_at: dateOnly(7), status: 'issued', created_at: dateTime(-24) },
@@ -104,11 +265,16 @@ const createDemoDatabase = () => ({
     { id: 716, client_id: 4, project_id: 1116, invoice_number: 'INV-PRJ-1116', subtotal: 18000, discount: 0, total: 18000, paid_amount: 18000, issued_at: dateOnly(-12), due_at: dateOnly(-2), status: 'paid', created_at: dateTime(-12) },
     { id: 717, client_id: 3, project_id: 1117, invoice_number: 'INV-PRJ-1117', subtotal: 28000, discount: 0, total: 28000, paid_amount: 8000, issued_at: dateOnly(-2), due_at: dateOnly(3), status: 'issued', created_at: dateTime(-2) },
     { id: 718, client_id: 6, project_id: 1118, invoice_number: 'INV-PRJ-1118', subtotal: 15000, discount: 0, total: 15000, paid_amount: 7500, issued_at: dateOnly(-5), due_at: dateOnly(6), status: 'issued', created_at: dateTime(-5) },
+    { id: 719, client_id: 1, project_id: 1119, invoice_number: 'INV-PRJ-1119', subtotal: 24000, discount: 0, total: 24000, paid_amount: 24000, issued_at: dateOnly(-88), due_at: dateOnly(-70), status: 'paid', created_at: dateTime(-88) },
   ],
   offers: [
     { id: 801, client_id: 1, offer_number: 'OFF-DEMO-001', title: 'حملة إطلاق منتج جديد', subtotal: 18000, discount: 1500, total: 16500, valid_until: dateOnly(10), status: 'sent', notes: 'يشمل التصوير والمونتاج والتسليم الرقمي.', created_by_role: 'owner', created_at: dateTime(-3) },
     { id: 802, client_id: 3, offer_number: 'OFF-DEMO-002', title: 'باقة محتوى لياقة شهرية', subtotal: 14000, discount: 1000, total: 13000, valid_until: dateOnly(6), status: 'draft', notes: '12 ريل مع نسخ إعلانية.', created_by_role: 'owner', created_at: dateTime(-1) },
     { id: 803, client_id: 4, offer_number: 'OFF-DEMO-003', title: 'إدارة وتسويق المتجر', subtotal: 18000, discount: 0, total: 18000, valid_until: dateOnly(20), status: 'accepted', notes: 'خطة شهر كامل.', created_by_role: 'owner', created_at: dateTime(-8) },
+    { id: 804, client_id: 1, offer_number: 'OFF-DEMO-004', title: 'جلسة تصوير هوية بصرية', subtotal: 9000, discount: 0, total: 9000, valid_until: dateOnly(-4), status: 'accepted', notes: 'عرض مقبول ومحفوظ للرجوع إليه.', created_by_role: 'owner', accepted_at: dateTime(-12), created_at: dateTime(-14) },
+    { id: 805, client_id: 1, offer_number: 'OFF-DEMO-005', title: 'باقة ريلز سريعة', subtotal: 7000, discount: 700, total: 6300, valid_until: dateOnly(-2), status: 'sent', notes: 'انتهت صلاحية هذا العرض.', created_by_role: 'owner', created_at: dateTime(-9) },
+    { id: 806, client_id: 1, offer_number: 'OFF-DEMO-006', title: 'إنتاج إعلان قصير', subtotal: 15000, discount: 0, total: 15000, valid_until: dateOnly(5), status: 'cancelled', notes: 'هذا العرض لم يعد متاحًا.', created_by_role: 'owner', created_at: dateTime(-7) },
+    { id: 807, client_id: 1, offer_number: 'OFF-DEMO-007', title: 'إدارة محتوى مرنة', subtotal: 11000, discount: 1000, total: 10000, valid_until: null, status: 'sent', notes: 'عرض خاص بدون تاريخ انتهاء محدد.', created_by_role: 'owner', created_at: dateTime(-2) },
   ],
   offer_items: [
     { id: 1, offer_id: 801, service_id: 102, description: 'إنتاج 8 فيديوهات قصيرة', quantity: 8, unit: 'reel', unit_price: 1500, total: 12000 },
@@ -116,6 +282,10 @@ const createDemoDatabase = () => ({
     { id: 3, offer_id: 802, service_id: 102, description: 'إنتاج 12 ريل رياضي', quantity: 12, unit: 'reel', unit_price: 1000, total: 12000 },
     { id: 4, offer_id: 802, service_id: 104, description: 'خطة نشر ونسخ إعلانية', quantity: 1, unit: 'month', unit_price: 2000, total: 2000 },
     { id: 5, offer_id: 803, service_id: 104, description: 'إدارة سوشيال ميديا شهرية', quantity: 1, unit: 'month', unit_price: 18000, total: 18000 },
+    { id: 6, offer_id: 804, service_id: 101, description: 'جلسة تصوير الهوية', quantity: 5, unit: 'hour', unit_price: 1800, total: 9000 },
+    { id: 7, offer_id: 805, service_id: 102, description: 'إنتاج 5 ريلز', quantity: 5, unit: 'reel', unit_price: 1400, total: 7000 },
+    { id: 8, offer_id: 806, service_id: 106, description: 'إنتاج إعلان قصير', quantity: 1, unit: 'project', unit_price: 15000, total: 15000 },
+    { id: 9, offer_id: 807, service_id: 104, description: 'إدارة المحتوى لشهر', quantity: 1, unit: 'month', unit_price: 11000, total: 11000 },
   ],
   finance: [
     { id: 901, type: 'إيراد', entry_kind: 'income', category: 'package_payment', client_id: 1, amount: 4000, method: 'bank_transfer', detail: 'دفعة باقة صناعة المحتوى', date: dateOnly(-4), entity: 'الشركة', source_type: 'payment', source_id: 603, correlation_id: 'payment:603', is_system: 1 },
@@ -155,6 +325,8 @@ const createDemoDatabase = () => ({
     { id: 1116, client_id: 4, invoice_id: 716, name: 'إدارة Noura Home — أغسطس', category: 'social_media', service_type: 'social_media', pricing_model: 'monthly', quantity: 1, unit_label: 'month', agreed_price: 18000, requires_booking: 0, progress_percent: 72, status: 'active', starts_at: dateOnly(-12), due_at: dateOnly(19), notes: '3 منصات، 12 بوست، 8 فيديوهات، وإدارة إعلانين ممولين.', created_by: 1, created_at: dateTime(-12), updated_at: dateTime(0) },
     { id: 1117, client_id: 3, invoice_id: 717, name: 'تغطية بطولة Fit House', category: 'event_coverage', service_type: 'event_coverage', pricing_model: 'project', quantity: 1, unit_label: 'event', agreed_price: 28000, requires_booking: 1, progress_percent: 15, status: 'planning', starts_at: dateOnly(3), due_at: dateOnly(10), notes: 'فريق تصوير ثنائي وتسليم ملخص و30 صورة.', created_by: 2, created_at: dateTime(-2), updated_at: dateTime(0) },
     { id: 1118, client_id: 6, invoice_id: 718, name: 'فيديوهات أزياء بالذكاء الاصطناعي', category: 'ai_video', service_type: 'ai_video', pricing_model: 'per_video', quantity: 5, unit_label: 'video', agreed_price: 15000, requires_booking: 0, progress_percent: 40, status: 'active', starts_at: dateOnly(-5), due_at: dateOnly(14), notes: '5 فيديوهات بهوية Reem Fashion ومقاسات السوشيال.', created_by: 1, created_at: dateTime(-5), updated_at: dateTime(-1) },
+    { id: 1119, client_id: 1, invoice_id: 719, name: 'هوية وإطلاق حملة الشتاء', category: 'advertising', service_type: 'advertising', pricing_model: 'project', quantity: 1, unit_label: 'project', agreed_price: 24000, requires_booking: 0, progress_percent: 100, status: 'completed', starts_at: dateOnly(-90), due_at: dateOnly(-68), created_by: 1, created_at: dateTime(-90), updated_at: dateTime(-66) },
+    { id: 1120, client_id: 1, invoice_id: null, name: 'تغطية فعالية مؤجلة', category: 'event_coverage', service_type: 'event_coverage', pricing_model: 'project', quantity: 1, unit_label: 'event', agreed_price: 9000, requires_booking: 1, progress_percent: 0, status: 'cancelled', starts_at: dateOnly(-55), due_at: dateOnly(-50), created_by: 1, created_at: dateTime(-57), updated_at: dateTime(-52) },
   ],
   project_items: [
     { id: 2101, project_id: 1111, client_id: 1, item_type: 'service', description: 'إنتاج 8 ريلز', quantity: 8, unit: 'reel', unit_price: 1500, total_price: 12000, internal_cost: 4200, is_client_visible: 1, sort_order: 0 },
@@ -166,6 +338,7 @@ const createDemoDatabase = () => ({
     { id: 2107, project_id: 1116, client_id: 4, item_type: 'monthly_plan', description: 'إدارة 3 منصات ومحتوى الشهر', quantity: 1, unit: 'month', unit_price: 18000, total_price: 18000, internal_cost: 5000, is_client_visible: 1, sort_order: 0 },
     { id: 2108, project_id: 1117, client_id: 3, item_type: 'event', description: 'تغطية البطولة وتسليم المحتوى', quantity: 1, unit: 'event', unit_price: 28000, total_price: 28000, internal_cost: 7500, is_client_visible: 1, sort_order: 0 },
     { id: 2109, project_id: 1118, client_id: 6, item_type: 'ai_video', description: 'إنتاج 5 فيديوهات AI', quantity: 5, unit: 'video', unit_price: 3000, total_price: 15000, internal_cost: 2500, is_client_visible: 1, sort_order: 0 },
+    { id: 2110, project_id: 1119, client_id: 1, item_type: 'service', description: 'فيلم الحملة والنسخ القصيرة', quantity: 4, unit: 'video', unit_price: 6000, total_price: 24000, internal_cost: 7000, is_client_visible: 1, sort_order: 0 },
   ],
   project_milestones: [
     ...[
@@ -173,6 +346,9 @@ const createDemoDatabase = () => ({
       [1111,1,'reels'],[1112,5,'advertising'],[1113,1,'website'],[1114,2,'software'],
       [1115,2,'podcast'],[1116,4,'social_media'],[1117,3,'event_coverage'],[1118,6,'ai_video'],
     ].flatMap(([projectId,clientId,serviceType], projectIndex) => getProjectStageTemplate(serviceType).map(({ title }, index) => ({ id: 2200 + projectIndex * 10 + index, project_id: projectId, client_id: clientId, title, status: index < (projectIndex % 3 + 1) ? 'completed' : index === (projectIndex % 3 + 1) ? 'in_progress' : 'pending', progress_percent: index < (projectIndex % 3 + 1) ? 100 : index === (projectIndex % 3 + 1) ? 50 : 0, client_note: index === 1 ? 'جاري العمل عليها حاليًا.' : '', is_client_visible: 1, sort_order: index }))),
+    { id: 2401, project_id: 1119, client_id: 1, title: 'الإعداد واعتماد الفكرة', status: 'completed', progress_percent: 100, completed_at: dateTime(-84), client_note: 'تم اعتماد المعالجة الإبداعية.', is_client_visible: 1, sort_order: 0 },
+    { id: 2402, project_id: 1119, client_id: 1, title: 'التصوير والمونتاج', status: 'completed', progress_percent: 100, completed_at: dateTime(-70), client_note: '', is_client_visible: 1, sort_order: 1 },
+    { id: 2403, project_id: 1119, client_id: 1, title: 'التسليم النهائي', status: 'completed', progress_percent: 100, completed_at: dateTime(-66), client_note: 'تم تسليم جميع المقاسات.', is_client_visible: 1, sort_order: 2 },
   ],
   project_tasks: [
     { id: 1201, project_id: 1101, title: 'كتابة أفكار 8 ريلز', description: 'أفكار متنوعة للمنتجات الجديدة', status: 'done', priority: 'high', assigned_to: 3, due_at: dateTime(-3, '18:00:00'), completed_at: dateTime(-3, '16:20:00') },
@@ -235,6 +411,11 @@ const createDemoDatabase = () => ({
   app_notifications: [
     { id: 1501, client_id: 2, audience: 'staff', type: 'payment_due', title: 'عميل تجاوز ساعات الدفع', message: 'د. محمد عادل استهلك 12.25 ساعة والمبلغ المتبقي 12,325 ج.م.', severity: 'warning', read_at: null, created_at: dateTime(-1) },
     { id: 1502, client_id: 5, audience: 'staff', type: 'package_expiry', title: 'باقة تنتهي قريبًا', message: 'باقة أحمد يوسف تنتهي خلال 8 أيام.', severity: 'info', read_at: null, created_at: dateTime(0) },
+    { id: 1510, client_id: 1, audience: 'client', type: 'package_balance_updated', title: 'تم تحديث رصيد الباقة', message: 'تم تعديل ساعات أو وحدات إحدى باقاتك.', entity_type: 'client_packages', entity_id: 201, action_tab: 'home', payload: { package_id: 201 }, severity: 'info', read_at: null, dismissed_at: null, created_at: dateTime(0, '18:10:00') },
+    { id: 1509, client_id: 1, audience: 'client', type: 'booking_confirmed', title: 'تم تأكيد الحجز', message: 'تم تأكيد موعد الحجز ويمكنك مراجعة تفاصيله.', entity_type: 'bookings', entity_id: 301, action_tab: 'schedule', payload: { booking_id: 301 }, severity: 'success', read_at: null, dismissed_at: null, created_at: dateTime(0, '15:20:00') },
+    { id: 1508, client_id: 1, audience: 'client', type: 'project_progress', title: 'تحديث على مراحل العمل', message: 'تم تحديث مرحلة ظاهرة في إحدى خدماتك.', entity_type: 'projects', entity_id: 1117, action_tab: 'projects', payload: { project_id: 1117 }, severity: 'info', read_at: dateTime(0, '14:00:00'), dismissed_at: null, created_at: dateTime(-1, '20:00:00') },
+    { id: 1507, client_id: 1, audience: 'client', type: 'payment_proof_approved', title: 'تم اعتماد إثبات التحويل', message: 'تم اعتماد التحويل وتحديث رصيدك المالي.', entity_type: 'payment_proofs', entity_id: 1203, action_tab: 'finance', payload: {}, severity: 'success', read_at: null, dismissed_at: null, created_at: dateTime(-2, '13:00:00') },
+    { id: 1506, client_id: 2, audience: 'client', type: 'offer_sent', title: 'عرض خاص بعميل آخر', message: 'لا يجب أن يظهر هذا الإشعار للعميل الحالي.', entity_type: 'offers', entity_id: 777, action_tab: 'offers', payload: { offer_id: 777 }, severity: 'info', read_at: null, dismissed_at: null, created_at: dateTime(0) },
   ],
   booking_sessions: [
     { id: 1601, booking_id: 307, client_id: 1, scheduled_start_at: `${dateOnly(-10)} 15:00:00`, started_at: `${dateOnly(-10)} 15:03:00`, ended_at: `${dateOnly(-10)} 16:48:00`, actual_seconds: 6300, billable_quantity: 1.75, status: 'completed', start_source: 'manual', started_by: 3, ended_by: 3, adjustment_reason: 'تم اعتماد المدة الفعلية بعد انتهاء الجلسة', created_at: dateTime(-10, '15:03:00') },
@@ -245,7 +426,7 @@ const createDemoDatabase = () => ({
 const upgradeFinanceDemoCoverage = database => {
   const seed = createDemoDatabase();
   let changed = false;
-  const referenceTables = ['clients', 'services', 'client_packages', 'payment_proofs', 'payments', 'payment_allocations', 'invoices', 'projects', 'offer_items'];
+  const referenceTables = ['clients', 'services', 'client_packages', 'payment_proofs', 'payments', 'payment_allocations', 'invoices', 'projects', 'offer_items', 'app_notifications'];
   referenceTables.forEach(table => {
     if (!Array.isArray(database[table])) { database[table] = []; changed = true; }
     seed[table].forEach(row => {
@@ -264,7 +445,7 @@ const upgradeFinanceDemoCoverage = database => {
 
 const upgradeOwnerControlsDemo = database => {
   let changed = false;
-  ['owner_adjustments', 'audit_logs'].forEach(table => { if (!Array.isArray(database[table])) { database[table] = []; changed = true; } });
+  ['owner_adjustments', 'audit_logs', 'session_settlements', 'session_settlement_allocations'].forEach(table => { if (!Array.isArray(database[table])) { database[table] = []; changed = true; } });
   const draftService = { id: 107, name: 'خدمة تجريبية غير مستخدمة', category: 'خدمة إضافية', billing_unit: 'project', price: 0, total_hours: 0, payment_due_hours: 0, total_reels: 0, validity_days: 30, deposit_percent: 0, overage_price: 0, minimum_booking_minutes: 60, booking_increment_minutes: 15, auto_start_timer: 0, is_active: 0, is_draft: 1, version: 1 };
   const draftPackage = { id: 208, client_id: 6, service_id: 103, name: 'مسودة باقة غير مستخدمة', notes: 'حالة توضيحية للحذف الآمن', billing_unit: 'hour', purchased_quantity: 2, held_quantity: 0, consumed_quantity: 0, payment_due_quantity: 0, total_price: 0, overage_amount: 0, paid_amount: 0, starts_at: dateOnly(), expires_at: dateOnly(30), status: 'draft', version: 1, created_at: dateTime(0) };
   if (!database.services.some(row => Number(row.id) === draftService.id)) { database.services.push(draftService); changed = true; }
@@ -273,9 +454,13 @@ const upgradeOwnerControlsDemo = database => {
   const demoServiceCategories = new Map([[101, 'باقة شهرية'], [102, 'باقة ريلز'], [103, 'باقة يومية'], [104, 'خدمة إضافية'], [105, 'باقة ريلز'], [106, 'خدمة إضافية']]);
   database.services.forEach(row => { const category = demoServiceCategories.get(Number(row.id)); if (category && row.category !== category) { row.category = category; changed = true; } });
   database.services.forEach(row => { if (row.version === undefined) { row.version = 1; changed = true; } if (row.is_draft === undefined) { row.is_draft = 0; changed = true; } });
-  database.client_packages.forEach(row => { if (row.version === undefined) { row.version = 1; changed = true; } });
+  database.client_packages.forEach(row => { if (row.version === undefined) { row.version = 1; changed = true; } if (row.billing_unit === 'hour') { ['purchased','held','consumed','payment_due'].forEach(name => { const key = `${name}_minutes`; if (!Number.isSafeInteger(Number(row[key]))) { row[key] = demoSettlementMinutes(row[`${name}_quantity`]); changed = true; } }); } });
+  if (!Array.isArray(database.package_usage_ledger)) { database.package_usage_ledger = []; changed = true; }
+  database.package_usage_ledger.forEach(row => { const pkg = database.client_packages.find(item => Number(item.id) === Number(row.client_package_id)); if (pkg?.billing_unit === 'hour' && !Number.isSafeInteger(Number(row.quantity_minutes))) { row.quantity_minutes = Math.round(Number(row.quantity || 0) * 60); changed = true; } });
+  [{ id: 1403, booking_id: 301, client_package_id: 201, quantity: 2, quantity_minutes: 120 }, { id: 1404, booking_id: 302, client_package_id: 203, quantity: 3, quantity_minutes: 180 }].forEach(seedHold => { if (!database.package_usage_ledger.some(row => row.event_key === `booking:${seedHold.booking_id}:hold`)) { database.package_usage_ledger.push({ ...seedHold, movement_type: 'hold', reason: 'تأكيد الحجز', event_key: `booking:${seedHold.booking_id}:hold`, created_by: 1, created_at: dateTime(-1) }); changed = true; } });
   database.payments.forEach(row => { if (row.version === undefined) { row.version = 1; changed = true; } });
   database.finance.forEach(row => { if (row.version === undefined) { row.version = 1; changed = true; } });
+  tableRows(database, 'booking_sessions').forEach(row => { if (row.settlement_version === undefined) { row.settlement_version = 1; changed = true; } });
   return changed;
 };
 
@@ -383,6 +568,9 @@ class DemoQueryBuilder {
       result = rows.filter(matches);
       writeDatabase(database);
     } else if (this.method === 'DELETE') {
+      if (['clients', 'bookings', 'booking_sessions', 'booking_status_history', 'reschedule_requests', 'client_packages', 'package_usage_ledger', 'services', 'projects', 'project_tasks', 'project_items', 'project_milestones', 'content_items', 'reminders', 'finance', 'payments', 'payment_allocations', 'payment_proofs', 'offers', 'offer_items', 'invoices', 'invoice_items', 'users', 'resources', 'attendance_records', 'attendance_adjustments', 'attendance_policies', 'formation_fund_entries', 'formation_expense_allocations', 'social_profit_entries', 'owner_adjustments', 'audit_logs', 'change_events', 'app_notifications'].includes(this.table)) {
+        throw formationDemoError('يجب استخدام إجراء المالك الآمن حتى يتم فحص الروابط وتوثيق السبب.', 'owner_action_required');
+      }
       result = rows.filter(matches);
       database[this.table] = rows.filter(row => !matches(row));
       writeDatabase(database);
@@ -431,6 +619,17 @@ const formationDemoError = (message, code = 'validation_error') => {
   return error;
 };
 
+const assertDemoBookingAvailable = (database, candidate, excludeBookingId = null) => {
+  const availability = getBookingAvailability(candidate, database.bookings, { excludeBookingId });
+  if (availability.status === 'available') return availability;
+  const error = formationDemoError(
+    availability.status === 'invalid' ? 'بيانات الموعد غير صحيحة.' : 'الموعد يتعارض مع حجز مؤكد آخر.',
+    availability.status === 'invalid' ? 'invalid_booking_time' : 'booking_conflict',
+  );
+  if (availability.status === 'conflict') error.status = 409;
+  throw error;
+};
+
 const requireDemoOwner = () => {
   if (demoRole !== 'owner') throw formationDemoError('هذا الإجراء متاح للمالك فقط.', 'forbidden');
 };
@@ -441,7 +640,56 @@ const demoReason = body => {
   return reason;
 };
 
-const demoAudit = (database, action, entityType, entityId, before, after) => addRow(database, 'audit_logs', { action, entity_type: entityType, entity_id: Number(entityId), before_data: clone(before), after_data: clone(after), actor_name: 'مالك النظام' });
+const demoNotificationClientId = (database, entityType, entityId, before, after) => {
+  const direct = Number(after?.client_id || before?.client_id || 0); if (direct) return direct;
+  const row = findById(database, entityType, entityId); if (Number(row?.client_id)) return Number(row.client_id);
+  if (['project_milestones', 'project_items', 'project_tasks', 'content_items'].includes(entityType)) return Number(findById(database, 'projects', row?.project_id)?.client_id || 0) || null;
+  return null;
+};
+
+const demoNotificationTemplate = (entityType, action, before = {}, after = {}) => {
+  const merged = { ...(before || {}), ...(after || {}) }; const status = String(merged.status || '');
+  if (action === 'reorder' || (['project_milestones', 'project_items', 'project_tasks', 'content_items'].includes(entityType) && Number(merged.is_client_visible ?? 0) !== 1)) return null;
+  if (entityType === 'client_packages') return before ? ['package_balance_updated', 'تم تحديث بيانات الباقة', 'تم تعديل بيانات إحدى باقاتك ويمكنك مراجعتها الآن.', 'home', 'info'] : ['package_created', 'تمت إضافة باقة جديدة', 'أضيفت باقة جديدة إلى حسابك.', 'home', 'success'];
+  if (entityType === 'projects') return [before ? 'project_updated' : 'project_created', before ? 'تحديث على خدمتك' : 'تمت إضافة خدمة جديدة', before ? 'تم تحديث حالة أو تقدم إحدى خدماتك.' : 'أضيفت خدمة أو مشروع جديد إلى حسابك.', 'projects', 'info'];
+  if (entityType === 'project_milestones') return ['project_progress', 'تحديث على مراحل العمل', 'تم تحديث مرحلة ظاهرة في إحدى خدماتك.', 'projects', status === 'completed' ? 'success' : 'info'];
+  if (['project_items', 'content_items'].includes(entityType)) return ['deliverable_published', 'محتوى جديد في خدمتك', 'تم نشر أو تحديث محتوى قابل للعرض ضمن إحدى خدماتك.', 'projects', 'success'];
+  if (entityType === 'bookings') {
+    if (action === 'cancel_decision' && status !== 'cancelled') return ['cancellation_rejected', 'لم يتم اعتماد إلغاء الحجز', 'ظل موعد الحجز قائمًا بعد مراجعة طلب الإلغاء.', 'schedule', 'info'];
+    if (action === 'cancel_decision' && status === 'cancelled') return ['cancellation_accepted', 'تم اعتماد إلغاء الحجز', 'تم اعتماد طلب إلغاء موعد الحجز.', 'schedule', 'warning'];
+    if (status === 'alternative_proposed') return ['appointment_alternative', 'موعد بديل مقترح', 'اقترحت الإدارة موعدًا بديلًا للحجز ويمكنك مراجعته الآن.', 'schedule', 'info'];
+    if (action === 'admin_reschedule') return ['booking_rescheduled', 'تم تحديث موعد الحجز', 'تم تعديل تاريخ أو وقت أحد مواعيدك.', 'schedule', 'info'];
+    const states = { confirmed: ['booking_confirmed', 'تم تأكيد الحجز', 'تم تأكيد موعد الحجز ويمكنك مراجعة تفاصيله.', 'success'], rejected: ['booking_rejected', 'تعذر تأكيد الحجز', 'تمت مراجعة طلب الحجز ولم يتم تأكيده.', 'danger'], cancelled: ['booking_cancelled', 'تم إلغاء الحجز', 'تم إلغاء أحد مواعيدك بعد المراجعة.', 'warning'] }; const state = states[status]; return state ? [state[0], state[1], state[2], 'schedule', state[3]] : null;
+  }
+  if (entityType === 'reschedule_requests') return ['reschedule_update', 'تحديث طلب تغيير الموعد', 'تمت مراجعة طلب تغيير الموعد ويمكنك مراجعة النتيجة.', 'schedule', status === 'approved' ? 'success' : 'warning'];
+  if (entityType === 'booking_sessions') {
+    if (['session_start', 'auto_start'].includes(action)) return ['session_started', 'بدأت جلسة التصوير', 'بدأ احتساب وقت جلسة التصوير ويمكنك متابعة المؤقت الآن.', 'schedule', 'success'];
+    if (['new_package', 'existing_package'].includes(merged.settlement_mode) && Number(merged.target_package_id || 0)) return ['overage_moved', 'تمت تسوية الوقت الإضافي', 'أضيف الوقت الإضافي إلى الباقة التي حددتها الإدارة ويمكنك مراجعة الرصيد الآن.', 'home', 'info'];
+    return ['session_completed', 'اكتملت جلسة التصوير', 'تم حفظ المدة النهائية وتسوية الجلسة في حسابك.', 'history', 'info'];
+  }
+  if (entityType === 'payment_proofs') return [`payment_proof_${status}`, status === 'approved' ? 'تم اعتماد إثبات التحويل' : 'تم رفض إثبات التحويل', status === 'approved' ? 'تم اعتماد التحويل وتحديث رصيدك المالي.' : 'لم يتم اعتماد التحويل. راجع الإثبات وأعد المحاولة.', 'finance', status === 'approved' ? 'success' : 'danger'];
+  if (entityType === 'payments') return [action === 'correct_payment' ? 'payment_corrected' : 'payment_updated', action === 'correct_payment' ? 'تم تصحيح دفعة' : 'تم تحديث دفعة', 'تغيرت دفعة مؤثرة على الرصيد الظاهر في حسابك.', 'finance', 'warning'];
+  if (entityType === 'invoices') return ['invoice_updated', 'تم تحديث الفاتورة', 'تم تحديث حالة أو تاريخ استحقاق إحدى فواتيرك.', 'finance', 'warning'];
+  if (entityType === 'offers' && ['sent', 'accepted', 'cancelled'].includes(status)) return [`offer_${status}`, status === 'sent' ? 'عرض جديد لك' : 'تم تحديث حالة العرض', status === 'sent' ? 'أرسل المالك عرضًا جديدًا ويمكنك مراجعته الآن.' : 'تغيرت حالة أحد عروضك.', 'offers', 'info'];
+  return null;
+};
+
+const demoNotifyClientChange = (database, action, entityType, entityId, before, after, sourceEventId) => {
+  const allowed = ['owner', 'admin', 'operations'].includes(demoRole) || (demoRole === 'client' && entityType === 'offers' && action === 'accept'); if (!allowed) return null;
+  const trusted = clone(findById(database, entityType, entityId)); const trustedAfter = { ...(after || {}), ...(trusted || {}) };
+  if (['project_milestones', 'project_items', 'project_tasks', 'content_items'].includes(entityType) && (!trusted || Number(trusted.is_client_visible ?? 0) !== 1)) return null;
+  const template = demoNotificationTemplate(entityType, action, before, trustedAfter); const clientId = demoNotificationClientId(database, entityType, entityId, before, trustedAfter); if (!template || !clientId || !sourceEventId) return null;
+  const [type, title, message, actionTab, severity] = template; const sourceEventKey = `change-event:${Number(sourceEventId)}:${type}`;
+  if (database.app_notifications.some(item => item.source_event_key === sourceEventKey)) return null;
+  const notification = addRow(database, 'app_notifications', { client_id: clientId, audience: 'client', type, title, message, entity_type: entityType, entity_id: Number(entityId), action_tab: actionTab, payload: {}, severity, source_event_key: sourceEventKey, dedupe_key: sourceEventKey, read_at: null, dismissed_at: null });
+  addRow(database, 'change_events', { client_id: clientId, topic: 'notifications', entity_type: 'app_notifications', entity_id: notification.id, action: 'created' }); return notification;
+};
+
+const demoAudit = (database, action, entityType, entityId, before, after) => {
+  const auditRow = addRow(database, 'audit_logs', { action, entity_type: entityType, entity_id: Number(entityId), before_data: clone(before), after_data: clone(after), actor_name: 'مالك النظام' });
+  const clientId = demoNotificationClientId(database, entityType, entityId, before, after); const sourceEvent = addRow(database, 'change_events', { client_id: clientId, topic: entityType === 'client_packages' ? 'packages' : entityType === 'offers' ? 'offers' : entityType.includes('project') || entityType === 'content_items' ? 'projects' : entityType.includes('booking') || entityType === 'reschedule_requests' ? 'bookings' : ['payments', 'payment_proofs', 'invoices'].includes(entityType) ? 'finance' : entityType, entity_type: entityType, entity_id: Number(entityId), action });
+  demoNotifyClientChange(database, action, entityType, entityId, before, after, sourceEvent.id); return auditRow;
+};
 
 const demoReverseFinance = (database, entry, reason) => {
   if (entry.voided_at || database.finance.some(row => Number(row.reversed_entry_id) === Number(entry.id))) throw formationDemoError('تم إلغاء هذه الحركة سابقًا.', 'already_voided');
@@ -548,7 +796,7 @@ const packageDemoDetails = (database, packageId) => {
     financial: { total_price: centsToMoney(finances.totalCents), paid_amount: centsToMoney(finances.paidCents), overage_amount: centsToMoney(finances.overageCents), outstanding: centsToMoney(finances.outstandingCents), customer_credit: centsToMoney(Math.max(0, finances.paidCents - finances.totalCents - finances.overageCents)), payment_progress_percent: finances.totalCents + finances.overageCents ? Math.min(100, Number(((finances.paidCents / (finances.totalCents + finances.overageCents)) * 100).toFixed(1))) : 100, exact_allocated_total: centsToMoney(directCents), legacy_reconciliation_amount: centsToMoney(legacyReconciliation), has_legacy_reconciliation: legacyReconciliation > 0, invoice_package_count: invoicePackageCount },
     quantities: { purchased: quantities.purchased, used: quantities.consumed, upcoming_held: quantities.held, remaining: quantities.remaining, available: quantities.available },
     validity: { starts_at: pkg.starts_at, expires_at: pkg.expires_at, today, remaining_business_days: workingDays, friday_excluded: true, state: effectiveStatus === 'expired' ? 'expired' : workingDays <= 14 ? 'near_expiry' : 'active' },
-    payments, used_bookings: usedBookings, upcoming_bookings: clone(upcomingBookings), usage_ledger: clone(database.package_usage_ledger.filter(row => Number(row.client_package_id) === Number(pkg.id)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))), audit_timeline: clone(database.audit_logs.filter(row => row.entity_type === 'client_packages' && Number(row.entity_id) === Number(pkg.id)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))),
+    payments, used_bookings: usedBookings, upcoming_bookings: clone(upcomingBookings), usage_ledger: clone(database.package_usage_ledger.filter(row => Number(row.client_package_id) === Number(pkg.id)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))), settlement_allocations: clone(tableRows(database, 'session_settlement_allocations').filter(row => Number(row.source_client_package_id) === Number(pkg.id) || Number(row.target_client_package_id) === Number(pkg.id)).map(row => ({ ...row, ...(tableRows(database, 'session_settlements').find(item => Number(item.id) === Number(row.settlement_id)) || {}) })).sort((a, b) => Number(b.id) - Number(a.id))), audit_timeline: clone(database.audit_logs.filter(row => row.entity_type === 'client_packages' && Number(row.entity_id) === Number(pkg.id)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))),
     usage_reconciliation: { authoritative_used: quantities.consumed, detailed_used: detailedUsed, legacy_used: legacyUsed, reconciled: Math.abs((detailedUsed + legacyUsed) - quantities.consumed) < 0.000001 },
     reconciliation: { authoritative_paid_amount: centsToMoney(finances.paidCents), exact_package_allocations: centsToMoney(directCents), legacy_unallocated_amount: centsToMoney(legacyReconciliation), legacy_invoice_records: legacy.length, disclosure: legacyReconciliation > 0 ? 'جزء من المدفوع المعتمد يسبق التخصيص الدقيق على مستوى الباقة؛ يعتمد الإجمالي على رصيد الباقة المحفوظ ولا تُفبرك حصة تاريخية.' : null },
   };
@@ -581,7 +829,7 @@ const financeDemoEntries = database => database.finance.slice().sort((a, b) => S
     database.payment_allocations.filter(row => Number(row.payment_proof_id) === Number(entry.source_id)).forEach(row => { addPackage(row.client_package_id); addInvoice(row.invoice_id); });
   }
   const packageNames = [...packages.values()]; const serviceNames = [...services.values()]; const projectNames = [...projects.values()]; const invoiceNumbers = [...invoices.values()];
-  const sourceLabels = packageNames.length ? packageNames : projectNames.length ? projectNames : serviceNames.length ? serviceNames : invoiceNumbers;
+  const sourceLabels = [...new Set([...serviceNames, ...packageNames, ...projectNames, ...invoiceNumbers])];
   const clientId = entry.client_id ? Number(entry.client_id) : [...clients.keys()][0] || null;
   return {
     ...clone(entry), client_id: clientId, client_name: clients.get(clientId) || [...clients.values()][0] || null,
@@ -592,12 +840,161 @@ const financeDemoEntries = database => database.finance.slice().sort((a, b) => S
   };
 });
 
+const demoOwnerImpact = (database, entity, id) => {
+  requireDemoOwner();
+  const definitions = { clients: ['clients', 'name'], bookings: ['bookings', 'client_name'], client_packages: ['client_packages', 'name'], projects: ['projects', 'name'], project_tasks: ['project_tasks', 'title'], project_items: ['project_items', 'description'], project_milestones: ['project_milestones', 'title'], content_items: ['content_items', 'title'], reminders: ['reminders', 'title'], offers: ['offers', 'title'], invoices: ['invoices', 'invoice_number'], users: ['users', 'full_name'], resources: ['resources', 'name'], services: ['services', 'name'] };
+  const definition = definitions[entity]; if (!definition) throw formationDemoError('هذا النوع من السجلات غير مدعوم في تحكم المالك.', 'owner_entity_unsupported');
+  const record = findById(database, definition[0], id); if (!record) throw formationDemoError('السجل المطلوب غير موجود.', 'owner_record_not_found');
+  const count = (table, predicate) => tableRows(database, table).filter(predicate).length;
+  let links = {}; let action = 'archive'; let explanation = 'سيتم حفظ السجل وكل تاريخه مع إخفائه من العمل النشط.';
+  if (entity === 'clients') { links = { bookings: count('bookings', row => Number(row.client_id) === Number(id)), packages: count('client_packages', row => Number(row.client_id) === Number(id)), projects: count('projects', row => Number(row.client_id) === Number(id)), offers: count('offers', row => Number(row.client_id) === Number(id)), invoices: count('invoices', row => Number(row.client_id) === Number(id)), payments: count('payments', row => Number(row.client_id) === Number(id)), finance: count('finance', row => Number(row.client_id) === Number(id)), requests: count('reschedule_requests', row => Number(row.client_id) === Number(id)), notifications: count('app_notifications', row => Number(row.client_id) === Number(id)) }; action = Object.values(links).reduce((a, b) => a + b, 0) ? 'archive' : 'hard_delete'; explanation = action === 'hard_delete' ? 'لا توجد معاملات مرتبطة؛ يمكن حذف الملف وحساب دخوله بأمان.' : 'للعميل معاملات مرتبطة، لذلك ستتم أرشفته وتعطيل دخوله مع بقاء كل الباقات والحجوزات والحسابات.'; }
+  else if (entity === 'bookings') { links = { sessions: count('booking_sessions', row => Number(row.booking_id) === Number(id)), ledger: count('package_usage_ledger', row => Number(row.booking_id) === Number(id)), history: count('booking_status_history', row => Number(row.booking_id) === Number(id)) }; const safe = ['pending', 'draft'].includes(record.status) && !Object.values(links).some(Boolean); action = safe ? 'hard_delete' : ['completed', 'cancelled'].includes(record.status) ? 'archive' : 'cancel'; explanation = safe ? 'هذا طلب أولي بلا حجز رصيد أو جلسة؛ يمكن حذفه.' : action === 'cancel' ? 'سيُلغى الموعد وتُحرر الساعات المحجوزة مع بقاء السجل.' : 'الحجز تاريخ تشغيلي؛ سيُؤرشف دون حذف الجلسة أو الساعات.'; }
+  else if (entity === 'client_packages') { links = { bookings: count('bookings', row => Number(row.client_package_id) === Number(id)), ledger: count('package_usage_ledger', row => Number(row.client_package_id) === Number(id)), payments: count('payment_allocations', row => Number(row.client_package_id) === Number(id)), projects: count('projects', row => Number(row.client_package_id) === Number(id)) }; action = record.status === 'draft' && !Object.values(links).some(Boolean) ? 'hard_delete' : 'archive'; explanation = action === 'hard_delete' ? 'الباقة مسودة غير مستخدمة ويمكن حذفها.' : 'ستُؤرشف الباقة مع تثبيت الساعات والمدفوع والمتبقي والسجل.'; }
+  else if (entity === 'projects') { links = { invoices: count('invoices', row => Number(row.project_id) === Number(id)), bookings: count('bookings', row => Number(row.project_id) === Number(id)), completed_stages: count('project_milestones', row => Number(row.project_id) === Number(id) && row.status === 'completed'), published_content: count('content_items', row => Number(row.project_id) === Number(id) && row.status === 'published') }; action = record.status === 'planning' && !record.client_package_id && !record.invoice_id && !Object.values(links).some(Boolean) ? 'hard_delete' : 'archive'; explanation = action === 'hard_delete' ? 'المشروع تخطيط بلا روابط ويمكن حذفه.' : 'سيُؤرشف المشروع مع الحفاظ على المراحل والمهام والمحتوى والمالية.'; }
+  else if (['project_tasks', 'project_items', 'project_milestones', 'content_items'].includes(entity)) { if (entity === 'project_milestones') links = { other_stages: count('project_milestones', row => Number(row.project_id) === Number(record.project_id) && Number(row.id) !== Number(id)) }; const safe = entity === 'content_items' ? ['idea', 'draft'].includes(record.status) && !record.published_at && !record.client_approved_at : entity === 'project_tasks' ? record.status === 'todo' && !record.completed_at : entity === 'project_milestones' ? record.status === 'pending' && !record.completed_at && Number(record.progress_percent || 0) === 0 && links.other_stages >= 2 : ['draft', 'planning'].includes(record.status || 'draft'); action = safe ? 'hard_delete' : 'archive'; explanation = safe ? 'هذا العنصر مسودة غير مكتملة ويمكن حذفه.' : 'العنصر دخل دورة العمل أو يجب الاحتفاظ بحد أدنى من المراحل؛ سيُؤرشف لحماية تاريخ التنفيذ.'; }
+  else if (entity === 'reminders') { action = ['financial', 'finance', 'compliance', 'tax', 'تحصيل', 'مصروف دوري'].includes(record.type) ? 'archive' : 'hard_delete'; explanation = action === 'archive' ? 'هذا تذكير مالي/رقابي؛ سيُؤرشف مع السبب.' : 'تذكير عادي ويمكن حذفه.'; }
+  else if (entity === 'offers') { links = { invoices: count('invoices', row => Number(row.offer_id) === Number(id)), items: count('offer_items', row => Number(row.offer_id) === Number(id)) }; action = record.status === 'draft' && links.invoices === 0 ? 'hard_delete' : 'cancel'; explanation = action === 'hard_delete' ? 'عرض مسودة لم ينشئ فاتورة ويمكن حذفه.' : 'سيُلغى العرض مع بقاء النسخة والروابط الناتجة.'; }
+  else if (entity === 'invoices') { links = { payments: count('payment_allocations', row => Number(row.invoice_id) === Number(id)), projects: count('projects', row => Number(row.invoice_id) === Number(id)) }; action = 'cancel'; explanation = 'الفواتير لا تُحذف؛ ستُلغى مع بقاء الدفعات والروابط.'; }
+  else if (entity === 'users') { links = { attendance: count('attendance_records', row => Number(row.user_id) === Number(id)), tasks: count('project_tasks', row => Number(row.assigned_to) === Number(id)), audit: count('audit_logs', row => Number(row.user_id) === Number(id)) }; action = 'deactivate'; explanation = 'سيُعطّل الحساب مع بقاء الحضور والمهام والتدقيق.'; }
+  else if (entity === 'resources') { links = { bookings: count('bookings', row => Number(row.resource_id) === Number(id)) }; action = 'deactivate'; explanation = 'سيُعطّل المورد للحجوزات الجديدة مع بقاء مواعيده السابقة.'; }
+  else if (entity === 'services') { links = { packages: count('client_packages', row => Number(row.service_id) === Number(id)), bookings: count('bookings', row => Number(row.service_id) === Number(id)), invoices: count('invoice_items', row => Number(row.service_id) === Number(id)), offers: count('offer_items', row => Number(row.service_id) === Number(id)) }; action = record.is_draft && !Object.values(links).some(Boolean) ? 'hard_delete' : 'archive'; explanation = action === 'hard_delete' ? 'الخدمة مسودة غير مستخدمة ويمكن حذفها.' : 'ستُؤرشف الخدمة ويظل التاريخ التجاري محفوظًا.'; }
+  const labels = { bookings: 'الحجوزات', packages: 'الباقات', projects: 'المشروعات', offers: 'العروض', invoices: 'الفواتير', payments: 'الدفعات', finance: 'الحسابات', requests: 'الطلبات', notifications: 'الإشعارات', sessions: 'جلسات التصوير', ledger: 'حركات الساعات', history: 'تاريخ الحالة', completed_stages: 'مراحل مكتملة', published_content: 'محتوى منشور', other_stages: 'مراحل أخرى', items: 'البنود', attendance: 'سجلات الحضور', tasks: 'المهام', audit: 'سجل التدقيق' };
+  return { entity, id: Number(id), record_name: record[definition[1]] || `#${id}`, record, action, result_title: ({ hard_delete: 'السجل مؤهل للحذف النهائي', archive: 'أرشفة آمنة تحفظ التاريخ', cancel: 'إلغاء موثق يحفظ الروابط', deactivate: 'تعطيل الوصول مع حفظ السجل' })[action], explanation, links, link_labels: labels, total_links: Object.values(links).reduce((a, b) => a + b, 0), requires_confirmation: action === 'hard_delete' };
+};
+
+const demoOwnerAction = (database, entity, id, body) => {
+  const impact = demoOwnerImpact(database, entity, id); const reason = demoReason(body); const record = impact.record;
+  if (body.expected_action && body.expected_action !== impact.action) throw formationDemoError('تغيّرت الروابط المرتبطة بالسجل. راجع التأثير مرة أخرى.', 'stale_owner_impact');
+  if (impact.action === 'hard_delete' && body.confirmation !== 'حذف') throw formationDemoError('اكتب كلمة حذف لتأكيد الحذف النهائي.', 'hard_delete_confirmation_required');
+  if (body.version != null && Number(body.version) !== Number(record.version || 1)) throw formationDemoError('تم تعديل السجل بواسطة مستخدم آخر.', 'stale_record');
+  const table = ({ clients: 'clients', bookings: 'bookings', client_packages: 'client_packages', projects: 'projects', project_tasks: 'project_tasks', project_items: 'project_items', project_milestones: 'project_milestones', content_items: 'content_items', reminders: 'reminders', offers: 'offers', invoices: 'invoices', users: 'users', resources: 'resources', services: 'services' })[entity]; const before = clone(record);
+  if (impact.action === 'hard_delete') { database[table] = tableRows(database, table).filter(row => Number(row.id) !== Number(id)); if (entity === 'clients') database.users = database.users.filter(row => Number(row.client_id) !== Number(id)); if (entity === 'offers') database.offer_items = database.offer_items.filter(row => Number(row.offer_id) !== Number(id)); if (entity === 'projects') { ['project_tasks', 'project_items', 'project_milestones', 'content_items'].forEach(child => { database[child] = tableRows(database, child).filter(row => Number(row.project_id) !== Number(id)); }); } }
+  else if (entity === 'clients') { Object.assign(record, { status: 'archived', archive_reason: reason, archived_by: 1, archived_at: record.archived_at || nowText(), version: Number(record.version || 1) + 1 }); database.users.filter(row => Number(row.client_id) === Number(id)).forEach(row => Object.assign(row, { is_active: 0, deactivation_reason: reason, deactivated_at: nowText() })); }
+  else if (entity === 'bookings') { if (impact.action === 'cancel') { record.status = 'cancelled'; const pkg = record.client_package_id ? findById(database, 'client_packages', record.client_package_id) : null; const heldMinutes = pkg?.billing_unit === 'hour' ? demoBookingHeldMinutes(database, record.id, pkg.id) : demoSettlementMinutes(demoBookingHeldQuantity(database, record.id, pkg?.id)); if (pkg && heldMinutes > 0) { if (pkg.billing_unit === 'hour') mutateDemoPackageQuantities(pkg, { held_minutes: -heldMinutes }); else mutateDemoPackageQuantities(pkg, { held: -demoSettlementHours(heldMinutes) }); addDemoPackageUsage(database, pkg, { booking_id: record.id, movement_type: 'release', quantity_minutes: pkg.billing_unit === 'hour' ? heldMinutes : null, quantity: demoSettlementHours(heldMinutes), reason, event_key: `owner-cancel:${record.id}:release` }); } } Object.assign(record, { archive_reason: reason, archived_by: 1, archived_at: record.archived_at || nowText(), version: Number(record.version || 1) + 1 }); }
+  else if (['client_packages', 'services'].includes(entity)) Object.assign(record, entity === 'client_packages' ? { status: 'archived' } : { is_active: 0 }, { archive_reason: reason, archived_by: 1, archived_at: record.archived_at || nowText(), version: Number(record.version || 1) + 1 });
+  else if (entity === 'projects') Object.assign(record, { status: record.status === 'completed' ? 'completed' : 'cancelled', archive_reason: reason, archived_by: 1, archived_at: record.archived_at || nowText(), version: Number(record.version || 1) + 1 });
+  else if (['project_tasks', 'project_items', 'project_milestones', 'content_items', 'reminders'].includes(entity)) Object.assign(record, { archive_reason: reason, archived_by: 1, archived_at: record.archived_at || nowText(), version: Number(record.version || 1) + 1 }, entity === 'project_milestones' ? { is_client_visible: 0 } : {});
+  else if (['offers', 'invoices'].includes(entity)) Object.assign(record, { status: 'cancelled', cancellation_reason: reason, cancelled_by: 1, cancelled_at: record.cancelled_at || nowText(), version: Number(record.version || 1) + 1 });
+  else if (entity === 'users') { if (record.role === 'owner' && Number(record.is_active ?? 1) === 1 && database.users.filter(row => row.role === 'owner' && Number(row.is_active ?? 1) === 1 && Number(row.id) !== Number(record.id)).length < 1) throw formationDemoError('لا يمكن تعطيل آخر مالك نشط في النظام.', 'last_owner_protected'); Object.assign(record, { is_active: 0, deactivation_reason: reason, deactivated_by: 1, deactivated_at: nowText(), version: Number(record.version || 1) + 1 }); }
+  else if (entity === 'resources') Object.assign(record, { is_active: 0, deactivation_reason: reason, deactivated_by: 1, deactivated_at: nowText(), version: Number(record.version || 1) + 1 });
+  const projectProgress = entity === 'project_milestones' ? recalculateDemoProjectProgress(database, before.project_id) : null; demoAudit(database, `owner_${impact.action}`, entity, id, before, { action: impact.action, reason, impact: { ...impact, record: undefined }, ...(projectProgress == null ? {} : { project_progress_percent: projectProgress }) }); writeDatabase(database); return { id: Number(id), entity, action: impact.action, message: 'تم تنفيذ الإجراء وتوثيقه بنجاح.', impact: { ...impact, record: undefined }, ...(projectProgress == null ? {} : { project_progress_percent: projectProgress }) };
+};
+
+const demoSettleAndComplete = (database, bookingId, body) => {
+  if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لإيقاف جلسة التصوير.', 'forbidden');
+  const actual = Number(body.actual_minutes); if (!Number.isSafeInteger(actual) || actual < 1) throw formationDemoError('حدد مدة تصوير صحيحة بالدقائق.', 'invalid_actual_duration');
+  const key = String(body.idempotency_key || '').trim();
+  const requestHash = demoSettlementHash({ booking_id: Number(bookingId), actual_minutes: actual, actual_reels: Number(body.actual_reels || 0), reason: String(body.reason || '').trim(), expected_session_version: Number(body.expected_session_version || 0), preview_hash: String(body.preview_hash || ''), settlement: body.settlement || null });
+  const priorKey = tableRows(database, 'session_settlements').find(row => row.idempotency_key === key && key);
+  if (priorKey) { if (priorKey.request_hash !== requestHash) throw formationDemoError('تم استخدام مفتاح الاعتماد نفسه ببيانات مختلفة.', 'idempotency_payload_mismatch'); return clone({ ...priorKey.response, idempotent_replay: true }); }
+  const booking = findById(database, 'bookings', bookingId); if (!booking) throw formationDemoError('الحجز غير موجود.', 'booking_not_found');
+  const sourceSession = tableRows(database, 'booking_sessions').find(row => Number(row.booking_id) === Number(booking.id)); if (!sourceSession) throw formationDemoError('لا توجد جلسة تصوير لهذا الحجز.', 'session_not_found');
+  if (tableRows(database, 'session_settlements').some(row => Number(row.booking_session_id) === Number(sourceSession.id))) throw formationDemoError('تمت تسوية هذه الجلسة من قبل بعملية أخرى.', 'session_already_settled');
+  const preview = demoSettlementPreview(database, booking.id, actual);
+  if (preview.excess_minutes > 0 && (!String(body.preview_hash || '').trim() || !Number.isSafeInteger(Number(body.expected_session_version)) || Number(body.expected_session_version) < 1)) throw formationDemoError('يجب معاينة تسوية الوقت الزائد قبل اعتمادها.', 'settlement_preview_required');
+  if (preview.excess_minutes > 0 && (body.preview_hash !== preview.preview_hash || Number(body.expected_session_version) !== preview.session_version)) throw formationDemoError('تغيّر الرصيد منذ المعاينة. راجع الملخص المحدث.', 'stale_settlement_preview');
+  if (preview.excess_minutes > 0 && !key) throw formationDemoError('معرّف اعتماد التسوية مطلوب.', 'idempotency_key_required');
+  if (preview.excess_minutes > 0 && demoRole === 'operations') throw formationDemoError('اعتماد الوقت الزائد يحتاج المالك أو الإدارة. ما زالت الجلسة نشطة.', 'settlement_owner_required');
+  const working = clone(database); const failAt = point => { if (body.__test_fail_at === point) throw formationDemoError(`تعذر حفظ ${point} أثناء التسوية.`, 'settlement_fault_injected'); }; const workBooking = findById(working, 'bookings', booking.id); const session = tableRows(working, 'booking_sessions').find(row => Number(row.booking_id) === Number(booking.id)); const original = workBooking.client_package_id ? findById(working, 'client_packages', workBooking.client_package_id) : null; const unit = original?.billing_unit || session.billing_unit || 'hour'; const reels = unit === 'reel' ? Number(body.actual_reels) : 0; const heldReels = unit === 'reel' ? Number(session.booking_held_quantity || workBooking.requested_quantity || 0) : 0; if (unit === 'reel' && (!Number.isSafeInteger(reels) || reels < 1 || reels > heldReels)) throw formationDemoError('عدد الريلز يجب أن يكون داخل الرصيد المحجوز.', 'invalid_actual_reels');
+  const settlement = body.settlement && typeof body.settlement === 'object' ? body.settlement : {}; const excess = preview.excess_minutes; const covered = preview.covered_minutes; const mode = excess > 0 ? String(settlement.mode || '') : 'none';
+  const allowed = demoRole === 'owner' ? ['new_package', 'existing_package', 'package_overage', 'custom_invoice', 'custom_project', 'waive'] : ['new_package', 'existing_package', 'package_overage'];
+  if (excess > 0 && !allowed.includes(mode)) throw formationDemoError('طريقة التسوية غير مسموحة لهذا المستخدم.', 'settlement_mode_forbidden');
+  let targetPackage = null; let invoice = null; let project = null; let payment = null; let dueCents = 0; let paidCents = 0; let waived = 0; let serviceId = null; let internalReason = null;
+  const createInvoice = (description, cents, projectId = null) => {
+    const row = addRow(working, 'invoices', { client_id: workBooking.client_id, project_id: projectId, invoice_number: `SET-DEMO-${nextId(working.invoices)}`, status: 'issued', subtotal: centsToMoney(cents), discount: 0, total: centsToMoney(cents), paid_amount: 0, issued_at: dateOnly(), due_at: dateOnly(), notes: description, created_by: 1 });
+    addRow(working, 'invoice_items', { invoice_id: row.id, service_id: workBooking.service_id || null, description, quantity: 1, unit: 'session', unit_price: centsToMoney(cents), total: centsToMoney(cents) }); failAt('invoice'); return row;
+  };
+  if (mode === 'existing_package') {
+    const targetId = Number(settlement.target_package_id); if (!preview.eligible_packages.some(row => Number(row.id) === targetId)) throw formationDemoError('الباقة الأخرى لم تعد تحتوي رصيدًا حرًا كافيًا.', 'settlement_balance_changed');
+    targetPackage = findById(working, 'client_packages', targetId); serviceId = targetPackage.service_id;
+  } else if (mode === 'new_package') {
+    const minutes = Number(settlement.purchased_minutes); const days = Number(settlement.validity_days); const name = String(settlement.name || '').trim(); const template = findById(working, 'services', settlement.service_id); const totalCents = moneyToCents(settlement.total_price); paidCents = moneyToCents(settlement.initial_paid);
+    if (!template || template.billing_unit !== 'hour' || !Number.isSafeInteger(minutes) || minutes < excess || !Number.isSafeInteger(days) || days < 1 || !name || totalCents < 0 || paidCents < 0 || paidCents > totalCents) throw formationDemoError('بيانات الباقة الجديدة غير صحيحة أو لا تغطي الوقت الزائد.', 'invalid_new_package');
+    if (demoRole !== 'owner' && (minutes !== demoSettlementMinutes(template.total_hours) || days !== Number(template.validity_days) || totalCents !== moneyToCents(template.price))) throw formationDemoError('الإدارة يمكنها بيع نموذج الباقة بالساعات والصلاحية والسعر المعتمد فقط.', 'custom_package_terms_forbidden');
+    dueCents = totalCents; invoice = totalCents > 0 ? createInvoice(`باقة جديدة لتسوية وقت تصوير زائد — ${name}`, totalCents) : null; const expires = new Date(`${dateOnly()}T12:00:00`); expires.setDate(expires.getDate() + days);
+    targetPackage = addRow(working, 'client_packages', { client_id: workBooking.client_id, service_id: template.id, source_invoice_id: invoice?.id || null, name, billing_unit: 'hour', purchased_quantity: demoSettlementHours(minutes), purchased_minutes: minutes, held_quantity: 0, held_minutes: 0, consumed_quantity: 0, consumed_minutes: 0, payment_due_quantity: Number(template.payment_due_hours || 0), payment_due_minutes: demoSettlementMinutes(template.payment_due_hours), deposit_percent_snapshot: Number(template.deposit_percent || 0), overage_price_snapshot: centsToMoney(moneyToCents(template.overage_price)), total_price: centsToMoney(totalCents), overage_amount: 0, paid_amount: centsToMoney(paidCents), starts_at: dateOnly(), expires_at: `${expires.getFullYear()}-${pad(expires.getMonth() + 1)}-${pad(expires.getDate())}`, status: 'active', notes: String(settlement.notes || '') }); serviceId = template.id; failAt('package');
+    if (paidCents > 0) { payment = addRow(working, 'payments', { client_id: workBooking.client_id, client_name: workBooking.client_name, amount: centsToMoney(paidCents), method: 'cash', status: 'approved', reference: `SET-${session.id}`, reviewed_at: nowText() }); addRow(working, 'payment_allocations', { client_id: workBooking.client_id, payment_id: payment.id, payment_proof_id: null, client_package_id: targetPackage.id, invoice_id: invoice?.id || null, amount: centsToMoney(paidCents) }); if (invoice) { invoice.paid_amount = centsToMoney(paidCents); invoice.status = paidCents >= totalCents ? 'paid' : 'partial'; } addRow(working, 'finance', { type: 'إيراد', entry_kind: 'income', category: 'client_revenue', client_id: workBooking.client_id, amount: centsToMoney(paidCents), method: 'cash', detail: `دفعة باقة جديدة — ${name}`, date: dateOnly(), entity: 'الشركة', source_type: 'payment', source_id: payment.id, correlation_id: `session-settlement:${session.id}:payment`, is_system: 1 }); }
+  } else if (mode === 'package_overage') {
+    const configured = moneyToCents(preview.overage_rate); const rate = moneyToCents(settlement.hourly_rate || preview.overage_rate); if (rate <= 0) throw formationDemoError('سعر الساعة الإضافية غير مضبوط.', 'missing_overage_rate'); if (demoRole !== 'owner' && rate !== configured) throw formationDemoError('الإدارة يمكنها استخدام السعر المعتمد فقط.', 'custom_rate_forbidden'); dueCents = Math.round((rate * excess) / 60); if (dueCents < 1) throw formationDemoError('قيمة الوقت الإضافي أقل من قرش واحد.', 'overage_amount_too_small'); original.overage_amount = centsToMoney(moneyToCents(original.overage_amount) + dueCents);
+  } else if (['custom_invoice', 'custom_project'].includes(mode)) {
+    const description = String(settlement.description || 'وقت تصوير إضافي').trim(); dueCents = moneyToCents(settlement.amount); if (dueCents <= 0) dueCents = Math.round((moneyToCents(settlement.hourly_rate) * excess) / 60); if (!description || dueCents <= 0) throw formationDemoError('وصف وقيمة التسوية المخصصة مطلوبان.', 'invalid_custom_settlement');
+    if (mode === 'custom_project') { const name = String(settlement.name || '').trim(); if (!name) throw formationDemoError('اسم المشروع المخصص مطلوب.', 'invalid_custom_project'); project = addRow(working, 'projects', { client_id: workBooking.client_id, name, category: 'custom', service_type: 'custom', pricing_model: 'custom', quantity: 1, unit_label: 'project', agreed_price: centsToMoney(dueCents), requires_booking: 0, requirements_json: { session_settlement: true, booking_id: workBooking.id, excess_minutes: excess }, progress_percent: 0, status: 'planning', starts_at: dateOnly(), notes: description }); failAt('project'); invoice = createInvoice(description, dueCents, project.id); project.invoice_id = invoice.id; addRow(working, 'project_items', { project_id: project.id, client_id: workBooking.client_id, item_type: 'service', description, status: 'draft', quantity: 1, unit: 'session', unit_price: centsToMoney(dueCents), total_price: centsToMoney(dueCents), internal_cost: 0, is_client_visible: 1, sort_order: 0 }); addRow(working, 'project_milestones', { project_id: project.id, client_id: workBooking.client_id, title: 'اعتماد وقت التصوير الإضافي', status: 'completed', progress_percent: 100, is_client_visible: 1, sort_order: 0 }); addRow(working, 'project_milestones', { project_id: project.id, client_id: workBooking.client_id, title: 'التسليم النهائي', status: 'pending', progress_percent: 0, is_client_visible: 1, sort_order: 1 }); } else invoice = createInvoice(description, dueCents);
+  } else if (mode === 'waive') { internalReason = String(settlement.internal_reason || '').trim(); if (internalReason.length < 5) throw formationDemoError('سبب التغاضي الداخلي مطلوب.', 'waiver_reason_required'); waived = excess; }
+  const billableMinutes = covered + (mode === 'waive' ? 0 : excess); const effectiveKey = key || `session-${session.id}-v${preview.session_version}`;
+  const header = addRow(working, 'session_settlements', { booking_session_id: session.id, booking_id: workBooking.id, client_id: workBooking.client_id, original_client_package_id: original?.id || null, actual_minutes: actual, covered_minutes: covered, excess_minutes: excess, billable_minutes: billableMinutes, waived_minutes: waived, settlement_mode: mode, amount_due: centsToMoney(dueCents), amount_paid: centsToMoney(paidCents), internal_reason: internalReason, client_note: String(settlement.client_note || '').trim() || null, idempotency_key: effectiveKey, request_hash: requestHash, preview_hash: preview.preview_hash, session_version: preview.session_version, created_by: 1 });
+  if (original && covered > 0) addRow(working, 'session_settlement_allocations', { settlement_id: header.id, allocation_type: 'original_package', minutes: covered, source_client_package_id: original.id, target_client_package_id: null, service_id: workBooking.service_id, project_id: null, invoice_id: null, payment_id: null, rate_snapshot: 0, unit: 'minute', amount_snapshot: 0, event_key: 'original' });
+  if (excess > 0) addRow(working, 'session_settlement_allocations', { settlement_id: header.id, allocation_type: mode, minutes: excess, source_client_package_id: original?.id || null, target_client_package_id: targetPackage?.id || null, service_id: serviceId, project_id: project?.id || null, invoice_id: invoice?.id || null, payment_id: payment?.id || null, rate_snapshot: mode === 'package_overage' ? Number(settlement.hourly_rate || preview.overage_rate) : 0, unit: 'minute', amount_snapshot: centsToMoney(dueCents), internal_note: internalReason, client_note: String(settlement.client_note || '').trim() || null, event_key: 'excess' });
+  if (original) { if (unit === 'reel') { const heldQuantity = heldReels; const consumeQuantity = reels; const releaseQuantity = Math.max(0, heldReels - reels); original.held_quantity = Math.max(0, Number(original.held_quantity || 0) - heldQuantity); original.consumed_quantity = Math.min(Number(original.purchased_quantity), Number(original.consumed_quantity || 0) + consumeQuantity); addRow(working, 'package_usage_ledger', { client_package_id: original.id, booking_id: workBooking.id, movement_type: 'consume', quantity: consumeQuantity, quantity_minutes: null, reason: 'الوقت المغطى من جلسة التصوير', event_key: `settlement:${header.id}:original`, created_by: 1 }); if (releaseQuantity) addRow(working, 'package_usage_ledger', { client_package_id: original.id, booking_id: workBooking.id, movement_type: 'release', quantity: releaseQuantity, quantity_minutes: null, reason: 'إعادة رصيد الحجز غير المستخدم', event_key: `settlement:${header.id}:release`, created_by: 1 }); } else { const purchasedMinutes = demoPackageMinutes(original, 'purchased'); const consumedMinutes = demoPackageMinutes(original, 'consumed') + covered; const heldMinutes = Math.max(0, demoPackageMinutes(original, 'held') - preview.held_for_booking_minutes); if (consumedMinutes > purchasedMinutes) throw formationDemoError('لا يمكن خصم وقت يتجاوز إجمالي رصيد الباقة.', 'package_overdraft_prevented'); Object.assign(original, { purchased_minutes: purchasedMinutes, consumed_minutes: consumedMinutes, held_minutes: heldMinutes, purchased_quantity: demoSettlementHours(purchasedMinutes), consumed_quantity: demoSettlementHours(consumedMinutes), held_quantity: demoSettlementHours(heldMinutes) }); addRow(working, 'package_usage_ledger', { client_package_id: original.id, booking_id: workBooking.id, movement_type: 'consume', quantity: demoSettlementHours(covered), quantity_minutes: covered, reason: 'الوقت المغطى من جلسة التصوير', event_key: `settlement:${header.id}:original`, created_by: 1 }); const releaseMinutes = Math.max(0, preview.held_for_booking_minutes - Math.min(preview.held_for_booking_minutes, covered)); if (releaseMinutes) addRow(working, 'package_usage_ledger', { client_package_id: original.id, booking_id: workBooking.id, movement_type: 'release', quantity: demoSettlementHours(releaseMinutes), quantity_minutes: releaseMinutes, reason: 'إعادة رصيد الحجز غير المستخدم', event_key: `settlement:${header.id}:release`, created_by: 1 }); } }
+  if (targetPackage && ['new_package', 'existing_package'].includes(mode)) { const purchasedMinutes = demoPackageMinutes(targetPackage, 'purchased'); const heldMinutes = demoPackageMinutes(targetPackage, 'held'); const consumedMinutes = demoPackageMinutes(targetPackage, 'consumed') + excess; if (consumedMinutes + heldMinutes > purchasedMinutes) throw formationDemoError('رصيد الباقة المستهدفة لم يعد كافيًا.', 'settlement_balance_changed'); Object.assign(targetPackage, { purchased_minutes: purchasedMinutes, consumed_minutes: consumedMinutes, held_minutes: heldMinutes, purchased_quantity: demoSettlementHours(purchasedMinutes), consumed_quantity: demoSettlementHours(consumedMinutes), held_quantity: demoSettlementHours(heldMinutes) }); addRow(working, 'package_usage_ledger', { client_package_id: targetPackage.id, booking_id: workBooking.id, movement_type: 'consume', quantity: demoSettlementHours(excess), quantity_minutes: excess, reason: 'تسوية وقت تصوير زائد', event_key: `settlement:${header.id}:target`, created_by: 1 }); }
+  const ended = nowText();
+  Object.assign(workBooking, { status: 'completed', timer_ended_at: ended, actual_seconds: actual * 60, actual_hours: demoSettlementHours(actual), actual_reels: reels, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), overage_quantity: demoSettlementHours(excess), overage_amount: mode === 'package_overage' ? centsToMoney(dueCents) : 0 }); Object.assign(session, { status: 'completed', ended_at: ended, actual_seconds: actual * 60, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), adjustment_reason: String(body.reason || '').trim(), settlement_version: Number(session.settlement_version || 1) + 1 });
+  const response = { booking_id: workBooking.id, session_id: session.id, settlement_id: header.id, status: 'completed', actual_minutes: actual, covered_minutes: covered, excess_minutes: excess, billable_minutes: billableMinutes, waived_minutes: waived, settlement_mode: mode, target_package_id: targetPackage?.id || null, invoice_id: invoice?.id || null, project_id: project?.id || null, payment_id: payment?.id || null, amount_due: centsToMoney(dueCents), amount_paid: centsToMoney(paidCents), billing_unit: unit }; demoAudit(working, 'session_settle_and_complete', 'booking_sessions', session.id, sourceSession, { ...response, client_id: workBooking.client_id }); header.response = clone(response); writeDatabase(working); return clone(response);
+};
+
 const demoRequest = async (path, options = {}) => {
   const database = readDatabase();
   const body = bodyOf(options);
   const url = new URL(path, 'https://demo.local');
   const route = url.pathname;
   let match;
+
+  if (demoRole === 'client' && demoCredentialSessionVersion !== null) {
+    const sessionClient = findById(database, 'clients', 1);
+    if (!sessionClient?.portal_enabled || Number(sessionClient.credential_version || 0) !== Number(demoCredentialSessionVersion)) throw formationDemoError('تم إنهاء هذه الجلسة. سجل الدخول مرة أخرى.', 'session_revoked');
+  }
+
+  if ((match = route.match(/^\/clients\/(\d+)\/credentials$/)) && (options.method || 'GET') === 'GET') {
+    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
+    const hasPassword = Boolean(client.portal_account_exists);
+    return { account_exists: hasPassword, has_password: hasPassword, access_enabled: hasPassword && client.portal_enabled === true, portal_access: !hasPassword ? 'no_account' : client.portal_enabled === true ? 'enabled' : 'disabled', credential_state: !hasPassword ? 'no_account' : client.must_change_password ? 'change_required' : client.password_status === 'temporary' ? 'temporary' : 'active', must_change_password: Boolean(client.must_change_password), last_login_at: client.portal_last_login_at || null, password_changed_at: client.password_changed_at || null, active_sessions: Number(client.portal_active_sessions || 0), temporary_expires_at: client.temporary_expires_at || null };
+  }
+  if ((match = route.match(/^\/clients\/(\d+)\/credentials\/password$/)) && options.method === 'POST') {
+    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
+    const nextPassword = String(body.new_password || ''); const confirmation = String(body.confirm_password || ''); const requireChange = Boolean(body.require_change);
+    if (nextPassword !== confirmation) throw formationDemoError('تأكيد كلمة المرور غير مطابق.', 'password_confirmation_mismatch');
+    if (!validDemoPassword(nextPassword)) throw formationDemoError('كلمة المرور الجديدة يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 'weak_password');
+    const clientId = Number(client.id); const nextHash = await demoSecretHash(nextPassword); const currentHash = client.password_status === 'temporary' ? demoTemporaryVerifiers.get(clientId) : demoPermanentVerifiers.get(clientId);
+    if (currentHash === nextHash) throw formationDemoError('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.', 'password_reuse');
+    if ((demoPasswordHistory.get(clientId) || []).includes(nextHash)) throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse');
+    if (currentHash) rememberDemoVerifier(clientId, currentHash);
+    const hadAccount = Boolean(client.portal_account_exists); const accessEnabled = Boolean(hadAccount && client.portal_enabled === true);
+    demoTemporaryVerifiers.delete(clientId); demoPermanentVerifiers.set(clientId, nextHash);
+    Object.assign(client, { portal_account_exists: true, password_status: 'active', must_change_password: requireChange, password_changed_at: nowText(), credential_version: Number(client.credential_version || 0) + 1, temporary_expires_at: null, portal_active_sessions: 0 });
+    if (!hadAccount) client.portal_enabled = false;
+    demoCredentialSessionVersion = null;
+    demoAudit(database, 'client_password_set', 'users', clientId, null, { client_id: clientId, require_change: requireChange, access_enabled: accessEnabled, sessions_revoked: true }); writeDatabase(database);
+    return { updated: true, has_password: true, access_enabled: accessEnabled, portal_access: accessEnabled ? 'enabled' : 'disabled', must_change_password: requireChange };
+  }
+  if ((match = route.match(/^\/clients\/(\d+)\/credentials\/temporary$/)) && options.method === 'POST') {
+    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
+    const temporaryPassword = createDemoTemporaryPassword(); const expiresAt = new Date(Date.now() + 86400000).toISOString();
+    const clientId = Number(client.id); const existingPermanent = demoPermanentVerifiers.get(clientId); if (existingPermanent) rememberDemoVerifier(clientId, existingPermanent);
+    demoTemporaryVerifiers.set(clientId, await demoSecretHash(temporaryPassword));
+    const hadAccount = Boolean(client.portal_account_exists);
+    Object.assign(client, { portal_account_exists: true, password_status: 'temporary', must_change_password: true, credential_version: Number(client.credential_version || 0) + 1, temporary_expires_at: expiresAt, portal_active_sessions: 0 });
+    if (!hadAccount) client.portal_enabled = false;
+    demoAudit(database, 'temporary_credential_issued', 'users', Number(client.id), null, { client_id: Number(client.id), expires_at: expiresAt, sessions_revoked: true }); writeDatabase(database);
+    return { temporary_password: temporaryPassword, expires_at: expiresAt, login_identifier: client.phone1 || client.email, portal_access: client.portal_enabled === false ? 'disabled' : 'enabled' };
+  }
+  if ((match = route.match(/^\/clients\/(\d+)\/credentials\/sessions\/revoke$/)) && options.method === 'POST') {
+    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client?.portal_account_exists) throw formationDemoError('حساب دخول العميل غير موجود.', 'client_account_not_found'); const count = Number(client.portal_active_sessions || 0); client.portal_active_sessions = 0; client.credential_version = Number(client.credential_version || 0) + 1; demoAudit(database, 'client_sessions_revoked', 'users', Number(client.id), null, { client_id: Number(client.id), session_count: count }); writeDatabase(database); return { revoked: true, count };
+  }
+  if ((match = route.match(/^\/clients\/(\d+)\/credentials\/toggle$/)) && options.method === 'POST') {
+    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client?.portal_account_exists) throw formationDemoError('عيّن كلمة مرور أولًا لإنشاء حساب العميل.', 'client_credential_required'); client.portal_enabled = Boolean(body.enabled); client.portal_active_sessions = 0; client.credential_version = Number(client.credential_version || 0) + 1; demoCredentialSessionVersion = null; demoAudit(database, body.enabled ? 'client_portal_enabled' : 'client_portal_disabled', 'users', Number(client.id), null, { client_id: Number(client.id), enabled: Boolean(body.enabled), sessions_revoked: true }); writeDatabase(database); return { enabled: Boolean(body.enabled) };
+  }
+  if (route === '/auth/password' && options.method === 'PATCH') {
+    if (demoRole !== 'client') throw formationDemoError('غير مصرح.', 'forbidden'); const client = findById(database, 'clients', 1); if (!client?.must_change_password) throw formationDemoError('لا توجد كلمة مرور معلقة للتغيير.', 'password_change_not_required'); if (!validDemoPassword(body.password)) throw formationDemoError('كلمة المرور الجديدة يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 'weak_password'); const clientId = Number(client.id); const nextHash = await demoSecretHash(body.password); const currentHash = client.password_status === 'temporary' ? demoTemporaryVerifiers.get(clientId) : demoPermanentVerifiers.get(clientId); if (nextHash === currentHash) throw formationDemoError('اختر كلمة مرور مختلفة عن كلمة المرور الحالية أو المؤقتة.', 'password_reuse'); if ((demoPasswordHistory.get(clientId) || []).includes(nextHash)) throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse'); if (currentHash) rememberDemoVerifier(clientId, currentHash); demoTemporaryVerifiers.delete(clientId); demoPermanentVerifiers.set(clientId, nextHash); Object.assign(client, { must_change_password: false, password_status: 'active', password_changed_at: nowText(), temporary_expires_at: null, portal_active_sessions: 1, credential_version: Number(client.credential_version || 0) + 1 }); demoCredentialSessionVersion = Number(client.credential_version); demoAudit(database, 'password_changed', 'users', Number(client.id), null, { client_id: Number(client.id), forced: true, sessions_revoked: true }); writeDatabase(database); return { updated: true, session: { active: true }, user: { id: 'local-client', client_id: 'local-client-preview', full_name: `${client.name} (معاينة محلية)`, email: client.email, phone: client.phone1, role: 'client', permissions: ['client_portal'], must_change_password: false, password_status: 'active', credential_version: Number(client.credential_version), credential_managed: true, is_local_preview: true } };
+  }
+
+  if ((match = route.match(/^\/owner\/records\/([a-z_]+)\/(\d+)\/impact$/)) && (options.method || 'GET') === 'GET') { const impact = demoOwnerImpact(database, match[1], match[2]); const result = clone(impact); delete result.record; return result; }
+  if ((match = route.match(/^\/owner\/records\/([a-z_]+)\/(\d+)\/action$/)) && options.method === 'POST') return demoOwnerAction(database, match[1], match[2], body);
+
+  if (route === '/attendance/adjustments' && options.method === 'POST') {
+    requireDemoOwner(); const amount = Number(body.amount); const reason = String(body.reason || '').trim(); const userId = Number(body.user_id); if (!userId || !Number.isFinite(amount) || amount === 0 || reason.length < 5 || !/^\d{4}-\d{2}$/.test(String(body.month || ''))) throw formationDemoError('الموظف والمبلغ وسبب واضح مطلوبون.', 'validation_error'); const adjustment = addRow(database, 'attendance_adjustments', { user_id: userId, attendance_record_id: body.attendance_record_id || null, adjustment_month: body.month, adjustment_type: amount > 0 ? 'deduction' : 'credit', amount, minutes: Number(body.minutes || 0), reason, created_by: 1, voided_at: null, replacement_adjustment_id: null }); demoAudit(database, 'create', 'attendance_adjustments', adjustment.id, null, clone(adjustment)); writeDatabase(database); return { id: adjustment.id };
+  }
+  if ((match = route.match(/^\/attendance\/adjustments\/(\d+)\/correct$/)) && options.method === 'POST') {
+    requireDemoOwner(); const original = findById(database, 'attendance_adjustments', match[1]); if (!original) throw formationDemoError('تسوية الحضور غير موجودة.', 'attendance_adjustment_not_found'); if (original.replacement_adjustment_id) { const existing = findById(database, 'attendance_adjustments', original.replacement_adjustment_id); if (existing) return { id: original.id, voided: true, replacement_id: existing.id, idempotent: true }; } if (original.voided_at) throw formationDemoError('تم إبطال تسوية الحضور بالفعل.', 'attendance_adjustment_already_voided'); const correctionReason = demoReason(body); const entryReason = String(body.entry_reason || body.replacement_reason || '').trim(); const amount = Number(body.amount); if (!Number.isFinite(amount) || amount === 0 || entryReason.length < 5) throw formationDemoError('المبلغ وسبب التسوية البديلة مطلوبان.', 'validation_error'); const before = clone(original); const replacement = addRow(database, 'attendance_adjustments', { user_id: original.user_id, attendance_record_id: original.attendance_record_id || null, adjustment_month: original.adjustment_month, adjustment_type: amount > 0 ? 'deduction' : 'credit', amount, minutes: Number(body.minutes || 0), reason: entryReason, created_by: 1, voided_at: null, replacement_adjustment_id: null }); Object.assign(original, { void_reason: correctionReason, voided_by: 1, voided_at: nowText(), replacement_adjustment_id: replacement.id }); demoAudit(database, 'correct', 'attendance_adjustments', original.id, before, { voided: true, replacement_id: replacement.id, replacement: clone(replacement), reason: correctionReason }); writeDatabase(database); return { id: original.id, voided: true, replacement_id: replacement.id, idempotent: false };
+  }
 
   if ((match = route.match(/^\/client-packages\/(\d+)\/details$/)) && (options.method || 'GET') === 'GET') {
     if (!['owner', 'admin'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض تفاصيل الباقة.', 'forbidden');
@@ -621,6 +1018,9 @@ const demoRequest = async (path, options = {}) => {
     }
     if ((match = route.match(/^\/social-profits\/(\d+)\/void$/)) && options.method === 'POST') {
       const entry = findById(database, 'social_profit_entries', match[1]); const reason = String(body.reason || '').trim(); if (!entry) throw formationDemoError('قيد الإيراد غير موجود.', 'social_profit_not_found'); if (entry.status !== 'active') throw formationDemoError('تم إبطال هذا القيد بالفعل.', 'social_profit_already_voided'); if (reason.length < 3) throw formationDemoError('اكتب سبب الإبطال بوضوح.', 'void_reason_required'); Object.assign(entry, { status: 'voided', void_reason: reason, voided_by: 1, voided_at: nowText(), updated_at: nowText() }); writeDatabase(database); return { id: entry.id, voided: true };
+    }
+    if ((match = route.match(/^\/social-profits\/(\d+)\/correct$/)) && options.method === 'POST') {
+      requireDemoOwner(); const reason = demoReason(body); const entry = findById(database, 'social_profit_entries', match[1]); if (!entry) throw formationDemoError('قيد الإيراد غير موجود.', 'social_profit_not_found'); const existing = database.social_profit_entries.find(row => Number(row.corrected_from_id) === Number(entry.id)); if (existing) return { id: entry.id, voided: true, replacement_id: existing.id, idempotent: true }; if (entry.status !== 'active') throw formationDemoError('تم إبطال أو تصحيح هذا القيد بالفعل.', 'social_profit_already_voided'); const cents = socialAmountToCents(body.amount); if (cents === null || !['youtube', 'facebook'].includes(body.platform) || !/^\d{4}-\d{2}-\d{2}$/.test(String(body.receipt_date || '')) || !String(body.channel_name || '').trim()) throw formationDemoError('بيانات الإيراد المصحح غير مكتملة.', 'validation_error'); const before = clone(entry); Object.assign(entry, { status: 'voided', void_reason: reason, voided_by: 1, voided_at: nowText() }); const replacement = addRow(database, 'social_profit_entries', { platform: body.platform, amount: socialCentsToAmount(cents), receipt_date: body.receipt_date, earning_year: Number(body.earning_year), earning_month: Number(body.earning_month), channel_name: String(body.channel_name).trim(), payout_reference: String(body.payout_reference || '').trim(), note: String(body.note || '').trim(), status: 'active', created_by: 1, corrected_from_id: entry.id }); demoAudit(database, 'correct', 'social_profit_entries', entry.id, before, { replacement_id: replacement.id, reason }); writeDatabase(database); return { id: entry.id, voided: true, replacement_id: replacement.id, idempotent: false };
     }
   }
 
@@ -659,12 +1059,34 @@ const demoRequest = async (path, options = {}) => {
       if (entry.entry_type === 'contribution') { const founder = summarizeFormationFund(database).founders.find(item => Number(item.id) === Number(entry.founder_id)); if (toCents(founder?.available) < toCents(entry.amount)) throw formationDemoError('لا يمكن إبطال المساهمة لأنها ممولة بالفعل في مصروفات تأسيس قائمة.', 'contribution_void_would_overdraw'); }
       Object.assign(entry, { status: 'voided', void_reason: reason, voided_by: 1, voided_at: nowText(), updated_at: nowText() }); writeDatabase(database); return { id: entry.id, voided: true, summary: summarizeFormationFund(database) };
     }
+    if ((match = route.match(/^\/formation-fund\/entries\/(\d+)\/correct$/)) && options.method === 'POST') {
+      requireDemoOwner(); const reason = demoReason(body); const entry = findById(database, 'formation_fund_entries', match[1]); if (!entry) throw formationDemoError('حركة صندوق التأسيس غير موجودة.', 'formation_entry_not_found'); const existing = database.formation_fund_entries.find(row => Number(row.corrected_from_id) === Number(entry.id)); if (existing) return { id: entry.id, voided: true, replacement_id: existing.id, idempotent: true, summary: summarizeFormationFund(database) }; if (entry.status !== 'active') throw formationDemoError('تم إبطال أو تصحيح هذه الحركة بالفعل.', 'formation_entry_already_voided'); const amount = Number(body.amount); if (toCents(amount) <= 0 || !String(body.title || '').trim()) throw formationDemoError('بيانات الحركة المصححة غير مكتملة.', 'validation_error'); const before = clone(entry); Object.assign(entry, { status: 'voided', void_reason: reason, voided_by: 1, voided_at: nowText() }); const replacement = addRow(database, 'formation_fund_entries', { entry_type: entry.entry_type, founder_id: entry.entry_type === 'contribution' ? Number(body.founder_id || entry.founder_id) : null, amount, title: String(body.title).trim(), category: body.category || entry.category, payment_method: body.payment_method || entry.payment_method, reference: body.reference || '', entry_date: body.entry_date || entry.entry_date, note: body.note || '', allocation_mode: body.allocation_mode || entry.allocation_mode, status: 'active', created_by: 1, corrected_from_id: entry.id }); if (entry.entry_type === 'expense') { const snapshot = summarizeFormationFund(database); allocateFormationExpense(amount, snapshot.founders).forEach(row => addRow(database, 'formation_expense_allocations', { expense_entry_id: replacement.id, founder_id: row.founder_id, amount: row.amount })); } demoAudit(database, 'correct', 'formation_fund_entries', entry.id, before, { replacement_id: replacement.id, reason }); writeDatabase(database); return { id: entry.id, voided: true, replacement_id: replacement.id, idempotent: false, summary: summarizeFormationFund(database) };
+    }
   }
 
   if (route === '/users/assignees') return clone(database.users.filter(user => user.role !== 'client'));
   if (route === '/users' && (options.method || 'GET') === 'GET') return clone(database.users);
-  if (route === '/users' && options.method === 'POST') { const row = addRow(database, 'users', { ...body, is_active: 1 }); writeDatabase(database); return row; }
-  if ((match = route.match(/^\/users\/(\d+)$/)) && options.method === 'PATCH') { Object.assign(findById(database, 'users', match[1]) || {}, body, { updated_at: nowText() }); writeDatabase(database); return { id: Number(match[1]) }; }
+  if (route === '/users' && options.method === 'POST') {
+    requireDemoOwner(); const role = String(body.role || 'staff');
+    if (!['owner', 'admin', 'operations', 'finance', 'staff', 'client'].includes(role)) throw formationDemoError('الدور غير صالح.', 'invalid_role');
+    if (role === 'client' || body.client_id) throw formationDemoError('استخدم قسم الدخول والأمان لإنشاء حساب العميل.', 'use_client_credential_flow');
+    if (!validDemoPassword(String(body.password || ''))) throw formationDemoError('كلمة المرور يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 'weak_password');
+    const safeBody = Object.fromEntries(Object.entries(body).filter(([field]) => ['full_name', 'email', 'phone', 'permissions'].includes(field)));
+    const row = addRow(database, 'users', { ...safeBody, client_id: null, role, is_active: 1 }); writeDatabase(database); return row;
+  }
+  if ((match = route.match(/^\/users\/(\d+)$/)) && options.method === 'PATCH') {
+    requireDemoOwner(); const target = findById(database, 'users', match[1]); if (!target) throw formationDemoError('المستخدم غير موجود.', 'user_not_found');
+    const currentOrLinkedClient = target.role === 'client' || target.client_id !== null && target.client_id !== undefined;
+    const resultingClient = body.role === 'client' || Boolean(body.client_id);
+    const clientSensitiveFields = ['email', 'phone', 'is_active', 'status', 'role', 'client_id', 'password', 'password_hash', 'password_status', 'must_change_password', 'credential_version', 'temporary_expires_at', 'permissions'];
+    if ((currentOrLinkedClient || resultingClient) && clientSensitiveFields.some(field => Object.prototype.hasOwnProperty.call(body, field))) throw formationDemoError('استخدم قسم الدخول والأمان لتغيير بيانات دخول العميل.', 'use_client_credential_flow');
+    if (Object.prototype.hasOwnProperty.call(body, 'client_id')) throw formationDemoError('ربط المستخدم بالعميل لا يتغير من مسار المستخدمين العام.', 'use_client_credential_flow');
+    if (body.role && !['owner', 'admin', 'operations', 'finance', 'staff'].includes(body.role)) throw formationDemoError('الدور غير صالح.', 'invalid_role');
+    if (body.password && !validDemoPassword(String(body.password))) throw formationDemoError('كلمة المرور يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 'weak_password');
+    const allowed = ['full_name', 'email', 'phone', 'role', 'is_active', 'permissions']; const safeBody = Object.fromEntries(Object.entries(body).filter(([field]) => allowed.includes(field)));
+    if (body.password) Object.assign(safeBody, { password_changed_at: nowText(), credential_version: Number(target.credential_version || 0) + 1 });
+    Object.assign(target, safeBody, { updated_at: nowText() }); writeDatabase(database); return { id: Number(match[1]) };
+  }
 
   if (route === '/clients' && options.method === 'POST') { const row = addRow(database, 'clients', { ...body, status: 'active', color: body.color || '#2563eb', points: 0, debt: 0, credit: 0 }); writeDatabase(database); return row; }
   if ((match = route.match(/^\/clients\/(\d+)\/access$/))) return { client_id: Number(match[1]), demo: true };
@@ -683,13 +1105,17 @@ const demoRequest = async (path, options = {}) => {
   if (route === '/client-packages' && options.method === 'POST') {
     const service = findById(database, 'services', body.service_id);
     const expires = new Date(`${body.starts_at}T12:00:00`); expires.setDate(expires.getDate() + Number(body.validity_days || service?.validity_days || 90));
-    const row = addRow(database, 'client_packages', { client_id: body.client_id, service_id: body.service_id, name: body.name || service?.name, billing_unit: body.billing_unit || service?.billing_unit || 'hour', purchased_quantity: Number(body.quantity), held_quantity: 0, consumed_quantity: 0, payment_due_quantity: Number(service?.payment_due_hours || 0), deposit_percent_snapshot: Number(service?.deposit_percent || 0), overage_price_snapshot: Number(service?.overage_price || 0), total_price: Number(body.total_price), overage_amount: 0, paid_amount: Number(body.paid_amount || 0), starts_at: body.starts_at, expires_at: `${expires.getFullYear()}-${pad(expires.getMonth() + 1)}-${pad(expires.getDate())}`, status: 'active' });
+    const unit = body.billing_unit || service?.billing_unit || 'hour';
+    const purchasedMinutes = unit === 'hour' ? demoSettlementMinutes(body.quantity) : null;
+    const paymentDueMinutes = unit === 'hour' ? demoSettlementMinutes(service?.payment_due_hours || 0) : null;
+    const row = addRow(database, 'client_packages', { client_id: body.client_id, service_id: body.service_id, name: body.name || service?.name, billing_unit: unit, purchased_quantity: unit === 'hour' ? demoSettlementHours(purchasedMinutes) : Number(body.quantity), purchased_minutes: purchasedMinutes, held_quantity: 0, held_minutes: unit === 'hour' ? 0 : null, consumed_quantity: 0, consumed_minutes: unit === 'hour' ? 0 : null, payment_due_quantity: unit === 'hour' ? demoSettlementHours(paymentDueMinutes) : Number(service?.payment_due_hours || 0), payment_due_minutes: paymentDueMinutes, deposit_percent_snapshot: Number(service?.deposit_percent || 0), overage_price_snapshot: Number(service?.overage_price || 0), total_price: Number(body.total_price), overage_amount: 0, paid_amount: Number(body.paid_amount || 0), starts_at: body.starts_at, expires_at: `${expires.getFullYear()}-${pad(expires.getMonth() + 1)}-${pad(expires.getDate())}`, status: 'active' });
+    addDemoPackageUsage(database, row, { movement_type: 'adjustment', quantity: Number(body.quantity), quantity_minutes: purchasedMinutes, reason: 'إنشاء وبيع الباقة', event_key: `package:${row.id}:opening` });
     if (Number(body.paid_amount) > 0) addRow(database, 'finance', { type: 'إيراد', entry_kind: 'income', category: 'package_payment', client_id: body.client_id, amount: Number(body.paid_amount), method: body.payment_method || 'كاش', detail: `دفعة ${row.name}`, date: dateOnly(), entity: 'الشركة' });
     writeDatabase(database); return row;
   }
   if ((match = route.match(/^\/client-packages\/(\d+)$/)) && options.method === 'PATCH') { requireDemoOwner(); const reason = demoReason(body); const pkg = findById(database, 'client_packages', match[1]); if (!pkg) throw formationDemoError('الباقة غير موجودة.', 'package_not_found'); const before = clone(pkg); ['name','notes','starts_at','expires_at','status'].forEach(field => { if (Object.prototype.hasOwnProperty.call(body, field)) pkg[field] = body[field]; }); pkg.version = Number(pkg.version || 1) + 1; pkg.updated_at = nowText(); demoAudit(database, 'owner_update_package', 'client_packages', pkg.id, before, { ...clone(pkg), reason }); writeDatabase(database); return clone(pkg); }
   if ((match = route.match(/^\/client-packages\/(\d+)\/adjust$/))) {
-    requireDemoOwner(); const reason = demoReason(body); const pkg = findById(database, 'client_packages', match[1]); if (!pkg) throw formationDemoError('الباقة غير موجودة.', 'package_not_found'); const target = Number(body.target_quantity ?? (Number(pkg.purchased_quantity) + Number(body.delta || 0))); const minimum = Number(pkg.consumed_quantity || 0) + Number(pkg.held_quantity || 0); if (target < minimum - 0.000001) throw formationDemoError('لا يمكن خفض الإجمالي عن المستهلك والمحجوز.', 'quantity_below_committed'); const before = clone(pkg); const delta = Number((target - Number(pkg.purchased_quantity)).toFixed(4)); pkg.purchased_quantity = target; pkg.version = Number(pkg.version || 1) + 1; addRow(database, 'package_usage_ledger', { client_package_id: pkg.id, movement_type: 'adjustment', quantity: delta, reason, event_key: `owner-adjustment:${pkg.id}:${Date.now()}` }); addRow(database, 'owner_adjustments', { entity_type: 'client_packages', entity_id: pkg.id, adjustment_type: 'quantity', amount_delta_cents: 0, quantity_delta: delta, reason, before_data: before, after_data: clone(pkg) }); demoAudit(database, 'adjust_balance', 'client_packages', pkg.id, before, { ...clone(pkg), reason }); writeDatabase(database); return { id: pkg.id, purchased_quantity: target, minimum_quantity: minimum };
+    requireDemoOwner(); const reason = demoReason(body); const pkg = findById(database, 'client_packages', match[1]); if (!pkg) throw formationDemoError('الباقة غير موجودة.', 'package_not_found'); const oldPurchased = pkg.billing_unit === 'hour' ? demoSettlementHours(demoPackageMinutes(pkg, 'purchased')) : Number(pkg.purchased_quantity || 0); const minimum = pkg.billing_unit === 'hour' ? demoSettlementHours(demoPackageMinutes(pkg, 'consumed') + demoPackageMinutes(pkg, 'held')) : Number(pkg.consumed_quantity || 0) + Number(pkg.held_quantity || 0); const target = Number(body.target_quantity ?? (oldPurchased + Number(body.delta || 0))); if (target < minimum - 0.000001) throw formationDemoError('لا يمكن خفض الإجمالي عن المستهلك والمحجوز.', 'quantity_below_committed'); const before = clone(pkg); const targetMinutes = pkg.billing_unit === 'hour' ? demoSettlementMinutes(target) : null; const deltaMinutes = pkg.billing_unit === 'hour' ? targetMinutes - demoPackageMinutes(pkg, 'purchased') : null; const delta = pkg.billing_unit === 'hour' ? demoSettlementHours(deltaMinutes) : Number((target - oldPurchased).toFixed(4)); mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { purchased_minutes: deltaMinutes } : { purchased: delta }); pkg.version = Number(pkg.version || 1) + 1; addDemoPackageUsage(database, pkg, { movement_type: 'adjustment', quantity: delta, quantity_minutes: deltaMinutes, reason, event_key: `owner-adjustment:${pkg.id}:${Date.now()}` }); addRow(database, 'owner_adjustments', { entity_type: 'client_packages', entity_id: pkg.id, adjustment_type: 'quantity', amount_delta_cents: 0, quantity_delta: delta, reason, before_data: before, after_data: clone(pkg) }); demoAudit(database, 'adjust_balance', 'client_packages', pkg.id, before, { ...clone(pkg), reason }); writeDatabase(database); return { id: pkg.id, purchased_quantity: pkg.purchased_quantity, purchased_minutes: pkg.purchased_minutes ?? null, minimum_quantity: minimum };
   }
   if ((match = route.match(/^\/client-packages\/(\d+)\/commercial-adjustment$/))) {
     requireDemoOwner(); const reason = demoReason(body); const pkg = findById(database, 'client_packages', match[1]); if (!pkg) throw formationDemoError('الباقة غير موجودة.', 'package_not_found'); const oldTotal = moneyToCents(pkg.total_price); const oldPaid = moneyToCents(pkg.paid_amount); const newTotal = moneyToCents(body.target_total_price ?? pkg.total_price); const newPaid = moneyToCents(body.target_paid_amount ?? pkg.paid_amount); const paidDelta = newPaid - oldPaid; const ambiguous = pkg.source_invoice_id && database.client_packages.filter(row => Number(row.source_invoice_id) === Number(pkg.source_invoice_id)).length > 1 && database.payment_allocations.some(row => Number(row.invoice_id) === Number(pkg.source_invoice_id) && !row.client_package_id); if (paidDelta && ambiguous) throw formationDemoError('الفاتورة القديمة تضم أكثر من باقة ولا تحتوي توزيعًا دقيقًا.', 'ambiguous_legacy_allocation'); const before = clone(pkg); pkg.total_price = centsToMoney(newTotal); pkg.paid_amount = centsToMoney(newPaid); pkg.version = Number(pkg.version || 1) + 1; const adjustment = addRow(database, 'owner_adjustments', { entity_type: 'client_packages', entity_id: pkg.id, adjustment_type: 'commercial', amount_delta_cents: paidDelta, quantity_delta: newTotal - oldTotal, reason, before_data: before, after_data: clone(pkg) }); if (paidDelta > 0) { const payment = addRow(database, 'payments', { client_id: pkg.client_id, amount: centsToMoney(paidDelta), method: body.method || 'cash', status: 'approved', reference: `OWNER-ADJ-${adjustment.id}`, version: 1 }); addRow(database, 'payment_allocations', { client_id: pkg.client_id, payment_id: payment.id, client_package_id: pkg.id, invoice_id: pkg.source_invoice_id || null, amount: centsToMoney(paidDelta) }); addRow(database, 'finance', { type: 'إيراد', entry_kind: 'income', category: 'package_paid_correction', client_id: pkg.client_id, amount: centsToMoney(paidDelta), method: body.method || 'cash', detail: `تصحيح مدفوع الباقة: ${pkg.name}`, date: dateOnly(), entity: 'الشركة', source_type: 'payment', source_id: payment.id, is_system: 1, version: 1 }); } else if (paidDelta < 0) addRow(database, 'finance', { type: 'قيد عكسي', entry_kind: 'reversal', category: 'package_paid_correction', client_id: pkg.client_id, amount: centsToMoney(Math.abs(paidDelta)), method: body.method || 'cash', detail: `خفض مدفوع الباقة: ${pkg.name}`, date: dateOnly(), entity: 'الشركة', source_type: 'owner_adjustment', source_id: adjustment.id, reversal_reason: reason, is_system: 1, version: 1 }); demoAudit(database, 'commercial_adjustment', 'client_packages', pkg.id, before, { ...clone(pkg), reason, adjustment_id: adjustment.id }); writeDatabase(database); const financial = packageFinancialSummary(pkg); return { id: pkg.id, adjustment_id: adjustment.id, financial: { total_price: pkg.total_price, paid_amount: pkg.paid_amount, remaining: centsToMoney(financial.outstandingCents), credit: centsToMoney(Math.max(0, financial.paidCents - financial.totalCents - financial.overageCents)) } };
@@ -698,6 +1124,61 @@ const demoRequest = async (path, options = {}) => {
   if ((match = route.match(/^\/client-packages\/(\d+)\/(extend|status)$/))) { requireDemoOwner(); const reason = demoReason(body); const pkg = findById(database, 'client_packages', match[1]); if (!pkg) throw formationDemoError('الباقة غير موجودة.', 'package_not_found'); const before = clone(pkg); if (match[2] === 'extend') pkg.expires_at = body.expires_at; if (match[2] === 'status') pkg.status = body.status; pkg.version = Number(pkg.version || 1) + 1; pkg.updated_at = nowText(); demoAudit(database, match[2] === 'extend' ? 'extend' : 'status_change', 'client_packages', pkg.id, before, { ...clone(pkg), reason }); writeDatabase(database); return clone(pkg); }
 
   if (route === '/projects/custom-service' && options.method === 'POST') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لإنشاء خدمة مخصصة.', 'forbidden');
+    const idempotencyKey = String(body.idempotency_key || '').trim();
+    if (!/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) throw formationDemoError('مفتاح حماية الطلب غير صالح.', 'invalid_idempotency_key');
+    const requestSignature = JSON.stringify(body);
+    const previousRequest = tableRows(database, 'custom_service_requests').find(row => row.idempotency_key === idempotencyKey);
+    if (previousRequest) {
+      if (previousRequest.request_signature !== requestSignature) throw formationDemoError('تم استخدام مفتاح الطلب سابقًا لبيانات مختلفة.', 'idempotency_mismatch');
+      return clone(previousRequest.response);
+    }
+    const draft = clone(database);
+    const allowedTypes = new Set(['custom','reels','advertising','website','software','podcast','social_media','event_coverage','ai_video']);
+    const serviceType = String(body.service_type || 'custom');
+    const client = findById(draft, 'clients', body.client_id);
+    const name = String(body.name || '').trim();
+    const startsAt = String(body.starts_at || dateOnly());
+    const dueAt = String(body.due_at || '');
+    if (!allowedTypes.has(serviceType)) throw formationDemoError('نوع الخدمة غير صحيح.', 'invalid_custom_service_type');
+    if (!client || client.status === 'archived' || client.status === 'inactive') throw formationDemoError('العميل غير موجود أو غير نشط.', 'client_not_found');
+    if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(startsAt) || (dueAt && (!/^\d{4}-\d{2}-\d{2}$/.test(dueAt) || dueAt < startsAt))) throw formationDemoError('اسم الخدمة وتواريخها غير مكتملة.', 'invalid_custom_project');
+    const sourceItems = Array.isArray(body.items) ? body.items : [];
+    if (!sourceItems.length) throw formationDemoError('أضف بندًا واحدًا على الأقل.', 'missing_project_items');
+    const items = sourceItems.map((item, index) => {
+      const description = String(item.description || item.title || '').trim(); const quantity = Number(item.quantity); const unit = String(item.unit || item.unit_label || 'project').trim();
+      const unitPriceCents = moneyToCents(item.unit_price); const internalCostCents = moneyToCents(item.internal_cost || 0);
+      if (!description || !unit || !(quantity > 0) || unitPriceCents < 0 || internalCostCents < 0) throw formationDemoError('بيانات أحد بنود الخدمة غير صحيحة.', 'invalid_project_item');
+      const totalCents = Math.round(unitPriceCents * quantity);
+      return { description, quantity, unit, unit_price: centsToMoney(unitPriceCents), total_price: centsToMoney(totalCents), internal_cost: centsToMoney(internalCostCents), is_client_visible: item.is_client_visible === false ? 0 : 1, sort_order: index };
+    });
+    const totalCents = items.reduce((sum, item) => sum + moneyToCents(item.total_price), 0); const paidCents = moneyToCents(body.paid_amount || 0);
+    if (paidCents > totalCents) throw formationDemoError('المدفوع مبدئيًا لا يمكن أن يتجاوز إجمالي الخدمة.', 'payment_exceeds_project_total');
+    const milestones = (Array.isArray(body.milestones) ? body.milestones : []).map(item => typeof item === 'string' ? { title: item } : item).map((item, index) => ({ ...item, title: String(item.title || '').trim(), sort_order: index })).filter(item => item.title);
+    if (milestones.length < 2) throw formationDemoError('يجب أن يحتوي المشروع على مرحلتي إنتاج على الأقل.', 'minimum_milestones');
+    const requiresBooking = Boolean(body.requires_booking); let bookingDraft = null;
+    if (requiresBooking) {
+      const booking = body.booking || {}; const resource = findById(draft, 'resources', booking.resource_id); const date = String(booking.date || '');
+      const clock = value => { const [h, m] = String(value || '').split(':').map(Number); return h === 24 ? 1440 : h * 60 + m; };
+      const start = clock(booking.start_time); const end = clock(booking.end_time); const duration = end - start;
+      if (!resource || Number(resource.is_active ?? 1) !== 1) throw formationDemoError('مورد الحجز غير متاح.', 'invalid_booking_resource');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(`${date}T12:00:00`).getDay() === 5 || start < 720 || end > 1440 || duration < 60 || duration % 15 !== 0) throw formationDemoError('الموعد غير صالح. الجمعة إجازة، والعمل من 12 م إلى 12 ص.', 'invalid_project_booking');
+      bookingDraft = { resource_id: Number(resource.id), date, start_time: booking.start_time, end_time: booking.end_time };
+      assertDemoBookingAvailable(draft, bookingDraft);
+    }
+    const project = addRow(draft, 'projects', { client_id: Number(client.id), name, category: serviceType, service_type: serviceType, pricing_model: body.pricing_model || 'custom', quantity: 1, unit_label: 'project', agreed_price: centsToMoney(totalCents), requires_booking: requiresBooking ? 1 : 0, requirements_json: body.requirements_json || {}, progress_percent: 0, status: body.status || 'planning', starts_at: startsAt, due_at: dueAt || null, notes: body.notes || '', created_by: 1 });
+    items.forEach(item => addRow(draft, 'project_items', { project_id: project.id, client_id: project.client_id, item_type: 'service', ...item }));
+    milestones.forEach(item => addRow(draft, 'project_milestones', { project_id: project.id, client_id: project.client_id, title: item.title, status: item.status || 'pending', progress_percent: Number(item.progress_percent || 0), client_note: item.client_note || '', is_client_visible: item.is_client_visible === false ? 0 : 1, sort_order: item.sort_order }));
+    let invoice = null; let payment = null;
+    if (totalCents > 0) { invoice = addRow(draft, 'invoices', { client_id: project.client_id, project_id: project.id, invoice_number: `INV-DEMO-${String(nextId(draft.invoices)).padStart(3, '0')}`, subtotal: centsToMoney(totalCents), discount: 0, total: centsToMoney(totalCents), paid_amount: centsToMoney(paidCents), issued_at: dateOnly(), due_at: body.invoice_due_at || dueAt || null, status: paidCents >= totalCents ? 'paid' : 'issued' }); project.invoice_id = invoice.id; items.filter(item => item.is_client_visible).forEach(item => addRow(draft, 'invoice_items', { invoice_id: invoice.id, description: item.description, quantity: item.quantity, unit: item.unit, unit_price: item.unit_price, total: item.total_price })); }
+    if (invoice && paidCents > 0) { payment = addRow(draft, 'payments', { client_id: project.client_id, client_name: client.name, amount: centsToMoney(paidCents), method: body.payment_method || 'bank_transfer', status: 'approved', reference: `project-${project.id}-opening` }); addRow(draft, 'payment_allocations', { client_id: project.client_id, payment_id: payment.id, invoice_id: invoice.id, client_package_id: null, amount: payment.amount }); addRow(draft, 'finance', { type: 'إيراد', entry_kind: 'income', category: 'project_payment', client_id: project.client_id, amount: payment.amount, method: payment.method, detail: `دفعة مبدئية لمشروع ${name}`, date: dateOnly(), entity: 'الشركة', source_type: 'payment', source_id: payment.id, correlation_id: `payment:${payment.id}`, is_system: 1 }); }
+    let booking = null; if (bookingDraft) booking = addRow(draft, 'bookings', { client_id: project.client_id, project_id: project.id, client_package_id: null, client_name: client.name, resource_id: bookingDraft.resource_id, resource_name: findById(draft, 'resources', bookingDraft.resource_id)?.name, service: project.name, date: bookingDraft.date, start_time: bookingDraft.start_time, end_time: bookingDraft.end_time, duration_minutes: demoBookingDurationMinutes(bookingDraft), requested_quantity: demoBookingDurationMinutes(bookingDraft) / 60, status: 'pending', notes: body.booking?.notes || '' });
+    const response = { id: project.id, invoice_id: invoice?.id || null, payment_id: payment?.id || null, booking_id: booking?.id || null, idempotency_key: idempotencyKey };
+    addRow(draft, 'custom_service_requests', { idempotency_key: idempotencyKey, request_signature: requestSignature, status: 'completed', response: clone(response) });
+    demoAudit(draft, 'create', 'projects', project.id, null, { project: clone(project), items: clone(items), milestones: clone(milestones), invoice_id: invoice?.id || null, payment_id: payment?.id || null, booking_id: booking?.id || null, idempotency_key: idempotencyKey });
+    writeDatabase(draft); return response;
+  }
+  if (route === '/projects/custom-service-legacy' && options.method === 'POST') {
     const labels = { reels: 'تصوير الريلز', advertising: 'تصوير الإعلانات', website: 'تصميم المواقع الإلكترونية', software: 'برامج الكمبيوتر والموبايل والويب', podcast: 'تصوير البودكاست', social_media: 'إدارة السوشيال ميديا', event_coverage: 'تغطية الإيفنتات', ai_video: 'فيديوهات الذكاء الاصطناعي' };
     const project = addRow(database, 'projects', { client_id: Number(body.client_id), name: body.name, category: body.service_type, service_type: body.service_type, pricing_model: body.pricing_model, quantity: Number(body.quantity || 1), unit_label: body.unit_label || 'project', agreed_price: Number(body.agreed_price || 0), requires_booking: body.requires_booking ? 1 : 0, requirements_json: body.requirements_json || {}, progress_percent: 0, status: body.status || 'planning', starts_at: body.starts_at || dateOnly(), due_at: body.due_at || null, notes: body.notes || '', created_by: 1 });
     (body.items?.length ? body.items : [{ description: labels[body.service_type] || project.name, quantity: project.quantity, unit: project.unit_label, unit_price: project.quantity ? project.agreed_price / project.quantity : project.agreed_price, total_price: project.agreed_price }]).forEach((item, index) => addRow(database, 'project_items', { project_id: project.id, client_id: project.client_id, item_type: item.item_type || 'service', description: item.description || item.title, quantity: Number(item.quantity || 1), unit: item.unit || item.unit_label || project.unit_label, unit_price: Number(item.unit_price ?? (project.agreed_price / Math.max(1, Number(item.quantity || 1)))), total_price: Number(item.total_price ?? project.agreed_price), internal_cost: Number(item.internal_cost || 0), is_client_visible: item.is_client_visible === false ? 0 : 1, sort_order: index }));
@@ -721,24 +1202,25 @@ const demoRequest = async (path, options = {}) => {
     });
     return { projects };
   }
+  if (route === '/client/service-history' && (options.method || 'GET') === 'GET') {
+    if (demoRole !== 'client') throw formationDemoError('سجل الخدمات متاح للعميل فقط.', 'forbidden');
+    return buildDemoClientServiceHistory(database, Object.fromEntries(url.searchParams.entries()), 1);
+  }
   if ((match = route.match(/^\/projects\/(\d+)\/milestones$/)) && options.method === 'POST') {
     const project = findById(database, 'projects', match[1]); if (!project) throw new Error('المشروع غير موجود.');
     const title = String(body.title || '').trim(); if (!title || title.length > 160) throw new Error('اكتب اسم مرحلة واضحًا لا يزيد عن 160 حرفًا.');
     const siblings = database.project_milestones.filter(item => Number(item.project_id) === Number(project.id));
     const milestone = addRow(database, 'project_milestones', { project_id: project.id, client_id: project.client_id, title, status: 'pending', progress_percent: 0, client_note: body.client_note || '', is_client_visible: body.is_client_visible === false ? 0 : 1, sort_order: siblings.length });
-    const progress = recalculateDemoProjectProgress(database, project.id); writeDatabase(database); return { ...clone(milestone), project_progress_percent: progress };
+    const progress = recalculateDemoProjectProgress(database, project.id); demoAudit(database, 'create', 'project_milestones', milestone.id, null, clone(milestone)); writeDatabase(database); return { ...clone(milestone), project_progress_percent: progress };
   }
   if ((match = route.match(/^\/project-milestones\/(\d+)$/)) && options.method === 'PATCH') {
     const milestone = findById(database, 'project_milestones', match[1]); if (!milestone) throw new Error('مرحلة المشروع غير موجودة.');
     const title = String(body.title || '').trim(); if (!title || title.length > 160) throw new Error('اكتب اسم مرحلة واضحًا لا يزيد عن 160 حرفًا.');
-    milestone.title = title; if (Object.prototype.hasOwnProperty.call(body, 'client_note')) milestone.client_note = body.client_note || ''; if (Object.prototype.hasOwnProperty.call(body, 'is_client_visible')) milestone.is_client_visible = body.is_client_visible ? 1 : 0; milestone.updated_at = nowText();
-    const progress = recalculateDemoProjectProgress(database, milestone.project_id); writeDatabase(database); return { ...clone(milestone), project_progress_percent: progress };
+    const before = clone(milestone); milestone.title = title; if (Object.prototype.hasOwnProperty.call(body, 'client_note')) milestone.client_note = body.client_note || ''; if (Object.prototype.hasOwnProperty.call(body, 'is_client_visible')) milestone.is_client_visible = body.is_client_visible ? 1 : 0; milestone.updated_at = nowText();
+    const progress = recalculateDemoProjectProgress(database, milestone.project_id); demoAudit(database, 'update', 'project_milestones', milestone.id, before, clone(milestone)); writeDatabase(database); return { ...clone(milestone), project_progress_percent: progress };
   }
   if ((match = route.match(/^\/project-milestones\/(\d+)$/)) && options.method === 'DELETE') {
-    const milestone = findById(database, 'project_milestones', match[1]); if (!milestone) throw new Error('مرحلة المشروع غير موجودة.');
-    const siblings = database.project_milestones.filter(item => Number(item.project_id) === Number(milestone.project_id)); if (siblings.length <= 2) throw new Error('يجب أن يبقى في المشروع مرحلتان على الأقل.'); if (milestone.status === 'completed') throw new Error('لا يمكن حذف مرحلة مكتملة حفاظًا على سجل العمل.');
-    database.project_milestones = database.project_milestones.filter(item => Number(item.id) !== Number(milestone.id)); database.project_milestones.filter(item => Number(item.project_id) === Number(milestone.project_id)).sort((a,b)=>Number(a.sort_order||0)-Number(b.sort_order||0)).forEach((item,index)=>{item.sort_order=index});
-    const progress = recalculateDemoProjectProgress(database, milestone.project_id); writeDatabase(database); return { id: milestone.id, deleted: true, project_progress_percent: progress };
+    throw formationDemoError('يجب استخدام إجراء المالك الآمن لفحص مرحلة المشروع وتوثيق السبب.', 'owner_action_required');
   }
   if ((match = route.match(/^\/projects\/(\d+)\/milestones\/reorder$/)) && options.method === 'POST') {
     const project = findById(database, 'projects', match[1]); if (!project) throw new Error('المشروع غير موجود.');
@@ -747,8 +1229,8 @@ const demoRequest = async (path, options = {}) => {
   }
   if ((match = route.match(/^\/project-milestones\/(\d+)\/status$/)) && options.method === 'POST') {
     const milestone = findById(database, 'project_milestones', match[1]); if (!milestone) throw new Error('مرحلة المشروع غير موجودة.');
-    milestone.status = body.status; milestone.progress_percent = Number(body.progress_percent ?? (body.status === 'completed' ? 100 : body.status === 'in_progress' ? 50 : 0)); milestone.client_note = body.client_note ?? milestone.client_note; milestone.updated_at = nowText();
-    const progress = recalculateDemoProjectProgress(database, milestone.project_id); writeDatabase(database); return { id: milestone.id, status: milestone.status, progress_percent: milestone.progress_percent, project_progress_percent: progress };
+    const before = clone(milestone); milestone.status = body.status; milestone.progress_percent = Number(body.progress_percent ?? (body.status === 'completed' ? 100 : body.status === 'in_progress' ? 50 : 0)); milestone.client_note = body.client_note ?? milestone.client_note; milestone.updated_at = nowText();
+    const progress = recalculateDemoProjectProgress(database, milestone.project_id); demoAudit(database, 'status_change', 'project_milestones', milestone.id, before, clone(milestone)); writeDatabase(database); return { id: milestone.id, status: milestone.status, progress_percent: milestone.progress_percent, project_progress_percent: progress };
   }
 
   if (route === '/bookings/request' && options.method === 'POST') {
@@ -759,38 +1241,68 @@ const demoRequest = async (path, options = {}) => {
     let end = Number(String(body.end_time).slice(0, 2)) * 60 + Number(String(body.end_time).slice(3, 5)); if (end === 0) end = 1440;
     const quantity = body.requested_reels || ((end - start) / 60);
     const status = body.status === 'confirmed' ? 'confirmed' : 'pending';
-    const row = addRow(database, 'bookings', { client_id: body.client_id, client_name: client?.name || 'عميل تجريبي', client_package_id: pkg?.id || null, service_id: body.service_id, resource_id: 1, resource_name: 'الاستديو الرئيسي', service: body.service || service?.name || 'جلسة تصوير', date: body.date, start_time: body.start_time, end_time: body.end_time, status, requested_quantity: quantity, requested_reels: body.requested_reels || 0, notes: body.notes || '', payment: 0 });
-    if (pkg && status === 'confirmed') pkg.held_quantity = Number(pkg.held_quantity || 0) + Number(quantity || 0);
+    const resourceId = Number(body.resource_id || 1);
+    if (status === 'confirmed') { assertDemoBookingAvailable(database, { date: body.date, start_time: body.start_time, end_time: body.end_time, resource_id: resourceId }); if (!pkg || demoPackageAvailable(pkg) + 0.000001 < Number(quantity)) throw formationDemoError('رصيد الباقة المتاح لا يكفي لتأكيد هذا الحجز.', 'insufficient_package_balance'); }
+    const row = addRow(database, 'bookings', { client_id: body.client_id, client_name: client?.name || 'عميل تجريبي', client_package_id: pkg?.id || null, service_id: body.service_id, resource_id: resourceId, resource_name: 'الاستديو الرئيسي', service: body.service || service?.name || 'جلسة تصوير', date: body.date, start_time: body.start_time, end_time: body.end_time, status, requested_quantity: quantity, requested_reels: body.requested_reels || 0, notes: body.notes || '', payment: 0 });
+    if (pkg && status === 'confirmed') { const minutes = pkg.billing_unit === 'hour' ? Math.max(1, end - start) : null; mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: minutes } : { held: quantity }); addDemoPackageUsage(database, pkg, { booking_id: row.id, movement_type: 'hold', quantity, quantity_minutes: minutes, reason: 'تأكيد الحجز', event_key: `booking:${row.id}:hold` }); }
     writeDatabase(database); return row;
   }
-  if ((match = route.match(/^\/bookings\/(\d+)\/decision$/))) { const booking = findById(database, 'bookings', match[1]); booking.status = body.action === 'confirm' ? 'confirmed' : body.action === 'reject' ? 'cancelled' : 'alternative_proposed'; writeDatabase(database); return booking; }
-  if ((match = route.match(/^\/bookings\/(\d+)\/(admin-cancel|cancel-decision)$/))) { const booking = findById(database, 'bookings', match[1]); booking.status = route.endsWith('cancel-decision') && body.approve === false ? 'confirmed' : 'cancelled'; writeDatabase(database); return booking; }
+  if ((match = route.match(/^\/bookings\/(\d+)\/decision$/))) { const booking = findById(database, 'bookings', match[1]); const before = clone(booking); const pkg = booking?.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null; if (body.action === 'confirm' && booking.status !== 'confirmed') { assertDemoBookingAvailable(database, booking, booking.id); const quantity = Number(booking.requested_quantity || 0); if (!pkg || demoPackageAvailable(pkg) + 0.000001 < quantity) throw formationDemoError('رصيد الباقة المتاح لا يكفي لتأكيد هذا الحجز.', 'insufficient_package_balance'); const minutes = pkg.billing_unit === 'hour' ? demoBookingDurationMinutes(booking) : null; mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: minutes } : { held: quantity }); addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'hold', quantity, quantity_minutes: minutes, reason: 'اعتماد الحجز', event_key: `booking:${booking.id}:hold` }); } if (body.action === 'alternative' && body.date && body.start_time && body.end_time) Object.assign(booking, { date: body.date, start_time: body.start_time, end_time: body.end_time }); booking.status = body.action === 'confirm' ? 'confirmed' : body.action === 'reject' ? 'cancelled' : 'alternative_proposed'; demoAudit(database, 'booking_decision', 'bookings', booking.id, before, clone(booking)); writeDatabase(database); return booking; }
+  if ((match = route.match(/^\/bookings\/(\d+)\/(admin-cancel|cancel-decision)$/))) { const booking = findById(database, 'bookings', match[1]); const before = clone(booking); const cancelled = !(route.endsWith('cancel-decision') && body.approve === false); const pkg = booking?.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null; const held = pkg ? demoBookingHeldQuantity(database, booking.id, pkg.id) : 0; const heldMinutes = pkg?.billing_unit === 'hour' ? demoBookingHeldMinutes(database, booking.id, pkg.id) : null; if (cancelled && pkg && held > 0) { const charge = Boolean(body.charge); mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: -heldMinutes, consumed_minutes: charge ? heldMinutes : 0 } : { held: -held, consumed: charge ? held : 0 }); addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: charge ? 'consume' : 'release', quantity: held, quantity_minutes: heldMinutes, reason: charge ? 'إلغاء متأخر محسوب' : 'إلغاء الحجز وتحرير الرصيد', event_key: `booking:${booking.id}:${charge ? 'late-consume' : 'release'}` }); } booking.status = cancelled ? 'cancelled' : 'confirmed'; demoAudit(database, route.endsWith('cancel-decision') ? 'cancel_decision' : 'admin_cancel', 'bookings', booking.id, before, clone(booking)); writeDatabase(database); return booking; }
   if ((match = route.match(/^\/bookings\/(\d+)\/cancel-request$/))) { const booking = findById(database, 'bookings', match[1]); booking.status = 'cancel_requested'; booking.notes = body.reason || booking.notes; writeDatabase(database); return booking; }
-  if ((match = route.match(/^\/bookings\/(\d+)\/admin-reschedule$/))) { const booking = findById(database, 'bookings', match[1]); Object.assign(booking, { date: body.date, start_time: body.start_time, end_time: body.end_time }); writeDatabase(database); return booking; }
-  if ((match = route.match(/^\/bookings\/(\d+)\/alternative-decision$/))) { const booking = findById(database, 'bookings', match[1]); booking.status = body.action === 'accept' ? 'confirmed' : 'pending'; writeDatabase(database); return booking; }
+  if ((match = route.match(/^\/bookings\/(\d+)\/admin-reschedule$/))) { const booking = findById(database, 'bookings', match[1]); const pkg = booking?.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null; assertDemoBookingAvailable(database, { ...booking, date: body.date, start_time: body.start_time, end_time: body.end_time }, booking.id); if (pkg && booking.status === 'confirmed') { const oldHold = demoBookingHeldQuantity(database, booking.id, pkg.id); const oldMinutes = pkg.billing_unit === 'hour' ? demoBookingHeldMinutes(database, booking.id, pkg.id) : null; const nextBooking = { ...booking, date: body.date, start_time: body.start_time, end_time: body.end_time }; const nextMinutes = pkg.billing_unit === 'hour' ? demoBookingDurationMinutes(nextBooking) : null; const nextQuantity = pkg.billing_unit === 'hour' ? demoSettlementHours(nextMinutes) : Number(booking.requested_quantity || oldHold); const delta = nextQuantity - oldHold; if (delta > demoPackageAvailable(pkg) + 0.000001) throw formationDemoError('رصيد الباقة المتاح لا يكفي للمدة الجديدة.', 'insufficient_package_balance'); mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: nextMinutes - oldMinutes } : { held: delta }); if (oldHold > 0) addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'release', quantity: oldHold, quantity_minutes: oldMinutes, reason: 'تحرير حجز الموعد السابق', event_key: `booking:${booking.id}:reschedule-release:${Date.now()}` }); addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'hold', quantity: nextQuantity, quantity_minutes: nextMinutes, reason: 'حجز الموعد الجديد', event_key: `booking:${booking.id}:reschedule-hold:${Date.now()}` }); booking.requested_quantity = nextQuantity; } Object.assign(booking, { date: body.date, start_time: body.start_time, end_time: body.end_time }); writeDatabase(database); return booking; }
+  if ((match = route.match(/^\/bookings\/(\d+)\/alternative-decision$/))) { const booking = findById(database, 'bookings', match[1]); const pkg = booking?.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null; if (body.action === 'accept') { assertDemoBookingAvailable(database, booking, booking.id); const existingHold = pkg ? demoBookingHeldQuantity(database, booking.id, pkg.id) : 0; const quantity = Number(booking.requested_quantity || 0); if (!existingHold) { if (!pkg || demoPackageAvailable(pkg) + 0.000001 < quantity) throw formationDemoError('رصيد الباقة المتاح لا يكفي لتأكيد هذا الموعد.', 'insufficient_package_balance'); const minutes = pkg.billing_unit === 'hour' ? demoBookingDurationMinutes(booking) : null; mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: minutes } : { held: quantity }); addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'hold', quantity, quantity_minutes: minutes, reason: 'قبول الموعد البديل', event_key: `booking:${booking.id}:alternative-hold` }); } } booking.status = body.action === 'accept' ? 'confirmed' : 'pending'; writeDatabase(database); return booking; }
+  if (route === '/studio-session-eligibility' && (options.method || 'GET') === 'GET') {
+    const requestedDate = url.searchParams.get('date') || cairoDateKey(); const currentDate = cairoDateKey();
+    return { date: requestedDate, items: database.bookings.filter(booking => String(booking.date).slice(0, 10) === requestedDate).map(booking => { const pkg = booking.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null; const hold = pkg ? demoBookingHeldQuantity(database, booking.id, pkg.id) : 0; return { booking_id: Number(booking.id), client_package_id: pkg ? Number(pkg.id) : null, resource_id: booking.resource_id ? Number(booking.resource_id) : null, booking_status: booking.status, date: String(booking.date).slice(0, 10), billing_unit: pkg?.billing_unit || null, package_status: pkg?.status || null, starts_at: pkg?.starts_at || null, expires_at: pkg?.expires_at || null, booking_held_quantity: hold, eligible: requestedDate === currentDate && booking.status === 'confirmed' && Boolean(booking.resource_id) && ['hour', 'reel'].includes(pkg?.billing_unit) && pkg?.status === 'active' && String(pkg?.starts_at).slice(0, 10) <= currentDate && String(pkg?.expires_at).slice(0, 10) >= currentDate && hold > 0 }; }) };
+  }
   if ((match = route.match(/^\/bookings\/(\d+)\/session\/start$/))) {
-    const booking = findById(database, 'bookings', match[1]); booking.status = 'in_progress'; booking.timer_started_at = nowText();
-    let session = database.booking_sessions.find(item => Number(item.booking_id) === Number(booking.id));
-    if (!session) session = addRow(database, 'booking_sessions', { booking_id: booking.id, client_id: booking.client_id, client_package_id: booking.client_package_id, client_name: booking.client_name, service: booking.service, package_name: findById(database, 'client_packages', booking.client_package_id)?.name, billing_unit: findById(database, 'client_packages', booking.client_package_id)?.billing_unit || 'hour', scheduled_start_at: `${booking.date} ${booking.start_time}`, started_at: nowText(), status: 'active', requested_quantity: booking.requested_quantity, purchased_quantity: findById(database, 'client_packages', booking.client_package_id)?.purchased_quantity, consumed_quantity: findById(database, 'client_packages', booking.client_package_id)?.consumed_quantity, held_quantity: findById(database, 'client_packages', booking.client_package_id)?.held_quantity });
-    writeDatabase(database); return session;
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لبدء جلسة التصوير.', 'forbidden');
+    const booking = findById(database, 'bookings', match[1]);
+    if (!booking) throw formationDemoError('الحجز غير موجود.', 'booking_not_found');
+    const sameSession = database.booking_sessions.find(item => Number(item.booking_id) === Number(booking.id));
+    if (sameSession?.status === 'active' && booking.status === 'in_progress') return clone(sameSession);
+    if (sameSession && sameSession.status !== 'active') throw formationDemoError('تم إنهاء هذه الجلسة من قبل.', 'session_already_completed');
+    if (booking.status !== 'confirmed') throw formationDemoError('لا يمكن تشغيل التايمر إلا لحجز مؤكد.', 'invalid_booking_state');
+    if (String(booking.date).slice(0, 10) !== cairoDateKey()) throw formationDemoError('يمكن بدء التصوير يدويًا في يوم الموعد فقط.', 'session_date_mismatch');
+    const resource = findById(database, 'resources', booking.resource_id);
+    if (!resource || Number(resource.is_active ?? 1) !== 1) throw formationDemoError('الاستديو المرتبط بالحجز غير متاح.', 'invalid_booking_resource');
+    const pkg = booking.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null;
+    if (!booking.client_package_id || !pkg || !['hour', 'reel'].includes(pkg.billing_unit)) throw formationDemoError('زر بدء التصوير متاح فقط لباقات الساعات أو الريلز. حجوزات المشروعات تحتاج سياسة وقت مستقلة.', 'unsupported_session_package');
+    if (Number(pkg.client_id) !== Number(booking.client_id) || pkg.status !== 'active' || String(pkg.starts_at).slice(0, 10) > cairoDateKey() || String(pkg.expires_at).slice(0, 10) < cairoDateKey()) throw formationDemoError('الباقة غير نشطة أو خارج فترة الصلاحية.', 'invalid_session_package');
+    const bookingHold = demoBookingHeldQuantity(database, booking.id, pkg.id); if (bookingHold <= 0) throw formationDemoError('لا يوجد رصيد محجوز لهذا الموعد على الباقة.', 'missing_package_hold');
+    const resourceConflict = database.booking_sessions.find(item => item.status === 'active' && Number(item.booking_id) !== Number(booking.id) && Number(findById(database, 'bookings', item.booking_id)?.resource_id) === Number(booking.resource_id));
+    if (resourceConflict) {
+      const activeBooking = findById(database, 'bookings', resourceConflict.booking_id);
+      const error = formationDemoError(`الاستديو مشغول الآن بجلسة ${activeBooking?.client_name || 'عميل آخر'}. أنهِ الجلسة أولًا.`, 'studio_session_conflict'); error.status = 409; throw error;
+    }
+    const startedAt = nowText(); const startedAtIso = nowIso();
+    const session = addRow(database, 'booking_sessions', { booking_id: booking.id, client_id: booking.client_id, client_package_id: booking.client_package_id, client_name: booking.client_name, service: booking.service, package_name: pkg?.name, billing_unit: pkg?.billing_unit || 'hour', resource_id: booking.resource_id, date: booking.date, start_time: booking.start_time, end_time: booking.end_time, duration_minutes: Number(booking.duration_minutes || demoBookingDurationMinutes(booking)), scheduled_start_at: `${booking.date} ${booking.start_time}`, started_at: startedAt, started_at_iso: startedAtIso, status: 'active', start_source: 'manual', requested_quantity: booking.requested_quantity, booking_held_quantity: bookingHold, purchased_quantity: pkg?.purchased_quantity, consumed_quantity: pkg?.consumed_quantity, held_quantity: pkg?.held_quantity });
+    Object.assign(booking, { status: 'in_progress', timer_started_at: startedAt });
+    demoAudit(database, 'session_start', 'booking_sessions', session.id, null, clone(session)); writeDatabase(database); return clone(session);
   }
-  if ((match = route.match(/^\/bookings\/(\d+)\/session\/complete$/))) {
-    const booking = findById(database, 'bookings', match[1]); const session = database.booking_sessions.find(item => Number(item.booking_id) === Number(booking.id)); const minutes = Number(body.actual_minutes || 1); const quantity = body.actual_reels ? Number(body.actual_reels) : minutes / 60;
-    Object.assign(booking, { status: 'completed', timer_ended_at: nowText(), actual_seconds: minutes * 60, billable_quantity: quantity, actual_reels: Number(body.actual_reels || 0) });
-    if (session) Object.assign(session, { status: 'completed', ended_at: nowText(), actual_seconds: minutes * 60, billable_quantity: quantity });
-    const pkg = findById(database, 'client_packages', booking.client_package_id); if (pkg) { pkg.held_quantity = Math.max(0, Number(pkg.held_quantity || 0) - Number(booking.requested_quantity || 0)); pkg.consumed_quantity = Number(pkg.consumed_quantity || 0) + quantity; }
-    writeDatabase(database); return booking;
+  if ((match = route.match(/^\/bookings\/(\d+)\/session\/settlement-preview$/))) return clone(demoSettlementPreview(database, match[1], Number(body.actual_minutes)));
+  if ((match = route.match(/^\/bookings\/(\d+)\/session\/complete$/))) return demoSettleAndComplete(database, match[1], body);
+  if (route === '/studio-sessions/active') {
+    const active = database.booking_sessions.filter(item => item.status === 'active').map(item => demoActiveSession(database, item));
+    const visible = demoRole === 'client'
+      ? active.filter(item => Number(item.client_id) === 1).map(demoClientActiveSession)
+      : active;
+    return { items: visible, server_now: nowIso() };
   }
-  if (route === '/studio-sessions/active') return clone(database.booking_sessions.filter(item => item.status === 'active'));
 
   if (route === '/reschedule-requests' && options.method === 'POST') { const row = addRow(database, 'reschedule_requests', { ...body, status: 'pending' }); writeDatabase(database); return row; }
-  if ((match = route.match(/^\/reschedule-requests\/(\d+)\/decision$/))) { const request = findById(database, 'reschedule_requests', match[1]); request.status = body.action === 'approve' ? 'approved' : 'rejected'; if (body.action === 'approve') { const booking = findById(database, 'bookings', request.booking_id); Object.assign(booking, { date: request.proposed_date, start_time: request.proposed_start_time, end_time: request.proposed_end_time }); } writeDatabase(database); return request; }
+  if ((match = route.match(/^\/reschedule-requests\/(\d+)\/decision$/))) { const request = findById(database, 'reschedule_requests', match[1]); const booking = body.action === 'approve' ? findById(database, 'bookings', request.booking_id) : null; if (booking) { const pkg = booking.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null; const nextBooking = { ...booking, date: request.proposed_date, start_time: request.proposed_start_time, end_time: request.proposed_end_time }; assertDemoBookingAvailable(database, nextBooking, booking.id); if (pkg && booking.status === 'confirmed') { const oldHold = demoBookingHeldQuantity(database, booking.id, pkg.id); const oldMinutes = pkg.billing_unit === 'hour' ? demoBookingHeldMinutes(database, booking.id, pkg.id) : null; const nextMinutes = pkg.billing_unit === 'hour' ? demoBookingDurationMinutes(nextBooking) : null; const nextQuantity = pkg.billing_unit === 'hour' ? demoSettlementHours(nextMinutes) : Number(booking.requested_quantity || oldHold); const delta = nextQuantity - oldHold; if (delta > demoPackageAvailable(pkg) + 0.000001) throw formationDemoError('رصيد الباقة المتاح لا يكفي للمدة الجديدة.', 'insufficient_package_balance'); mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: nextMinutes - oldMinutes } : { held: delta }); if (oldHold > 0) addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'release', quantity: oldHold, quantity_minutes: oldMinutes, reason: 'تحرير الموعد السابق', event_key: `booking:${booking.id}:request-release:${request.id}` }); addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'hold', quantity: nextQuantity, quantity_minutes: nextMinutes, reason: 'اعتماد الموعد الجديد', event_key: `booking:${booking.id}:request-hold:${request.id}` }); booking.requested_quantity = nextQuantity; } Object.assign(booking, { date: request.proposed_date, start_time: request.proposed_start_time, end_time: request.proposed_end_time }); } request.status = body.action === 'approve' ? 'approved' : 'rejected'; writeDatabase(database); return request; }
 
   if ((match = route.match(/^\/payment-proofs\/(\d+)\/decision$/))) {
-    const proof = findById(database, 'payment_proofs', match[1]); proof.status = body.action === 'approve' ? 'approved' : 'rejected'; proof.admin_note = body.note || '';
+    const proof = findById(database, 'payment_proofs', match[1]);
+    if (!proof || proof.status !== 'pending') throw formationDemoError('الإثبات غير موجود أو تمت مراجعته.', 'payment_proof_already_decided');
+    const before = clone(proof);
+    proof.status = body.action === 'approve' ? 'approved' : 'rejected'; proof.admin_note = body.note || '';
     if (proof.status === 'approved') {
       const amount = Number(proof.amount || 0); const allocations = [];
-      const payment = addRow(database, 'payments', { client_id: proof.client_id, amount, method: 'bank_transfer', status: 'approved', reference: `DEMO-${proof.id}`, reviewed_at: nowText() });
+      const client = findById(database, 'clients', proof.client_id);
+      const payment = addRow(database, 'payments', { client_id: proof.client_id, client_name: client?.name || 'عميل', amount, method: 'bank_transfer', status: 'approved', reference: `DEMO-${proof.id}`, reviewed_at: nowText() });
       proof.payment_id = payment.id;
       const pkg = findById(database, 'client_packages', proof.client_package_id);
       if (pkg) {
@@ -811,9 +1323,9 @@ const demoRequest = async (path, options = {}) => {
         }
       }
       allocations.forEach(allocation => addRow(database, 'payment_allocations', { client_id: proof.client_id, payment_id: payment.id, payment_proof_id: proof.id, ...allocation }));
-      addRow(database, 'finance', { type: 'إيراد', entry_kind: 'income', category: 'package_payment', client_id: proof.client_id, amount, method: 'تحويل بنكي', detail: 'تحويل عميل تم اعتماده', date: dateOnly(), entity: 'الشركة' });
+      addRow(database, 'finance', { type: 'إيراد', entry_kind: 'income', category: 'client_revenue', client_id: proof.client_id, amount, method: 'تحويل بنكي', detail: `دفعة معتمدة من العميل ${client?.name || 'عميل'} عبر إثبات تحويل رقم ${proof.id}`, date: dateOnly(), entity: 'الشركة', source_type: 'payment', source_id: payment.id, correlation_id: `payment:${payment.id}`, is_system: 1 });
     }
-    writeDatabase(database); return proof;
+    demoAudit(database, 'payment_proof_decision', 'payment_proofs', proof.id, before, clone(proof)); writeDatabase(database); return proof;
   }
   if (route === '/payment-proofs' && options.method === 'POST') { const row = addRow(database, 'payment_proofs', { ...body, status: 'pending', original_name: 'demo-transfer.jpg', mime_type: 'image/jpeg' }); writeDatabase(database); return row; }
 
@@ -858,21 +1370,55 @@ const demoRequest = async (path, options = {}) => {
   if (route === '/finance/transfer') { const correlation = `DEMO-${Date.now()}`; addRow(database, 'finance', { type: 'تحويل صادر', entry_kind: 'transfer_out', category: 'internal_transfer', amount: Number(body.amount), method: body.from_method, detail: body.note || `تحويل إلى ${body.to_method}`, date: body.date, entity: 'الشركة', correlation_id: correlation }); addRow(database, 'finance', { type: 'تحويل وارد', entry_kind: 'transfer_in', category: 'internal_transfer', amount: Number(body.amount), method: body.to_method, detail: body.note || `تحويل من ${body.from_method}`, date: body.date, entity: 'الشركة', correlation_id: `${correlation}-IN` }); writeDatabase(database); return { correlation_id: correlation }; }
 
   if (route === '/offers' && options.method === 'POST') { const subtotal = (body.items || []).reduce((sum, item) => sum + Number(item.quantity) * Number(item.unit_price), 0); const offer = addRow(database, 'offers', { client_id: body.client_id, offer_number: `OFF-DEMO-${String(nextId(database.offers)).padStart(3, '0')}`, title: body.title, subtotal, discount: Number(body.discount || 0), total: subtotal - Number(body.discount || 0), valid_until: body.valid_until, status: 'draft', notes: body.notes || '', created_by_role: demoRole }); (body.items || []).forEach(item => addRow(database, 'offer_items', { ...item, offer_id: offer.id, total: Number(item.quantity) * Number(item.unit_price) })); writeDatabase(database); return offer; }
-  if ((match = route.match(/^\/offers\/(\d+)$/)) && (options.method || 'GET') === 'GET') { const offer = findById(database, 'offers', match[1]); return { ...clone(offer), items: clone(database.offer_items.filter(item => Number(item.offer_id) === Number(match[1]))) }; }
-  if ((match = route.match(/^\/offers\/(\d+)\/send$/))) { const offer = findById(database, 'offers', match[1]); offer.status = 'sent'; writeDatabase(database); return offer; }
-  if ((match = route.match(/^\/offers\/(\d+)\/accept$/))) { const offer = findById(database, 'offers', match[1]); offer.status = 'accepted'; const invoice = addRow(database, 'invoices', { client_id: offer.client_id, offer_id: offer.id, invoice_number: `INV-DEMO-${String(nextId(database.invoices)).padStart(3, '0')}`, subtotal: offer.subtotal, discount: offer.discount, total: offer.total, paid_amount: 0, issued_at: dateOnly(), due_at: dateOnly(7), status: 'issued' }); writeDatabase(database); return invoice; }
-  if (route === '/client/offers') return clone(database.offers.filter(offer => offer.status === 'sent' && offer.created_by_role === 'owner'));
+  if ((match = route.match(/^\/offers\/(\d+)$/)) && (options.method || 'GET') === 'GET') { const offer = findById(database, 'offers', match[1]); if (demoRole === 'client') { if (!offer || Number(offer.client_id) !== 1 || offer.created_by_role !== 'owner' || !['sent', 'accepted', 'cancelled'].includes(offer.status)) throw formationDemoError('عرض السعر غير موجود.', 'offer_not_found'); return { item: demoClientOfferDto(database, offer, true), server_now: demoCairoNowIso() }; } return { ...clone(offer), items: clone(database.offer_items.filter(item => Number(item.offer_id) === Number(match[1]))) }; }
+  if ((match = route.match(/^\/offers\/(\d+)$/)) && options.method === 'PATCH') { requireDemoOwner(); const reason = demoReason(body); const offer = findById(database, 'offers', match[1]); if (!offer) throw formationDemoError('عرض السعر غير موجود.', 'offer_not_found'); if (offer.status !== 'draft') throw formationDemoError('لا يمكن تعديل العرض بعد إرساله أو قبوله.', 'offer_not_editable'); if (!(body.items || []).length) throw formationDemoError('أضف بندًا واحدًا على الأقل.', 'missing_offer_items'); const before = clone(offer); const subtotal = body.items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unit_price), 0); const discount = Math.max(0, Math.min(subtotal, Number(body.discount || 0))); Object.assign(offer, { client_id: Number(body.client_id || offer.client_id), title: body.title || offer.title, subtotal, discount, total: subtotal - discount, valid_until: body.valid_until || null, notes: body.notes || '', version: Number(offer.version || 1) + 1 }); database.offer_items = database.offer_items.filter(item => Number(item.offer_id) !== Number(offer.id)); body.items.forEach(item => addRow(database, 'offer_items', { ...item, offer_id: offer.id, total: Number(item.quantity) * Number(item.unit_price) })); demoAudit(database, 'owner_update_offer', 'offers', offer.id, before, { ...clone(offer), reason }); writeDatabase(database); return clone(offer); }
+  if ((match = route.match(/^\/invoices\/(\d+)$/)) && options.method === 'PATCH') { requireDemoOwner(); const reason = demoReason(body); const invoice = findById(database, 'invoices', match[1]); if (!invoice) throw formationDemoError('الفاتورة غير موجودة.', 'invoice_not_found'); if (invoice.status === 'cancelled') throw formationDemoError('الفاتورة ملغاة ولا تقبل التعديل.', 'invoice_cancelled'); const before = clone(invoice); invoice.due_at = body.due_at || null; invoice.notes = body.notes || ''; invoice.version = Number(invoice.version || 1) + 1; demoAudit(database, 'owner_update_invoice_metadata', 'invoices', invoice.id, before, { ...clone(invoice), reason, financial_values_unchanged: true }); writeDatabase(database); return clone(invoice); }
+  if ((match = route.match(/^\/offers\/(\d+)\/send$/))) { const offer = findById(database, 'offers', match[1]); if (!offer || offer.status !== 'draft') throw formationDemoError('لا يمكن إرسال العرض في حالته الحالية.', 'invalid_offer_state'); const before = clone(offer); offer.status = 'sent'; demoAudit(database, 'send', 'offers', offer.id, before, clone(offer)); writeDatabase(database); return offer; }
+  if ((match = route.match(/^\/offers\/(\d+)\/accept$/))) { const offer = findById(database, 'offers', match[1]); if (!offer || (demoRole === 'client' && (Number(offer.client_id) !== 1 || offer.created_by_role !== 'owner' || !['sent', 'accepted'].includes(offer.status)))) throw formationDemoError('العرض غير موجود.', 'offer_not_found'); if (offer.status === 'accepted') { const invoice = database.invoices.find(row => Number(row.offer_id) === Number(offer.id)); if (!invoice) throw formationDemoError('تعذر العثور على نتيجة قبول العرض السابقة.', 'offer_acceptance_incomplete'); return { id: offer.id, status: 'accepted', invoice_id: invoice.id, invoice_number: invoice.invoice_number, idempotent: true }; } if (offer.status !== 'sent') throw formationDemoError('لا يمكن قبول العرض في حالته الحالية.', 'invalid_offer_state'); if (offer.valid_until && cairoDateTimeToEpoch(demoOfferExpiryIso(offer.valid_until)) <= Date.now()) throw formationDemoError('انتهت صلاحية عرض السعر.', 'offer_expired'); const before = clone(offer); offer.status = 'accepted'; offer.accepted_at = nowText(); const invoice = addRow(database, 'invoices', { client_id: offer.client_id, offer_id: offer.id, invoice_number: `INV-DEMO-${String(nextId(database.invoices)).padStart(3, '0')}`, subtotal: offer.subtotal, discount: offer.discount, total: offer.total, paid_amount: 0, issued_at: dateOnly(), due_at: offer.valid_until || dateOnly(7), status: 'issued' }); demoAudit(database, 'accept', 'offers', offer.id, before, clone(offer)); writeDatabase(database); return { id: offer.id, status: 'accepted', invoice_id: invoice.id, invoice_number: invoice.invoice_number, idempotent: false }; }
+  if (route === '/client/offers') { if (demoRole !== 'client') throw formationDemoError('العروض الخاصة متاحة للعميل فقط.', 'forbidden'); const items = database.offers.filter(offer => Number(offer.client_id) === 1 && offer.created_by_role === 'owner' && ['sent', 'accepted', 'cancelled'].includes(offer.status)).map(offer => demoClientOfferDto(database, offer)); return { items: orderDemoClientOffers(items), server_now: demoCairoNowIso() }; }
 
-  if (route === '/app-notifications') return clone(database.app_notifications.filter(item => !item.dismissed_at));
-  if ((match = route.match(/^\/app-notifications\/(\d+)\/read$/))) { const item = findById(database, 'app_notifications', match[1]); if (item) item.read_at = nowText(); writeDatabase(database); return item; }
+  if (route === '/sync' && (options.method || 'GET') === 'GET') {
+    const cursor = Math.max(0, Number(url.searchParams.get('cursor') || 0)); const clientId = demoRole === 'client' ? 1 : null;
+    const events = tableRows(database, 'change_events').filter(event => Number(event.id) > cursor && (!clientId || Number(event.client_id) === clientId || event.topic === 'services')).sort((a, b) => Number(a.id) - Number(b.id)).slice(0, 250);
+    return { cursor: Math.max(cursor, ...events.map(event => Number(event.id) || 0)), topics: [...new Set(events.map(event => event.topic))], events: clone(events), server_now: new Date().toISOString() };
+  }
+  if (route === '/app-notifications' && (options.method || 'GET') === 'GET') {
+    const status = url.searchParams.get('status') || 'all'; const type = url.searchParams.get('type') || ''; const cursor = Number(url.searchParams.get('cursor') || 0); const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit') || 20))); const clientId = demoRole === 'client' ? 1 : null;
+    let visible = database.app_notifications.filter(item => !item.dismissed_at && (clientId ? item.audience === 'client' && Number(item.client_id) === clientId : item.audience === 'staff'));
+    const unreadCount = visible.filter(item => !item.read_at).length; if (status === 'unread') visible = visible.filter(item => !item.read_at); if (type) visible = visible.filter(item => item.type === type); if (cursor) visible = visible.filter(item => Number(item.id) < cursor); visible.sort((a, b) => Number(b.id) - Number(a.id)); const items = visible.slice(0, limit).map(item => { const safe = {}; ['id', 'type', 'title', 'message', 'entity_type', 'entity_id', 'severity', 'action_tab', 'payload', 'read_at', 'created_at'].forEach(key => { if (Object.prototype.hasOwnProperty.call(item, key)) safe[key] = clone(item[key]); }); return safe; });
+    return { items, unread_count: unreadCount, next_cursor: visible.length > limit ? Number(items.at(-1)?.id || 0) || null : null };
+  }
+  if ((match = route.match(/^\/app-notifications\/(\d+)\/read$/)) && options.method === 'POST') { const item = findById(database, 'app_notifications', match[1]); const scoped = item && !item.dismissed_at && (demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === 1 : item.audience === 'staff'); if (scoped && !item.read_at) { item.read_at = nowText(); addRow(database, 'change_events', { client_id: item.client_id || null, topic: 'notifications', entity_type: 'app_notifications', entity_id: item.id, action: 'read' }); } writeDatabase(database); return { read: true, changed: Boolean(scoped) }; }
+  if (route === '/app-notifications/read-all' && options.method === 'POST') { const upToId = Number(body.up_to_id || 0); let changed = 0; database.app_notifications.forEach(item => { const scoped = !item.dismissed_at && !item.read_at && Number(item.id) <= upToId && (demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === 1 : item.audience === 'staff'); if (scoped) { item.read_at = nowText(); changed += 1; } }); if (changed) addRow(database, 'change_events', { client_id: demoRole === 'client' ? 1 : null, topic: 'notifications', entity_type: 'app_notifications', entity_id: upToId, action: 'read_all' }); writeDatabase(database); return { read: true, changed, up_to_id: upToId }; }
+  if ((match = route.match(/^\/app-notifications\/(\d+)\/dismiss$/)) && options.method === 'POST') { const item = findById(database, 'app_notifications', match[1]); const scoped = item && !item.dismissed_at && (demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === 1 : item.audience === 'staff'); if (scoped) { item.dismissed_at = nowText(); item.read_at ||= item.dismissed_at; addRow(database, 'change_events', { client_id: item.client_id || null, topic: 'notifications', entity_type: 'app_notifications', entity_id: item.id, action: 'dismissed' }); } writeDatabase(database); return { dismissed: true, changed: Boolean(scoped) }; }
 
   return { demo: true };
 };
 
 export const activateDemoMode = (role = 'owner') => { demoMode = true; demoRole = role; readDatabase(); };
-export const deactivateDemoMode = () => { demoMode = false; demoRole = 'owner'; };
+export const deactivateDemoMode = () => { demoMode = false; demoRole = 'owner'; demoCredentialSessionVersion = null; };
 export const isDemoModeActive = () => demoMode;
-export const resetDemoDatabase = () => { const database = createDemoDatabase(); writeDatabase(database); return database; };
+export const resetDemoDatabase = () => { demoTemporaryVerifiers.clear(); demoPermanentVerifiers.clear(); demoPasswordHistory.clear(); demoCredentialSessionVersion = null; const database = createDemoDatabase(); writeDatabase(database); return database; };
+export const isDemoCredentialSessionCurrent = user => {
+  if (!user?.credential_managed) return true;
+  const client = readDatabase().clients.find(item => Number(item.id) === 1);
+  return Boolean(client?.portal_enabled) && Number(user.credential_version) === Number(client.credential_version || 0);
+};
+export const resumeDemoCredentialSession = user => {
+  if (!isDemoCredentialSessionCurrent(user)) return false;
+  activateDemoMode('client'); demoCredentialSessionVersion = Number(user.credential_version); return true;
+};
+export const authenticateDemoClientCredential = async (identifier, password) => {
+  if (import.meta.env && !import.meta.env.DEV) return null;
+  const database = readDatabase(); const identity = String(identifier || '').trim().toLowerCase();
+  const client = database.clients.find(item => String(item.phone1 || '') === identity || String(item.email || '').toLowerCase() === identity);
+  if (!client?.portal_account_exists || client.portal_enabled === false) return null;
+  const clientId=Number(client.id);const supplied=await demoSecretHash(password);const forced=Boolean(client.must_change_password);const temporary=client.password_status==='temporary';
+  if(temporary&&(!client.temporary_expires_at||new Date(client.temporary_expires_at).getTime()<=Date.now()||demoTemporaryVerifiers.get(clientId)!==supplied))return null;
+  if(!temporary&&demoPermanentVerifiers.get(clientId)!==supplied)return null;
+  activateDemoMode('client'); demoCredentialSessionVersion=Number(client.credential_version||0);client.portal_active_sessions=1;client.portal_last_login_at=nowText();writeDatabase(database);
+  return { id:'local-client',client_id:'local-client-preview',full_name:`${client.name} (معاينة محلية)`,email:client.email,phone:client.phone1,role:'client',permissions:['client_portal'],must_change_password:forced,password_status:client.password_status||'active',credential_version:Number(client.credential_version||0),credential_managed:true,is_local_preview:true };
+};
 
 const listeners = new Set();
 export const demoClient = {
@@ -882,6 +1428,7 @@ export const demoClient = {
     async getUser() { return { data: { user: null }, error: null }; },
     onAuthStateChange(callback) { listeners.add(callback); return { data: { subscription: { unsubscribe: () => listeners.delete(callback) } } }; },
     async signOut() { deactivateDemoMode(); return { error: null }; },
+    async updateUser({ password }) { try { const data = await demoRequest('/auth/password', { method: 'PATCH', body: JSON.stringify({ password }) }); const session = { ...(data.session || {}), user: data.user }; listeners.forEach(listener => listener('USER_UPDATED', session)); return { data, error: null }; } catch (error) { return { data: null, error }; } },
   },
   channel() { return { on() { return this; }, subscribe() { return this; }, unsubscribe() {} }; },
   removeChannel() {},

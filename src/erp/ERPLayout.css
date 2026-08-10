@@ -101,6 +101,43 @@
     padding-right: 5px;
 }
 
+.erp-nav-group {
+    margin: 0;
+    padding: 0;
+}
+
+.erp-nav-group + .erp-nav-group {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(174, 182, 204, 0.12);
+}
+
+.erp-nav-group-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 5px;
+    color: #7684a5;
+    font-family: inherit;
+    font-size: .66rem;
+    font-weight: 900;
+    line-height: 1.3;
+    letter-spacing: .02em;
+}
+
+.erp-nav-group-label::after {
+    content: '';
+    height: 1px;
+    flex: 1;
+    background: rgba(174, 182, 204, 0.09);
+}
+
+.erp-nav-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
 .erp-nav-item {
     margin-bottom: 8px;
     list-style: none;
@@ -153,6 +190,10 @@
     flex-shrink: 0;
 }
 
+.erp-sidebar-actions > .erp-nav-group-label {
+    margin-bottom: 4px;
+}
+
 @media (min-width: 993px) {
     .erp-sidebar {
         padding: 12px 14px 14px;
@@ -163,12 +204,20 @@
         overflow-y: visible;
         padding: 0;
     }
+    .erp-nav-group + .erp-nav-group {
+        margin-top: 4px;
+        padding-top: 4px;
+    }
+    .erp-nav-group-label {
+        margin-bottom: 2px;
+        font-size: .61rem;
+    }
     .erp-nav-item {
-        margin-bottom: 3px;
+        margin-bottom: 2px;
     }
     .erp-nav-link {
-        min-height: 40px;
-        padding: 8px 12px;
+        min-height: 36px;
+        padding: 7px 12px;
         border-radius: 8px;
         font-size: .78rem;
         line-height: 1.2;
@@ -182,7 +231,7 @@
         margin-bottom: 2px;
     }
     .erp-sidebar-actions .erp-nav-link {
-        min-height: 38px;
+        min-height: 36px;
     }
 }
 
@@ -502,6 +551,16 @@
         overflow-y: auto;
         overscroll-behavior: contain;
         scrollbar-width: thin;
+    }
+    .erp-sidebar .erp-nav-group-label {
+        margin: 8px 2px 5px;
+    }
+    .erp-sidebar .erp-nav-group + .erp-nav-group {
+        margin-top: 8px;
+        padding-top: 8px;
+    }
+    .erp-sidebar .erp-nav-link {
+        min-height: 44px;
     }
     .erp-main {
         margin-right: 0;
@@ -1083,9 +1142,7 @@
     }
 }
 .erp-nav-item--formation {
-  margin-top: .45rem;
-  padding-top: .6rem;
-  border-top: 1px solid rgba(148, 163, 184, .18);
+  margin-top: .2rem;
 }
 
 .erp-nav-link--formation svg { color: #2dd4bf; }

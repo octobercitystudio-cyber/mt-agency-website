@@ -15,4 +15,5 @@ export const attendanceApi = {
   savePolicy: (policy) => request('/attendance/policies', { method: 'PUT', body: JSON.stringify(policy) }),
   correctRecord: (id, values) => request(`/attendance/records/${id}`, { method: 'PATCH', body: JSON.stringify(values) }),
   addAdjustment: (values) => request('/attendance/adjustments', { method: 'POST', body: JSON.stringify(values) }),
+  correctAdjustment: (id, values) => request(`/attendance/adjustments/${id}/correct`, { method: 'POST', body: JSON.stringify(values) }),
 };

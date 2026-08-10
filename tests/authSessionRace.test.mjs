@@ -32,10 +32,11 @@ test('login waits for session restoration and routes users by role', () => {
   assert.doesNotMatch(dataContextSource, /alert\("خطأ في تسجيل الدخول: " \+ error\.message\)/);
 });
 
-test('the owner shell and dashboard are bundled with the login application', () => {
-  assert.match(appSource, /import ERPLayout from '\.\/erp\/ERPLayout'/);
-  assert.match(appSource, /import ERPDashboard from '\.\/erp\/ERPDashboard'/);
-  assert.doesNotMatch(appSource, /lazy\(\(\) => import\('\.\/erp\/ERPLayout'\)\)/);
+test('the owner shell and dashboard stay out of the public and login bundles', () => {
+  assert.doesNotMatch(appSource, /import ERPLayout from '\.\/erp\/ERPLayout'/);
+  assert.doesNotMatch(appSource, /import ERPDashboard from '\.\/erp\/ERPDashboard'/);
+  assert.match(appSource, /lazy\(\(\) => import\('\.\/erp\/ERPLayout'\)\)/);
+  assert.match(appSource, /lazy\(\(\) => import\('\.\/erp\/ERPDashboard'\)\)/);
 });
 
 test('route protection uses the server user role as its single source of truth', () => {

@@ -172,6 +172,10 @@ const auth = {
         method: 'PATCH',
         body: JSON.stringify({ password, current_password: currentPassword }),
       });
+      if (data.user) {
+        cachedUser = data.user;
+        notifyAuth('USER_UPDATED', { ...(data.session || {}), user: data.user });
+      }
       return { data, error: null };
     } catch (error) {
       return { data: null, error };

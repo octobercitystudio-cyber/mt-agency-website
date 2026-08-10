@@ -4,6 +4,7 @@ import { Settings } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
+import OwnerRecordActions from './OwnerRecordActions';
 
 const ROLE_DETAILS = {
   owner: { label: 'مالك', note: 'صلاحيات كاملة وإدارة الحسابات.' },
@@ -23,6 +24,9 @@ const ERPSettings = () => {
   const isOwner = currentUser?.role === 'owner';
   const [services, setServices] = useState([]);
   const [users, setUsers] = useState([]);
+  const [resources, setResources] = useState([]);
+  const [resourceForm, setResourceForm] = useState({ id: null, name: '', type: 'studio' });
+  const [editingUser, setEditingUser] = useState(null);
   const [p_cfg, setP_cfg] = useState({
     points_egp_spent: 100,
     points_earned: 1,
@@ -59,9 +63,10 @@ const ERPSettings = () => {
     }
     
     if (isOwner) {
-      const { data: uData, error: usersError } = await supabase.request('/users', { method: 'GET' });
+      const [{ data: uData, error: usersError }, { data: resourceData }] = await Promise.all([supabase.request('/users', { method: 'GET' }), supabase.from('resources').select('*').order('id')]);
       if (usersError) setUserState({ busy: false, type: 'error', message: usersError.message || 'تعذر تحميل حسابات النظام.' });
       else setUsers(uData || []);
+      setResources(resourceData || []);
     } else {
       setUsers([]);
     }
@@ -243,6 +248,28 @@ const ERPSettings = () => {
     }
     setUsers(prev => prev.map(user => Number(user.id) === Number(id) ? { ...user, ...values } : user));
     setUserState({ busy: false, type: 'success', message: 'تم تحديث صلاحيات الحساب.' });
+  };
+
+  const openUserEditor = user => {
+    setEditingUser({ ...user, password: '' });
+    window.bootstrap.Modal.getOrCreateInstance(document.getElementById('editSystemUserModal')).show();
+  };
+
+  const saveSystemUser = async event => {
+    event.preventDefault(); if (!editingUser) return;
+    const values = { full_name: editingUser.full_name, email: editingUser.email || null, phone: editingUser.phone || null, role: editingUser.role, is_active: Number(editingUser.is_active) };
+    if (editingUser.password) values.password = editingUser.password;
+    await updateSystemUser(editingUser.id, values);
+    window.bootstrap.Modal.getInstance(document.getElementById('editSystemUserModal'))?.hide();
+    setEditingUser(null);
+  };
+
+  const saveResource = async event => {
+    event.preventDefault(); if (!isOwner || !resourceForm.name.trim()) return;
+    const query = resourceForm.id ? supabase.from('resources').update({ name: resourceForm.name.trim(), type: resourceForm.type }).eq('id', resourceForm.id) : supabase.from('resources').insert([{ name: resourceForm.name.trim(), type: resourceForm.type, is_active: 1 }]);
+    const { error } = await query;
+    if (error) return setUserState({ busy: false, type: 'error', message: error.message || 'تعذر حفظ الاستديو/المورد.' });
+    setResourceForm({ id: null, name: '', type: 'studio' }); await fetchData();
   };
 
   // Cropper logic
@@ -618,14 +645,15 @@ const ERPSettings = () => {
         </div>
         <div className="table-responsive">
           <table className="table table-hover align-middle mb-0 text-center">
-            <thead className="bg-light"><tr><th className="py-3 text-muted small fw-bold">الاسم بالكامل</th><th className="py-3 text-muted small fw-bold">بيانات الدخول</th><th className="py-3 text-muted small fw-bold">الدور والصلاحيات</th><th className="py-3 text-muted small fw-bold">الحالة</th></tr></thead>
+            <thead className="bg-light"><tr><th className="py-3 text-muted small fw-bold">الاسم بالكامل</th><th className="py-3 text-muted small fw-bold">بيانات الدخول</th><th className="py-3 text-muted small fw-bold">الدور والصلاحيات</th><th className="py-3 text-muted small fw-bold">الحالة</th><th className="py-3 text-muted small fw-bold">تحكم المالك</th></tr></thead>
             <tbody>
               {users.map(u => (
                 <tr key={u.id}>
                   <td className="py-3 fw-bold text-dark">{u.full_name}</td>
                   <td className="py-3"><div className="font-monospace text-muted" dir="ltr">{u.email || u.phone || '—'}</div>{u.email && u.phone && <small className="text-muted" dir="ltr">{u.phone}</small>}</td>
                   <td className="py-3"><select className="form-select form-select-sm mx-auto fw-bold" style={{maxWidth:'175px'}} value={u.role} disabled={userState.busy || Number(u.id) === Number(currentUser.id)} onChange={e => updateSystemUser(u.id, { role: e.target.value })}>{Object.entries(ROLE_DETAILS).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select><small className="text-muted d-block mt-1" style={{fontSize:'.64rem'}}>{ROLE_DETAILS[u.role]?.note}</small></td>
-                  <td className="py-3"><button className={`btn btn-sm rounded-pill px-3 fw-bold ${Number(u.is_active) ? 'btn-success' : 'btn-outline-secondary'}`} disabled={userState.busy || Number(u.id) === Number(currentUser.id)} onClick={() => updateSystemUser(u.id, { is_active: Number(u.is_active) ? 0 : 1 })}>{Number(u.is_active) ? 'نشط' : 'موقوف'}</button>{Number(u.id) === Number(currentUser.id) && <small className="d-block text-muted mt-1">حسابك الحالي</small>}</td>
+                  <td className="py-3"><span className={`badge rounded-pill px-3 ${Number(u.is_active) ? 'bg-success' : 'bg-secondary'}`}>{Number(u.is_active) ? 'نشط' : 'موقوف'}</span>{Number(u.id) === Number(currentUser.id) && <small className="d-block text-muted mt-1">حسابك الحالي</small>}</td>
+                  <td className="py-3"><OwnerRecordActions user={currentUser} entity="users" record={u} label={u.full_name} onEdit={() => openUserEditor(u)} onChanged={fetchData} compact /></td>
                 </tr>
               ))}
             </tbody>
@@ -633,6 +661,12 @@ const ERPSettings = () => {
         </div>
         {userState.message && <div className={`alert mt-3 mb-0 ${userState.type === 'error' ? 'alert-danger' : 'alert-success'}`} role="status">{userState.message}</div>}
       </div> : <div className="setting-section border-start border-warning border-4"><h5 className="fw-bold mb-2">إدارة الحسابات للمالك فقط</h5><p className="text-muted mb-0 small">يمكنك استخدام إعدادات التشغيل، لكن إضافة الموظفين وتغيير صلاحياتهم متاحة لحساب المالك فقط.</p></div>}
+
+      {isOwner && <div className="setting-section">
+        <div className="section-title"><div><span><i className="fas fa-building text-primary me-2"></i> الاستديوهات وموارد الحجز</span><small className="d-block text-muted mt-1">تعطيل المورد يمنع الحجوزات الجديدة ويحافظ على مواعيده السابقة.</small></div></div>
+        <form className="row g-2 align-items-end mb-4" onSubmit={saveResource}><div className="col-md-6"><label className="small fw-bold text-muted mb-1">اسم الاستديو / المورد</label><input className="form-control" required value={resourceForm.name} onChange={event=>setResourceForm({...resourceForm,name:event.target.value})}/></div><div className="col-md-3"><label className="small fw-bold text-muted mb-1">النوع</label><select className="form-select" value={resourceForm.type} onChange={event=>setResourceForm({...resourceForm,type:event.target.value})}><option value="studio">استديو</option><option value="location">موقع خارجي</option><option value="equipment">معدات</option></select></div><div className="col-md-3"><button className="btn btn-primary w-100 min-h-44">{resourceForm.id?'حفظ التعديل':'إضافة مورد'}</button></div></form>
+        <div className="table-responsive"><table className="table align-middle"><thead><tr><th>الاسم</th><th>النوع</th><th>الحالة</th><th>تحكم المالك</th></tr></thead><tbody>{resources.map(resource=><tr key={resource.id}><td className="fw-bold">{resource.name}</td><td>{resource.type}</td><td><span className={`badge ${Number(resource.is_active)?'bg-success':'bg-secondary'}`}>{Number(resource.is_active)?'نشط':'معطل'}</span></td><td><OwnerRecordActions user={currentUser} entity="resources" record={resource} label={resource.name} onEdit={()=>setResourceForm({id:resource.id,name:resource.name,type:resource.type})} onChanged={fetchData}/></td></tr>)}</tbody></table></div>
+      </div>}
 
       <div className="setting-section border-start border-warning border-4">
         <h5 className="fw-bold text-warning mb-4"><i className="fas fa-star me-2"></i> إعدادات نظام النقاط والولاء</h5>
@@ -961,6 +995,8 @@ const ERPSettings = () => {
           </form>
         </div>
       </div>}
+
+      {isOwner && <div className="modal fade" id="editSystemUserModal" tabIndex="-1" data-bs-backdrop="static"><div className="modal-dialog modal-dialog-centered"><form onSubmit={saveSystemUser} className="modal-content border-0 shadow-lg rounded-5"><div className="modal-header bg-dark text-white border-0 p-4"><h5 className="fw-bold m-0">تعديل حساب المستخدم</h5><button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div className="modal-body p-4 bg-light">{editingUser&&<><label className="small fw-bold mb-1">الاسم بالكامل</label><input className="form-control mb-3" required value={editingUser.full_name||''} onChange={e=>setEditingUser({...editingUser,full_name:e.target.value})}/><label className="small fw-bold mb-1">البريد الإلكتروني</label><input type="email" dir="ltr" className="form-control mb-3" value={editingUser.email||''} onChange={e=>setEditingUser({...editingUser,email:e.target.value})}/><label className="small fw-bold mb-1">رقم الهاتف</label><input dir="ltr" className="form-control mb-3" value={editingUser.phone||''} onChange={e=>setEditingUser({...editingUser,phone:e.target.value})}/><label className="small fw-bold mb-1">الدور</label><select className="form-select mb-3" value={editingUser.role} onChange={e=>setEditingUser({...editingUser,role:e.target.value})}>{Object.entries(ROLE_DETAILS).map(([value,meta])=><option key={value} value={value}>{meta.label}</option>)}</select><label className="small fw-bold mb-1">الحالة</label><select className="form-select mb-3" value={Number(editingUser.is_active)} onChange={e=>setEditingUser({...editingUser,is_active:Number(e.target.value)})}><option value="1">نشط</option><option value="0">موقوف</option></select><label className="small fw-bold mb-1">كلمة مرور جديدة (اختياري)</label><input type="password" minLength="10" autoComplete="new-password" className="form-control mb-4" value={editingUser.password||''} onChange={e=>setEditingUser({...editingUser,password:e.target.value})}/><button className="btn btn-primary w-100 py-3" disabled={userState.busy}>{userState.busy?'جارٍ الحفظ...':'حفظ كل التعديلات'}</button></>}</div></form></div></div>}
     </>
   );
 };

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Clock3, Package } from 'lucide-react';
+import { CalendarDays, Clock3, MapPin, Package } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
 import { formatBookingDate, formatPackageQuantity, formatTime12, packageQuantitySummary, remainingBusinessDays } from '../lib/businessFormat';
+import ClientAppointmentLiveStatus from './ClientAppointmentLiveStatus';
 
 const STATUS_META = {
   pending: { label: 'بانتظار التأكيد', tone: 'waiting' },
@@ -43,7 +44,7 @@ function EmptySection({ title, text, onAction, actionLabel }) {
   </div>;
 }
 
-export default function ClientDashboardOverview({ activePackages, upcomingBookings, onNavigate, onBookPackage }) {
+export default function ClientDashboardOverview({ activePackages, upcomingBookings, sessionByBookingId, sessionServerOffset, onNavigate, onBookPackage }) {
   const reducedMotion = useReducedMotion();
 
   const packageCards = useMemo(() => activePackages.map(pkg => {
@@ -71,9 +72,45 @@ export default function ClientDashboardOverview({ activePackages, upcomingBookin
   }), [activePackages]);
 
   const nextBooking = upcomingBookings[0];
+  const activeSession = nextBooking ? sessionByBookingId?.get(Number(nextBooking.id)) : null;
   const nextStatus = STATUS_META[nextBooking?.status] || { label: nextBooking?.status || 'غير محدد', tone: 'neutral' };
+  const appointmentHeading = activeSession ? 'تم بدء جلسة التصوير' : 'الموعد القادم';
+  const resourceLabel = nextBooking?.resource_name || nextBooking?.studio_name || nextBooking?.location
+    || (nextBooking?.resource_id ? `استديو #${nextBooking.resource_id}` : 'استديو الشركة');
 
   return <section className="client-view client-simple-overview" aria-label="ملخص حساب العميل">
+    <section className={`client-next-home${activeSession ? ' client-next-home--live' : ''}`} aria-labelledby="next-booking-title">
+      <header className="client-simple-section-head client-simple-section-head--action">
+        <div>
+          <span>{activeSession ? 'الاستديو يعمل الآن' : 'خطوتك التالية'}</span>
+          <h2 id="next-booking-title" aria-live="polite" aria-atomic="true">{appointmentHeading}</h2>
+        </div>
+        {!activeSession && <button type="button" onClick={() => onNavigate('schedule')}>عرض المواعيد</button>}
+      </header>
+
+      {nextBooking ? <article className={`client-simple-next-card${activeSession ? ' client-simple-next-card--live' : ''}`} id={`client-appointment-${nextBooking.id}`} data-booking-id={nextBooking.id}>
+        <div className="client-simple-date-block">
+          <span>{format(new Date(`${nextBooking.date}T12:00`), 'EEEE', { locale: ar })}</span>
+          <strong>{format(new Date(`${nextBooking.date}T12:00`), 'd')}</strong>
+          <small>{format(new Date(`${nextBooking.date}T12:00`), 'MMMM', { locale: ar })}</small>
+        </div>
+        <div className="client-simple-next-details">
+          {activeSession ? <span className="client-status client-status--live">جاري التصوير</span> : <span className={`client-status client-status--${nextStatus.tone}`}>{nextStatus.label}</span>}
+          <h3>{nextBooking.service}</h3>
+          <p><CalendarDays aria-hidden="true" />{formatBookingDate(nextBooking.date)}</p>
+          <p><Clock3 aria-hidden="true" />{formatTime12(nextBooking.start_time)} – {formatTime12(nextBooking.end_time)}</p>
+          <p><MapPin aria-hidden="true" />{resourceLabel}</p>
+          {activeSession && <ClientAppointmentLiveStatus session={activeSession} serverOffset={sessionServerOffset} />}
+        </div>
+        {!activeSession && <button type="button" onClick={() => onNavigate('schedule')}>عرض المواعيد</button>}
+      </article> : <EmptySection
+        title="لا يوجد موعد قادم"
+        text="اختر باقتك والوقت المناسب، ثم أرسل طلب الحجز للإدارة."
+        onAction={() => onNavigate('schedule')}
+        actionLabel="طلب حجز جديد"
+      />}
+    </section>
+
     <section className="client-packages-home" aria-labelledby="current-packages-title">
       <header className="client-simple-section-head">
         <div>
@@ -95,7 +132,7 @@ export default function ClientDashboardOverview({ activePackages, upcomingBookin
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={pkg.chart} dataKey="value" nameKey="name" innerRadius="69%" outerRadius="91%" startAngle={90} endAngle={-270} stroke="none" isAnimationActive={!reducedMotion}>
-                    {pkg.chart.map((entry, index) => <Cell key={entry.name} fill={pkg.total > 0 && index === 0 ? '#a970ff' : '#31263c'} />)}
+                    {pkg.chart.map((entry, index) => <Cell key={entry.name} fill={pkg.total > 0 && index === 0 ? 'var(--client-purple-soft)' : 'var(--client-chart-track)'} />)}
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
@@ -119,31 +156,5 @@ export default function ClientDashboardOverview({ activePackages, upcomingBookin
       </div> : <EmptySection title="لا توجد باقة فعالة حاليًا" text="ستظهر تفاصيل الباقة هنا فور إضافتها إلى حسابك." />}
     </section>
 
-    <section className="client-next-home" aria-labelledby="next-booking-title">
-      <header className="client-simple-section-head client-simple-section-head--action">
-        <div><span>خطوتك التالية</span><h2 id="next-booking-title">موعدك القادم</h2></div>
-        <button type="button" onClick={() => onNavigate('schedule')}>عرض المواعيد</button>
-      </header>
-
-      {nextBooking ? <article className="client-simple-next-card">
-        <div className="client-simple-date-block">
-          <span>{format(new Date(`${nextBooking.date}T12:00`), 'EEEE', { locale: ar })}</span>
-          <strong>{format(new Date(`${nextBooking.date}T12:00`), 'd')}</strong>
-          <small>{format(new Date(`${nextBooking.date}T12:00`), 'MMMM', { locale: ar })}</small>
-        </div>
-        <div className="client-simple-next-details">
-          <span className={`client-status client-status--${nextStatus.tone}`}>{nextStatus.label}</span>
-          <h3>{nextBooking.service}</h3>
-          <p><CalendarDays aria-hidden="true" />{formatBookingDate(nextBooking.date)}</p>
-          <p><Clock3 aria-hidden="true" />{formatTime12(nextBooking.start_time)} – {formatTime12(nextBooking.end_time)}</p>
-        </div>
-        <button type="button" onClick={() => onNavigate('schedule')}>عرض المواعيد</button>
-      </article> : <EmptySection
-        title="لا يوجد موعد قادم"
-        text="اختر باقتك والوقت المناسب، ثم أرسل طلب الحجز للإدارة."
-        onAction={() => onNavigate('schedule')}
-        actionLabel="طلب حجز جديد"
-      />}
-    </section>
   </section>;
 }

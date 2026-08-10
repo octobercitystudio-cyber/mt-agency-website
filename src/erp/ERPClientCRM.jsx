@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import {
   BriefcaseBusiness, CalendarClock, CalendarPlus, CircleDollarSign,
   Coins, Edit3, FileText, History, Mail, MessageCircle, PackageCheck, Phone,
-  Play, SearchX, Trash2, UserRound, WalletCards, X,
+  Play, SearchX, UserRound, WalletCards, X,
 } from 'lucide-react';
 import { centsToMoney, formatBookingDate, formatEGP, formatPackageQuantity, formatTime12, packageFinancialSummary, packageQuantitySummary, remainingBusinessDays } from '../lib/businessFormat';
+import OwnerRecordActions from './OwnerRecordActions';
 
 const money = formatEGP;
 const bookingDate = booking => booking?.date ? formatBookingDate(booking.date) : 'لا يوجد موعد قادم';
@@ -28,6 +29,7 @@ export function ClientDirectory({
   onBook,
   onEdit,
   onDelete,
+  currentUser,
   onRetry,
 }) {
   if (loading && clients.length === 0) return <DirectoryState loading title="جارٍ تجهيز دليل العملاء" text="نسترجع بيانات العملاء وحالتهم التشغيلية." />;
@@ -52,6 +54,7 @@ export function ClientDirectory({
             onBook={() => onBook(client)}
             onEdit={() => onEdit(client)}
             onDelete={() => onDelete(client)}
+            currentUser={currentUser}
           />
         ))}
       </div>
@@ -59,7 +62,7 @@ export function ClientDirectory({
   );
 }
 
-function ClientDirectoryItem({ client, checked, onToggle, onOpen, onBook, onEdit, onDelete }) {
+function ClientDirectoryItem({ client, checked, onToggle, onOpen, onBook, onEdit, onDelete, currentUser }) {
   const hasDue = Number(client.debt) > 0 || client.hasPackageDebt;
   const packageCount = client.packagesList?.length || 0;
   return (
@@ -89,8 +92,7 @@ function ClientDirectoryItem({ client, checked, onToggle, onOpen, onBook, onEdit
       <div className="client-crm-item__actions">
         <button className="primary" type="button" onClick={onOpen}><UserRound size={16} /> التفاصيل</button>
         <button type="button" onClick={onBook}><CalendarPlus size={16} /> حجز</button>
-        <button type="button" onClick={onEdit}><Edit3 size={16} /> تعديل</button>
-        <button className="danger" type="button" onClick={onDelete}><Trash2 size={16} /> حذف</button>
+        {currentUser?.role === 'owner' ? <OwnerRecordActions user={currentUser} entity="clients" record={client} label={client.name} onEdit={onEdit} onChanged={onDelete} /> : <button type="button" onClick={onEdit}><Edit3 size={16} /> تعديل</button>}
       </div>
     </article>
   );

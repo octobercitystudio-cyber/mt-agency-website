@@ -18,7 +18,7 @@ const UnifiedLogin = () => {
   useEffect(() => {
     if (!isAuthReady || !currentUser?.role) return;
     if (currentUser.role === 'client') {
-      navigate('/dashboard', { replace: true });
+      navigate(currentUser.must_change_password ? '/change-password' : '/dashboard', { replace: true });
     } else if (STAFF_ROLES.includes(currentUser.role)) {
       navigate('/erp', { replace: true });
     }
@@ -34,7 +34,7 @@ const UnifiedLogin = () => {
       const user = await loginErp(identifier.trim(), password);
       if (user) {
         if (user.role === 'client') {
-          navigate('/dashboard', { replace: true });
+          navigate(user.must_change_password ? '/change-password' : '/dashboard', { replace: true });
           return;
         }
         if (STAFF_ROLES.includes(user.role)) {

@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, BadgeDollarSign, CalendarDays, Check, Clock3,
-  FileCheck2, PackageCheck, Plus, RefreshCw, TimerOff, UserPlus, UsersRound,
+  Eye, FileCheck2, PackageCheck, PlayCircle, Plus, RefreshCw, TimerOff, UserPlus, UsersRound,
 } from 'lucide-react';
 import { supabase, dataProvider } from '../supabaseClient';
 import { useData } from '../store/DataContext';
 import { attendanceApi } from '../lib/attendanceApi';
 import { formatBookingDate, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
 import ERPPageHero from './ERPPageHero';
+import ERPAddBookingModal from './ERPAddBookingModal';
+import ERPClientModal from './ERPClientModal';
+import { ERPCreatePromotionDrawer } from './ERPPromotions';
 import useChangeSync from '../hooks/useChangeSync';
+import ERPStartSessionDialog from './ERPStartSessionDialog';
+import { canRoleStartStudioSession } from './studioSessionStart';
+import { eligibilityMap, studioBookingEligible } from './studioSessionEligibility';
 import './ERPDashboard.css';
 import './ERPDashboardFixes.css';
 
@@ -29,8 +35,14 @@ const ERPDashboard = () => {
   const { currentUser } = useData();
   const navigate = useNavigate();
   const [clock, setClock] = useState(new Date());
-  const [state, setState] = useState({ loading: true, error: '', bookings: [], actions: [], tasks: [], health: {} });
+  const [state, setState] = useState({ loading: true, error: '', bookings: [], actions: [], tasks: [], health: {}, packageMap: {}, sessionEligibility: {} });
   const [attendance, setAttendance] = useState({ loading: true, error: '', data: null });
+  const [createAction, setCreateAction] = useState('');
+  const [quickActionNotice, setQuickActionNotice] = useState('');
+  const [sessionStart, setSessionStart] = useState({ open: false, booking: null });
+  const sessionTriggerRef = useRef(null);
+  const bookingTriggerRef = useRef(null);
+  const openBookingCreate = event => { bookingTriggerRef.current = event?.currentTarget || null; setCreateAction('booking'); };
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 30000);
@@ -41,17 +53,18 @@ const ERPDashboard = () => {
     setState((old) => ({ ...old, loading: true, error: '' }));
     const today = cairoDate(); const month = cairoMonth();
     try {
-      const [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks] = await Promise.all([
+      const [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks, sessionEligibility] = await Promise.all([
         supabase.from('bookings').select('*').eq('date', today).order('start_time', { ascending: true }),
         supabase.from('bookings').select('id,client_name,status,date,start_time').in('status', ['pending', 'cancel_requested', 'late_cancel_requested']).limit(8),
         supabase.from('reschedule_requests').select('id,booking_id,client_id,status,proposed_date,proposed_start_time').eq('status', 'pending').limit(8),
         supabase.from('payment_proofs').select('id,client_id,amount,status,created_at').eq('status', 'pending').limit(8),
         supabase.from('finance').select('id,type,entry_kind,amount,date').like('date', `${month}%`),
-        supabase.from('client_packages').select('id,status,expires_at,total_price,overage_amount,paid_amount,source_invoice_id').eq('status', 'active'),
+        supabase.from('client_packages').select('id,name,billing_unit,status,starts_at,expires_at,total_price,overage_amount,paid_amount,source_invoice_id').eq('status', 'active'),
         supabase.from('invoices').select('id,total,paid_amount,status'),
         supabase.from('reminders').select('id,title,due_date,type,status,amount').eq('status', 'pending').order('due_date', { ascending: true }).limit(6),
+        supabase.request(`/studio-session-eligibility?date=${today}`),
       ]);
-      const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks].filter((result) => result.error);
+      const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks, sessionEligibility].filter((result) => result.error);
       if (failedModules.length) console.error('Dashboard data modules unavailable:', failedModules.map((result) => result.error));
       const actions = [
         ...(pendingBookings.data || []).map((item) => ({ ...item, kind: 'booking', title: `${statusLabels[normalizeStatus(item.status)] || 'طلب حجز'} — ${item.client_name}`, meta: `${formatBookingDate(item.date)} · ${formatTime12(item.start_time, '')}`, to: '/erp/requests' })),
@@ -71,11 +84,14 @@ const ERPDashboard = () => {
       }, 0);
       const outstanding = invoiceOutstanding + packageOnlyOutstanding;
       const soon = new Date(); soon.setDate(soon.getDate() + 14); const soonDate = cairoDate(soon);
+      const packageMap = Object.fromEntries((packages.data || []).map(pkg => [Number(pkg.id), pkg]));
       setState({
         loading: false,
         error: failedModules.length ? 'تعذر تحميل بعض بيانات التشغيل الآن. يمكنك متابعة الأقسام المتاحة أو إعادة المحاولة.' : '',
         bookings: (bookingsResult.data || []).filter((booking) => normalizeStatus(booking.status) !== 'cancelled'), actions,
         tasks: tasks.data || [],
+        packageMap,
+        sessionEligibility: eligibilityMap(sessionEligibility.data),
         health: { outstanding, cashIn, cashOut, activePackages: (packages.data || []).length, expiringSoon: (packages.data || []).filter((item) => item.expires_at && item.expires_at <= soonDate).length },
       });
     } catch (error) {
@@ -124,6 +140,18 @@ const ERPDashboard = () => {
     return { ...booking, normalizedStatus: normalizeStatus(booking.status), start, end, top, height };
   }), [state.bookings]);
 
+  const canStartSessions = canRoleStartStudioSession(currentUser?.role);
+  const canStartBooking = booking => canStartSessions && studioBookingEligible(booking, state.sessionEligibility);
+  const openSessionStart = (booking, event) => {
+    sessionTriggerRef.current = event.currentTarget;
+    setSessionStart({ open: true, booking });
+  };
+  const handleSessionStarted = async booking => {
+    setState(current => ({ ...current, bookings: current.bookings.map(item => Number(item.id) === Number(booking.id) ? { ...item, status: 'in_progress' } : item) }));
+    setQuickActionNotice(`بدأ تصوير ${booking.client_name} والتايمر يعمل الآن.`);
+    await load();
+  };
+
   const currentMarker = useMemo(() => {
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(clock).map((part) => [part.type, part.value]));
     const minutes = (Number(parts.hour) * 60) + Number(parts.minute);
@@ -148,15 +176,21 @@ const ERPDashboard = () => {
         title={`أهلًا، ${currentUser?.full_name || 'مستخدم النظام'}`}
         description={<>{roleLabels[currentUser?.role] || currentUser?.role} · {new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long' }).format(clock)} · <bdi>{new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }).format(clock)}</bdi></>}
         actions={<>
-          <Link data-variant="primary" className="ops-action ops-action--primary" to="/erp/bookings" state={{ openCreateBooking: true }}><Plus size={17} /> حجز جديد</Link>
-          <Link className="ops-action" to="/erp/clients" state={{ openCreateClient: true }}><UserPlus size={17} /> عميل جديد</Link>
-          {['owner','admin'].includes(currentUser?.role) && <Link className="ops-action" to="/erp/offers" state={{ openCreatePromotion: true }}><FileCheck2 size={17} /> عرض حصري</Link>}
+          <button type="button" data-variant="primary" className="ops-action ops-action--primary" onClick={openBookingCreate}><Plus size={17} /> حجز جديد</button>
+          <button type="button" className="ops-action" onClick={() => setCreateAction('client')}><UserPlus size={17} /> عميل جديد</button>
+          {['owner','admin'].includes(currentUser?.role) && <button type="button" className="ops-action" onClick={() => setCreateAction('promotion')}><FileCheck2 size={17} /> عرض حصري</button>}
         </>}
         details={<div className="ops-attendance-chip">
           <div><span>حضورك اليوم</span><strong>{attendance.loading ? 'جارٍ التحقق…' : !attendance.data?.self?.tracked ? 'غير خاضع للتتبع' : selfRecord?.check_out_at ? 'تم الانصراف' : selfRecord ? `دخول ${formatTime12(selfRecord.check_in_at)}` : 'لم يُسجل'}</strong></div>
           {selfRecord && !selfRecord.check_out_at && <button type="button" onClick={checkOut}><TimerOff size={16} /> تسجيل الانصراف</button>}
         </div>}
       />
+
+      <section className="ops-health" aria-label="صحة العمل">
+        <div><span>مستحقات غير محصلة</span><strong>{state.loading ? '—' : money(state.health.outstanding)}</strong><small>من الفواتير النشطة</small></div>
+        <div><span>صافي حركة الشهر</span><strong className={(state.health.cashIn - state.health.cashOut) < 0 ? 'negative' : ''}>{state.loading ? '—' : money(state.health.cashIn - state.health.cashOut)}</strong><small>دخل {money(state.health.cashIn)} · خرج {money(state.health.cashOut)}</small></div>
+        <div><span>الباقات الفعالة</span><strong>{state.loading ? '—' : state.health.activePackages || 0}</strong><small><PackageCheck size={14} /> {state.health.expiringSoon || 0} تنتهي خلال 14 يومًا</small></div>
+      </section>
 
       {state.error && <div className="ops-state ops-state--error" role="alert"><AlertTriangle size={18} /> {state.error}<button onClick={load}>إعادة المحاولة</button></div>}
 
@@ -173,13 +207,17 @@ const ERPDashboard = () => {
                 <span className="runway__resource">الاستديو الرئيسي</span>
                 {Array.from({ length: 13 }, (_, index) => <i key={index} style={{ top: `${(index / 12) * 100}%` }} />)}
                 {currentMarker !== null && <span className="runway__now" style={{ top: `${currentMarker}%` }}><b>الآن</b></span>}
-                {timelineBookings.length === 0 && <button className="runway-empty-slot" type="button" onClick={() => navigate('/erp/bookings', { state: { openCreateBooking: true } })}><CalendarDays size={24} /><strong>اليوم متاح بالكامل</strong><small>12:00 م — 12:00 ص</small><span><Plus size={15} /> إضافة أول حجز</span></button>}
+                {timelineBookings.length === 0 && <button className="runway-empty-slot" type="button" onClick={openBookingCreate}><CalendarDays size={24} /><strong>اليوم متاح بالكامل</strong><small>12:00 م — 12:00 ص</small><span><Plus size={15} /> إضافة أول حجز</span></button>}
                 {timelineBookings.map((booking, index) => (
-                  <button key={booking.id} className={`runway-booking runway-booking--${booking.normalizedStatus}`} style={{ top: `${booking.top}%`, height: `${booking.height}%`, insetInlineStart: `${(index % 2) * 48}%`, width: timelineBookings.length > 1 ? '47%' : '96%' }} onClick={() => navigate('/erp/bookings')}>
+                  <article key={booking.id} className={`runway-booking runway-booking--${booking.normalizedStatus}`} style={{ top: `${booking.top}%`, height: `${booking.height}%`, insetInlineStart: `${(index % 2) * 48}%`, width: timelineBookings.length > 1 ? '47%' : '96%' }}>
                     <span className="runway-booking__time"><bdi>{formatTime12(booking.start)}–{formatTime12(booking.end)}</bdi></span>
-                    <strong>{booking.client_name}</strong><small>{booking.service || 'تصوير استديو'} · {booking.resource_name || 'الاستديو الرئيسي'}</small>
-                    <em>{statusLabels[booking.normalizedStatus] || booking.status}</em>
-                  </button>
+                    <div className="runway-booking__identity">
+                      <div className="runway-booking__identity-copy"><strong>{booking.client_name}</strong><small>{booking.service || 'تصوير استديو'} · {booking.resource_name || 'الاستديو الرئيسي'}</small></div>
+                      {canStartBooking(booking) && <button type="button" className="runway-booking__start" onClick={event => openSessionStart(booking, event)} aria-label={`ابدأ تصوير ${booking.client_name}`}><PlayCircle aria-hidden="true" /> ابدأ التصوير</button>}
+                      {booking.normalizedStatus === 'in_progress' && <span className="runway-booking__running" role="status"><i /> التصوير جارٍ</span>}
+                    </div>
+                    <div className="runway-booking__footer"><em>{statusLabels[booking.normalizedStatus] || booking.status}</em><span className="runway-booking__controls"><button type="button" className="runway-booking__details" onClick={() => navigate('/erp/bookings')} aria-label={`عرض حجز ${booking.client_name}`}><Eye /></button>{booking.normalizedStatus === 'completed' && <span className="runway-booking__completed"><Check /> تم</span>}</span></div>
+                  </article>
                 ))}
               </div>
             </div>
@@ -193,12 +231,6 @@ const ERPDashboard = () => {
           )}
           <Link className="ops-panel__footer" to="/erp/requests">عرض صندوق الطلبات كاملًا</Link>
         </aside>
-      </section>
-
-      <section className="ops-health" aria-label="صحة العمل">
-        <div><span>مستحقات غير محصلة</span><strong>{state.loading ? '—' : money(state.health.outstanding)}</strong><small>من الفواتير النشطة</small></div>
-        <div><span>صافي حركة الشهر</span><strong className={(state.health.cashIn - state.health.cashOut) < 0 ? 'negative' : ''}>{state.loading ? '—' : money(state.health.cashIn - state.health.cashOut)}</strong><small>دخل {money(state.health.cashIn)} · خرج {money(state.health.cashOut)}</small></div>
-        <div><span>الباقات الفعالة</span><strong>{state.loading ? '—' : state.health.activePackages || 0}</strong><small><PackageCheck size={14} /> {state.health.expiringSoon || 0} تنتهي خلال 14 يومًا</small></div>
       </section>
 
       <section className="ops-grid-lower">
@@ -216,6 +248,24 @@ const ERPDashboard = () => {
       </section>
 
       <button className="ops-refresh" type="button" onClick={() => { load(); loadAttendance(); }} aria-label="تحديث لوحة العمليات"><RefreshCw size={16} /> آخر تحديث بتوقيت القاهرة</button>
+      <div className="visually-hidden" role="status" aria-live="polite">{quickActionNotice}</div>
+      <ERPAddBookingModal
+        isOpen={createAction === 'booking'}
+        returnFocusRef={bookingTriggerRef}
+        onClose={() => setCreateAction('')}
+        onSuccess={async () => { await load(); setQuickActionNotice('تم إنشاء الحجز وتحديث لوحة القيادة.'); }}
+      />
+      <ERPClientModal
+        isOpen={createAction === 'client'}
+        onClose={() => setCreateAction('')}
+        onSuccess={() => setQuickActionNotice('تم إنشاء العميل بنجاح.')}
+      />
+      <ERPCreatePromotionDrawer
+        isOpen={createAction === 'promotion'}
+        onClose={() => setCreateAction('')}
+        onSuccess={() => setQuickActionNotice('تم إنشاء العرض الحصري بنجاح.')}
+      />
+      <ERPStartSessionDialog open={sessionStart.open} bookings={sessionStart.booking ? [sessionStart.booking] : []} clientName={sessionStart.booking?.client_name} contextName={state.packageMap[Number(sessionStart.booking?.client_package_id)]?.name || sessionStart.booking?.service} returnFocusRef={sessionTriggerRef} onClose={() => setSessionStart({ open: false, booking: null })} onStarted={handleSessionStarted} onCreateBooking={() => navigate('/erp/bookings')}/>
     </main>
   );
 };

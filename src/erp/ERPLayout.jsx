@@ -110,71 +110,89 @@ const ERPLayout = () => {
 
       {/* Sidebar */}
       <div className={`erp-sidebar ${sidebarOpen ? 'show' : ''}`}>
-        <nav className="erp-nav-menu">
-          <li className="erp-nav-item">
-            <NavLink to="/erp" end className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <LayoutDashboard size={20} /> لوحة القيادة
-            </NavLink>
-          </li>
-          {canOpenRequests && <li className="erp-nav-item">
-            <NavLink to="/erp/requests" className={({isActive}) => `erp-nav-link position-relative ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <Inbox size={20} /> صندوق الطلبات
-              {requestsCount > 0 && <span className="badge rounded-pill bg-danger" style={{marginRight:'auto',fontSize:'.65rem'}}>{requestsCount}</span>}
-            </NavLink>
-          </li>}
-          {canOpenPackages && <li className="erp-nav-item">
-            <NavLink to="/erp/packages" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <Package size={20} /> الباقات المباعة
-            </NavLink>
-          </li>}
-          {canOpenProjects && <li className="erp-nav-item">
-            <NavLink to="/erp/projects" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <FolderKanban size={20} /> المشروعات والمحتوى
-            </NavLink>
-          </li>}
-          <li className="erp-nav-item">
-            <NavLink to="/erp/clients" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <Users size={20} /> قاعدة العملاء
-            </NavLink>
-          </li>
-          <li className="erp-nav-item">
-            <NavLink to="/erp/bookings" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <CalendarDays size={20} /> جدول الحجوزات
-            </NavLink>
-          </li>
-          <li className="erp-nav-item">
-            <NavLink to="/erp/attendance" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <Fingerprint size={20} /> الحضور والرواتب
-            </NavLink>
-          </li>
-          {canManageFinance && <li className="erp-nav-item">
-            <NavLink to="/erp/finance" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <DollarSign size={20} /> الخزينة والحسابات
-            </NavLink>
-          </li>}
-          {canManageFormationFund && <li className="erp-nav-item erp-nav-item--formation">
-            <NavLink to="/erp/formation-fund" className={({isActive}) => `erp-nav-link erp-nav-link--formation ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <Landmark size={20} /> صندوق التأسيس
-            </NavLink>
-          </li>}
-          {canManageSocialProfits && <li className="erp-nav-item erp-nav-item--social-profits">
-            <NavLink to="/erp/social-profits" className={({isActive}) => `erp-nav-link erp-nav-link--social-profits ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <TrendingUp size={20} /> أرباح السوشيال
-            </NavLink>
-          </li>}
-          <li className="erp-nav-item">
-            <NavLink to="/erp/reminders" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <ClipboardList size={20} /> المهام والتذكيرات
-            </NavLink>
-          </li>
-          {canOpenOffers && <li className="erp-nav-item">
-            <NavLink to="/erp/offers" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-              <FileText size={20} /> إنشاء عرض
-            </NavLink>
-          </li>}
+        <nav className="erp-nav-menu" aria-label="التنقل الرئيسي">
+          <section className="erp-nav-group" aria-labelledby="erp-nav-daily-label">
+            <h2 id="erp-nav-daily-label" className="erp-nav-group-label">التشغيل اليومي</h2>
+            <ul className="erp-nav-list">
+              <li className="erp-nav-item">
+                <NavLink to="/erp" end className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <LayoutDashboard size={20} /> لوحة القيادة
+                </NavLink>
+              </li>
+              {canOpenRequests && <li className="erp-nav-item">
+                <NavLink to="/erp/requests" className={({isActive}) => `erp-nav-link position-relative ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <Inbox size={20} /> صندوق الطلبات
+                  {requestsCount > 0 && <span className="badge rounded-pill bg-danger" style={{marginRight:'auto',fontSize:'.65rem'}}>{requestsCount}</span>}
+                </NavLink>
+              </li>}
+              <li className="erp-nav-item">
+                <NavLink to="/erp/clients" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <Users size={20} /> قاعدة العملاء
+                </NavLink>
+              </li>
+              <li className="erp-nav-item">
+                <NavLink to="/erp/bookings" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <CalendarDays size={20} /> جدول الحجوزات
+                </NavLink>
+              </li>
+            </ul>
+          </section>
+
+          <section className="erp-nav-group" aria-labelledby="erp-nav-work-label">
+            <h2 id="erp-nav-work-label" className="erp-nav-group-label">الخدمات والعمل</h2>
+            <ul className="erp-nav-list">
+              {canOpenPackages && <li className="erp-nav-item">
+                <NavLink to="/erp/packages" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <Package size={20} /> الباقات المباعة
+                </NavLink>
+              </li>}
+              {canOpenProjects && <li className="erp-nav-item">
+                <NavLink to="/erp/projects" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <FolderKanban size={20} /> المشروعات والمحتوى
+                </NavLink>
+              </li>}
+              <li className="erp-nav-item">
+                <NavLink to="/erp/reminders" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <ClipboardList size={20} /> المهام والتذكيرات
+                </NavLink>
+              </li>
+              {canOpenOffers && <li className="erp-nav-item">
+                <NavLink to="/erp/offers" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <FileText size={20} /> إنشاء عرض
+                </NavLink>
+              </li>}
+            </ul>
+          </section>
+
+          <section className="erp-nav-group" aria-labelledby="erp-nav-finance-label">
+            <h2 id="erp-nav-finance-label" className="erp-nav-group-label">المالية والفريق</h2>
+            <ul className="erp-nav-list">
+              <li className="erp-nav-item">
+                <NavLink to="/erp/attendance" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <Fingerprint size={20} /> الحضور والرواتب
+                </NavLink>
+              </li>
+              {canManageFinance && <li className="erp-nav-item">
+                <NavLink to="/erp/finance" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <DollarSign size={20} /> الخزينة والحسابات
+                </NavLink>
+              </li>}
+              {canManageFormationFund && <li className="erp-nav-item erp-nav-item--formation">
+                <NavLink to="/erp/formation-fund" className={({isActive}) => `erp-nav-link erp-nav-link--formation ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <Landmark size={20} /> صندوق التأسيس
+                </NavLink>
+              </li>}
+              {canManageSocialProfits && <li className="erp-nav-item erp-nav-item--social-profits">
+                <NavLink to="/erp/social-profits" className={({isActive}) => `erp-nav-link erp-nav-link--social-profits ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <TrendingUp size={20} /> أرباح السوشيال
+                </NavLink>
+              </li>}
+            </ul>
+          </section>
         </nav>
 
-        <div className="erp-sidebar-actions">
+        <section className="erp-sidebar-actions" aria-labelledby="erp-nav-system-label">
+          <h2 id="erp-nav-system-label" className="erp-nav-group-label">النظام</h2>
           <div className="erp-nav-item mb-1">
             <button className="erp-nav-link erp-nav-alert-btn position-relative" onClick={() => setNotificationsOpen(true)} style={{width: '100%', border: '1px solid rgba(255, 152, 0, 0.2)', background: 'rgba(255, 193, 7, 0.1)', color: '#ff9800', justifyContent: 'flex-start'}}>
               <Bell size={20} style={{color: '#ff9800'}} /> مركز الإشعارات
@@ -196,7 +214,7 @@ const ERPLayout = () => {
           <button onClick={handleLogout} className="erp-nav-link" style={{width: '100%', color: '#ef4444', background: 'transparent', border: 'none', justifyContent: 'flex-start'}}>
             <LogOut size={20} style={{color: '#ef4444'}} /> تسجيل الخروج
           </button>
-        </div>
+        </section>
       </div>
 
       {/* Main Content Area */}
@@ -282,7 +300,7 @@ const ERPLayout = () => {
       />
 
       {/* Global Session Timer */}
-      <ERPSessionTimer />
+      <ERPSessionTimer role={role} />
     </div>
   );
 };

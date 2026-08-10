@@ -1,13 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send } from 'lucide-react';
+import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send, CalendarClock } from 'lucide-react';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import { ar as arDateLocale } from 'date-fns/locale';
+import arCalendarLocale from '@fullcalendar/core/locales/ar';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import { calculateDurationMinutes, formatBookingDate, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
 import ERPPageHero from './ERPPageHero';
+import ERPRescheduleBookingDialog from './ERPRescheduleBookingDialog';
+import ERPBookingDetailsDialog from './ERPBookingDetailsDialog';
+import { startStudioSession } from './studioSessionStart';
+import OwnerRecordActions from './OwnerRecordActions';
+import ERPAddBookingModal from './ERPAddBookingModal';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
@@ -19,6 +25,48 @@ let globalBookingsCache = null;
 let globalClientsCache = null;
 let globalServicesCache = null;
 let globalBookingsLastFetch = 0;
+const fallbackClientColor = '#4318ff';
+const safeClientColor = value => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : fallbackClientColor;
+const readableOnColor = value => {
+  const hex = safeClientColor(value).slice(1);
+  const channels = [0, 2, 4].map(index => parseInt(hex.slice(index, index + 2), 16) / 255).map(channel => channel <= .03928 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
+  const luminance = .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+  return luminance > .179 ? '#111827' : '#ffffff';
+};
+const applyCalendarEventColors = info => {
+  const background = safeClientColor(info.event.extendedProps.client_color);
+  const foreground = readableOnColor(background);
+  info.el.style.setProperty('--fc-event-bg-color', background);
+  info.el.style.setProperty('--fc-event-border-color', background);
+  info.el.style.setProperty('--fc-event-text-color', foreground);
+  info.el.style.setProperty('background-color', background, 'important');
+  info.el.style.setProperty('border-color', background, 'important');
+  info.el.style.setProperty('color', foreground, 'important');
+  info.el.querySelector('.fc-event-main')?.style.setProperty('color', foreground, 'important');
+};
+
+const calendarDateTime = (date, time, endOfDay = false) => {
+  const normalized = normalizeTime(time || (endOfDay ? '13:00' : '12:00'), { endOfDay });
+  if (normalized === '24:00') {
+    const next = new Date(`${date}T12:00:00`);
+    next.setDate(next.getDate() + 1);
+    return `${format(next, 'yyyy-MM-dd')}T00:00:00`;
+  }
+  return `${date}T${normalized}:00`;
+};
+
+const calendarProposal = event => {
+  const start = event.start;
+  const end = event.end;
+  const startDate = format(start, 'yyyy-MM-dd');
+  const endClock = end ? format(end, 'HH:mm') : '';
+  const crossesMidnight = end && format(end, 'yyyy-MM-dd') !== startDate && endClock === '00:00';
+  return {
+    date: startDate,
+    start_time: format(start, 'HH:mm'),
+    end_time: crossesMidnight ? '24:00' : (endClock || normalizeTime(event.extendedProps.original_end_time || '13:00', { endOfDay: true })),
+  };
+};
 
 const ERPBookings = () => {
   const { currentUser } = useData();
@@ -28,6 +76,7 @@ const ERPBookings = () => {
   const [clients, setClients] = useState(globalClientsCache || []);
   const [services, setServices] = useState(globalServicesCache || []);
   const [loading, setLoading] = useState(!globalBookingsCache);
+  const [clientColorsHydrated, setClientColorsHydrated] = useState(globalClientsCache !== null);
   
   // UI State
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -36,8 +85,14 @@ const ERPBookings = () => {
   const [decisionBusy, setDecisionBusy] = useState(null);
   const [decisionError, setDecisionError] = useState('');
   const [alternativeModal, setAlternativeModal] = useState({ open: false, booking: null, date: '', start_time: '12:00', end_time: '13:00', note: '' });
+  const [rescheduleModal, setRescheduleModal] = useState({ open: false, booking: null, proposal: null });
+  const [rescheduleNotice, setRescheduleNotice] = useState('');
+  const rescheduleTriggerRef = useRef(null);
+  const detailsTriggerRef = useRef(null);
+  const bookingTriggerRef = useRef(null);
 
   const isAdmin = ['owner', 'admin', 'operations'].includes(currentUser?.role);
+  const isOwner = currentUser?.role === 'owner';
   const [newBooking, setNewBooking] = useState({
     client_name: '',
     color: '#4318ff',
@@ -60,6 +115,7 @@ const ERPBookings = () => {
       setClients(globalClientsCache);
       setServices(globalServicesCache);
       setLoading(false);
+      setClientColorsHydrated(true);
       if (!force && (Date.now() - globalBookingsLastFetch < 30000)) return;
     } else {
       setLoading(true);
@@ -77,6 +133,7 @@ const ERPBookings = () => {
       setClients(cData);
       globalClientsCache = cData;
     }
+    setClientColorsHydrated(true);
     if (sData) {
       setServices(sData);
       globalServicesCache = sData;
@@ -102,7 +159,7 @@ const ERPBookings = () => {
 
   const getClientColor = (clientName) => {
     const client = clients.find(c => c.name === clientName);
-    return client?.color || '#4318ff';
+    return safeClientColor(client?.color);
   };
 
   const statusMeta = {
@@ -121,20 +178,34 @@ const ERPBookings = () => {
   const getStatusMeta = (status) => statusMeta[status] || { label: status || 'غير محدد', color: '#6f5b82' };
   const pendingBookings = bookings.filter(b => b.status === 'pending');
 
-  const calendarEvents = bookings.map(b => ({
+  const calendarEvents = bookings.map(b => {
+    const clientColor = getClientColor(b.client_name);
+    return {
     id: b.id,
     title: `${formatTime12(b.start_time, '')} · ${b.client_name}`,
-    start: b.date,
-    color: getStatusMeta(b.status).color,
+    start: calendarDateTime(b.date, b.start_time),
+    end: calendarDateTime(b.date, b.end_time, true),
+    allDay: false,
+    backgroundColor: clientColor,
+    borderColor: clientColor,
+    textColor: readableOnColor(clientColor),
+    editable: isAdmin && b.status === 'confirmed',
+    startEditable: isAdmin && b.status === 'confirmed',
+    durationEditable: isAdmin && b.status === 'confirmed',
     extendedProps: {
       booking_id: b.id,
       time: `${formatTime12(b.start_time)} - ${formatTime12(b.end_time)}`,
       status: b.status || 'مؤكد',
-      service: b.service
+      service: b.service,
+      original_end_time: normalizeTime(b.end_time || '13:00', { endOfDay: true }),
+      reschedule_eligible: isAdmin && b.status === 'confirmed',
+      client_color: clientColor,
+      text_color: readableOnColor(clientColor)
     }
-  }));
+  }});
 
   const dailyBookings = bookings.filter(b => b.date === selectedDate);
+  const clientColorSignature = clients.map(client => `${client.id}:${client.name}:${safeClientColor(client.color)}`).sort().join('|') || 'no-clients';
 
   const submitDecision = async (booking, action, extra = {}) => {
     setDecisionBusy(`${action}-${booking.id}`);
@@ -162,28 +233,54 @@ const ERPBookings = () => {
     setSelectedDate(arg.dateStr);
   };
 
+  const openBookingDetails = (booking, trigger = null) => {
+    detailsTriggerRef.current = trigger;
+    setDecisionError('');
+    setSelectedBookingDetails(booking);
+  };
+
   const handleEventClick = (info) => {
     const bId = info.event.extendedProps.booking_id;
     const fullBooking = bookings.find(b => b.id === bId);
     if (fullBooking) {
-      setSelectedBookingDetails(fullBooking);
-      const modal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('bookingDetailsModal'));
-      modal.show();
+      openBookingDetails(fullBooking, info.el || null);
     } else {
       alert('لم يتم العثور على تفاصيل الحجز، برجاء تحديث الصفحة.');
     }
+  };
+
+  const openReschedule = (booking, proposal = null, trigger = null) => {
+    if (!isAdmin || booking?.status !== 'confirmed') return;
+    rescheduleTriggerRef.current = trigger;
+    setDecisionError('');
+    setRescheduleModal({ open: true, booking, proposal });
+  };
+
+  const handleCalendarRescheduleProposal = info => {
+    const proposal = calendarProposal(info.event);
+    const booking = bookings.find(item => String(item.id) === String(info.event.extendedProps.booking_id));
+    info.revert();
+    if (booking && info.event.extendedProps.reschedule_eligible) openReschedule(booking, proposal);
+  };
+
+  const handleRescheduleSuccess = async updated => {
+    setSelectedDate(updated.date);
+    setRescheduleNotice(`تم تغيير موعد ${rescheduleModal.booking?.client_name || 'الحجز'} إلى ${formatBookingDate(updated.date)}، ${formatTime12(updated.start_time)}.`);
+    setSelectedBookingDetails(null);
+    await fetchData(true);
+    window.dispatchEvent(new CustomEvent('erpRequestsUpdated', { detail: { topics: ['bookings', 'notifications'] } }));
+    window.dispatchEvent(new CustomEvent('erpBookingsUpdated', { detail: { bookingId: updated.id } }));
   };
 
   const handleStartBooking = async () => {
     if (!selectedBookingDetails) return;
     if (!window.confirm('بدء جلسة التصوير الآن وتشغيل التايمر؟')) return;
     setDecisionBusy(`start-${selectedBookingDetails.id}`);
-    const { error } = await supabase.request(`/bookings/${selectedBookingDetails.id}/session/start`, { method: 'POST' });
+    try { await startStudioSession(selectedBookingDetails); }
+    catch (error) { setDecisionBusy(null); return setDecisionError(error.message || 'تعذر بدء جلسة التصوير.'); }
     setDecisionBusy(null);
-    if (error) return setDecisionError(error.message || 'تعذر بدء جلسة التصوير.');
     await fetchData(true);
-    window.dispatchEvent(new Event('erpRequestsUpdated'));
-    window.bootstrap.Modal.getInstance(document.getElementById('bookingDetailsModal'))?.hide();
+    setSelectedBookingDetails(null);
   };
 
   const cancelBooking = async (id) => {
@@ -196,7 +293,7 @@ const ERPBookings = () => {
     setDecisionBusy(null);
     if (error) return setDecisionError(error.message || 'تعذر إلغاء الموعد.');
     await fetchData(true);
-    window.bootstrap.Modal.getInstance(document.getElementById('bookingDetailsModal'))?.hide();
+    setSelectedBookingDetails(null);
   };
 
   const addDateRow = (dateStr = format(new Date(), 'yyyy-MM-dd')) => {
@@ -429,9 +526,11 @@ const ERPBookings = () => {
         td.fc-day-fri .fc-daygrid-day-frame::before { content: "إجازة رسمية"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 1.4rem; font-weight: 900; color: rgba(0,0,0, 0.05); pointer-events: none; z-index: 0; white-space: nowrap; }
         
         .fc-daygrid-day-events { position: relative; z-index: 1; }
-        .fc-event { border: none !important; border-radius: 6px !important; padding: 4px 6px; margin-bottom: 4px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .fc-event { border: 1px solid var(--fc-event-border-color, currentColor) !important; border-radius: 6px !important; padding: 4px 6px; margin-bottom: 4px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .fc-daygrid-event, .fc-timegrid-event { opacity: 1 !important; filter: none; background-color: var(--fc-event-bg-color) !important; border-color: var(--fc-event-border-color) !important; }
+        .fc-daygrid-event .fc-event-main, .fc-timegrid-event .fc-event-main { color: inherit !important; }
         .fc-event:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); filter: brightness(1.1); }
-        .fc-h-event .fc-event-main { color: white; }
+        .fc-event .fc-event-main { color: var(--fc-event-text-color) !important; }
         
         .fc-toolbar-title { font-weight: 800 !important; color: var(--erp-text-main) !important; font-size: 1.5rem !important; }
         .fc .fc-button-primary { background-color: var(--erp-surface); border: 1px solid var(--erp-border); color: var(--erp-text-muted); font-weight: 700; border-radius: 8px; text-transform: capitalize; transition: 0.2s; }
@@ -462,6 +561,10 @@ const ERPBookings = () => {
         .pending-request-actions button:disabled { opacity: .45; cursor: wait; }
         .booking-status-pill { display: inline-flex; color: white; border-radius: 6px; padding: 3px 8px; font-size: .68rem; font-weight: 800; }
         .decision-error { background: rgba(216,75,93,.1); color: #c13a4d; border: 1px solid rgba(216,75,93,.25); padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: .78rem; }
+        .booking-reschedule-notice { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 11px 14px; border: 1px solid rgba(32,166,106,.25); border-radius: 10px; background: rgba(32,166,106,.08); color: #158254; font-size: .78rem; font-weight: 800; }
+        .fc-event.is-reschedule-eligible { cursor: grab; }
+        .fc-event.is-reschedule-eligible:active { cursor: grabbing; }
+        #bookingDetailsModal { display: none !important; }
         @media (max-width: 600px) { .pending-requests-panel { padding: 15px; } .pending-requests-list { grid-template-columns: 1fr; } .pending-request-actions button { flex: 1; justify-content: center; } }
       `}</style>
 
@@ -471,8 +574,10 @@ const ERPBookings = () => {
         eyebrow="جدول الاستديو"
         title="إدارة المواعيد والتقويم"
         description={<>{'اضغط مرتين على التقويم لبدء حجز جديد.'}{isAdmin && <> · يمكنك تعديل الموعد أو إلغاؤه مع الاحتفاظ بالسجل المحاسبي.</>}</>}
-        actions={<button data-variant="primary" onClick={() => setIsModalOpen(true)}><CalendarPlus size={18} /> حجز موعد / إضافة خدمة</button>}
+        actions={<button data-variant="primary" onClick={event => { bookingTriggerRef.current = event.currentTarget; setIsModalOpen(true); }}><CalendarPlus size={18} /> حجز موعد / إضافة خدمة</button>}
       />
+
+      {rescheduleNotice && <div className="booking-reschedule-notice" role="status"><CheckCircle size={17} />{rescheduleNotice}<button type="button" onClick={() => setRescheduleNotice('')} style={{ marginRight: 'auto', border: 0, background: 'transparent', color: 'inherit' }} aria-label="إخفاء الرسالة"><X size={16}/></button></div>}
 
       <section className="pending-requests-panel" aria-labelledby="pending-requests-title">
         <div className="pending-requests-head">
@@ -502,18 +607,34 @@ const ERPBookings = () => {
             </div>
             
             <FullCalendar
+              key={`bookings-calendar-${clientColorsHydrated ? clientColorSignature : 'loading-colors'}`}
               plugins={[ dayGridPlugin, interactionPlugin, timeGridPlugin ]}
               initialView="dayGridMonth"
-              locale={ar}
+              locales={[arCalendarLocale]}
+              locale="ar"
+              buttonText={{ today: 'اليوم', month: 'شهر', week: 'أسبوع', day: 'يوم', list: 'قائمة' }}
               direction="rtl"
               firstDay={6}
-              events={calendarEvents}
+              events={clientColorsHydrated ? calendarEvents : []}
               dateClick={handleDateClick}
               eventClick={handleEventClick}
+              eventDisplay="block"
+              eventDidMount={applyCalendarEventColors}
+              editable={isAdmin}
+              eventStartEditable={isAdmin}
+              eventDurationEditable={isAdmin}
+              eventDrop={handleCalendarRescheduleProposal}
+              eventResize={handleCalendarRescheduleProposal}
+              eventAllow={(dropInfo, draggedEvent) => Boolean(draggedEvent.extendedProps.reschedule_eligible) && dropInfo.start.getDay() !== 5}
+              eventClassNames={arg => arg.event.extendedProps.reschedule_eligible ? ['is-reschedule-eligible'] : []}
+              slotMinTime="12:00:00"
+              slotMaxTime="24:00:00"
+              allDaySlot={false}
+              slotDuration="00:15:00"
               eventContent={(arg) => (
-                <div style={{ overflow: 'hidden', lineHeight: 1.35 }}>
+                <div style={{ overflow: 'hidden', lineHeight: 1.35, color: arg.event.extendedProps.text_color }}>
                   <div style={{ fontSize: '.72rem', fontWeight: 900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{arg.event.title}</div>
-                  <div style={{ fontSize: '.59rem', opacity: .9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getStatusMeta(arg.event.extendedProps.status).label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '.59rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><i aria-hidden="true" style={{ width: '7px', height: '7px', flex: '0 0 auto', borderRadius: '50%', background: getStatusMeta(arg.event.extendedProps.status).color, border: `1px solid ${arg.event.extendedProps.text_color}` }} />{getStatusMeta(arg.event.extendedProps.status).label}</div>
                 </div>
               )}
               height="auto"
@@ -538,7 +659,7 @@ const ERPBookings = () => {
             
             <div style={{ padding: '25px 25px 0 25px', textAlign: 'center' }}>
               <div style={{ background: 'rgba(67, 24, 255, 0.1)', color: 'var(--erp-primary)', display: 'inline-block', borderRadius: '50px', padding: '8px 25px', marginBottom: '15px', boxShadow: '0 2px 5px rgba(67,24,255,0.05)' }}>
-                <i className="fas fa-calendar-day me-1"></i> جدول يوم: <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{format(new Date(selectedDate), 'EEEE, d MMMM yyyy', { locale: ar })}</span>
+                <i className="fas fa-calendar-day me-1"></i> جدول يوم: <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{format(new Date(selectedDate), 'EEEE, d MMMM yyyy', { locale: arDateLocale })}</span>
               </div>
               <h5 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', margin: 0 }}>قائمة جلسات التصوير</h5>
               <hr style={{ opacity: 0.1, marginTop: '20px', marginBottom: 0 }} />
@@ -558,7 +679,8 @@ const ERPBookings = () => {
                   {dailyBookings.map(b => (
                     <div key={b.id} className="timeline-card" style={{ padding: '15px', borderRadius: '12px', borderRightColor: getClientColor(b.client_name), opacity: b.status === 'منتهي' ? 0.6 : 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <div className="timeline-time" style={{ color: getClientColor(b.client_name), fontFamily: 'monospace' }}>
+                        <div className="timeline-time" style={{ color: 'var(--erp-text-main)', fontFamily: 'monospace' }}>
+                          <span aria-hidden="true" style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', marginLeft: 7, background: getClientColor(b.client_name), boxShadow: `0 0 0 2px ${getClientColor(b.client_name)}22` }} />
                           <Clock size={14} style={{ display: 'inline', marginLeft: '5px' }} />
                           {formatTime12(b.start_time)}
                         </div>
@@ -569,7 +691,7 @@ const ERPBookings = () => {
                             <span style={{ background: 'var(--erp-primary)', color: 'white', padding: '2px 8px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>مجدول</span>
                           )}
                           {isAdmin && (
-                            <Trash2 size={16} className="admin-delete-btn" onClick={() => handleEventClick({ event: { extendedProps: { booking_id: b.id, time: `${b.start_time}`, status: b.status }, title: b.client_name } })} />
+                            <button type="button" className="admin-delete-btn" onClick={event => openBookingDetails(b, event.currentTarget)} aria-label={`فتح تفاصيل حجز ${b.client_name}`} style={{ border: 0, padding: 4, background: 'transparent' }}><Trash2 size={16} /></button>
                           )}
                         </div>
                       </div>
@@ -586,7 +708,7 @@ const ERPBookings = () => {
       </div>
 
       {/* Complex Booking Modal */}
-      {isModalOpen && (
+      {isModalOpen && newBooking.category === '__legacy_booking_modal__' && (
         <div className="erp-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1050, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)' }} onClick={() => setIsModalOpen(false)}>
           <div style={{ background: 'var(--erp-surface)', width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '25px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: 'none' }} onClick={e => e.stopPropagation()}>
             
@@ -655,7 +777,9 @@ const ERPBookings = () => {
                     <FullCalendar
                       plugins={[ dayGridPlugin, interactionPlugin ]}
                       initialView="dayGridMonth"
-                      locale={ar}
+                      locales={[arCalendarLocale]}
+                      locale="ar"
+                      buttonText={{ today: 'اليوم', month: 'شهر', week: 'أسبوع', day: 'يوم', list: 'قائمة' }}
                       direction="rtl"
                       firstDay={6}
                       events={calendarEvents}
@@ -763,8 +887,25 @@ const ERPBookings = () => {
         </div>
       )}
 
-      {/* BOOKING DETAILS MODAL */}
-      <div className="modal fade" id="bookingDetailsModal" tabIndex="-1">
+      <ERPAddBookingModal isOpen={isModalOpen} returnFocusRef={bookingTriggerRef} onClose={() => setIsModalOpen(false)} onSuccess={async () => { setIsModalOpen(false); await fetchData(true); }}/>
+
+      <ERPBookingDetailsDialog
+        booking={selectedBookingDetails}
+        isAdmin={isAdmin}
+        isOwner={isOwner}
+        busy={decisionBusy}
+        error={decisionError}
+        status={selectedBookingDetails ? getStatusMeta(selectedBookingDetails.status) : getStatusMeta('')}
+        returnFocusRef={detailsTriggerRef}
+        onClose={() => setSelectedBookingDetails(null)}
+        onStart={handleStartBooking}
+        onCancel={() => cancelBooking(selectedBookingDetails?.id)}
+        onReschedule={trigger => openReschedule(selectedBookingDetails, null, trigger)}
+        ownerActions={selectedBookingDetails && <OwnerRecordActions user={currentUser} entity="bookings" record={selectedBookingDetails} label={`${selectedBookingDetails.client_name} · ${formatBookingDate(selectedBookingDetails.date)}`} onEdit={selectedBookingDetails.status === 'confirmed' ? event => openReschedule(selectedBookingDetails, null, event.currentTarget) : null} onChanged={async () => { setSelectedBookingDetails(null); await fetchData(true); }} />}
+      />
+
+      {/* Legacy markup kept hidden as a no-script compatibility snapshot; the live flow above is React-controlled. */}
+      <div className="modal fade" id="bookingDetailsModal" tabIndex="-1" aria-hidden="true">
         <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content border-0 shadow-lg rounded-5">
             {selectedBookingDetails && (
@@ -838,6 +979,11 @@ const ERPBookings = () => {
                       </button>
                     )}
                     {selectedBookingDetails.status === 'in_progress' && <div className="alert alert-primary flex-grow-1 m-0 py-3 rounded-4 fw-bold">التايمر يعمل الآن — أنهِ الجلسة من شريط التايمر.</div>}
+                    {isAdmin && selectedBookingDetails.status === 'confirmed' && (
+                      <button className="btn btn-outline-primary py-3 rounded-4 fw-bold px-4" onClick={event => openReschedule(selectedBookingDetails, null, event.currentTarget)}>
+                        <CalendarClock size={17} /> تغيير الموعد
+                      </button>
+                    )}
                     {isAdmin && !['in_progress', 'completed', 'cancelled', 'منتهي'].includes(selectedBookingDetails.status) && (
                       <button disabled={decisionBusy === `cancel-${selectedBookingDetails.id}`} className="btn btn-outline-danger py-3 rounded-4 fw-bold px-4" onClick={() => cancelBooking(selectedBookingDetails.id)}>
                         <i className="fas fa-ban me-1"></i> {decisionBusy === `cancel-${selectedBookingDetails.id}` ? 'جارٍ الإلغاء...' : 'إلغاء الموعد'}
@@ -868,6 +1014,16 @@ const ERPBookings = () => {
           </div>
         </div>
       )}
+
+      <ERPRescheduleBookingDialog
+        isOpen={rescheduleModal.open}
+        booking={rescheduleModal.booking}
+        proposal={rescheduleModal.proposal}
+        service={services.find(service => String(service.id) === String(rescheduleModal.booking?.service_id) || service.name === rescheduleModal.booking?.service)}
+        returnFocusRef={rescheduleTriggerRef}
+        onClose={() => setRescheduleModal({ open: false, booking: null, proposal: null })}
+        onSuccess={handleRescheduleSuccess}
+      />
 
     </div>
   );

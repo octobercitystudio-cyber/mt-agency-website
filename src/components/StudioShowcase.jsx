@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
+import { Link } from 'react-router-dom';
 import { getStudioFallback, STUDIO_CATEGORIES } from '../data/studioGalleries';
 import './StudioShowcase.css';
 
@@ -45,7 +46,6 @@ const StudioShowcase = () => {
               <div
                 key={img.id || img.url || `${activeTab}-${index}`}
                 className="showcase-item"
-                style={fallbackUrl ? { backgroundImage: `url("${fallbackUrl}")` } : undefined}
               >
                 <img
                   src={imageUrl}
@@ -72,6 +72,7 @@ const StudioShowcase = () => {
             );
           })}
         </div>
+        <Link className="public-preview-link" to="/studios">{isEnglish ? 'Explore all studio locations' : 'استكشف كل الاستديوهات'}</Link>
       </div>
     </section>
   );

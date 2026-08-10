@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useData } from '../store/DataContext';
 import { Save, Plus, Trash2 } from 'lucide-react';
+import { publicServiceCatalog } from '../data/publicServiceCatalog';
 
 const AdminPortfolio = () => {
   const { siteData, updateMultipleSections } = useData();
@@ -23,6 +24,12 @@ const AdminPortfolio = () => {
     setPortfolio(updated);
   };
 
+  const handleServiceToggle = (index, slug, checked) => {
+    const selected = new Set(Array.isArray(portfolio[index].serviceSlugs) ? portfolio[index].serviceSlugs : []);
+    if (checked) selected.add(slug); else selected.delete(slug);
+    handleChange(index, 'serviceSlugs', [...selected]);
+  };
+
   const getEmbedUrl = (url) => {
     if (!url) return '';
     if (url.includes('youtube.com/embed/')) return url;
@@ -36,12 +43,14 @@ const AdminPortfolio = () => {
       } else if (url.includes('youtube.com/shorts/')) {
         videoId = url.split('youtube.com/shorts/')[1]?.split('?')[0];
       }
-    } catch(e) {}
+    } catch {
+      return '';
+    }
     return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
   };
 
   const addItem = () => {
-    setPortfolio([...portfolio, { id: Date.now(), title: '', titleEn: '', category: activeTab, imageUrl: '', embedUrl: '' }]);
+    setPortfolio([...portfolio, { id: Date.now(), title: '', titleEn: '', category: activeTab, serviceSlugs: [], imageUrl: '', embedUrl: '' }]);
   };
 
   const removeItem = (id) => {
@@ -148,6 +157,14 @@ const AdminPortfolio = () => {
                 ))}
               </select>
             </div>
+
+            <fieldset className="form-group admin-service-assignment" style={{border: '1px solid rgba(255,255,255,.15)', padding: '12px'}}>
+              <legend style={{padding: '0 6px'}}>ربط العمل بصفحات الخدمات</legend>
+              <p style={{fontSize: '.78rem', color: 'var(--color-silver)', marginBottom: '10px'}}>اختر الخدمات التي ينتمي إليها هذا العمل فعليًا. الاختيار الصريح يتقدم على التصنيف القديم.</p>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '8px'}}>
+                {publicServiceCatalog.map(service => <label key={service.slug} style={{display: 'flex', alignItems: 'center', gap: '8px', minHeight: '44px'}}><input type="checkbox" checked={(item.serviceSlugs || []).includes(service.slug)} onChange={event => handleServiceToggle(index, service.slug, event.target.checked)}/>{service.ar.navLabel}</label>)}
+              </div>
+            </fieldset>
 
             <div className="form-group">
               <label>عنوان العمل (عربي)</label>

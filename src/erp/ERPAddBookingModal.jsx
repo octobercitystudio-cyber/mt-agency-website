@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { CalendarPlus, Trash2, DollarSign, X, CheckCircle, Truck, Pointer } from 'lucide-react';
 import { format } from 'date-fns';
@@ -8,14 +8,29 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import { calculateDurationMinutes, isValidBusinessBooking } from '../lib/businessFormat';
+import useModalDialog from '../hooks/useModalDialog';
+import ERPClientModal from './ERPClientModal';
+import { applyBookingClientToDraft, bookingClientIndicatorStyle, resolveCreatedBookingClient } from './bookingClientSelection';
+import CustomServiceForm from './CustomServiceForm';
+import './ERPProjectsCustomServices.css';
 
-const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = '' }) => {
+const NEW_CLIENT_OPTION = '__create_new_client__';
+export const CUSTOM_SERVICE_OPTION = '__custom_service__';
+
+const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = '', returnFocusRef }) => {
+  const close = useCallback(() => onClose(), [onClose]);
+  const dialogRef = useModalDialog(isOpen, close, { returnFocusRef });
+  const clientSelectRef = useRef(null);
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
   const [bookings, setBookings] = useState([]); // for validation and calendar events
   const [loading, setLoading] = useState(true);
+  const [customBusy, setCustomBusy] = useState(false);
+  const [customError, setCustomError] = useState('');
 
   const [newBooking, setNewBooking] = useState({
+    client_id: '',
     client_name: prefilledClientName,
     color: '#4318ff',
     category: '',
@@ -31,7 +46,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     schedule_extra: false
   });
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     const { data: bData } = await supabase.from('bookings').select('*');
     const { data: cData } = await supabase.from('clients').select('id,name,color');
@@ -42,26 +57,26 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       setClients(cData);
       if (prefilledClientName) {
         const client = cData.find(c => c.name === prefilledClientName);
-        if (client) setNewBooking(prev => ({ ...prev, color: client.color }));
+        if (client) setNewBooking(prev => ({ ...prev, client_id: client.id, client_name: client.name, color: client.color || '#4318ff' }));
       }
     }
     if (sData) setServices(sData);
     
     setLoading(false);
-  }
+  }, [prefilledClientName]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { if (isOpen) {
       fetchData();
+      setIsClientModalOpen(false);
       if (prefilledClientName) {
-        const client = clients.find(c => c.name === prefilledClientName);
-        setNewBooking(prev => ({ ...prev, client_name: prefilledClientName, color: client?.color || '#4318ff', category: '', service: '', dates: [], paid: 0, discount: 0, discount_reason: '', base_price: 0, schedule_extra: false }));
+        setNewBooking(prev => ({ ...prev, client_id: '', client_name: prefilledClientName, color: '#4318ff', category: '', service: '', dates: [], paid: 0, discount: 0, discount_reason: '', base_price: 0, schedule_extra: false }));
       } else {
-        setNewBooking({ client_name: '', color: '#4318ff', category: '', service: '', dates: [], delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'فودافون كاش', notes: '', schedule_extra: false });
+        setNewBooking({ client_id: '', client_name: '', color: '#4318ff', category: '', service: '', dates: [], delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'فودافون كاش', notes: '', schedule_extra: false });
       }
     } }, 0);
     return () => window.clearTimeout(timer);
-  }, [isOpen, prefilledClientName]);
+  }, [fetchData, isOpen, prefilledClientName]);
 
   const getClientColor = (clientName) => {
     const client = clients.find(c => c.name === clientName);
@@ -69,9 +84,25 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
   };
 
   const handleClientChange = (e) => {
-    const name = e.target.value;
-    const color = getClientColor(name);
-    setNewBooking({ ...newBooking, client_name: name, color });
+    const value = e.target.value;
+    if (value === NEW_CLIENT_OPTION) {
+      setIsClientModalOpen(true);
+      return;
+    }
+    const client = clients.find(item => String(item.id) === value);
+    setNewBooking(current => applyBookingClientToDraft(current, client));
+  };
+
+  const handleClientCreated = async savedClient => {
+    const { data: refreshedClients, error } = await supabase.from('clients').select('id,name,color');
+    const nextClients = error ? clients : (refreshedClients || []);
+    const createdClient = resolveCreatedBookingClient(nextClients, savedClient);
+    if (!createdClient?.id) throw new Error('تم إنشاء العميل لكن تعذر تحديد سجله الجديد.');
+    setClients(current => {
+      const withoutCreated = (error ? current : nextClients).filter(item => String(item.id) !== String(createdClient.id));
+      return [...withoutCreated, createdClient];
+    });
+    setNewBooking(current => applyBookingClientToDraft(current, createdClient));
   };
 
   const handleCategoryChange = (e) => {
@@ -80,8 +111,24 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
 
   const handleServiceChange = (e) => {
     const sName = e.target.value;
+    if (sName === CUSTOM_SERVICE_OPTION) {
+      setCustomError('');
+      setNewBooking(previous => ({ ...previous, service: CUSTOM_SERVICE_OPTION, category: 'خدمة مخصصة', base_price: 0 }));
+      return;
+    }
     const srv = services.find(s => s.name === sName);
     setNewBooking({ ...newBooking, service: sName, base_price: srv?.price || 0 });
+  };
+
+  const handleCustomServiceSubmit = async payload => {
+    if (customBusy) return;
+    setCustomBusy(true); setCustomError('');
+    const { data, error } = await supabase.request('/projects/custom-service', { method: 'POST', body: JSON.stringify(payload) });
+    setCustomBusy(false);
+    if (error) { setCustomError(error.message || 'تعذر إنشاء الخدمة المخصصة.'); return; }
+    ['erpProjectsUpdated','erpBookingsUpdated','erpRequestsUpdated','erpFinanceUpdated','erpClientDashboardUpdated'].forEach(name => window.dispatchEvent(new CustomEvent(name, { detail: { project_id: data?.id, booking_id: data?.booking_id } })));
+    onSuccess?.(data);
+    close();
   };
 
   const addDateRow = (dateStr = format(new Date(), 'yyyy-MM-dd')) => {
@@ -162,12 +209,12 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       });
     bookingsToInsert.forEach((b, i) => { if(i > 0) b.payment = 0; });
 
-    const client=clients.find(item=>item.name===newBooking.client_name);const service=services.find(item=>item.name===newBooking.service);if(!client||!service)return alert('اختر عميلًا وخدمة مسجلين.');const results=[];for(const item of bookingsToInsert)results.push(await supabase.request('/bookings/request',{method:'POST',body:JSON.stringify({client_id:client.id,service_id:service.id,service:service.name,date:item.date,start_time:item.start_time,end_time:item.end_time,status:'confirmed',notes:item.notes})}));const error=results.find(result=>result.error)?.error;
+    const client=clients.find(item=>String(item.id)===String(newBooking.client_id));const service=services.find(item=>item.name===newBooking.service);if(!client||!service)return alert('اختر عميلًا وخدمة مسجلين.');const results=[];for(const item of bookingsToInsert)results.push(await supabase.request('/bookings/request',{method:'POST',body:JSON.stringify({client_id:client.id,service_id:service.id,service:service.name,date:item.date,start_time:item.start_time,end_time:item.end_time,status:'confirmed',notes:item.notes})}));const error=results.find(result=>result.error)?.error;
 
     if (!error) {
       alert('تم إضافة الحجز بنجاح');
       onSuccess && onSuccess();
-      onClose();
+      close();
     } else {
       alert('حدث خطأ أثناء إضافة الحجز');
     }
@@ -187,18 +234,23 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
   }));
 
   return (
-    <div className="erp-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1050, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)' }} onClick={onClose}>
-      <div style={{ background: 'var(--erp-surface)', width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '25px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: 'none' }} onClick={e => e.stopPropagation()}>
+    <>
+    <div className="erp-modal-overlay" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1050, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)' }} onMouseDown={event => event.target === event.currentTarget && close()}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="booking-modal-title" inert={isClientModalOpen ? true : undefined} style={{ background: 'var(--erp-surface)', width: '90%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '25px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: 'none' }}>
         
-        <div style={{ background: '#1e293b', color: 'white', padding: '25px', borderTopLeftRadius: '25px', borderTopRightRadius: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h5 style={{ margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+        <div className="erp-booking-modal-header" style={{ position: 'sticky', top: 0, zIndex: 4, background: '#1e293b', color: 'white', padding: '25px', borderTopLeftRadius: '25px', borderTopRightRadius: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 8px 18px rgba(15, 23, 42, 0.12)' }}>
+          <h2 id="booking-modal-title" style={{ margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center', fontSize: '1.1rem' }}>
             <CalendarPlus color="var(--erp-warning)" size={24} style={{ marginLeft: '10px' }} /> تسجيل موعد أو شراء خدمة
-          </h5>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={24} /></button>
+          </h2>
+          <button type="button" className="erp-booking-modal-close" aria-label="إغلاق نموذج الحجز" onClick={close} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={24} /></button>
         </div>
 
         {loading ? (
           <div style={{ padding: '50px', textAlign: 'center' }}>جاري التحميل...</div>
+        ) : newBooking.service === CUSTOM_SERVICE_OPTION ? (
+          <div className="erp-custom-booking-flow" style={{ padding: '22px' }}>
+            <CustomServiceForm key={`${newBooking.client_id || 'client'}-custom`} clients={clients} initialService="custom" initialClientId={newBooking.client_id} busy={customBusy} error={customError} onSubmit={handleCustomServiceSubmit}/>
+          </div>
         ) : (
           <form onSubmit={handleSaveBooking} style={{ padding: '25px' }}>
             
@@ -206,11 +258,13 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
               <div>
                 <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>اسم العميل</label>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <select value={newBooking.client_name} onChange={handleClientChange} required style={{ flex: 1, background: 'var(--erp-bg)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
+                  <select ref={clientSelectRef} aria-label="اسم العميل" value={newBooking.client_id ? String(newBooking.client_id) : ''} onChange={handleClientChange} required style={{ flex: 1, minHeight: '48px', background: 'var(--erp-bg)', border: '1px solid var(--erp-border)', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
                     <option value="" disabled>-- اختر العميل --</option>
-                    {clients.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    <option value={NEW_CLIENT_OPTION}>＋ تسجيل عميل جديد</option>
+                    <option disabled>──────────</option>
+                    {clients.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
                   </select>
-                  <input type="color" value={newBooking.color} onChange={e => setNewBooking({...newBooking, color: e.target.value})} style={{ width: '50px', border: 'none', padding: '0', borderRadius: '10px', height: '48px', cursor: 'pointer' }} title="لون العميل" />
+                  <span data-testid="booking-client-color" aria-label="لون العميل المحفوظ" title="لون العميل المحفوظ في قاعدة العملاء" style={{ width: '50px', flex: '0 0 50px', border: '1px solid var(--erp-border)', borderRadius: '10px', height: '48px', ...bookingClientIndicatorStyle(newBooking.color), boxShadow: 'inset 0 0 0 5px var(--erp-surface)' }} />
                 </div>
               </div>
               
@@ -228,11 +282,13 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
 
               <div>
                 <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>اسم الخدمة</label>
-                <select value={newBooking.service} onChange={handleServiceChange} required disabled={!newBooking.category} style={{ width: '100%', background: 'var(--erp-bg)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
+                <select value={newBooking.service} onChange={handleServiceChange} required style={{ width: '100%', background: 'var(--erp-bg)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
                   <option value="" disabled>-- اختر الخدمة --</option>
                   {services.filter(s => s.category === newBooking.category).map(s => (
                     <option key={s.name} value={s.name}>{s.name}</option>
                   ))}
+                  <option disabled>──────────</option>
+                  <option value={CUSTOM_SERVICE_OPTION}>＋ خدمة مخصصة جديدة</option>
                 </select>
               </div>
             </div>
@@ -365,6 +421,14 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
         )}
       </div>
     </div>
+    <ERPClientModal
+      isOpen={isClientModalOpen}
+      nested
+      returnFocusRef={clientSelectRef}
+      onClose={() => setIsClientModalOpen(false)}
+      onSuccess={handleClientCreated}
+    />
+    </>
   );
 };
 

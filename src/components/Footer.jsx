@@ -1,5 +1,5 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import './Footer.css';
 
@@ -30,12 +30,12 @@ const Footer = () => {
           <div className="footer-col">
             <h3>{isEnglish ? "Quick Links" : "روابط سريعة"}</h3>
             <div className="footer-links">
-              <a href="#home">{t('header.home')}</a>
-              <a href="#about">{t('header.about')}</a>
-              <a href="#services">{t('header.services')}</a>
-              <a href="#portfolio">{t('header.portfolio')}</a>
-              <a href="#studio">{t('header.studio')}</a>
-              <a href="#contact">{t('header.contact')}</a>
+              <Link to="/">{t('header.home')}</Link>
+              <Link to="/about">{t('header.about')}</Link>
+              <Link to="/services">{t('header.services')}</Link>
+              <Link to="/portfolio">{t('header.portfolio')}</Link>
+              <Link to="/studios">{t('header.studio')}</Link>
+              <Link to="/contact">{t('header.contact')}</Link>
             </div>
           </div>
 

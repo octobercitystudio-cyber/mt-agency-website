@@ -1,7 +1,11 @@
-import { supabase } from '../supabaseClient';
 import { cairoDateTimeToEpoch, cairoDateTimeToIso } from './promotionTime';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+let supabasePromise;
+const getSupabase = () => {
+  if (!supabasePromise) supabasePromise = import('../supabaseClient').then(module => module.supabase);
+  return supabasePromise;
+};
 const DEV_STORAGE_KEY = 'mt-dev-exclusive-promotions-v1';
 const LEGACY_DEMO_CTA = 'احجز استشارتك';
 const CURRENT_DEMO_CTA = 'اشترك في العرض';
@@ -97,6 +101,7 @@ export const promotionApi = {
   },
   async request(path = '', options = {}) {
     if (import.meta.env.DEV) return devRequest(path, options);
+    const supabase = await getSupabase();
     if (typeof supabase.request === 'function') {
       const { data, error } = await supabase.request(`/promotions${path}`, options);
       if (error) throw error;

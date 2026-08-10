@@ -1,19 +1,35 @@
 import { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
-import { supabase } from '../supabaseClient';
-import { activateDemoMode, deactivateDemoMode } from '../lib/demoDataClient';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../data/studioGalleries';
 import './DataContext.css';
 
 const OFFICIAL_CONTACT_EMAIL = 'info@multitaskagency.com';
 const LOCAL_PREVIEW_SESSION_KEY = 'mt_agency_local_preview_session';
 const staffRoles = ['owner', 'admin', 'operations', 'finance', 'staff'];
+let supabasePromise;
+let demoClientPromise;
+let publicDataClientPromise;
+const getSupabase = () => {
+  if (!supabasePromise) supabasePromise = import('../supabaseClient').then((module) => module.supabase);
+  return supabasePromise;
+};
+const getDemoClient = () => {
+  if (!demoClientPromise) demoClientPromise = import('../lib/demoDataClient');
+  return demoClientPromise;
+};
+const getPublicDataClient = () => {
+  if (!publicDataClientPromise) {
+    publicDataClientPromise = import('../lib/hostingerClient').then(module => module.hostingerClient);
+  }
+  return publicDataClientPromise;
+};
+
+const isPublicSurface = () => !/^\/(?:login|change-password|dashboard|erp(?:\/|$)|adminmt(?:\/|$))/.test(window.location.pathname);
 
 const restoreLocalPreviewSession = () => {
   if (!import.meta.env.DEV) return null;
   try {
     const user = JSON.parse(sessionStorage.getItem(LOCAL_PREVIEW_SESSION_KEY) || 'null');
     if (!user?.is_local_preview || !user?.role) return null;
-    activateDemoMode(user.role);
     return user;
   } catch {
     sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
@@ -171,6 +187,7 @@ export const DataProvider = ({ children }) => {
   const applySession = useCallback((session) => {
     const user = session?.user || null;
     const role = user?.role;
+    if (import.meta.env.DEV && user?.is_local_preview) sessionStorage.setItem(LOCAL_PREVIEW_SESSION_KEY, JSON.stringify(user));
     setCurrentUser(user);
     setIsClientAuth(role === 'client');
     setIsErpAuth(staffRoles.includes(role));
@@ -178,9 +195,10 @@ export const DataProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadData = async (dataClient) => {
       try {
-        const { data, error } = await supabase
+        const client = dataClient || await getSupabase();
+        const { data, error } = await client
           .from('app_config')
           .select('value')
           .eq('key', 'website_data')
@@ -224,31 +242,66 @@ export const DataProvider = ({ children }) => {
       }
     };
     
-    loadData();
+    let subscription;
+    let disposed = false;
 
-    // Authentication is decided by the server role, never by localStorage.
-    if (!restoredPreview) {
-      const restoreRevision = authRevisionRef.current;
-      supabase.auth.getSession()
-        .then(({ data: { session } }) => {
-          // A login may finish while this initial request is still in flight.
-          // Never let that older response clear the newly authenticated user.
-          if (authRevisionRef.current === restoreRevision) {
-            applySession(session);
-          }
-        })
-        .finally(() => setIsAuthReady(true));
+    const initializeAuthentication = async (authClient) => {
+      const supabase = authClient || await getSupabase();
+      if (disposed) return;
+
+      // Authentication is decided by the server role, never by localStorage.
+      if (!restoredPreview) {
+        const restoreRevision = authRevisionRef.current;
+        supabase.auth.getSession()
+          .then(({ data: { session } }) => {
+            // A login may finish while this initial request is still in flight.
+            // Never let that older response clear the newly authenticated user.
+            if (authRevisionRef.current === restoreRevision) {
+              applySession(session);
+            }
+          })
+          .finally(() => setIsAuthReady(true));
+      }
+
+      const authListener = supabase.auth.onAuthStateChange((_event, session) => {
+        applySession(session);
+        setIsAuthReady(true);
+      });
+      subscription = authListener.data.subscription;
+    };
+
+    const initializeRemoteState = async () => {
+      if (import.meta.env.DEV && restoredPreview) {
+        const demoClient = await getDemoClient();
+        const isCurrent = !restoredPreview.credential_managed || demoClient.isDemoCredentialSessionCurrent(restoredPreview);
+        if (!isCurrent) {
+          sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
+          applySession(null);
+        } else if (restoredPreview.credential_managed) {
+          demoClient.resumeDemoCredentialSession(restoredPreview);
+        } else {
+          demoClient.activateDemoMode(restoredPreview.role);
+        }
+      }
+      await loadData();
+      await initializeAuthentication();
+    };
+
+    if (isPublicSurface()) {
+      // Fetch public website content through the lightweight Hostinger client.
+      // It also exposes the small session API, so public pages never download
+      // the ERP/demo data layer simply to decide which header link to show.
+      getPublicDataClient().then(async publicClient => {
+        await loadData(publicClient);
+        await initializeAuthentication(publicClient);
+      });
+    } else {
+      initializeRemoteState();
     }
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySession(session);
-      setIsAuthReady(true);
-    });
-
     return () => {
-      subscription.unsubscribe();
+      disposed = true;
+      subscription?.unsubscribe();
     };
   }, [applySession, restoredPreview]);
 
@@ -256,11 +309,25 @@ export const DataProvider = ({ children }) => {
     localStorage.setItem('mt_agency_data_v5', JSON.stringify(siteData));
   }, [siteData]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || !currentUser?.credential_managed) return undefined;
+    const validateCredentialSession = async () => {
+      const demoClient = await getDemoClient();
+      if (demoClient.isDemoCredentialSessionCurrent(currentUser)) return;
+      sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
+      demoClient.deactivateDemoMode();
+      applySession(null);
+    };
+    window.addEventListener('storage', validateCredentialSession);
+    return () => window.removeEventListener('storage', validateCredentialSession);
+  }, [applySession, currentUser]);
+
   const updateSection = async (sectionName, newData) => {
     const newSiteData = { ...siteData, [sectionName]: newData };
     setSiteData(newSiteData);
     
     try {
+      const supabase = await getSupabase();
       const { data, error: fetchErr } = await supabase.from('app_config').select('key').eq('key', 'website_data').maybeSingle();
       if (fetchErr) {
         alert("خطأ في الاتصال بقاعدة البيانات: " + fetchErr.message);
@@ -293,6 +360,7 @@ export const DataProvider = ({ children }) => {
     setSiteData(newSiteData);
     
     try {
+      const supabase = await getSupabase();
       const { data, error: fetchErr } = await supabase.from('app_config').select('key').eq('key', 'website_data').maybeSingle();
       if (fetchErr) {
         alert("خطأ في الاتصال بقاعدة البيانات: " + fetchErr.message);
@@ -322,6 +390,7 @@ export const DataProvider = ({ children }) => {
 
   const login = async (username, password) => {
     authRevisionRef.current += 1;
+    const supabase = await getSupabase();
     const { data, error } = await supabase.auth.signInWithPassword({
       email: username,
       password: password
@@ -336,19 +405,22 @@ export const DataProvider = ({ children }) => {
   const logout = async () => {
     if (import.meta.env.DEV && currentUser?.is_local_preview) {
       authRevisionRef.current += 1;
-      deactivateDemoMode();
+      const demoClient = await getDemoClient();
+      demoClient.deactivateDemoMode();
       sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
       applySession(null);
       return;
     }
     authRevisionRef.current += 1;
+    const supabase = await getSupabase();
     await supabase.auth.signOut();
   };
 
   const loginErp = async (username, password) => {
     authRevisionRef.current += 1;
     if (import.meta.env.DEV && username === 'local-owner' && password === 'local-preview') {
-      activateDemoMode('owner');
+      const demoClient = await getDemoClient();
+      demoClient.activateDemoMode('owner');
       const localOwner = {
         id: 'local-owner',
         full_name: 'مالك النظام (معاينة محلية)',
@@ -364,7 +436,8 @@ export const DataProvider = ({ children }) => {
     }
 
     if (import.meta.env.DEV && username === 'local-client' && password === 'local-preview') {
-      activateDemoMode('client');
+      const demoClient = await getDemoClient();
+      demoClient.activateDemoMode('client');
       const localClient = {
         id: 'local-client',
         client_id: 'local-client-preview',
@@ -380,6 +453,17 @@ export const DataProvider = ({ children }) => {
       return localClient;
     }
 
+    if (import.meta.env.DEV) {
+      const demoClient = await getDemoClient();
+      const temporaryClient = await demoClient.authenticateDemoClientCredential(username, password);
+      if (temporaryClient) {
+        sessionStorage.setItem(LOCAL_PREVIEW_SESSION_KEY, JSON.stringify(temporaryClient));
+        applySession({ user: temporaryClient });
+        return temporaryClient;
+      }
+    }
+
+    const supabase = await getSupabase();
     const { data, error } = await supabase.auth.signInWithPassword({
       email: username,
       identifier: username,
@@ -395,16 +479,18 @@ export const DataProvider = ({ children }) => {
   const logoutErp = async () => {
     if (import.meta.env.DEV && currentUser?.is_local_preview) {
       authRevisionRef.current += 1;
-      deactivateDemoMode();
+      const demoClient = await getDemoClient();
+      demoClient.deactivateDemoMode();
       sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
       applySession(null);
       return;
     }
     authRevisionRef.current += 1;
+    const supabase = await getSupabase();
     await supabase.auth.signOut();
   };
 
-  if (!isDataLoaded) {
+  if (!isDataLoaded && !isPublicSurface()) {
     return (
       <div
         className="data-loading"

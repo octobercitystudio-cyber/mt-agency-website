@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
+import { Link } from 'react-router-dom';
 import './Portfolio.css';
 
 const Portfolio = () => {
@@ -28,7 +29,9 @@ const Portfolio = () => {
       } else if (url.includes('youtube.com/shorts/')) {
         videoId = url.split('youtube.com/shorts/')[1]?.split('?')[0];
       }
-    } catch(e) {}
+    } catch {
+      return '';
+    }
     
     return videoId || url;
   };
@@ -118,7 +121,7 @@ const Portfolio = () => {
             </div>
           ))}
         </div>
-        
+        <Link className="public-preview-link" to="/portfolio">{isEnglish ? 'View the complete portfolio' : 'شاهد معرض الأعمال الكامل'}</Link>
       </div>
     </section>
   );

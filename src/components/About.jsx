@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
+import { Link } from 'react-router-dom';
 import './About.css';
 
 const About = () => {
@@ -35,6 +36,7 @@ const About = () => {
               <span>{t('about.stats.experts')}</span>
             </div>
           </div>
+          <Link className="public-preview-link" to="/about">{isEnglish ? 'Read our full story' : 'اقرأ قصتنا كاملة'}</Link>
         </div>
       </div>
     </section>

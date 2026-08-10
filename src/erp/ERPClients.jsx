@@ -1,18 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserPlus, Edit, Trash2, Search, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText, Camera, Calendar, Tag, Play, RotateCcw } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ERPAddBookingModal from './ERPAddBookingModal';
+import ERPClientModal from './ERPClientModal';
+import { emptyClient } from './clientForm';
 import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
 import { ClientDirectory, ClientProfileDrawer } from './ERPClientCRM';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import { effectivePackageStatus, formatEGP, formatTime12, normalizeTime, packageFinancialSummary } from '../lib/businessFormat';
 import './ERPClients.css';
+import OwnerActionDialog from './OwnerActionDialog';
 
 let globalClientsCache = null;
 let globalClientsLastFetch = 0;
-const emptyClient = { name: '', company_name: '', contact_person: '', phone1: '', phone2: '', email: '', job: '', address: '', city: '', tax_number: '', commercial_registration: '', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, notes: '', color: '#4318ff', debt: 0, points: 0, enablePortal: true, portalPassword: '' };
 
 const ERPClients = () => {
   const navigate = useNavigate();
@@ -26,6 +28,7 @@ const ERPClients = () => {
   // Modals
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isAddBookingModalOpen, setIsAddBookingModalOpen] = useState(false);
+  const bookingTriggerRef = useRef(null);
   const [bookingClientName, setBookingClientName] = useState('');
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isFinanceModalOpen, setIsFinanceModalOpen] = useState(false);
@@ -41,9 +44,6 @@ const ERPClients = () => {
   // Modal states
   const [isEditing, setIsEditing] = useState(false);
   const [currentClient, setCurrentClient] = useState(emptyClient);
-  const [clientSaveState, setClientSaveState] = useState({ busy: false, type: '', message: '' });
-  const [accessPassword, setAccessPassword] = useState('');
-  const [accessBusy, setAccessBusy] = useState(false);
   const [financeAction, setFinanceAction] = useState('pay_debt');
   const [financeAmount, setFinanceAmount] = useState('');
   const [financeMethod, setFinanceMethod] = useState('كاش');
@@ -60,6 +60,8 @@ const ERPClients = () => {
 
   // Bulk Edit State
   const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkOwnerQueue, setBulkOwnerQueue] = useState([]);
+  const [bulkOwnerResults, setBulkOwnerResults] = useState([]);
 
   const fetchActivePackages = async (clientId) => {
     const { data, error } = await supabase.from('client_packages').select('*').eq('client_id', clientId).eq('status', 'active').order('expires_at', { ascending: true });
@@ -148,93 +150,32 @@ const ERPClients = () => {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { const timer = window.setTimeout(() => fetchClients(), 0); return () => window.clearTimeout(timer); }, []); // Initial remote load.
   useEffect(() => { const timer = window.setTimeout(() => selectedClient ? fetchActivePackages(selectedClient.id) : setActivePackages([]), 0); return () => window.clearTimeout(timer); }, [selectedClient]);
 
-  const handleSaveClient = async (e) => {
-    e.preventDefault();
-    setClientSaveState({ busy: true, type: '', message: '' });
-    if (isEditing) {
-      const { error } = await supabase.from('clients').update({ 
-          name: currentClient.name, phone1: currentClient.phone1, phone2: currentClient.phone2, email: currentClient.email || null,
-          company_name: currentClient.company_name || null, contact_person: currentClient.contact_person || null,
-          job: currentClient.job, address: currentClient.address || null, city: currentClient.city || null,
-          tax_number: currentClient.tax_number || null, commercial_registration: currentClient.commercial_registration || null,
-          preferred_contact: currentClient.preferred_contact, whatsapp_opt_in: currentClient.whatsapp_opt_in ? 1 : 0,
-          notes: currentClient.notes || null, color: currentClient.color
-      }).eq('id', currentClient.id);
-      if (error) {
-        setClientSaveState({ busy: false, type: 'error', message: error.message || 'تعذر تحديث بيانات العميل.' });
-        return;
-      }
-      await fetchClients(true);
-    } else {
-      if (currentClient.enablePortal && currentClient.portalPassword.length < 10) {
-        setClientSaveState({ busy: false, type: 'error', message: 'كلمة مرور لوحة العميل يجب ألا تقل عن 10 أحرف.' });
-        return;
-      }
-      const { error } = await supabase.request('/clients', {
-        method: 'POST',
-        body: JSON.stringify({ name: currentClient.name, company_name: currentClient.company_name || null, contact_person: currentClient.contact_person || null, phone1: currentClient.phone1, phone2: currentClient.phone2 || null,
-          email: currentClient.email || null, job: currentClient.job || null, address: currentClient.address || null, city: currentClient.city || null,
-          tax_number: currentClient.tax_number || null, commercial_registration: currentClient.commercial_registration || null,
-          preferred_contact: currentClient.preferred_contact, whatsapp_opt_in: currentClient.whatsapp_opt_in ? 1 : 0, notes: currentClient.notes || null, color: currentClient.color,
-          portal_password: currentClient.enablePortal ? currentClient.portalPassword : '' }),
-      });
-      if (error) {
-        setClientSaveState({ busy: false, type: 'error', message: error.message || 'تعذر إنشاء العميل.' });
-        return;
-      }
-      setCurrentClient(prev => ({ ...prev, portalPassword: '' }));
-      await fetchClients(true);
-    }
-    setClientSaveState({ busy: false, type: 'success', message: isEditing ? 'تم تحديث بيانات العميل بنجاح.' : 'تم إنشاء العميل وبيانات دخوله بأمان.' });
-    window.setTimeout(() => {
-      setIsClientModalOpen(false);
-      setClientSaveState({ busy: false, type: '', message: '' });
-    }, 900);
-  };
-
-  const handleClientAccess = async () => {
-    if (!currentClient?.id || accessPassword.length < 10) {
-      setClientSaveState({ busy: false, type: 'error', message: 'كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.' });
-      return;
-    }
-    setAccessBusy(true);
-    setClientSaveState({ busy: false, type: '', message: '' });
-    const { error } = await supabase.request(`/clients/${currentClient.id}/access`, {
-      method: 'POST', body: JSON.stringify({ password: accessPassword }),
-    });
-    setAccessBusy(false);
-    if (error) {
-      setClientSaveState({ busy: false, type: 'error', message: error.message || 'تعذر تعيين كلمة مرور لوحة العميل.' });
-      return;
-    }
-    setAccessPassword('');
-    setClientSaveState({ busy: false, type: 'success', message: 'تم تعيين كلمة مرور لوحة العميل. لن يتم عرضها أو حفظها في الواجهة.' });
-  };
-
-  const deleteClient = async (id, name) => {
-    if (window.confirm(`هل أنت متأكد من حذف العميل: ${name} نهائياً؟`)) {
-      const { error } = await supabase.from('clients').delete().eq('id', id);
-      if (!error) {
-        if (selectedClient?.id === id) setSelectedClient(null);
-        fetchClients();
-      }
-    }
-  };
-
   const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) return;
-    if (window.confirm(`هل أنت متأكد من حذف (${selectedIds.length}) عميل نهائياً؟`)) {
-      const { error } = await supabase.from('clients').delete().in('id', selectedIds);
-      if (!error) {
-        setSelectedIds([]);
-        setSelectedClient(null);
-        fetchClients();
-      }
-    }
+    if (selectedIds.length === 0 || sessionUser?.role !== 'owner') return;
+    const selected=clients.filter(client => selectedIds.includes(client.id));
+    setBulkOwnerResults(selected.map(client=>({id:client.id,name:client.name,status:'pending',message:'بانتظار فحص التأثير'})));
+    setBulkOwnerQueue(selected);
   };
+  const deleteClient = id => {
+    if (sessionUser?.role !== 'owner') return;
+    const client = clients.find(item => Number(item.id) === Number(id));
+    if (client) setBulkOwnerQueue([client]);
+  };
+
+  const finishOwnerClientAction = async result => {
+    if (selectedClient?.id === result.id) setSelectedClient(null);
+    setBulkOwnerResults(current=>current.map(item=>Number(item.id)===Number(result.id)?{...item,status:'success',action:result.action,message:result.action==='hard_delete'?'تم الحذف النهائي':result.action==='archive'?'تمت الأرشفة':'تم تنفيذ الإجراء الآمن'}:item));
+    const remaining = bulkOwnerQueue.filter(client => Number(client.id) !== Number(result.id));
+    setBulkOwnerQueue(remaining);
+    if (!remaining.length) setSelectedIds([]);
+    await fetchClients(true);
+  };
+  const failOwnerClientAction=result=>setBulkOwnerResults(current=>current.map(item=>Number(item.id)===Number(result.id)?{...item,status:'failed',message:result.message||'تعذر تنفيذ الإجراء'}:item));
+  const cancelBulkOwnerAction=()=>{const queuedIds=new Set(bulkOwnerQueue.map(item=>Number(item.id)));setBulkOwnerResults(current=>current.map(item=>queuedIds.has(Number(item.id))&&item.status==='pending'?{...item,status:'skipped',message:'تم تخطيه بواسطة المالك'}:item));setBulkOwnerQueue([]);setSelectedIds([])};
 
   const handleFinanceSubmit = async (e) => {
     e.preventDefault();
@@ -460,8 +401,6 @@ const ERPClients = () => {
 
   const openNewClient = () => {
     setIsEditing(false);
-    setClientSaveState({ busy: false, type: '', message: '' });
-    setAccessPassword('');
     setCurrentClient(emptyClient);
     setIsClientModalOpen(true);
   };
@@ -470,8 +409,6 @@ const ERPClients = () => {
     if (location.state?.openCreateClient !== true) return undefined;
     const timer = window.setTimeout(() => {
       setIsEditing(false);
-      setClientSaveState({ busy: false, type: '', message: '' });
-      setAccessPassword('');
       setCurrentClient(emptyClient);
       setIsClientModalOpen(true);
       navigate(location.pathname, { replace: true, state: null });
@@ -481,13 +418,12 @@ const ERPClients = () => {
 
   const openEditClient = client => {
     setCurrentClient({ ...client, email: client.email || '', portalPassword: '' });
-    setAccessPassword('');
-    setClientSaveState({ busy: false, type: '', message: '' });
     setIsEditing(true);
     setIsClientModalOpen(true);
   };
 
   const openBookingForClient = client => {
+    bookingTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setBookingClientName(client.name);
     setIsAddBookingModalOpen(true);
   };
@@ -539,10 +475,13 @@ const ERPClients = () => {
         </div>
 
         <div className="client-crm-resultbar"><span>عرض <strong>{sortedClients.length.toLocaleString('ar-EG')}</strong> من {clients.length.toLocaleString('ar-EG')}</span>{loading && <span>جارٍ التحديث…</span>}</div>
-        {selectedIds.length > 0 && <div className="client-crm-bulkbar"><span>تم تحديد {selectedIds.length.toLocaleString('ar-EG')} عميل</span><button type="button" onClick={handleBulkDelete}><Trash2 size={17} /> حذف المحدد نهائيًا</button></div>}
+        {selectedIds.length > 0 && sessionUser?.role === 'owner' && <div className="client-crm-bulkbar"><span>تم تحديد {selectedIds.length.toLocaleString('ar-EG')} عميل · ستتم مراجعة تأثير كل ملف</span><button type="button" onClick={handleBulkDelete}><Trash2 size={17} /> حذف / أرشفة المحدد</button></div>}
+        {bulkOwnerResults.length>0&&<section className="client-bulk-outcomes" aria-live="polite"><header><div><strong>نتيجة إجراء العملاء المحددين</strong><span>{bulkOwnerResults.filter(item=>item.status!=='pending').length.toLocaleString('ar-EG')} من {bulkOwnerResults.length.toLocaleString('ar-EG')} تمت مراجعتهم</span></div>{bulkOwnerQueue.length===0&&<button type="button" onClick={()=>setBulkOwnerResults([])}>إغلاق النتائج</button>}</header><ul>{bulkOwnerResults.map(item=><li key={item.id} data-status={item.status}><span>{item.name}</span><strong>{item.status==='success'?(item.action==='hard_delete'?'محذوف':'مؤرشف'):item.status==='failed'?'فشل':item.status==='skipped'?'تم التخطي':'بانتظار المراجعة'}</strong><small>{item.message}</small></li>)}</ul></section>}
 
-        <ClientDirectory clients={sortedClients} loading={loading} error={clientListError} selectedIds={selectedIds} onToggleAll={toggleSelectAll} onToggleOne={toggleSelectOne} onOpen={setSelectedClient} onBook={openBookingForClient} onEdit={openEditClient} onDelete={client => deleteClient(client.id, client.name)} onRetry={() => fetchClients(true)} />
+        <ClientDirectory clients={sortedClients} loading={loading} error={clientListError} selectedIds={selectedIds} onToggleAll={toggleSelectAll} onToggleOne={toggleSelectOne} onOpen={setSelectedClient} onBook={openBookingForClient} onEdit={openEditClient} onDelete={finishOwnerClientAction} currentUser={sessionUser} onRetry={() => fetchClients(true)} />
       </main>
+
+      {bulkOwnerQueue[0] && <OwnerActionDialog entity="clients" record={bulkOwnerQueue[0]} label={bulkOwnerQueue[0].name} onClose={cancelBulkOwnerAction} onChanged={finishOwnerClientAction} onError={failOwnerClientAction} />}
 
       {selectedClient && <ClientProfileDrawer client={selectedClient} activePackages={activePackages} formatHours={formatHours} onClose={() => setSelectedClient(null)} onEdit={() => openEditClient(selectedClient)} onBook={() => openBookingForClient(selectedClient)} onOpenCalendar={() => navigate('/erp/bookings')} onWhatsApp={openWhatsApp} onFinance={action => { setFinanceAction(action); setFinanceMethod('كاش'); setIsFinanceModalOpen(true); }} onStartSession={startSession} onOpenHistory={openHistory} />}
 
@@ -635,7 +574,7 @@ const ERPClients = () => {
                       </td>
                       <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                          <button onClick={(e) => { e.stopPropagation(); setCurrentClient({ ...client, email: client.email || '', portalPassword: '' }); setAccessPassword(''); setClientSaveState({ busy: false, type: '', message: '' }); setIsEditing(true); setIsClientModalOpen(true); }} style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd', border: 'none', width: '35px', height: '35px', borderRadius: '10px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: '0.2s' }}>
+                          <button onClick={(e) => { e.stopPropagation(); openEditClient(client); }} style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd', border: 'none', width: '35px', height: '35px', borderRadius: '10px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: '0.2s' }}>
                             <Edit size={16} />
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); deleteClient(client.id, client.name); }} style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', border: 'none', width: '35px', height: '35px', borderRadius: '10px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: '0.2s' }}>
@@ -676,7 +615,7 @@ const ERPClients = () => {
                       <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff' }}>
                         <CalendarPlus size={20} />
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); setCurrentClient({ ...client, email: client.email || '', portalPassword: '' }); setAccessPassword(''); setClientSaveState({ busy: false, type: '', message: '' }); setIsEditing(true); setIsClientModalOpen(true); }} className="mobile-client-action-btn" style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd' }}>
+                      <button onClick={(e) => { e.stopPropagation(); openEditClient(client); }} className="mobile-client-action-btn" style={{ background: 'rgba(13, 110, 253, 0.1)', color: '#0d6efd' }}>
                         <Edit size={20} />
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); deleteClient(client.id, client.name); }} className="mobile-client-action-btn" style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545' }}>
@@ -857,41 +796,14 @@ const ERPClients = () => {
       </div>
 
       {/* --- MODALS --- */}
-      {/* 1. Client Modal */}
-      {isClientModalOpen && (
-        <div className="erp-modal-overlay" onClick={() => setIsClientModalOpen(false)}>
-          <div className="erp-modal-content" onClick={e => e.stopPropagation()} style={{  maxWidth: '720px', maxHeight: '92vh', overflowY: 'auto', borderRadius: '1.5rem', padding: '30px', border: 'none', boxShadow: '0 1rem 3rem rgba(0,0,0,.175)' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '25px', color: 'var(--erp-text-main)', fontWeight: 'bold' }}>
-              <UserPlus color="#ffc107" /> {isEditing ? 'تعديل بيانات العميل' : 'تسجيل عميل جديد'}
-            </h4>
-            <form onSubmit={handleSaveClient} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الاسم بالكامل</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)', fontWeight: 'bold' }} value={currentClient.name} onChange={e => setCurrentClient({...currentClient, name: e.target.value})} required /></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', display: 'block' }}>اسم الشركة / العلامة</label><input value={currentClient.company_name || ''} onChange={e => setCurrentClient({...currentClient,company_name:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div><div><label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', display: 'block' }}>شخص التواصل</label><input value={currentClient.contact_person || ''} onChange={e => setCurrentClient({...currentClient,contact_person:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>واتساب (أساسي)</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'rgba(25, 135, 84, 0.15)', color: '#198754', fontWeight: 'bold' }} value={currentClient.phone1} onChange={e => setCurrentClient({...currentClient, phone1: e.target.value})} required /></div>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>رقم ثانٍ (اختياري)</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.phone2} onChange={e => setCurrentClient({...currentClient, phone2: e.target.value})} /></div>
-              </div>
-              <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>البريد الإلكتروني (اختياري)</label><input type="email" dir="ltr" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.email || ''} onChange={e => setCurrentClient({...currentClient, email: e.target.value})} placeholder="client@example.com" /></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>العنوان</label><input value={currentClient.address || ''} onChange={e => setCurrentClient({...currentClient,address:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>المدينة</label><input value={currentClient.city || ''} onChange={e => setCurrentClient({...currentClient,city:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>الرقم الضريبي</label><input value={currentClient.tax_number || ''} onChange={e => setCurrentClient({...currentClient,tax_number:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>السجل التجاري</label><input value={currentClient.commercial_registration || ''} onChange={e => setCurrentClient({...currentClient,commercial_registration:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}/></div></div>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '15px' }}>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>الوظيفة / ملاحظة</label><input type="text" style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: 'none', background: 'var(--erp-bg)' }} value={currentClient.job} onChange={e => setCurrentClient({...currentClient, job: e.target.value})} /></div>
-                <div><label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>اللون</label><input type="color" style={{ width: '100%', padding: '5px', borderRadius: '0.5rem', border: 'none', height: '45px', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)' }} value={currentClient.color} onChange={e => setCurrentClient({...currentClient, color: e.target.value})} /></div>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'15px',alignItems:'end'}}><div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>وسيلة التواصل المفضلة</label><select value={currentClient.preferred_contact || 'whatsapp'} onChange={e => setCurrentClient({...currentClient,preferred_contact:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)'}}><option value="whatsapp">واتساب</option><option value="phone">مكالمة</option><option value="email">بريد إلكتروني</option></select></div><label style={{display:'flex',alignItems:'center',gap:'8px',padding:'12px',borderRadius:'.5rem',background:'rgba(25,135,84,.08)',fontSize:'.78rem',fontWeight:700}}><input type="checkbox" checked={Boolean(Number(currentClient.whatsapp_opt_in ?? 1))} onChange={e => setCurrentClient({...currentClient,whatsapp_opt_in:e.target.checked?1:0})}/>موافق على إشعارات واتساب</label></div>
-              <div><label style={{fontSize:'.8rem',fontWeight:'bold',color:'var(--erp-text-muted)',display:'block'}}>ملاحظات العميل</label><textarea rows="2" value={currentClient.notes || ''} onChange={e => setCurrentClient({...currentClient,notes:e.target.value})} style={{width:'100%',padding:'12px',border:0,borderRadius:'.5rem',background:'var(--erp-bg)',resize:'vertical'}}/></div>
-              {!isEditing && <div style={{ background: 'rgba(67,24,255,.07)', border: '1px solid rgba(67,24,255,.2)', borderRadius: '12px', padding: '14px' }}>
-                <label style={{ display: 'flex', gap: '9px', alignItems: 'center', color: 'var(--erp-text-main)', fontSize: '.82rem', fontWeight: 800, cursor: 'pointer' }}><input type="checkbox" checked={Boolean(currentClient.enablePortal)} onChange={e => setCurrentClient({ ...currentClient, enablePortal: e.target.checked, portalPassword: '' })}/> تفعيل دخول العميل إلى لوحته</label>
-                <p style={{ color: 'var(--erp-text-muted)', fontSize: '.7rem', margin: '7px 0 0' }}>سيستخدم العميل رقم الهاتف الأساسي مع كلمة المرور للدخول.</p>
-                {currentClient.enablePortal && <div style={{ marginTop: '12px' }}><label style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>كلمة مرور لوحة العميل</label><input type="password" minLength="10" autoComplete="new-password" required value={currentClient.portalPassword || ''} onChange={e => setCurrentClient({ ...currentClient, portalPassword: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '0.5rem', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }} placeholder="10 أحرف على الأقل"/><small style={{ color: 'var(--erp-text-muted)', fontSize: '.66rem' }}>لن تظهر كلمة المرور أو تُحفظ هنا بعد إنشاء الحساب.</small></div>}
-              </div>}
-              {isEditing && ['owner','admin'].includes(sessionUser?.role) && <div style={{ background: 'rgba(13,110,253,.06)', border: '1px solid rgba(13,110,253,.18)', borderRadius: '12px', padding: '14px' }}><strong style={{ display: 'block', color: 'var(--erp-text-main)', fontSize: '.82rem', marginBottom: '5px' }}>تعيين / تغيير كلمة مرور لوحة العميل</strong><p style={{ color: 'var(--erp-text-muted)', fontSize: '.68rem', margin: '0 0 10px' }}>إجراء مستقل وآمن؛ لا يمكن مشاهدة كلمة المرور الحالية.</p><div style={{ display: 'flex', gap: '8px' }}><input type="password" minLength="10" autoComplete="new-password" value={accessPassword} onChange={e => setAccessPassword(e.target.value)} placeholder="كلمة مرور جديدة – 10 أحرف" style={{ flex: 1, minWidth: 0, padding: '11px', borderRadius: '8px', border: '1px solid var(--erp-border)', background: 'var(--erp-bg)' }}/><button type="button" disabled={accessBusy || accessPassword.length < 10} onClick={handleClientAccess} style={{ border: 0, borderRadius: '8px', padding: '0 13px', background: '#0d6efd', color: 'white', fontWeight: 800, cursor: 'pointer', opacity: accessBusy || accessPassword.length < 10 ? .5 : 1 }}>{accessBusy ? 'جارٍ الحفظ...' : 'تعيين'}</button></div></div>}
-              {clientSaveState.message && <div role="status" style={{ padding: '11px 13px', borderRadius: '9px', fontSize: '.76rem', background: clientSaveState.type === 'error' ? 'rgba(220,53,69,.1)' : 'rgba(25,135,84,.1)', color: clientSaveState.type === 'error' ? '#dc3545' : '#198754', border: `1px solid ${clientSaveState.type === 'error' ? 'rgba(220,53,69,.25)' : 'rgba(25,135,84,.25)'}` }}>{clientSaveState.message}</div>}
-              <button type="submit" disabled={clientSaveState.busy} style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: isEditing ? 'var(--erp-text-main)' : '#0d6efd', color: 'var(--erp-surface)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '15px', boxShadow: '0 .5rem 1rem rgba(0,0,0,.15)', opacity: clientSaveState.busy ? .6 : 1 }}>{clientSaveState.busy ? 'جارٍ الحفظ...' : isEditing ? 'تحديث البيانات' : 'حفظ العميل'}</button>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* 1. Shared client modal */}
+      <ERPClientModal
+        isOpen={isClientModalOpen}
+        client={isEditing ? currentClient : emptyClient}
+        canManageAccess={sessionUser?.role === 'owner'}
+        onClose={() => setIsClientModalOpen(false)}
+        onSuccess={() => fetchClients(true)}
+      />
 
       {/* 2. Finance Modal */}
       {isFinanceModalOpen && selectedClient && (
@@ -1110,6 +1022,7 @@ const ERPClients = () => {
       {/* New Add Booking Modal from ERPClients */}
       <ERPAddBookingModal 
         isOpen={isAddBookingModalOpen} 
+        returnFocusRef={bookingTriggerRef}
         onClose={() => setIsAddBookingModalOpen(false)} 
         prefilledClientName={bookingClientName} 
       />

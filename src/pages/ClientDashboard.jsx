@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import {
   CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign,
-  Clock3, Eye, FileCheck2, FileText, FileUp, FolderKanban, Home, LogOut, RefreshCw, RotateCcw, Send, X, XCircle
+  Clock3, FileText, FileUp, FolderKanban, History, Home, LogOut, RefreshCw, RotateCcw, Send, X, XCircle
 } from 'lucide-react';
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, startOfMonth, startOfWeek, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -13,6 +13,7 @@ import ClientDashboardOverview from './ClientDashboardOverview';
 import ClientFinanceView from './ClientFinanceView';
 import ClientProjectsView from './ClientProjectsView';
 import './ClientProjectsView.css';
+import ClientServiceHistory from './ClientServiceHistory';
 import useChangeSync from '../hooks/useChangeSync';
 import {
   BUSINESS_HOURS_LABEL,
@@ -26,6 +27,12 @@ import {
 } from '../lib/businessFormat';
 import './ClientDashboard.css';
 import { isStudioPackageService } from '../lib/serviceCatalog';
+import useClientStudioSessions from '../hooks/useClientStudioSessions';
+import { promoteActiveBookings } from './clientStudioSessions';
+import ClientAppointmentLiveStatus from './ClientAppointmentLiveStatus';
+import ClientNotifications from './ClientNotifications';
+import ClientOfferTickets, { ClientOfferDetails } from './ClientOfferTickets';
+import { adaptClientOfferList, clientOfferServerOffset, normalizeClientOffer } from '../lib/clientOfferAdapter';
 
 const STATUS_META = {
   pending: { label: 'بانتظار التأكيد', tone: 'waiting' },
@@ -96,11 +103,6 @@ const StatusBadge = ({ status }) => {
 };
 
 const timeLabel = (value) => formatTime12(value, '--:--');
-const effectiveOfferStatus = offer => {
-  if (offer?.status !== 'sent' || !offer.valid_until) return offer?.status;
-  return new Date(`${offer.valid_until}T23:59:59`) < new Date() ? 'expired' : 'sent';
-};
-
 export default function ClientDashboard() {
   const navigate = useNavigate();
   const { currentUser, logout } = useData();
@@ -110,15 +112,14 @@ export default function ClientDashboard() {
   const [client, setClient] = useState(null);
   const [packages, setPackages] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [sessionSettlements, setSessionSettlements] = useState([]);
   const [payments, setPayments] = useState([]);
   const [proofs, setProofs] = useState([]);
   const [services, setServices] = useState([]);
   const [offers, setOffers] = useState([]);
+  const [offerServerOffset, setOfferServerOffset] = useState(0);
   const [invoices, setInvoices] = useState([]);
   const [projects, setProjects] = useState([]);
-  const [activeSessions, setActiveSessions] = useState([]);
-  const [sessionServerOffset, setSessionServerOffset] = useState(0);
-  const [appNotifications, setAppNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [notice, setNotice] = useState(null);
@@ -144,33 +145,35 @@ export default function ClientDashboard() {
     if (isLocalPreview) {
       const preview = createLocalClientPreview();
       const previewClientId = 1;
-      const [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, invoicesResult, projectsResult] = await Promise.all([
+      const [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, offersResult, invoicesResult, projectsResult, settlementsResult] = await Promise.all([
         supabase.from('clients').select('*').eq('id', previewClientId).single(),
         supabase.from('client_packages').select('*').eq('client_id', previewClientId).order('expires_at', { ascending: true }),
         supabase.from('bookings').select('*').eq('client_id', previewClientId).order('date', { ascending: false }),
         supabase.from('payments').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
         supabase.from('payment_proofs').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
         supabase.from('services').select('*').eq('is_active', 1),
+        supabase.request('/client/offers', { method: 'GET' }),
         supabase.from('invoices').select('*').eq('client_id', previewClientId).order('issued_at', { ascending: false }),
         supabase.request('/client/projects', { method: 'GET' }),
+        supabase.from('session_settlements').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
       ]);
       const availableServices = servicesResult.data || preview.services;
       const studioServiceIds = new Set(availableServices.filter(isStudioPackageService).map(service => Number(service.id)));
       setClient(clientResult.data || preview.client);
       setPackages((packagesResult.data || preview.packages).filter(pkg => studioServiceIds.has(Number(pkg.service_id))));
       setBookings(bookingsResult.data || preview.bookings);
+      setSessionSettlements(settlementsResult.data || []);
       setPayments(paymentsResult.data || preview.payments);
       setProofs(proofsResult.data || preview.proofs);
       setServices(availableServices);
-      setOffers(preview.offers);
+      const adaptedOffers = adaptClientOfferList(offersResult.data || { items: preview.offers, server_now: new Date().toISOString() });
+      setOffers(adaptedOffers.items); setOfferServerOffset(adaptedOffers.serverOffset);
       setInvoices(invoicesResult.data || preview.invoices);
       setProjects(projectsResult.data?.projects || preview.projects);
-      setActiveSessions([]);
-      setAppNotifications([]);
       setLoading(false);
       return;
     }
-    const [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, offersResult, invoicesResult, sessionsResult, notificationsResult, projectsResult] = await Promise.all([
+    const [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, offersResult, invoicesResult, projectsResult, settlementsResult] = await Promise.all([
       supabase.from('clients').select('*').eq('id', clientId).single(),
       supabase.from('client_packages').select('*').eq('client_id', clientId).order('expires_at', { ascending: true }),
       supabase.from('bookings').select('*').eq('client_id', clientId).order('date', { ascending: false }),
@@ -179,11 +182,10 @@ export default function ClientDashboard() {
       supabase.from('services').select('*').eq('is_active', 1),
       supabase.request('/client/offers', { method: 'GET' }),
       supabase.from('invoices').select('*').eq('client_id', clientId).order('issued_at', { ascending: false }),
-      supabase.request('/studio-sessions/active', { method: 'GET' }),
-      supabase.request('/app-notifications', { method: 'GET' }),
       supabase.request('/client/projects', { method: 'GET' }),
+      supabase.from('session_settlements').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
     ]);
-    const error = [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, offersResult, invoicesResult, sessionsResult, notificationsResult, projectsResult].find(result => result.error)?.error;
+    const error = [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, offersResult, invoicesResult, projectsResult, settlementsResult].find(result => result.error)?.error;
     if (error) {
       setLoadError(error.message || 'تعذر تحميل بيانات حسابك. حاول مرة أخرى.');
     } else {
@@ -192,34 +194,58 @@ export default function ClientDashboard() {
       const studioServiceIds = new Set(availableServices.filter(isStudioPackageService).map(service => Number(service.id)));
       setPackages((packagesResult.data || []).filter(pkg => studioServiceIds.has(Number(pkg.service_id))));
       setBookings(bookingsResult.data || []);
+      setSessionSettlements(settlementsResult.data || []);
       setPayments(paymentsResult.data || []);
       setProofs(proofsResult.data || []);
       setServices(availableServices);
-      setOffers((offersResult.data || []).filter(offer => offer.status !== 'draft').map(offer => ({ ...offer, status: effectiveOfferStatus(offer) })));
+      const adaptedOffers = adaptClientOfferList(offersResult.data);
+      setOffers(adaptedOffers.items); setOfferServerOffset(adaptedOffers.serverOffset);
       setInvoices(invoicesResult.data || []);
-      setActiveSessions(sessionsResult.data?.items || []);
-      if (sessionsResult.data?.server_now) setSessionServerOffset(new Date(sessionsResult.data.server_now).getTime() - Date.now());
-      setAppNotifications(notificationsResult.data || []);
       setProjects(projectsResult.data?.projects || []);
     }
     if (!background) setLoading(false);
   }, [clientId, isLocalPreview]);
 
+  const { sessions: activeSessions, byBookingId: sessionByBookingId, serverOffset: sessionServerOffset } = useClientStudioSessions({
+    enabled: Boolean(clientId),
+    localPreview: isLocalPreview,
+  });
+
   // The dashboard data is remote session state and must be synchronized on identity change.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchClientData(); }, [fetchClientData]);
   useChangeSync(useCallback((topics) => {
+    if (topics.includes('notifications')) window.dispatchEvent(new CustomEvent('clientNotificationsRefresh'));
     if (topics.some(topic => ['bookings', 'client_packages', 'finance', 'notifications', 'offers', 'services', 'projects'].includes(topic))) fetchClientData(true);
   }, [fetchClientData]), Boolean(clientId) && !isLocalPreview);
+  useEffect(() => {
+    if (!isLocalPreview) return undefined;
+    const refreshPreview = () => fetchClientData(true);
+    const refreshStoredPreview = event => { if (event.key === 'mt_agency_erp_demo_v12') refreshPreview(); };
+    window.addEventListener('demoDataChanged', refreshPreview);
+    window.addEventListener('storage', refreshStoredPreview);
+    return () => {
+      window.removeEventListener('demoDataChanged', refreshPreview);
+      window.removeEventListener('storage', refreshStoredPreview);
+    };
+  }, [fetchClientData, isLocalPreview]);
 
   const activePackages = useMemo(() => packages.filter(pkg => effectivePackageStatus(pkg) === 'active'), [packages]);
-  const upcomingBookings = useMemo(() => bookings
+  const bookingsWithSettlements = useMemo(() => {
+    const byBooking = new Map(sessionSettlements.map(item => [Number(item.booking_id), item]));
+    return bookings.map(item => ({ ...item, settlement: byBooking.get(Number(item.id)) || null }));
+  }, [bookings, sessionSettlements]);
+  const futureBookings = useMemo(() => bookings
     .filter(item => {
       const startTime = normalizeTime(item.start_time);
-      if (!item.date || !startTime || ['rejected', 'completed'].includes(item.status)) return false;
+      if (!item.date || !startTime || ['rejected', 'completed', 'cancelled'].includes(item.status)) return false;
       return new Date(`${item.date}T${startTime}:00`) >= new Date();
     })
     .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`)), [bookings]);
+  const upcomingBookings = useMemo(
+    () => promoteActiveBookings(futureBookings, activeSessions),
+    [futureBookings, activeSessions],
+  );
 
   const calendarDays = useMemo(() => eachDayOfInterval({
     start: startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 6 }),
@@ -348,11 +374,6 @@ export default function ClientDashboard() {
 
   const viewClientOffer = async (event, offer) => {
     offerTriggerRef.current = event.currentTarget;
-    if (isLocalPreview) {
-      setOfferDetail(offer);
-      setOfferDetailBusy(false);
-      return;
-    }
     setOfferDetail({ id: offer.id });
     setOfferDetailBusy(true);
     const { data, error } = await supabase.request(`/offers/${offer.id}`, { method: 'GET' });
@@ -362,7 +383,8 @@ export default function ClientDashboard() {
       showNotice('error', error.message || 'تعذر تحميل تفاصيل العرض.');
       return;
     }
-    setOfferDetail(data);
+    setOfferDetail(normalizeClientOffer(data.item));
+    setOfferServerOffset(clientOfferServerOffset(data.server_now));
   };
 
   const closeOfferDetail = useCallback(() => { setOfferDetail(null); setAcceptConfirm(false); }, []);
@@ -382,7 +404,6 @@ export default function ClientDashboard() {
     };
     document.addEventListener('keydown', onKeyDown);
     const previousOverflow = document.body.style.overflow;
-    // eslint-disable-next-line react-hooks/immutability
     document.body.style.overflow = 'hidden';
     requestAnimationFrame(() => focusable()[0]?.focus());
     return () => { document.removeEventListener('keydown', onKeyDown); document.body.style.overflow = previousOverflow; requestAnimationFrame(() => offerTriggerRef.current?.focus()); };
@@ -390,12 +411,6 @@ export default function ClientDashboard() {
 
   const acceptOffer = async () => {
     if (!offerDetail) return;
-    if (isLocalPreview) {
-      setOfferDetail(old => ({ ...old, status: 'accepted' }));
-      setAcceptConfirm(false);
-      showNotice('success', 'تمت محاكاة قبول العرض محليًا دون إنشاء فاتورة أو تعديل بيانات.');
-      return;
-    }
     setAcceptBusy(true);
     const { error } = await supabase.request(`/offers/${offerDetail.id}/accept`, { method: 'POST', body: '{}' });
     setAcceptBusy(false);
@@ -410,11 +425,6 @@ export default function ClientDashboard() {
     navigate('/login', { replace: true });
   };
 
-  const markNotificationRead = async (notification) => {
-    setAppNotifications(items => items.map(item => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
-    if (!isLocalPreview) await supabase.request(`/app-notifications/${notification.id}/read`, { method: 'POST', body: '{}' });
-  };
-
   if (!clientId) return <div className="client-state"><Clock3 /><p>جارٍ التحقق من الجلسة...</p></div>;
   if (loading && !client) return <div className="client-state"><RefreshCw className="client-spin" /><p>نجهز لوحة حسابك...</p></div>;
   if (loadError && !client) return <div className="client-state client-state--error"><XCircle /><h2>تعذر تحميل لوحة الحساب</h2><p>{loadError}</p><button onClick={fetchClientData}>إعادة المحاولة</button></div>;
@@ -426,8 +436,9 @@ export default function ClientDashboard() {
         <nav aria-label="التنقل الرئيسي">
           {[
             ['home', Home, 'الرئيسية'], ['schedule', CalendarDays, 'المواعيد'],
-            ['projects', FolderKanban, 'أعمالي'], ['finance', CircleDollarSign, 'المالية والفواتير'], ['offers', FileText, 'العروض'],
-          ].map(([key, Icon, label]) => <button key={key} className={activeTab === key ? 'active' : ''} onClick={() => setActiveTab(key)}><Icon size={19}/><span>{label}</span></button>)}
+            ['projects', FolderKanban, 'الباقات والخدمات', 'الخدمات'], ['finance', CircleDollarSign, 'المالية والفواتير'],
+            ['history', History, 'سجل الخدمات', 'السجل'], ['offers', FileText, 'العروض'],
+          ].map(([key, Icon, label, shortLabel]) => <button key={key} aria-label={label} title={label} className={activeTab === key ? 'active' : ''} onClick={() => setActiveTab(key)}><Icon size={19}/><span className={shortLabel ? 'client-nav-label client-nav-label--responsive' : 'client-nav-label'}><span className="client-nav-label__full">{label}</span>{shortLabel && <span className="client-nav-label__short" aria-hidden="true">{shortLabel}</span>}</span></button>)}
         </nav>
         <button className="client-logout" onClick={handleLogout}><LogOut size={18}/> تسجيل الخروج</button>
       </aside>
@@ -435,11 +446,9 @@ export default function ClientDashboard() {
       <main className="client-main">
         <header className={`client-topbar ${activeTab === 'home' ? 'client-topbar--home' : ''}`}>
           <div><span className="client-eyebrow">مساحة العميل الخاصة</span><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><p>تابع باقاتك ومشروعاتك ومواعيدك وحالتك المالية من مكان واحد.</p></div>
-          <div className="client-topbar-actions"><button className="client-primary" onClick={() => setActiveTab('schedule')}><CalendarDays size={18}/> طلب حجز جديد</button>{activeTab === 'home' && <button className="client-secondary" onClick={() => setActiveTab('finance')}><FileUp size={18}/> رفع إثبات تحويل</button>}</div>
+          <div className="client-topbar-actions"><ClientNotifications key={clientId} clientId={clientId} onNavigate={setActiveTab}/><button className="client-primary" onClick={() => setActiveTab('schedule')}><CalendarDays size={18}/> طلب حجز جديد</button>{activeTab === 'home' && <button className="client-secondary" onClick={() => setActiveTab('finance')}><FileUp size={18}/> رفع إثبات تحويل</button>}</div>
         </header>
 
-        <ClientActiveSession sessions={activeSessions} serverOffset={sessionServerOffset} />
-        {appNotifications.filter(item => !item.read_at).slice(0, 3).map(item => <div className={`client-system-alert client-system-alert--${item.severity || 'info'}`} key={item.id} role="status"><div><CircleDollarSign/><span><strong>{item.title}</strong>{item.message}</span></div><button type="button" onClick={() => markNotificationRead(item)} aria-label="تعليم الإشعار كمقروء"><X/></button></div>)}
         {isLocalPreview && <div className="client-notice client-notice--success" role="status">معاينة عميل محلية ببيانات تمثيلية فقط — لن تُرسل الإجراءات أو الملفات إلى الخادم.</div>}
         {notice && <div className={`client-notice client-notice--${notice.type}`} role="status">{notice.message}</div>}
         {loadError && <div className="client-notice client-notice--error">تعذر تحديث بعض البيانات. <button onClick={fetchClientData}>حاول مجددًا</button></div>}
@@ -447,6 +456,8 @@ export default function ClientDashboard() {
         {activeTab === 'home' && <ClientDashboardOverview
           activePackages={activePackages}
           upcomingBookings={upcomingBookings}
+          sessionByBookingId={sessionByBookingId}
+          sessionServerOffset={sessionServerOffset}
           onNavigate={setActiveTab}
           onBookPackage={packageId => {
             setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) }));
@@ -466,10 +477,10 @@ export default function ClientDashboard() {
               })}</div>
             </div>
             <section className="client-panel client-day-list"><div className="client-section-head"><div><span>تفاصيل اليوم</span><h2>{format(selectedDay, 'EEEE d MMMM', { locale: ar })}</h2></div></div>
-              {selectedBookings.map(booking => <BookingRow key={booking.id} booking={booking} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>) }
+              {selectedBookings.map(booking => <BookingRow key={booking.id} booking={booking} session={sessionByBookingId.get(Number(booking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>) }
               {!selectedBookings.length && <div className="client-empty client-empty--compact"><CalendarDays/><p>لا توجد حجوزات في هذا اليوم.</p></div>}
             </section>
-            <section className="client-panel client-booking-history"><div className="client-section-head"><div><span>سجل الطلبات</span><h2>كل الحجوزات</h2></div></div>{bookings.map(booking => <BookingRow key={booking.id} booking={booking} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>)}{!bookings.length && <div className="client-empty"><CalendarDays/><h3>لم تطلب أي حجز بعد</h3></div>}</section>
+            <section className="client-panel client-booking-history"><div className="client-section-head"><div><span>سجل الطلبات</span><h2>كل الحجوزات</h2></div></div>{bookingsWithSettlements.map(booking => <BookingRow key={booking.id} booking={booking} session={sessionByBookingId.get(Number(booking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>)}{!bookingsWithSettlements.length && <div className="client-empty"><CalendarDays/><h3>لم تطلب أي حجز بعد</h3></div>}</section>
           </div>
           <aside className="client-request-card"><div className="client-request-title"><span><Send size={15}/> طلب جديد</span><h2>احجز موعد تصوير</h2><p>اختر باقتك ثم أرسل الوقت المناسب لك.</p></div><form onSubmit={submitBooking}>
             <label>الباقة<select required value={bookingForm.client_package_id} onChange={e => setBookingForm({ ...bookingForm, client_package_id: e.target.value })}><option value="">اختر الباقة</option>{activePackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}</select></label>
@@ -482,50 +493,28 @@ export default function ClientDashboard() {
           </form></aside>
         </section>}
 
-        {activeTab === 'projects' && <ClientProjectsView projects={projects}/>}
+        {activeTab === 'projects' && <ClientProjectsView projects={projects.filter(project => ['planning', 'active', 'on_hold'].includes(project.status))}/>}
+
+        {activeTab === 'history' && <ClientServiceHistory />}
 
         {activeTab === 'offers' && <section className="client-view">
           <div className="client-page-title"><span>عروض المالك الخاصة بك</span><h2>العروض</h2><p>راجع العروض المرسلة إليك من مالك الشركة، واقبل المناسب منها.</p></div>
-          <section className="client-panel"><div className="client-section-head"><div><span>عروض MT Agency</span><h2>العروض المتاحة</h2></div><strong className="client-commercial-count">{offers.length}</strong></div><div className="client-offer-list">{offers.map(offer => <article key={offer.id}><header><div><span>{offer.offer_number}</span><h3>{offer.title}</h3></div><ClientOfferStatus status={offer.status}/></header><div className="client-offer-value"><span>القيمة النهائية</span><strong>{formatEGP(offer.total)}</strong></div><div className="client-offer-meta"><span>صالح حتى {offer.valid_until ? formatBookingDate(offer.valid_until) : 'غير محدد'}</span>{offer.discount > 0 && <span>خصم {formatEGP(offer.discount)}</span>}</div><button onClick={event => viewClientOffer(event, offer)}><Eye/> عرض التفاصيل {offer.status === 'sent' ? 'والقبول' : ''}</button></article>)}{!offers.length && <div className="client-empty"><FileText/><h3>لا توجد عروض مرسلة حاليًا</h3><p>سيظهر العرض هنا فور إرساله من المالك.</p></div>}</div></section>
+          <ClientOfferTickets offers={offers} serverOffset={offerServerOffset} onView={viewClientOffer}/>
         </section>}
 
-        {activeTab === 'finance' && <ClientFinanceView activePackages={activePackages} invoices={invoices} payments={payments} proofs={proofs} proofForm={proofForm} proofBusy={proofBusy} onProofFormChange={updates => setProofForm(previous => ({ ...previous, ...updates }))} onSubmitProof={uploadProof} onSelectTarget={selectPaymentTarget} />}
+        {activeTab === 'finance' && <ClientFinanceView activePackages={activePackages} financialPackages={packages} invoices={invoices} payments={payments} proofs={proofs} proofForm={proofForm} proofBusy={proofBusy} onProofFormChange={updates => setProofForm(previous => ({ ...previous, ...updates }))} onSubmitProof={uploadProof} onSelectTarget={selectPaymentTarget} />}
       </main>
 
-      {offerDetail && <div className="client-modal client-offer-modal" onMouseDown={event => { if (event.target === event.currentTarget) closeOfferDetail(); }}><section ref={offerDialogRef} className="client-modal-card client-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="client-offer-title"><button className="client-modal-close" onClick={closeOfferDetail} aria-label="إغلاق تفاصيل العرض"><X/></button>{offerDetailBusy ? <div className="client-empty"><RefreshCw className="client-spin"/><h3>جارٍ تحميل العرض</h3></div> : <><span className="client-eyebrow"><FileCheck2/> {offerDetail.offer_number}</span><h2 id="client-offer-title">{offerDetail.title}</h2><p>صالح حتى {offerDetail.valid_until ? formatBookingDate(offerDetail.valid_until) : 'غير محدد'}</p><div className="client-offer-detail-lines">{offerDetail.items?.map(item => <article key={item.id}><div><strong>{item.description}</strong><span>{Number(item.quantity).toLocaleString('ar-EG')} {item.unit === 'hour' ? 'ساعة' : item.unit === 'reel' ? 'ريل' : 'وحدة'} × {Number(item.unit_price).toLocaleString('ar-EG')} ج.م</span></div><b>{Number(item.total).toLocaleString('ar-EG')} ج.م</b></article>)}</div><div className="client-offer-detail-total"><span>الإجمالي الفرعي <b>{Number(offerDetail.subtotal).toLocaleString('ar-EG')} ج.م</b></span><span>الخصم <b>{Number(offerDetail.discount).toLocaleString('ar-EG')} ج.م</b></span><strong>القيمة النهائية <b>{Number(offerDetail.total).toLocaleString('ar-EG')} ج.م</b></strong></div>{offerDetail.notes && <p className="client-offer-notes">{offerDetail.notes}</p>}{offerDetail.status === 'sent' ? <div className="client-offer-accept"><p><CheckCircle2/> بقبول العرض سيتم إنشاء فاتورة، وباقة استديو أو مشروع خدمة حسب نوع كل بند.</p>{acceptConfirm ? <div className="client-accept-confirm"><strong>هل تؤكد قبول العرض بالقيمة الموضحة؟</strong><div><button type="button" onClick={() => setAcceptConfirm(false)}>تراجع</button><button type="button" className="client-primary" disabled={acceptBusy} onClick={acceptOffer}>{acceptBusy ? <RefreshCw className="client-spin"/> : <CheckCircle2/>}{acceptBusy ? 'جارٍ القبول...' : 'نعم، أؤكد القبول'}</button></div></div> : <button className="client-primary" onClick={() => setAcceptConfirm(true)}><CheckCircle2/> قبول عرض السعر</button>}</div> : <div className="client-offer-accepted"><CheckCircle2/> تم قبول هذا العرض سابقًا.</div>}</>}</section></div>}
+      {offerDetail && <div className="client-modal client-offer-modal" onMouseDown={event => { if (event.target === event.currentTarget) closeOfferDetail(); }}><section ref={offerDialogRef} className="client-modal-card client-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="client-offer-title"><button className="client-modal-close" onClick={closeOfferDetail} aria-label="إغلاق تفاصيل العرض"><X/></button>{offerDetailBusy ? <div className="client-empty"><RefreshCw className="client-spin"/><h3>جارٍ تحميل العرض</h3></div> : <ClientOfferDetails offer={offerDetail} serverOffset={offerServerOffset} busy={acceptBusy} confirm={acceptConfirm} onConfirm={() => setAcceptConfirm(true)} onCancelConfirm={() => setAcceptConfirm(false)} onAccept={acceptOffer}/>}</section></div>}
 
       {reschedule.booking && <div className="client-modal" role="dialog" aria-modal="true" aria-label="طلب تغيير موعد"><div className="client-modal-card"><button className="client-modal-close" onClick={() => setReschedule(initialReschedule)} aria-label="إغلاق"><XCircle/></button><span className="client-eyebrow"><RotateCcw size={15}/> تغيير الموعد</span><h2>اقترح موعدًا بديلًا</h2><p>الطلب الحالي: {formatBookingDate(reschedule.booking.date)}، {timeLabel(reschedule.booking.start_time)}</p><form onSubmit={submitReschedule}><label>التاريخ الجديد<input required type="date" min={format(new Date(), 'yyyy-MM-dd')} value={reschedule.date} onChange={e => setReschedule({ ...reschedule, date: e.target.value })}/></label><div className="client-time-fields"><label>من<BusinessTimeSelect required min="12:00" max="23:00" value={reschedule.start_time} onChange={e => setReschedule({ ...reschedule, start_time: e.target.value })}/></label><label>إلى<BusinessTimeSelect required min="13:00" max="24:00" value={reschedule.end_time} onChange={e => setReschedule({ ...reschedule, end_time: e.target.value })}/></label></div><label>السبب<textarea rows="3" value={reschedule.reason} onChange={e => setReschedule({ ...reschedule, reason: e.target.value })}/></label><p className="client-policy"><Clock3/> تغيير أو إلغاء الموعد يكون قبل 48 ساعة. الاستثناءات تُراجع مع الإدارة.</p><button className="client-primary" disabled={Boolean(actionBusy)}><Send/> إرسال الطلب</button></form></div></div>}
     </div>
   );
 }
-
-function ClientActiveSession({ sessions, serverOffset }) {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (!sessions.length) return undefined;
-    const interval = window.setInterval(() => setTick(Date.now()), 1000);
-    return () => window.clearInterval(interval);
-  }, [sessions.length]);
-  if (!sessions.length) return null;
-  const session = sessions[0];
-  const elapsed = Math.max(0, Math.floor(((tick + serverOffset) - new Date(session.started_at).getTime()) / 1000));
-  const parts = [Math.floor(elapsed / 3600), Math.floor((elapsed % 3600) / 60), elapsed % 60].map(value => String(value).padStart(2, '0'));
-  const available = Math.max(0, Number(session.purchased_quantity || 0) - Number(session.held_quantity || 0) - Number(session.consumed_quantity || 0));
-  return <section className="client-live-session" aria-live="polite"><span className="client-live-session__pulse"/><div><small>جلسة التصوير جارية الآن</small><h2>{session.service}</h2><p>{session.package_name || 'بدون باقة'}{session.client_package_id ? ` • المتاح قبل الإنهاء ${available.toLocaleString('ar-EG')} ${session.billing_unit === 'reel' ? 'ريل' : 'ساعة'}` : ''}</p></div><time dir="ltr">{parts.join(':')}</time><span className="client-live-session__state"><Clock3/> يتحدث تلقائيًا</span></section>;
-}
-
-function BookingRow({ booking, busy, onAlternativeDecision, onReschedule, onCancel }) {
-  const canChange = ['confirmed', 'alternative_proposed'].includes(booking.status);
-  const canCancel = ['pending', 'confirmed', 'alternative_proposed'].includes(booking.status);
-  return <article className="client-booking-row"><div className="client-booking-date"><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><span>{format(new Date(`${booking.date}T12:00`), 'MMM', { locale: ar })}</span></div><div className="client-booking-info"><StatusBadge status={booking.status}/><h3>{booking.service}</h3><p><CalendarDays size={15}/>{formatBookingDate(booking.date)}</p><p><Clock3 size={15}/>{timeLabel(booking.start_time)} – {timeLabel(booking.end_time)}</p></div>{(canChange || canCancel) && <div className="client-booking-actions">{booking.status === 'alternative_proposed' && <><button disabled={Boolean(busy)} onClick={() => onAlternativeDecision('accept')}><CheckCircle2/> قبول الموعد</button><button className="danger" disabled={Boolean(busy)} onClick={() => onAlternativeDecision('reject')}><RotateCcw/> موعد آخر</button></>}{booking.status !== 'alternative_proposed' && canChange && <button disabled={Boolean(busy)} onClick={onReschedule}><RotateCcw/> تغيير</button>}{canCancel && <button className="danger" disabled={Boolean(busy)} onClick={onCancel}><XCircle/> {busy === `cancel-${booking.id}` ? 'جارٍ...' : 'إلغاء'}</button>}</div>}</article>;
-}
-
-function ClientOfferStatus({ status }) {
-  const states = {
-    sent: ['بانتظار قبولك', 'waiting'],
-    accepted: ['مقبول', 'success'],
-    expired: ['منتهي الصلاحية', 'danger'],
-  };
-  const meta = states[status] || ['للعرض فقط', 'neutral'];
-  return <span className={`client-status client-status--${meta[1]}`}>{meta[0]}</span>;
+function BookingRow({ booking, session, serverOffset, busy, onAlternativeDecision, onReschedule, onCancel }) {
+  const isLive = Boolean(session);
+  const canChange = !isLive && ['confirmed', 'alternative_proposed'].includes(booking.status);
+  const canCancel = !isLive && ['pending', 'confirmed', 'alternative_proposed'].includes(booking.status);
+  const settlement=booking.settlement;const outcome={none:'ضمن رصيد الباقة',new_package:'تمت إضافته إلى باقة جديدة',existing_package:'تم نقله إلى باقة أخرى',package_overage:'تم احتسابه كوقت إضافي',custom_invoice:'تم إصدار فاتورة منفصلة',custom_project:'تم إدراجه كخدمة مستقلة',waive:'تمت تسويته دون رسوم'}[settlement?.settlement_mode];
+  return <article className={`client-booking-row${isLive ? ' client-booking-row--live' : ''}`} data-booking-id={booking.id}><div className="client-booking-date"><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><span>{format(new Date(`${booking.date}T12:00`), 'MMM', { locale: ar })}</span></div><div className="client-booking-info">{isLive ? <span className="client-status client-status--live">جاري التصوير</span> : <StatusBadge status={booking.status}/>}<h3>{booking.service}</h3><p><CalendarDays size={15}/>{formatBookingDate(booking.date)}</p><p><Clock3 size={15}/>{timeLabel(booking.start_time)} – {timeLabel(booking.end_time)}</p>{session&&<ClientAppointmentLiveStatus session={session} serverOffset={serverOffset} compact />}{settlement&&<div className="client-session-settlement"><strong>الوقت الفعلي {settlement.actual_minutes} دقيقة</strong><span>مغطى {settlement.covered_minutes} دقيقة{Number(settlement.excess_minutes)>0?` · زائد ${settlement.excess_minutes} دقيقة`:''}</span><small>{settlement.client_note||outcome}</small>{Number(settlement.amount_due)>0&&<b>المستحق {formatEGP(settlement.amount_due)}</b>}</div>}</div>{(canChange || canCancel) && <div className="client-booking-actions">{booking.status === 'alternative_proposed' && <><button disabled={Boolean(busy)} onClick={() => onAlternativeDecision('accept')}><CheckCircle2/> قبول الموعد</button><button className="danger" disabled={Boolean(busy)} onClick={() => onAlternativeDecision('reject')}><RotateCcw/> موعد آخر</button></>}{booking.status !== 'alternative_proposed' && canChange && <button disabled={Boolean(busy)} onClick={onReschedule}><RotateCcw/> تغيير</button>}{canCancel && <button className="danger" disabled={Boolean(busy)} onClick={onCancel}><XCircle/> {busy === `cancel-${booking.id}` ? 'جارٍ...' : 'إلغاء'}</button>}</div>}</article>;
 }

@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { format, addMonths } from 'date-fns';
 import { ListTodo } from 'lucide-react';
 import ERPPageHero from './ERPPageHero';
 import { formatDateTime12, formatEGP } from '../lib/businessFormat';
+import { useData } from '../store/DataContext';
+import OwnerRecordActions from './OwnerRecordActions';
 
 let globalRemindersCache = null;
 let globalRemindersLastFetch = 0;
 
 const ERPReminders = () => {
+  const { currentUser } = useData();
   const [reminders, setReminders] = useState(globalRemindersCache || []);
   const [loading, setLoading] = useState(!globalRemindersCache);
   const [activeTab, setActiveTab] = useState('pending');
@@ -32,11 +35,7 @@ const ERPReminders = () => {
     entity: 'الشركة'
   });
 
-  useEffect(() => {
-    fetchReminders();
-  }, []);
-
-  const fetchReminders = async (force = false) => {
+  const fetchReminders = useCallback(async (force = false) => {
     if (globalRemindersCache) {
       setReminders(globalRemindersCache);
       setLoading(false);
@@ -45,7 +44,7 @@ const ERPReminders = () => {
       setLoading(true);
     }
     
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('reminders')
       .select('*')
       .order('status', { ascending: false }) 
@@ -57,7 +56,12 @@ const ERPReminders = () => {
     }
     globalRemindersLastFetch = Date.now();
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchReminders();
+  }, [fetchReminders]);
 
   const handleOpenAddModal = () => {
     setEditingId(null);
@@ -160,12 +164,9 @@ const ERPReminders = () => {
     fetchReminders();
   };
 
-  const handleDelete = async (id, isCompleted) => {
-    const msg = isCompleted ? 'مسح نهائي؟' : 'تأكيد مسح التذكير؟';
-    if (window.confirm(msg)) {
-      await supabase.from('reminders').delete().eq('id', id);
-      fetchReminders();
-    }
+  const handleReopen = async rem => {
+    await supabase.from('reminders').update({ status: 'pending' }).eq('id', rem.id);
+    fetchReminders(true);
   };
 
   const pendingTasks = reminders.filter(t => t.status === 'pending');
@@ -231,13 +232,13 @@ const ERPReminders = () => {
                       
                       <div className="d-flex flex-wrap gap-2 mt-3">
                         <button className="btn btn-sm btn-success rounded-pill flex-grow-1 fw-bold shadow-sm" onClick={() => handleComplete(t)}><i className="fas fa-check me-1"></i> إنجاز</button>
-                        <button className="btn btn-sm btn-outline-primary rounded-pill flex-grow-1 fw-bold shadow-sm" onClick={() => handleOpenEditModal(t)}><i className="fas fa-edit"></i> تعديل</button>
+                        {currentUser?.role !== 'owner' && <button className="btn btn-sm btn-outline-primary rounded-pill flex-grow-1 fw-bold shadow-sm" onClick={() => handleOpenEditModal(t)}><i className="fas fa-edit"></i> تعديل</button>}
                         
                         {t.amount > 0 && (
                           <button className="btn btn-sm btn-danger rounded-pill flex-grow-1 fw-bold shadow-sm" onClick={() => handleOpenPayModal(t)}><i className="fas fa-money-bill-wave"></i> دفع</button>
                         )}
                         
-                        <button className="btn btn-sm btn-light border text-danger rounded-circle shadow-sm flex-shrink-0" style={{width: '35px', height: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center'}} onClick={() => handleDelete(t.id, false)}><i className="fas fa-trash-alt"></i></button>
+                        <OwnerRecordActions user={currentUser} entity="reminders" record={t} label={t.title} onEdit={() => handleOpenEditModal(t)} onChanged={() => fetchReminders(true)} />
                       </div>
                     </div>
                   </div>
@@ -265,9 +266,7 @@ const ERPReminders = () => {
                       </div>
                       <h5 className="fw-bold text-muted text-decoration-line-through mb-2">{t.title}</h5>
                       {t.amount > 0 && <div className="text-success fw-bold small opacity-75 mb-3"><i className="fas fa-money-bill-wave me-1"></i> {t.amount} ج.م</div>}
-                      <div className="text-end mt-3">
-                        <button className="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold" onClick={() => handleDelete(t.id, true)}><i className="fas fa-trash me-1"></i> مسح</button>
-                      </div>
+                      <div className="d-flex flex-wrap gap-2 justify-content-end mt-3"><button className="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold" onClick={() => handleReopen(t)}><i className="fas fa-rotate-left me-1"></i> إعادة فتح</button><OwnerRecordActions user={currentUser} entity="reminders" record={t} label={t.title} onEdit={() => handleOpenEditModal(t)} onChanged={() => fetchReminders(true)} /></div>
                     </div>
                   </div>
                 </div>

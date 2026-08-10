@@ -3,6 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 import './Hero.css';
 
+const HERO_SLIDES = [
+  { small: '/hero-service-1-small.webp', tiny: '/hero-service-1-tiny.webp', alt: 'تصوير منتجات احترافي' },
+  { small: '/hero-service-2-small.webp', tiny: '/hero-service-2-tiny.webp', alt: 'إنتاج فيديو سينمائي' },
+  { small: '/hero-service-3-small.webp', tiny: '/hero-service-3-tiny.webp', alt: 'تصميم هويات بصرية' },
+  { small: '/hero-service-4-small.webp', tiny: '/hero-service-4-tiny.webp', alt: 'إدارة منصات التواصل الاجتماعي' },
+];
+
 const Hero = () => {
   const { t, i18n } = useTranslation();
   const { siteData } = useData();
@@ -10,21 +17,16 @@ const Hero = () => {
   
   const heroData = siteData.hero;
 
-  const sliderImages = [
-    '/hero-service-1-v2.png', // Photography
-    '/hero-service-2-v2.png', // AI Video
-    '/hero-service-3-v2.png', // Creative Design
-    '/hero-service-4-v2.png'  // Social Media
-  ];
-
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % sliderImages.length);
+      setCurrentImageIndex((prev) => (prev + 1) % HERO_SLIDES.length);
     }, 4000); // Change image every 4 seconds
     return () => clearInterval(interval);
-  }, [sliderImages.length]);
+  }, []);
+
+  const activeSlide = HERO_SLIDES[currentImageIndex];
 
   return (
     <section id="home" className="hero-section">
@@ -33,19 +35,19 @@ const Hero = () => {
         {/* Visual Slider (Right side in RTL, or top in mobile) */}
         <div className="hero-visual">
           <div className="visual-banner">
-            {sliderImages.map((img, index) => {
-              const altTexts = ['تصوير منتجات احترافي', 'إنتاج فيديو سينمائي', 'تصميم هويات بصرية', 'إدارة منصات التواصل الاجتماعي'];
-              return (
-              <img 
-                key={index} 
-                src={img} 
-                alt={`${altTexts[index]} - MT Agency`}
-                className={`hero-slider-img ${index === currentImageIndex ? 'active' : ''}`}
-                width="1254" height="1254"
-                fetchPriority={index === 0 ? "high" : "auto"}
-                loading={index === 0 ? "eager" : "lazy"}
+            <picture key={activeSlide.small}>
+              <source media="(max-width: 520px)" srcSet={activeSlide.tiny} />
+              <img
+                src={activeSlide.small}
+                alt={`${activeSlide.alt} - MT Agency`}
+                className="hero-slider-img active"
+                width="800"
+                height="800"
+                fetchPriority={currentImageIndex === 0 ? 'high' : 'auto'}
+                loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
+                decoding="async"
               />
-            )})}
+            </picture>
             <div className="visual-overlay"></div>
           </div>
         </div>
