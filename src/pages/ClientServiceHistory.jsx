@@ -3,7 +3,7 @@ import {
   Archive, Ban, CalendarDays, Camera, CheckCircle2, ChevronLeft, ChevronRight,
   Clock3, FolderCheck, History, LoaderCircle, PackageCheck, Search, WalletCards,
 } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { formatBookingDate, formatEGP, formatPackageQuantity, formatTime12 } from '../lib/businessFormat';
 import { isUnfulfilledServiceHistoryType, serviceHistoryEmptyMode } from '../lib/clientServiceHistory';
 import './ClientServiceHistory.css';
@@ -60,7 +60,7 @@ export default function ClientServiceHistory() {
     if (query) params.set('query', query);
     if (period === 'quarter') params.set('from', dateKey(3));
     if (period === 'year') params.set('from', dateKey(12));
-    const { data: response, error: requestError } = await supabase.request(`/client/service-history?${params}`, { method: 'GET' });
+    const { data: response, error: requestError } = await dataClient.request(`/client/service-history?${params}`, { method: 'GET' });
     if (requestError) setError(requestError.message || 'تعذر تحميل سجل الخدمات.');
     else setData(response || { items: [], summary: {}, pagination: { page: 1, total: 0, total_pages: 1 } });
     setLoading(false);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { BarChart3, CalendarRange, Download, FileWarning, Plus, Printer, ReceiptText, Search, Share2, ShieldCheck, TrendingUp, Video, X } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
 import { useData } from '../store/DataContext';
 import { socialAmountToCents } from '../lib/socialProfitMath';
@@ -74,7 +74,7 @@ function EntryForm({ year, entry = null, onClose, onSaved }) {
     if (socialAmountToCents(form.amount) === null) { setError('أدخل مبلغًا من 0.01 جنيه وبدقة منزلتين بحد أقصى.'); requestAnimationFrame(() => amountRef.current?.focus()); return }
     if (entry && String(form.reason || '').trim().length < 5) { setError('اكتب سبب التصحيح بوضوح.'); return }
     setSaving(true); setError('');
-    const { error: requestError } = await supabase.request(entry ? `/social-profits/${entry.id}/correct` : '/social-profits', { method: 'POST', body: JSON.stringify(form) });
+    const { error: requestError } = await dataClient.request(entry ? `/social-profits/${entry.id}/correct` : '/social-profits', { method: 'POST', body: JSON.stringify(form) });
     setSaving(false);
     if (requestError) { setError(requestError.message); return }
     onSaved();
@@ -104,7 +104,7 @@ function EntryForm({ year, entry = null, onClose, onSaved }) {
 
 function VoidForm({ entry, onClose, onSaved }) {
   const [reason, setReason] = useState(''); const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
-  const submit = async event => { event.preventDefault(); if (reason.trim().length < 3) { setError('اكتب سبب الإبطال بوضوح.'); return } setSaving(true); const { error: requestError } = await supabase.request(`/social-profits/${entry.id}/void`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); setSaving(false); if (requestError) { setError(requestError.message); return } onSaved() };
+  const submit = async event => { event.preventDefault(); if (reason.trim().length < 3) { setError('اكتب سبب الإبطال بوضوح.'); return } setSaving(true); const { error: requestError } = await dataClient.request(`/social-profits/${entry.id}/void`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); setSaving(false); if (requestError) { setError(requestError.message); return } onSaved() };
   return <form className="social-form" onSubmit={submit}>
     <div className="social-void-summary"><span className={`social-platform ${entry.platform}`}>{entry.platform === 'youtube' ? 'يوتيوب' : 'فيسبوك'}</span><div><strong>{entry.channel_name}</strong><small>{months[entry.earning_month - 1]} {entry.earning_year}</small></div><b>{formatMoney(entry.amount)}</b></div>
     <div className="social-warning"><FileWarning /><p>سيخرج هذا الإيراد من كل الإجماليات النشطة مع بقاء القيد وسبب الإبطال في السجل الدائم.</p></div>
@@ -143,7 +143,7 @@ export default function ERPSocialProfits() {
   const [year, setYear] = useState(cairoYear()); const [platform, setPlatform] = useState('all'); const [status, setStatus] = useState('all'); const [search, setSearch] = useState('');
   const [data, setData] = useState(null); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [modal, setModal] = useState(null); const [voidTarget, setVoidTarget] = useState(null); const [editTarget, setEditTarget] = useState(null);
-  const fetchData = useCallback(async () => { setLoading(true); const params = new URLSearchParams({ year: String(year), platform, status, q: search }); const { data: response, error: requestError } = await supabase.request(`/social-profits?${params}`, { method: 'GET' }); if (requestError) setError(requestError.message); else { setData(response); setError('') } setLoading(false) }, [year, platform, status, search]);
+  const fetchData = useCallback(async () => { setLoading(true); const params = new URLSearchParams({ year: String(year), platform, status, q: search }); const { data: response, error: requestError } = await dataClient.request(`/social-profits?${params}`, { method: 'GET' }); if (requestError) setError(requestError.message); else { setData(response); setError('') } setLoading(false) }, [year, platform, status, search]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData() }, [fetchData]);
   useChangeSync(useCallback(topics => { if (topics.includes('social_profits')) fetchData() }, [fetchData]));

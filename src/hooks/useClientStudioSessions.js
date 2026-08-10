@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import useChangeSync from './useChangeSync';
 import { clientSessionMap, normalizeClientStudioSessions, sessionServerOffset } from '../pages/clientStudioSessions';
 
@@ -16,7 +16,7 @@ export default function useClientStudioSessions({ enabled = true, localPreview =
     if (!enabled) return;
     const sequence = ++requestSequence.current;
     const requestedAt = Date.now();
-    const { data, error } = await supabase.request('/studio-sessions/active', { method: 'GET' });
+    const { data, error } = await dataClient.request('/studio-sessions/active', { method: 'GET' });
     if (!mounted.current || sequence !== requestSequence.current) return;
     if (error) {
       // A temporary failure must not make a real, running session disappear.

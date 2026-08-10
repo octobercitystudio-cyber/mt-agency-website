@@ -44,16 +44,18 @@ test('the simpler client policy never weakens owner or staff passwords', async (
 
 test('production login uses Hostinger /api by default and preserves explicit access authority', async () => {
   const [provider, hostinger, env, api] = await Promise.all([
-    load('src/supabaseClient.js'),
+    load('src/dataClient.js'),
     load('src/lib/hostingerClient.js'),
     load('.env.example'),
     load('api/index.php'),
   ]);
   const loginBlock = api.slice(api.indexOf("$path === '/auth/login'"), api.indexOf("$path === '/auth/session'"));
-  assert.match(provider, /VITE_DATA_PROVIDER \|\| 'hostinger'/);
-  assert.match(provider, /configuredProvider !== 'supabase'/);
+  assert.match(provider, /hostingerClient/);
+  assert.match(provider, /dataProvider = 'hostinger'/);
+  assert.doesNotMatch(provider, /VITE_DATA_PROVIDER|VITE_SUPABASE|createClient/);
   assert.match(hostinger, /VITE_API_URL \|\| '\/api'/);
-  assert.match(env, /VITE_DATA_PROVIDER=hostinger/);
+  assert.match(env, /VITE_API_URL=\/api/);
+  assert.doesNotMatch(env, /VITE_DATA_PROVIDER|VITE_SUPABASE/);
   assert.match(api, /function validClientPassword[\s\S]*?\$length >= 6[\s\S]*?\$length <= 128/);
   assert.match(api, /function validPassword[\s\S]*?\$length >= 12[\s\S]*?preg_match\('\/\[\\p\{L\}\]\//);
   assert.match(loginBlock, /loginPhoneCandidates\(\$identifier\)/);

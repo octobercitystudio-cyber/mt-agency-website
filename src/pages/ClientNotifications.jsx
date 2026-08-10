@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, CalendarClock, CheckCheck, CircleDollarSign, FileText, FolderKanban, History, Package, RefreshCw, Trash2, X } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
 import './ClientNotifications.css';
 
@@ -39,7 +39,7 @@ export default function ClientNotifications({ clientId, onNavigate }) {
   const load = useCallback(async ({ quiet = false, cursor = null, append = false } = {}) => {
     if (append) setLoadingOlder(true); else if (!quiet) setLoading(true); setError('');
     const cursorQuery = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
-    const { data, error: requestError } = await supabase.request(`/app-notifications?status=all&limit=50${cursorQuery}`, { method: 'GET' });
+    const { data, error: requestError } = await dataClient.request(`/app-notifications?status=all&limit=50${cursorQuery}`, { method: 'GET' });
     if (requestError) { setError('تعذر تحديث الإشعارات. نعرض آخر نسخة محفوظة لديك.'); setLoading(false); setLoadingOlder(false); return; }
     const received = safeItems(data?.items); setNextCursor(data?.next_cursor || null); setUnreadCount(Number(data?.unread_count ?? received.filter(item => !item.read_at).length)); setLoading(false); setLoadingOlder(false);
     setItems(current => { const nextItems = append ? [...current, ...received.filter(item => !current.some(existing => Number(existing.id) === Number(item.id)))] : received; try { localStorage.setItem(cacheKey(clientId), JSON.stringify(nextItems)); } catch { /* cache is best effort */ } return nextItems; });
@@ -63,14 +63,14 @@ export default function ClientNotifications({ clientId, onNavigate }) {
   const updateItems = next => { setItems(current => { const value = typeof next === 'function' ? next(current) : next; try { localStorage.setItem(cacheKey(clientId), JSON.stringify(value)); } catch { /* cache is best effort */ } return value; }); };
   const markRead = async item => {
     if (item.read_at) return; const stamp = new Date().toISOString(); updateItems(current => current.map(row => Number(row.id) === Number(item.id) ? { ...row, read_at: stamp } : row)); setUnreadCount(count => Math.max(0, count - 1));
-    const { error: requestError } = await supabase.request(`/app-notifications/${item.id}/read`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true });
+    const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/read`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true });
   };
   const openItem = async item => { await markRead(item); close(); onNavigate(destinationFor(item), item.payload || {}); };
   const readAll = async () => {
     const upToId = Math.max(0, ...items.map(item => Number(item.id) || 0)); if (!upToId || !unreadCount) return; const stamp = new Date().toISOString(); updateItems(current => current.map(item => Number(item.id) <= upToId ? { ...item, read_at: item.read_at || stamp } : item)); setUnreadCount(0);
-    const { error: requestError } = await supabase.request('/app-notifications/read-all', { method: 'POST', body: JSON.stringify({ up_to_id: upToId }) }); if (requestError) load({ quiet: true });
+    const { error: requestError } = await dataClient.request('/app-notifications/read-all', { method: 'POST', body: JSON.stringify({ up_to_id: upToId }) }); if (requestError) load({ quiet: true });
   };
-  const dismiss = async (event, item) => { event.stopPropagation(); updateItems(current => current.filter(row => Number(row.id) !== Number(item.id))); if (!item.read_at) setUnreadCount(count => Math.max(0, count - 1)); const { error: requestError } = await supabase.request(`/app-notifications/${item.id}/dismiss`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
+  const dismiss = async (event, item) => { event.stopPropagation(); updateItems(current => current.filter(row => Number(row.id) !== Number(item.id))); if (!item.read_at) setUnreadCount(count => Math.max(0, count - 1)); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/dismiss`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
 
   return <div className="client-notifications">
     <button ref={bellRef} type="button" className={`client-notifications__bell ${unreadCount ? 'has-unread' : ''}`} aria-label={unreadCount ? `الإشعارات، ${unreadCount} غير مقروء` : 'الإشعارات'} aria-expanded={open} aria-controls="client-notification-center" onClick={() => setOpen(value => !value)}>

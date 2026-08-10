@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Eye, EyeOff, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { CUSTOM_SERVICES, serviceMeta } from './customServices';
 import { getProjectStageTemplate } from '../lib/projectStageTemplates';
 import CustomServiceSchedule from './CustomServiceSchedule';
@@ -41,8 +41,8 @@ export default function CustomServiceForm({ clients = [], initialService = 'cust
   useEffect(() => {
     let active = true;
     Promise.all([
-      supabase.from('resources').select('*').eq('is_active', 1),
-      supabase.from('bookings').select('*'),
+      dataClient.from('resources').select('*').eq('is_active', 1),
+      dataClient.from('bookings').select('*'),
     ]).then(([resourceResult, bookingResult]) => {
       if (!active) return;
       setResources(resourceResult.data || []);

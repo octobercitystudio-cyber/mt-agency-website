@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 
 export const createSettlementIdempotencyKey = session => {
   const random = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -7,7 +7,7 @@ export const createSettlementIdempotencyKey = session => {
 
 export async function previewStudioSessionSettlement(session, actualMinutes) {
   if (!session?.booking_id) throw new Error('جلسة التصوير غير مرتبطة بحجز صالح.');
-  const { data, error } = await supabase.request(`/bookings/${session.booking_id}/session/settlement-preview`, {
+  const { data, error } = await dataClient.request(`/bookings/${session.booking_id}/session/settlement-preview`, {
     method: 'POST',
     body: JSON.stringify({
       actual_minutes: actualMinutes,

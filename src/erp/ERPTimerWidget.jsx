@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { Clock, Play, Square, User } from 'lucide-react';
 import { differenceInSeconds } from 'date-fns';
 
@@ -32,13 +32,13 @@ const ERPTimerWidget = () => {
 
   const fetchState = async (loadClients = true) => {
     if (loadClients) {
-      const { data: c } = await supabase.from('clients').select('name').order('name');
+      const { data: c } = await dataClient.from('clients').select('name').order('name');
       if (c) setClients(c.map(x => x.name));
     }
     
     // Fetch timer state
-    const { data: tc } = await supabase.from('app_config').select('value').eq('key', 'timer_client').single();
-    const { data: ts } = await supabase.from('app_config').select('value').eq('key', 'timer_start').single();
+    const { data: tc } = await dataClient.from('app_config').select('value').eq('key', 'timer_client').single();
+    const { data: ts } = await dataClient.from('app_config').select('value').eq('key', 'timer_start').single();
     
     const client = tc?.value || '';
     const start = ts?.value || '';
@@ -51,11 +51,11 @@ const ERPTimerWidget = () => {
   const setRemoteState = async (client, start) => {
     // Upsert app_config
     const upsertConfig = async (key, value) => {
-      const { data } = await supabase.from('app_config').select('id').eq('key', key).single();
+      const { data } = await dataClient.from('app_config').select('id').eq('key', key).single();
       if (data) {
-        await supabase.from('app_config').update({ value }).eq('id', data.id);
+        await dataClient.from('app_config').update({ value }).eq('id', data.id);
       } else {
-        await supabase.from('app_config').insert([{ key, value, type: 'text' }]);
+        await dataClient.from('app_config').insert([{ key, value, type: 'text' }]);
       }
     };
     

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Save, Lock } from 'lucide-react';
 import { useData } from '../store/DataContext';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 
 const AdminSettings = () => {
   const { siteData, updateSection } = useData();
@@ -22,7 +22,7 @@ const AdminSettings = () => {
       alert("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
       return;
     }
-    const { error } = await supabase.auth.updateUser({ password: adminPassword });
+    const { error } = await dataClient.auth.updateUser({ password: adminPassword });
     if (error) {
       alert("حدث خطأ أثناء تغيير كلمة المرور: " + error.message);
     } else {

@@ -28,7 +28,6 @@ jobs:
 
       - name: Build React application
         env:
-          VITE_DATA_PROVIDER: hostinger
           VITE_API_URL: /api
         run: npm run build
 

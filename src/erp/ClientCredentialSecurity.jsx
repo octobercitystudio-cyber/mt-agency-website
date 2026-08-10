@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, Eye, EyeOff, KeyRound, LogOut, Power, ShieldCheck, X } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
 import { CLIENT_PASSWORD_HINT, CLIENT_PASSWORD_MAX_LENGTH, CLIENT_PASSWORD_MIN_LENGTH, isValidClientPassword } from '../lib/clientPasswordPolicy';
 import './ClientCredentialSecurity.css';
@@ -38,7 +38,7 @@ export default function ClientCredentialSecurity({ clientId }) {
 
   const load = useCallback(async () => {
     setState(current => ({ ...current, loading: true, loadError: '' }));
-    const { data, error } = await supabase.request(`/clients/${clientId}/credentials`);
+    const { data, error } = await dataClient.request(`/clients/${clientId}/credentials`);
     setState(current => ({ ...current, loading: false, loadError: error?.message || '' }));
     if (!error) setMeta(data);
   }, [clientId]);
@@ -50,7 +50,7 @@ export default function ClientCredentialSecurity({ clientId }) {
 
   const act = async (name, path, body = {}) => {
     setState(current => ({ ...current, busy: name, actionError: '' }));
-    const { data, error } = await supabase.request(path, { method: 'POST', body: JSON.stringify(body) });
+    const { data, error } = await dataClient.request(path, { method: 'POST', body: JSON.stringify(body) });
     setState(current => ({ ...current, busy: '', actionError: error?.message || '' }));
     if (error) return;
     if (name === 'temporary') setHandoff(data);
@@ -69,7 +69,7 @@ export default function ClientCredentialSecurity({ clientId }) {
     if (!checks.match) { setPasswordError('تأكيد كلمة المرور غير مطابق.'); return; }
     setState(current => ({ ...current, busy: 'password', actionError: '' }));
     const payload = { ...passwordForm };
-    const { data, error } = await supabase.request(`/clients/${clientId}/credentials/password`, { method: 'POST', body: JSON.stringify(payload) });
+    const { data, error } = await dataClient.request(`/clients/${clientId}/credentials/password`, { method: 'POST', body: JSON.stringify(payload) });
     setPasswordForm(emptyPasswordForm());
     setPasswordVisible(false);
     setState(current => ({ ...current, busy: '', actionError: '' }));

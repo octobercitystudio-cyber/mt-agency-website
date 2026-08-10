@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { UserPlus, X } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
 import { emptyClient } from './clientForm';
 import ClientCredentialSecurity from './ClientCredentialSecurity';
@@ -40,8 +40,8 @@ export default function ERPClientModal({ isOpen, onClose, onSuccess, client = em
       whatsapp_opt_in: draft.whatsapp_opt_in ? 1 : 0, notes: draft.notes || null, color: draft.color,
     };
     const result = isEditing
-      ? await supabase.from('clients').update(payload).eq('id', draft.id)
-      : await supabase.request('/clients', { method: 'POST', body: JSON.stringify(payload) });
+      ? await dataClient.from('clients').update(payload).eq('id', draft.id)
+      : await dataClient.request('/clients', { method: 'POST', body: JSON.stringify(payload) });
     const outcome = resolveClientModalSaveResult({ result, isEditing, draft, payload });
     if (!outcome.ok) {
       setSaveState({ busy: false, type: 'error', message: outcome.message });

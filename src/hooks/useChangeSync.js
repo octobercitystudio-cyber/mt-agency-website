@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { dataProvider, supabase } from '../supabaseClient';
+import { dataProvider, dataClient } from '../dataClient';
 
 export default function useChangeSync(onChange, enabled = true) {
   const callbackRef = useRef(onChange);
@@ -10,7 +10,7 @@ export default function useChangeSync(onChange, enabled = true) {
   useEffect(() => { callbackRef.current = onChange; }, [onChange]);
 
   useEffect(() => {
-    if (!enabled || dataProvider !== 'hostinger' || typeof supabase.request !== 'function') return undefined;
+    if (!enabled || dataProvider !== 'hostinger' || typeof dataClient.request !== 'function') return undefined;
     stoppedRef.current = false;
 
     const schedule = (delay) => {
@@ -19,7 +19,7 @@ export default function useChangeSync(onChange, enabled = true) {
     };
 
     const poll = async () => {
-      const { data, error } = await supabase.request(`/sync?cursor=${cursorRef.current}`, { method: 'GET' });
+      const { data, error } = await dataClient.request(`/sync?cursor=${cursorRef.current}`, { method: 'GET' });
       if (stoppedRef.current) return;
       if (!error && data) {
         cursorRef.current = Number(data.cursor || cursorRef.current);

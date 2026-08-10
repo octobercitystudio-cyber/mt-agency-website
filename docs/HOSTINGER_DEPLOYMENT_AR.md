@@ -14,7 +14,7 @@
 
 1. افتح phpMyAdmin من hPanel.
 2. اختر قاعدة البيانات الخاصة بالمشروع.
-3. استورد ملفات قاعدة البيانات بالترتيب: `database/mysql/001_initial_schema.sql` ثم `002_seed_service_catalog.sql` ثم `003_projects_and_content.sql` ثم الترحيلات من `004_attendance.sql` حتى `022_client_access_authority.sql` بالترتيب.
+3. استورد ملفات قاعدة البيانات بالترتيب: `database/mysql/001_initial_schema.sql` ثم `002_seed_service_catalog.sql` ثم `003_projects_and_content.sql` ثم الترحيلات من `004_attendance.sql` حتى `024_package_sale_calendar.sql` بالترتيب. يضيف 023 حماية تكرار البيع، ويضيف 024 سياسة الباقة اليومية ومرجع الصلاحية للباقة المباعة.
 4. إذا كنت تنقل بيانات البرنامج القديم، راجع `database/mysql/900_legacy_report.json` ثم استورد `database/mysql/900_legacy_data.sql`.
 5. انسخ `api/config.example.php` إلى `public_html/api/config.php` على الخادم فقط.
 6. ضع بيانات MySQL الحقيقية، رابط الموقع، ومفتاح إعداد طويل وعشوائي داخل `config.php`.
@@ -51,6 +51,7 @@
 ## فحص ما بعد النشر
 
 - افتح `/api/health` وتأكد أن الحالة `ok`.
+- بعد دخول المالك افتح `/api/readiness/package-sales`. يجب أن يعود `ready: true` وقائمة `missing` فارغة قبل تفعيل بيع الباقات. الفحص يراجع جداول وأعمدة 023/024 وأعمدة `booking_slots` والمفتاحين الفريدين للعملية والخانات الزمنية؛ ظهور `schema_inspection_failed` أو أي عنصر `column:`/`unique:` يعني إيقاف البيع وتشغيل 023 ثم 024 وإعادة الفحص.
 - افتح `/login` مباشرة وتأكد أن الصفحة لا تعطي 404.
 - جرّب دخول المالك ثم العميل.
 - أنشئ طلب حجز عميل وتأكد أنه يظهر للإدارة بحالة انتظار.

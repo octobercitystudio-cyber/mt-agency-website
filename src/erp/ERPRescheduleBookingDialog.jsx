@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CalendarClock, CheckCircle2, X } from 'lucide-react';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { calculateDurationMinutes, formatBookingDate, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
 import useModalDialog from '../hooks/useModalDialog';
 import './ERPRescheduleBookingDialog.css';
@@ -48,7 +48,7 @@ export default function ERPRescheduleBookingDialog({ isOpen, booking, proposal, 
     event.preventDefault();
     if (validation) return setError(validation);
     setBusy(true); setError('');
-    const { data, error: requestError } = await supabase.request(`/bookings/${booking.id}/admin-reschedule`, {
+    const { data, error: requestError } = await dataClient.request(`/bookings/${booking.id}/admin-reschedule`, {
       method: 'POST',
       body: JSON.stringify({ date: draft.date, start_time: draft.start_time, end_time: draft.end_time, notes: draft.notes }),
     });

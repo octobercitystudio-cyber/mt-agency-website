@@ -64,7 +64,7 @@ test('created client merge is ID-safe for duplicate names and does not touch an 
   assert.equal(requestKey, 'package-sale-stable-key');
 });
 
-test('package sale explicitly opts into an isolated dark client-modal contract with accessible contrast', () => {
+test('client-modal appearance variants remain isolated and keep accessible contrast', () => {
   const standard = clientModalAppearance();
   const dark = clientModalAppearance(CLIENT_MODAL_APPEARANCE.PACKAGE_SALE_DARK);
   assert.equal(standard.overlayClass, ''); assert.equal(standard.tokens, undefined);
@@ -108,7 +108,8 @@ test('sale UI uses native grouped/name-only pickers and stacked ERPClientModal w
   assert.match(view, /البحث باسم العميل/); assert.match(view, /＋ عميل جديد/);
   assert.doesNotMatch(view, /\{item\.name\} — \{item\.phone1\}/);
   assert.match(view, /useModalDialog\(formOpen, closeAddDialog/);
-  assert.match(view, /<ERPClientModal isOpen=\{clientModalOpen\} nested appearance="package-sale-dark"/);
+  assert.match(view, /<ERPClientModal isOpen=\{clientModalOpen\} nested returnFocusRef=/);
+  assert.equal(view.includes('appearance="package-sale-dark"'), false);
   assert.match(view, /inert=\{childOpen \? true : undefined\}/);
   assert.match(view, /setForm\(current => \(\{ \.\.\.current, client_id: String\(createdClient\.id\) \}\)\)/);
   assert.match(view, /packageRequestKeyRef/); assert.match(view, /mergeCreatedClient\(result\.data \|\| \[\], createdClient\)/);

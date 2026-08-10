@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowLeftRight, CalendarCheck2, CalendarClock, CheckCircle2, CircleDollarSign, Clock3, Edit3, Eye, Filter, History, MoreVertical, PackageCheck, PackagePlus, PlayCircle, ReceiptText, RefreshCw, Search, ShieldAlert, TimerReset, Trash2, UserPlus, WalletCards, X } from 'lucide-react';
+import { Archive, ArrowLeftRight, CalendarCheck2, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, Clock3, Edit3, Eye, Filter, History, MoreVertical, PackageCheck, PackagePlus, PlayCircle, Plus, ReceiptText, RefreshCw, Search, ShieldAlert, TimerReset, Trash2, UserPlus, WalletCards, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import './ERPPackages.css';
 import { safeUiError } from '../lib/uiError';
@@ -15,9 +15,11 @@ import { eligibilityMap, studioBookingEligible } from './studioSessionEligibilit
 import ERPClientModal from './ERPClientModal';
 import useModalDialog from '../hooks/useModalDialog';
 import { buildPackageServiceGroups, filterClientsByName, mergeCreatedClient } from '../lib/packageBookingPicker';
+import { appointmentDurationMinutes, normalizePackageSaleAppointments, packageAppointmentUsage, packageCalendarWeek, partitionPackageAppointments, shiftPackageCalendarDate, validatePackageAppointment } from '../lib/packageSaleAppointments';
 
 const today = () => cairoDateKey();
-const initialForm = { client_id: '', service_id: '', name: '', billing_unit: 'hour', starts_at: today(), expires_at: '', quantity: '', validity_days: 90, payment_due_quantity: 0, deposit_percent_snapshot: 0, overage_price_snapshot: 0, total_price: '', paid_amount: 0, payment_method: 'cash', notes: '' };
+const initialForm = { client_id: '', service_id: '', name: '', billing_unit: 'hour', validity_mode_snapshot: 'rolling', starts_at: today(), shooting_date: '', expires_at: '', quantity: '', validity_days: 90, payment_due_quantity: 0, deposit_percent_snapshot: 0, overage_price_snapshot: 0, total_price: '', paid_amount: 0, payment_method: 'cash', notes: '' };
+const initialAppointment = () => ({ resource_id: '', date: today(), start_time: '12:00', end_time: '13:00', requested_quantity: 1, notes: '' });
 const initialModal = { open: false, type: 'details', pkg: null, name: '', notes: '', starts_at: '', expires_at: '', status: 'active', target_quantity: '', target_total_price: '', target_paid_amount: '', payment_method: 'cash', reason: '', destructiveConfirmed: false, deleteConfirmation: '', audit: [], auditLoading: false };
 const STATUS = { active: ['نشطة', 'active'], expired: ['منتهية', 'expired'], suspended: ['موقوفة', 'suspended'], completed: ['مكتملة', 'completed'] };
 const money = formatEGP;
@@ -36,6 +38,8 @@ export default function ERPPackages() {
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
   const [todayBookings, setTodayBookings] = useState([]);
+  const [calendarBookings, setCalendarBookings] = useState([]);
+  const [resources, setResources] = useState([]);
   const [sessionEligibility, setSessionEligibility] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -48,6 +52,11 @@ export default function ERPPackages() {
   const [form, setForm] = useState(initialForm);
   const [formErrors, setFormErrors] = useState({});
   const [formBusy, setFormBusy] = useState(false);
+  const [saleBookings, setSaleBookings] = useState([]);
+  const [appointment, setAppointment] = useState(initialAppointment);
+  const [appointmentErrors, setAppointmentErrors] = useState({});
+  const [editingAppointment, setEditingAppointment] = useState(-1);
+  const [templateResetNotice, setTemplateResetNotice] = useState('');
   const [clientSearch, setClientSearch] = useState('');
   const [clientModalOpen, setClientModalOpen] = useState(false);
   const [modal, setModal] = useState(initialModal);
@@ -63,14 +72,16 @@ export default function ERPPackages() {
 
   const fetchData = useCallback(async () => {
     setLoading(true); setError('');
-    const [packageResult, clientsResult, servicesResult, bookingsResult, eligibilityResult] = await Promise.all([
-      supabase.from('client_packages').select('*').order('expires_at', { ascending: true }),
-      supabase.from('clients').select('id,name,phone1').order('name', { ascending: true }),
-      supabase.from('services').select('*').eq('is_active', 1).order('name', { ascending: true }),
-      supabase.from('bookings').select('*').eq('date', today()).order('start_time', { ascending: true }),
-      supabase.request(`/studio-session-eligibility?date=${today()}`),
+    const [packageResult, clientsResult, servicesResult, bookingsResult, eligibilityResult, resourcesResult, calendarResult] = await Promise.all([
+      dataClient.from('client_packages').select('*').order('expires_at', { ascending: true }),
+      dataClient.from('clients').select('id,name,phone1').order('name', { ascending: true }),
+      dataClient.from('services').select('*').eq('is_active', 1).order('name', { ascending: true }),
+      dataClient.from('bookings').select('*').eq('date', today()).order('start_time', { ascending: true }),
+      dataClient.request(`/studio-session-eligibility?date=${today()}`),
+      dataClient.from('resources').select('id,name,type,is_active').eq('is_active', 1).order('name', { ascending: true }),
+      dataClient.from('bookings').select('id,resource_id,date,start_time,end_time,status,client_name').gte('date', today()).order('date', { ascending: true }),
     ]);
-    const failed = [packageResult, clientsResult, servicesResult, bookingsResult, eligibilityResult].find(result => result.error);
+    const failed = [packageResult, clientsResult, servicesResult, bookingsResult, eligibilityResult, resourcesResult, calendarResult].find(result => result.error);
     if (failed?.error) setError(safeUiError(failed.error, 'تعذر تحميل الباقات المباعة الآن.'));
     else {
       const studioServices = (servicesResult.data || []).filter(isStudioPackageService);
@@ -80,6 +91,8 @@ export default function ERPPackages() {
       setServices(studioServices);
       setTodayBookings(bookingsResult.data || []);
       setSessionEligibility(eligibilityMap(eligibilityResult.data));
+      setResources(resourcesResult.data || []);
+      setCalendarBookings(calendarResult.data || []);
     }
     setLoading(false);
   }, []);
@@ -96,7 +109,7 @@ export default function ERPPackages() {
 
   const fetchDetails = useCallback(async packageId => {
     setDetails(current => ({ ...current, loading: true, error: '' }));
-    const { data, error: requestError } = await supabase.request(`/client-packages/${packageId}/details`, { method: 'GET' });
+    const { data, error: requestError } = await dataClient.request(`/client-packages/${packageId}/details`, { method: 'GET' });
     setDetails(current => current.pkg?.id === packageId ? { ...current, data: requestError ? null : data, loading: false, error: requestError ? safeUiError(requestError, 'تعذر تحميل كشف الباقة.') : '' } : current);
   }, []);
 
@@ -171,21 +184,26 @@ export default function ERPPackages() {
   const selectService = serviceId => {
     const service = services.find(item => String(item.id) === String(serviceId));
     setFormErrors({});
-    if (!service) return setForm(current => ({ ...initialForm, client_id: current.client_id, service_id: '', starts_at: today() }));
-    setForm(templateToPackageDraft(service, { clientId: form.client_id, startsAt: today() }));
+    if (!service) { setTemplateResetNotice('اختر قالبًا جديدًا قبل متابعة خطة المواعيد المحفوظة. لم يتم حذف أي موعد.'); return setForm(current => ({ ...initialForm, client_id: current.client_id, service_id: '', starts_at: today() })); }
+    const next = templateToPackageDraft(service, { clientId: form.client_id, startsAt: today() });
+    setForm(next);
+    const { invalid } = partitionPackageAppointments(saleBookings, next, packageDraftExpiry(next));
+    setTemplateResetNotice(invalid.length ? `تم تغيير القالب مع الاحتفاظ بكل المواعيد. يحتاج ${invalid.length} موعد إلى تعديل ليتوافق مع الصلاحية الجديدة.` : saleBookings.length ? 'تم تغيير القالب مع الاحتفاظ بخطة المواعيد كاملة.' : '');
+    setAppointment(current => ({ ...current, date: next.validity_mode_snapshot === 'shooting_day' ? next.shooting_date : next.starts_at }));
+    setAppointmentErrors({});
   };
 
   const openAddDialog = event => {
     dialogTriggerRef.current = event.currentTarget;
     packageRequestKeyRef.current = globalThis.crypto?.randomUUID?.() || `package-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setForm({ ...initialForm, starts_at: today() }); setFormErrors({}); setClientSearch(''); setClientModalOpen(false); setError('');
+    setForm({ ...initialForm, starts_at: today() }); setFormErrors({}); setSaleBookings([]); setAppointment(initialAppointment()); setAppointmentErrors({}); setEditingAppointment(-1); setTemplateResetNotice(''); setClientSearch(''); setClientModalOpen(false); setError('');
     setFormOpen(true);
   };
 
   const openPackageDialog = async (type, pkg, event) => {
     dialogTriggerRef.current = event.currentTarget;
     setModal({ ...initialModal, open: true, type, pkg, name: pkg.name || '', notes: pkg.notes || '', starts_at: String(pkg.starts_at || '').slice(0, 10), expires_at: String(pkg.expires_at || '').slice(0, 10), status: pkg.status || 'active', target_quantity: Number(pkg.purchased_quantity || 0), target_total_price: Number(pkg.total_price || 0), target_paid_amount: Number(pkg.paid_amount || 0), auditLoading: true });
-    const { data } = await supabase.request(`/audit-logs?entity_type=client_packages&entity_id=${pkg.id}`, { method: 'GET' });
+    const { data } = await dataClient.request(`/audit-logs?entity_type=client_packages&entity_id=${pkg.id}`, { method: 'GET' });
     setModal(current => current.open && Number(current.pkg?.id) === Number(pkg.id) ? { ...current, audit: data || [], auditLoading: false } : current);
   };
 
@@ -207,8 +225,8 @@ export default function ERPPackages() {
   const visibleClients = useMemo(() => filterClientsByName(clients, clientSearch, form.client_id), [clients, clientSearch, form.client_id]);
   const expiryPreview = useMemo(() => packageDraftExpiry(form) || '—', [form]);
   const formDirty = useMemo(() => selectedTemplate ? packageDraftIsDirty(form, selectedTemplate) : false, [form, selectedTemplate]);
-  const updateFormField = (field, value) => { setForm(current => ({ ...current, [field]: value })); setFormErrors(current => ({ ...current, [field]: undefined })); };
-  const resetFormTemplate = () => { if (selectedTemplate) { setForm(resetPackageDraftToTemplate(form, selectedTemplate, { startsAt: today() })); setFormErrors({}); } };
+  const updateFormField = (field, value) => { setForm(current => field === 'shooting_date' ? ({ ...current, shooting_date: value, starts_at: value, validity_days: 1 }) : ({ ...current, [field]: value })); setFormErrors(current => ({ ...current, [field]: undefined })); if (field === 'shooting_date') setAppointment(current => ({ ...current, date: value })); };
+  const resetFormTemplate = () => { if (selectedTemplate) { const next=resetPackageDraftToTemplate(form, selectedTemplate, { startsAt: today() }); const { invalid }=partitionPackageAppointments(saleBookings,next,packageDraftExpiry(next)); setForm(next); setFormErrors({}); setTemplateResetNotice(invalid.length ? `تمت استعادة شروط القالب ولم نحذف أي موعد. عدّل ${invalid.length} موعد خارج الصلاحية قبل الحفظ.` : saleBookings.length ? 'تمت استعادة شروط القالب مع الاحتفاظ بكل المواعيد.' : 'تمت استعادة شروط القالب.'); setAppointmentErrors(invalid.length ? { date: 'توجد مواعيد خارج صلاحية القالب المستعاد. عدّلها أو احذفها يدويًا.' } : {}); } };
   const selectClient = clientId => { updateFormField('client_id', clientId); setClientSearch(''); };
   const handleClientCreated = createdClient => {
     if (!createdClient?.id) return;
@@ -216,26 +234,40 @@ export default function ERPPackages() {
     setForm(current => ({ ...current, client_id: String(createdClient.id) }));
     setFormErrors(current => ({ ...current, client_id: undefined }));
     setClientSearch('');
-    Promise.resolve(supabase.from('clients').select('id,name,phone1').order('name', { ascending: true }))
+    Promise.resolve(dataClient.from('clients').select('id,name,phone1').order('name', { ascending: true }))
       .then(result => { if (!result.error) setClients(mergeCreatedClient(result.data || [], createdClient)); })
       .catch(() => {});
   };
 
+  const appointmentUsage = useMemo(() => packageAppointmentUsage(saleBookings, form.billing_unit, form.quantity), [saleBookings, form.billing_unit, form.quantity]);
+  const saveAppointment = () => {
+    const validation = validatePackageAppointment(appointment, { unit: form.billing_unit, minimumMinutes: Number(selectedTemplate?.minimum_booking_minutes || 60), incrementMinutes: Number(selectedTemplate?.booking_increment_minutes || 15), startsAt: form.starts_at, expiresAt: expiryPreview === '—' ? '' : expiryPreview, shootingDate: form.validity_mode_snapshot === 'shooting_day' ? form.shooting_date : '', appointments: saleBookings, occupied: calendarBookings, editIndex: editingAppointment });
+    const nextUsage = packageAppointmentUsage(editingAppointment >= 0 ? saleBookings.map((item, index) => index === editingAppointment ? appointment : item) : [...saleBookings, appointment], form.billing_unit, form.quantity);
+    if (nextUsage.exceeded) validation.balance = 'المواعيد المختارة تتجاوز رصيد الباقة.';
+    setAppointmentErrors(validation); if (Object.keys(validation).length) return;
+    setSaleBookings(current => editingAppointment >= 0 ? current.map((item, index) => index === editingAppointment ? { ...appointment } : item) : [...current, { ...appointment }]);
+    setEditingAppointment(-1); setAppointment({ ...initialAppointment(), resource_id: appointment.resource_id, date: form.validity_mode_snapshot === 'shooting_day' ? form.shooting_date : appointment.date }); setAppointmentErrors({});
+  };
+  const editAppointment = index => { setEditingAppointment(index); setAppointment({ ...saleBookings[index] }); setAppointmentErrors({}); };
+  const removeAppointment = index => { setSaleBookings(current => current.filter((_, itemIndex) => itemIndex !== index)); if (editingAppointment === index) { setEditingAppointment(-1); setAppointment(initialAppointment()); } };
+
   const submitPackage = async event => {
     event.preventDefault(); if (formBusy) return; setError('');
     const validation = validatePackageDraft(form); setFormErrors(validation);
-    if (Object.keys(validation).length) return;
+    const appointmentValidation = saleBookings.map(item => validatePackageAppointment(item, { unit: form.billing_unit, minimumMinutes: Number(selectedTemplate?.minimum_booking_minutes || 60), incrementMinutes: Number(selectedTemplate?.booking_increment_minutes || 15), startsAt: form.starts_at, expiresAt: expiryPreview === '—' ? '' : expiryPreview, shootingDate: form.validity_mode_snapshot === 'shooting_day' ? form.shooting_date : '', appointments: saleBookings, occupied: calendarBookings, editIndex: saleBookings.indexOf(item) })).find(item => Object.keys(item).length);
+    if (appointmentValidation) setAppointmentErrors(appointmentValidation);
+    if (Object.keys(validation).length || appointmentValidation || appointmentUsage.exceeded) return;
     setFormBusy(true);
-    const { error: requestError } = await supabase.request('/client-packages', { method: 'POST', body: JSON.stringify({
+    const { error: requestError } = await dataClient.request('/client-packages', { method: 'POST', body: JSON.stringify({
       client_id: Number(form.client_id), service_id: Number(form.service_id), name: form.name, billing_unit: form.billing_unit,
-      starts_at: form.starts_at, quantity: Number(form.quantity), validity_days: Number(form.validity_days),
+      starts_at: form.starts_at, shooting_date: form.shooting_date, quantity: Number(form.quantity), validity_days: Number(form.validity_days),
       expires_at: expiryPreview, payment_due_quantity: Number(form.payment_due_quantity), deposit_percent_snapshot: Number(form.deposit_percent_snapshot),
       overage_price_snapshot: Number(form.overage_price_snapshot), total_price: Number(form.total_price), paid_amount: Number(form.paid_amount),
-      payment_method: form.payment_method, notes: form.notes, idempotency_key: packageRequestKeyRef.current,
+      payment_method: form.payment_method, notes: form.notes, bookings: normalizePackageSaleAppointments(saleBookings), idempotency_key: packageRequestKeyRef.current,
     }) });
     setFormBusy(false);
     if (requestError) return setError(safeUiError(requestError, 'تعذر إضافة الباقة للعميل.'));
-    packageRequestKeyRef.current = ''; setForm({ ...initialForm, starts_at: today() }); setFormErrors({}); setFormOpen(false); setNotice('تمت إضافة الباقة للعميل وتسجيل الدفعة بنجاح.');
+    packageRequestKeyRef.current = ''; setForm({ ...initialForm, starts_at: today() }); setFormErrors({}); setSaleBookings([]); setAppointment(initialAppointment()); setFormOpen(false); setNotice(`تمت إضافة الباقة${saleBookings.length ? ` و${saleBookings.length} موعد` : ''} بنجاح.`);
     window.setTimeout(() => setNotice(''), 4000); await fetchData();
   };
 
@@ -244,12 +276,12 @@ export default function ERPPackages() {
     const endpoint = modal.type === 'hours' ? `/client-packages/${modal.pkg.id}/adjust` : modal.type === 'commercial' ? `/client-packages/${modal.pkg.id}/commercial-adjustment` : modal.type === 'archive' ? `/client-packages/${modal.pkg.id}/archive` : `/client-packages/${modal.pkg.id}`;
     const body = modal.type === 'hours' ? { target_quantity: Number(modal.target_quantity), reason: modal.reason } : modal.type === 'commercial' ? { target_total_price: modal.target_total_price, target_paid_amount: modal.target_paid_amount, method: modal.payment_method, reason: modal.reason } : modal.type === 'archive' ? { reason: modal.reason, hard_delete: packageCanHardDelete(modal.pkg), confirmation: modal.deleteConfirmation } : { name: modal.name, notes: modal.notes, starts_at: modal.starts_at, expires_at: modal.expires_at, status: modal.status, reason: modal.reason };
     if (modal.type === 'details') {
-      const result = await supabase.request(endpoint, { method: 'PATCH', body: JSON.stringify(body) });
+      const result = await dataClient.request(endpoint, { method: 'PATCH', body: JSON.stringify(body) });
       setModalBusy(false);
       if (result.error) return setError(safeUiError(result.error, 'تعذر حفظ تعديل الباقة.'));
       setModal(initialModal); setNotice('تم تحديث بيانات الباقة وتسجيل السبب في سجل المراجعة.'); await fetchData(); return;
     }
-    const { error: requestError } = await supabase.request(endpoint, { method: 'POST', body: JSON.stringify(body) });
+    const { error: requestError } = await dataClient.request(endpoint, { method: 'POST', body: JSON.stringify(body) });
     setModalBusy(false);
     if (requestError) return setError(safeUiError(requestError, 'تعذر حفظ التعديل.'));
     setModal(initialModal); setNotice(modal.type === 'archive' ? 'تم تطبيق الإجراء الآمن مع الاحتفاظ بالسجل المرتبط.' : 'تم حفظ التصحيح وإنشاء أثر مراجعة قابل للتتبع.');
@@ -263,8 +295,8 @@ export default function ERPPackages() {
     <section className="packages-filters"><label className="packages-search"><Search/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث باسم العميل أو الهاتف أو الباقة"/></label><label><Filter/> الحالة<select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">كل الحالات</option>{Object.entries(STATUS).map(([key, [label]]) => <option value={key} key={key}>{label}</option>)}</select></label><label>الخدمة<select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)}><option value="all">كل الخدمات</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label><label>الانتهاء<select value={expiryFilter} onChange={event => setExpiryFilter(event.target.value)}><option value="all">كل التواريخ</option><option value="14">خلال 14 يومًا</option><option value="expired">منتهية التاريخ</option></select></label><button className="packages-refresh" onClick={fetchData}><RefreshCw className={loading ? 'packages-spin' : ''}/></button></section>
     {loading ? <Empty icon={RefreshCw} title="جارٍ تحميل الباقات" text="نسترجع أرصدة الباقات المباعة من الخادم." spin/> : filtered.length ? <><div className="packages-table-wrap"><table><thead><tr><th>العميل والباقة</th><th>الرصيد</th><th>فترة الصلاحية</th><th>الحالة المالية</th><th>الحالة والإجراءات</th></tr></thead><tbody>{filtered.map(pkg => { const person = client(pkg.client_id); const sessionBookings = sessionBookingsFor(pkg); return <PackageRow key={pkg.id} pkg={pkg} person={person} canAdjust={canAdjust} canViewDetails={canViewDetails} canStart={canAssign && packageCanStartToday(pkg)} running={sessionBookings.some(booking => booking.status === 'in_progress')} status={effectiveStatus(pkg)} onStart={event => openSessionStart(pkg, person, event)} onDetails={event => openDetailsDialog(pkg, event)} onOwner={event => openPackageDialog('details', pkg, event)}/>; })}</tbody></table></div><div className="packages-mobile-list">{filtered.map(pkg => { const person = client(pkg.client_id); const sessionBookings = sessionBookingsFor(pkg); return <PackageCard key={pkg.id} pkg={pkg} person={person} canAdjust={canAdjust} canViewDetails={canViewDetails} canStart={canAssign && packageCanStartToday(pkg)} running={sessionBookings.some(booking => booking.status === 'in_progress')} status={effectiveStatus(pkg)} onStart={event => openSessionStart(pkg, person, event)} onDetails={event => openDetailsDialog(pkg, event)} onOwner={event => openPackageDialog('details', pkg, event)}/>; })}</div></> : <Empty icon={Archive} title="لا توجد باقات مطابقة" text="غيّر عوامل البحث أو أضف أول باقة مباعة."/>}
 
-    {formOpen && <AddPackageDialog dialogRef={addDialogRef} form={form} errors={formErrors} clients={visibleClients} serviceGroups={serviceGroups} selectedTemplate={selectedTemplate} dirty={formDirty} expiry={expiryPreview} busy={formBusy} clientSearch={clientSearch} childOpen={clientModalOpen} clientPickerTriggerRef={clientPickerTriggerRef} onClientSearch={setClientSearch} onOpenClient={() => setClientModalOpen(true)} onSelectClient={selectClient} onClose={closeAddDialog} onSubmit={submitPackage} onSelectService={selectService} onField={updateFormField} onReset={resetFormTemplate}/>}
-    <ERPClientModal isOpen={clientModalOpen} nested appearance="package-sale-dark" returnFocusRef={clientPickerTriggerRef} onClose={() => setClientModalOpen(false)} onSuccess={handleClientCreated}/>
+    {formOpen && <AddPackageDialog dialogRef={addDialogRef} form={form} errors={formErrors} clients={visibleClients} serviceGroups={serviceGroups} selectedTemplate={selectedTemplate} dirty={formDirty} expiry={expiryPreview} busy={formBusy} clientSearch={clientSearch} childOpen={clientModalOpen} clientPickerTriggerRef={clientPickerTriggerRef} onClientSearch={setClientSearch} onOpenClient={() => setClientModalOpen(true)} onSelectClient={selectClient} onClose={closeAddDialog} onSubmit={submitPackage} onSelectService={selectService} onField={updateFormField} onReset={resetFormTemplate} resetNotice={templateResetNotice} resources={resources} calendarBookings={calendarBookings} appointments={saleBookings} appointment={appointment} appointmentErrors={appointmentErrors} editingAppointment={editingAppointment} usage={appointmentUsage} onAppointment={setAppointment} onSaveAppointment={saveAppointment} onEditAppointment={editAppointment} onRemoveAppointment={removeAppointment}/>}
+    <ERPClientModal isOpen={clientModalOpen} nested returnFocusRef={clientPickerTriggerRef} onClose={() => setClientModalOpen(false)} onSuccess={handleClientCreated}/>
 
     {modal.open && <OwnerPackageDialog modal={modal} setModal={setModal} person={client(modal.pkg?.client_id)} dialogRef={actionDialogRef} busy={modalBusy} onClose={closeActionDialog} onSubmit={submitModal}/>}
     {details.open && <PackageDetailsDialog dialogRef={detailsDialogRef} details={details} onClose={closeDetailsDialog} onRetry={() => fetchDetails(details.pkg.id)} onTab={tab => setDetails(current => ({ ...current, tab }))}/>}
@@ -272,13 +304,20 @@ export default function ERPPackages() {
   </div>;
 }
 
-function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, selectedTemplate, dirty, expiry, busy, clientSearch, childOpen, clientPickerTriggerRef, onClientSearch, onOpenClient, onSelectClient, onClose, onSubmit, onSelectService, onField, onReset }) {
+function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, selectedTemplate, dirty, expiry, busy, clientSearch, childOpen, clientPickerTriggerRef, onClientSearch, onOpenClient, onSelectClient, onClose, onSubmit, onSelectService, onField, onReset, resetNotice, resources, calendarBookings, appointments, appointment, appointmentErrors, editingAppointment, usage, onAppointment, onSaveAppointment, onEditAppointment, onRemoveAppointment }) {
   const errorFor = field => errors[field] ? <small className="packages-field-error" role="alert">{errors[field]}</small> : null;
   const original = selectedTemplate ? templateToPackageDraft(selectedTemplate, { clientId: form.client_id, startsAt: form.starts_at }) : null;
   const financial = packageFinancialSummary({ total_price: form.total_price, paid_amount: form.paid_amount, overage_amount: 0 });
   const reelBalance = form.billing_unit === 'reel';
   const balanceUnit = reelBalance ? 'ريل' : 'ساعة';
   const balanceUnitPlural = reelBalance ? 'ريلز' : 'ساعات';
+  const daily = form.validity_mode_snapshot === 'shooting_day';
+  const [calendarAnchor, setCalendarAnchor] = useState(appointment.date || today());
+  const resourceName = id => resources.find(resource => Number(resource.id) === Number(id))?.name || 'مورد';
+  const occupiedForSelection = calendarBookings.filter(item => Number(item.resource_id) === Number(appointment.resource_id) && String(item.date).slice(0, 10) === appointment.date && ['confirmed', 'in_progress'].includes(item.status));
+  const calendarDays = useMemo(() => packageCalendarWeek(daily ? form.shooting_date : calendarAnchor, { startsAt: form.starts_at, expiresAt: expiry === '—' ? '' : expiry, shootingDate: daily ? form.shooting_date : '', resourceId: appointment.resource_id, occupied: calendarBookings, appointments }), [calendarAnchor, form.starts_at, form.shooting_date, expiry, daily, appointment.resource_id, calendarBookings, appointments]);
+  const calendarLabel = calendarDays.length ? `${calendarDays[0].date} — ${calendarDays.at(-1).date}` : '';
+  const chooseCalendarDay = day => { if (day.disabled) return; setCalendarAnchor(day.date); onAppointment(current => ({ ...current, date: day.date })); };
   return <div className="packages-modal packages-sale-modal" onMouseDown={event => { if (!childOpen && event.target === event.currentTarget) onClose(); }}>
     <form ref={dialogRef} className="packages-dialog large packages-sale-dialog" role="dialog" aria-modal="true" aria-labelledby="add-package-title" aria-describedby="add-package-description" aria-hidden={childOpen ? 'true' : undefined} inert={childOpen ? true : undefined} onSubmit={onSubmit} noValidate>
       <button type="button" aria-label="إغلاق نافذة إضافة الباقة" className="packages-close" onClick={onClose}><X/></button>
@@ -297,6 +336,7 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
         <div><span>القالب المختار</span><strong>{selectedTemplate.name}</strong><small>{dirty ? 'تم تعديل بعض شروط القالب' : 'مطابق لشروط القالب الأصلية'}</small></div>
         <dl><div><dt>الرصيد الأصلي</dt><dd>{original?.quantity} {original?.billing_unit === 'reel' ? 'ريل' : 'ساعة'}</dd></div><div><dt>الصلاحية</dt><dd>{original?.validity_days} يوم</dd></div><div><dt>سعر القالب</dt><dd>{money(original?.total_price)}</dd></div><div><dt>المقدم</dt><dd>{original?.deposit_percent_snapshot}%</dd></div><div><dt>حد الاستحقاق</dt><dd>{original?.payment_due_quantity} {original?.billing_unit === 'reel' ? 'ريل' : 'ساعة'}</dd></div><div><dt>سعر {original?.billing_unit === 'reel' ? 'الريل' : 'الساعة'} الإضافي</dt><dd>{money(original?.overage_price_snapshot)}</dd></div></dl>
         <button type="button" className="packages-reset-template" onClick={onReset} disabled={!dirty || busy}><TimerReset/> استعادة شروط القالب</button>
+        {resetNotice && <p className="packages-reset-outcome" role="status">{resetNotice}</p>}
       </section>}
       <div className="packages-sale-groups">
         <fieldset className="packages-sale-section packages-balance-section">
@@ -306,8 +346,7 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
             <label>وحدة الرصيد<select aria-invalid={Boolean(errors.billing_unit)} value={form.billing_unit} onChange={event => onField('billing_unit', event.target.value)}><option value="hour">ساعة</option><option value="reel">ريل</option></select>{errorFor('billing_unit')}</label>
             <label>رصيد الباقة ({balanceUnitPlural})<input aria-invalid={Boolean(errors.quantity)} type="number" min="0.01" step={reelBalance ? '1' : '0.01'} value={form.quantity} onChange={event => onField('quantity', event.target.value)}/><small className="packages-field-help">الرصيد الذي يصبح متاحًا للعميل بوحدة {balanceUnit}.</small>{errorFor('quantity')}</label>
             <label>حد الاستحقاق ({balanceUnit})<input aria-invalid={Boolean(errors.payment_due_quantity)} type="number" min="0" max={form.quantity || undefined} step={reelBalance ? '1' : '0.01'} value={form.payment_due_quantity} onChange={event => onField('payment_due_quantity', event.target.value)}/><small className="packages-field-help">يظهر تنبيه السداد عند بلوغ هذا الاستهلاك.</small>{errorFor('payment_due_quantity')}</label>
-            <label>تاريخ البداية<input aria-invalid={Boolean(errors.starts_at)} type="date" value={form.starts_at} onChange={event => onField('starts_at', event.target.value)}/>{errorFor('starts_at')}</label>
-            <label>مدة الصلاحية بالأيام<input aria-invalid={Boolean(errors.validity_days)} type="number" min="1" step="1" value={form.validity_days} onChange={event => onField('validity_days', event.target.value)}/><small className="packages-field-help">الانتهاء المحسوب: {expiry}</small>{errorFor('validity_days')}</label>
+            {daily ? <label className="packages-field-wide">يوم التصوير<input aria-invalid={Boolean(errors.shooting_date)} type="date" min={today()} value={form.shooting_date} onChange={event => onField('shooting_date', event.target.value)}/><small className="packages-daily-note">صالحة خلال يوم التصوير فقط.</small>{errorFor('shooting_date')}</label> : <><label>تاريخ البداية<input aria-invalid={Boolean(errors.starts_at)} type="date" min={today()} value={form.starts_at} onChange={event => onField('starts_at', event.target.value)}/>{errorFor('starts_at')}</label><label>مدة الصلاحية بالأيام<input aria-invalid={Boolean(errors.validity_days)} type="number" min="1" step="1" value={form.validity_days} onChange={event => onField('validity_days', event.target.value)}/><small className="packages-field-help">الانتهاء المحسوب: {expiry}</small>{errorFor('validity_days')}</label></>}
           </div>
         </fieldset>
         <fieldset className="packages-sale-section packages-payment-section">
@@ -321,9 +360,34 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
           </div>
         </fieldset>
       </div>
+      <fieldset className="packages-sale-section packages-appointments-section">
+        <legend><CalendarCheck2/><span><strong>المواعيد (اختيارية)</strong><small>أضف موعدًا أو أكثر، أو احفظ الباقة بدون موعد.</small></span></legend>
+        <div className="packages-inline-calendar" aria-label="تقويم توافر المواعيد">
+          <header>
+            <div><strong>اختر يومًا من التقويم</strong><small>{appointment.resource_id ? `الإشغال الخاص بـ ${resourceName(appointment.resource_id)}` : 'اختر المورد لعرض إشغاله بدقة'}</small></div>
+            {!daily && <nav aria-label="التنقل بين أسابيع التقويم"><button type="button" aria-label="الأسبوع السابق" onClick={() => setCalendarAnchor(current => shiftPackageCalendarDate(current, -7))}><ChevronRight/></button><span>{calendarLabel}</span><button type="button" aria-label="الأسبوع التالي" onClick={() => setCalendarAnchor(current => shiftPackageCalendarDate(current, 7))}><ChevronLeft/></button></nav>}
+          </header>
+          <div className={`packages-calendar-week${daily ? ' is-daily' : ''}`} role="group" aria-label={daily ? 'يوم التصوير المحدد' : `أيام الأسبوع ${calendarLabel}`}>
+            {calendarDays.map(day => { const value=new Date(`${day.date}T12:00:00Z`); const active=appointment.date===day.date; return <button type="button" key={day.date} className={`${active ? 'is-selected ' : ''}${day.occupiedCount ? 'has-bookings ' : ''}${day.plannedCount ? 'has-plan' : ''}`.trim()} disabled={day.disabled} aria-pressed={active} aria-label={`${new Intl.DateTimeFormat('ar-EG',{weekday:'long',day:'numeric',month:'long',timeZone:'UTC'}).format(value)}، ${day.occupiedCount} محجوز، ${day.plannedCount} في الخطة`} onClick={() => chooseCalendarDay(day)}><span>{new Intl.DateTimeFormat('ar-EG',{weekday:'short',timeZone:'UTC'}).format(value)}</span><strong>{new Intl.DateTimeFormat('ar-EG',{day:'numeric',month:'short',timeZone:'UTC'}).format(value)}</strong><small>{day.disabled ? 'خارج الصلاحية' : day.occupiedCount ? `${day.occupiedCount} محجوز` : 'متاح'}</small>{day.plannedCount > 0 && <em>{day.plannedCount} في الخطة</em>}</button>; })}
+          </div>
+          <div className="packages-calendar-legend" aria-hidden="true"><span><i className="available"/>متاح</span><span><i className="occupied"/>به حجوزات</span><span><i className="planned"/>ضمن الخطة</span></div>
+        </div>
+        <div className="packages-appointment-editor">
+          <label>المورد<select aria-invalid={Boolean(appointmentErrors.resource_id)} value={appointment.resource_id} onChange={event => onAppointment(current => ({ ...current, resource_id: event.target.value }))}><option value="">اختر المورد</option>{resources.map(resource => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></label>
+          <label>التاريخ<input aria-invalid={Boolean(appointmentErrors.date || appointmentErrors.past)} type="date" min={today()} value={daily ? form.shooting_date : appointment.date} disabled={daily} onChange={event => { setCalendarAnchor(event.target.value); onAppointment(current => ({ ...current, date: event.target.value })); }}/></label>
+          <label>من<input aria-invalid={Boolean(appointmentErrors.time || appointmentErrors.past)} type="time" min="12:00" step="900" value={appointment.start_time} onChange={event => onAppointment(current => ({ ...current, start_time: event.target.value }))}/></label>
+          <label>إلى<input aria-invalid={Boolean(appointmentErrors.time)} type="time" min="12:15" step="900" value={appointment.end_time} onChange={event => onAppointment(current => ({ ...current, end_time: event.target.value }))}/></label>
+          {reelBalance && <label>عدد الريلز<input type="number" min="1" step="1" value={appointment.requested_quantity} onChange={event => onAppointment(current => ({ ...current, requested_quantity: event.target.value }))}/></label>}
+          <button type="button" className="packages-add-appointment" onClick={onSaveAppointment}><Plus/>{editingAppointment >= 0 ? 'حفظ تعديل الموعد' : 'إضافة الموعد'}</button>
+        </div>
+        {Object.values(appointmentErrors).filter(Boolean).length > 0 && <div className="packages-appointment-error" role="alert">{Object.values(appointmentErrors).filter(Boolean)[0]}</div>}
+        {occupiedForSelection.length > 0 && <div className="packages-occupied" aria-live="polite"><strong>المحجوز في هذا اليوم:</strong>{occupiedForSelection.map(item => <span key={item.id}>{String(item.start_time).slice(0,5)}–{String(item.end_time).slice(0,5)} · {item.client_name}</span>)}</div>}
+        <div className="packages-appointment-list">{appointments.length ? appointments.map((item, index) => <article key={`${item.date}-${item.start_time}-${index}`}><CalendarClock/><div><strong>{item.date} · {String(item.start_time).slice(0,5)}–{String(item.end_time).slice(0,5)}</strong><span>{resourceName(item.resource_id)} · {appointmentDurationMinutes(item)} دقيقة{reelBalance ? ` · ${item.requested_quantity} ريل` : ''}</span><small>متاح مبدئيًا · يتم التأكيد عند الحفظ</small></div><div className="packages-appointment-actions"><button type="button" aria-label="تعديل الموعد" onClick={() => onEditAppointment(index)}><Edit3/></button><button type="button" aria-label="حذف الموعد" onClick={() => onRemoveAppointment(index)}><Trash2/></button></div></article>) : <p className="packages-appointment-empty">حفظ الباقة بدون موعد الآن.</p>}</div>
+        <div className={`packages-usage-strip ${usage.exceeded ? 'conflict' : ''}`} aria-live="polite"><span>المحدد <b>{usage.selected.toFixed(reelBalance ? 0 : 2)} {balanceUnitPlural}</b></span><span>المتبقي <b>{usage.remaining.toFixed(reelBalance ? 0 : 2)} {balanceUnitPlural}</b></span></div>
+      </fieldset>
       <label className="packages-sale-notes">ملاحظات البيع<textarea value={form.notes} onChange={event => onField('notes', event.target.value)} placeholder="ملاحظات الاتفاق أو شروط خاصة تظهر مع الباقة"/></label>
       <div className="packages-sale-summary"><div><span>الإجمالي</span><strong>{money(form.total_price)}</strong></div><div><span>المدفوع</span><strong>{money(form.paid_amount)}</strong></div><div><span>المتبقي</span><strong>{money(centsToMoney(financial.outstandingCents))}</strong></div><div><span>تاريخ الانتهاء</span><strong>{expiry}</strong></div></div>
-      <button className="packages-submit" disabled={busy}>{busy ? <RefreshCw className="packages-spin"/> : <PackagePlus/>}{busy ? 'جارٍ إنشاء الباقة والدفعة...' : 'حفظ الباقة وتسجيل الدفعة'}</button>
+      <button className="packages-submit" disabled={busy}>{busy ? <RefreshCw className="packages-spin"/> : <PackagePlus/>}{busy ? 'جارٍ إنشاء الباقة ومواعيدها...' : appointments.length ? `حفظ الباقة و${appointments.length} موعد` : 'حفظ الباقة بدون موعد'}</button>
     </form>
   </div>;
 }

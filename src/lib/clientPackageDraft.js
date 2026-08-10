@@ -3,6 +3,7 @@ import { moneyToCents, centsToMoney } from './businessFormat.js';
 const HOUR_TEMPLATE_UNITS = new Set(['hour', 'day', 'month']);
 const PROJECT_UNITS = new Set(['project', 'custom']);
 const PROJECT_CATEGORIES = new Set(['graphics', 'graphic', 'montage', 'editing', 'custom', 'custom_project', 'project']);
+const DAILY_CATEGORIES = new Set(['daily', 'daily package', 'day package', 'باقة يومية', 'باقات يومية', 'الباقات اليومية', 'باقة اليوم']);
 
 const text = value => String(value ?? '').trim();
 const number = value => Number(value ?? 0);
@@ -13,6 +14,8 @@ export const normalizedPackageUnit = service => {
   if (unit === 'reel' || (number(service?.total_reels) > 0 && number(service?.total_hours) <= 0)) return 'reel';
   return HOUR_TEMPLATE_UNITS.has(unit) ? 'hour' : '';
 };
+
+export const packageValidityMode = service => service?.package_validity_mode === 'shooting_day' || DAILY_CATEGORIES.has(text(service?.category).toLowerCase()) ? 'shooting_day' : 'rolling';
 
 export const isSellablePackageTemplate = service => {
   if (!service || Number(service.is_active ?? 1) !== 1 || Number(service.is_draft ?? 0) === 1 || service.archived_at) return false;
@@ -25,6 +28,7 @@ export const isSellablePackageTemplate = service => {
 };
 
 export const packageDraftExpiry = draft => {
+  if (draft?.validity_mode_snapshot === 'shooting_day') return /^\d{4}-\d{2}-\d{2}$/.test(text(draft?.shooting_date || draft?.starts_at)) ? text(draft?.shooting_date || draft?.starts_at) : '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text(draft?.starts_at))) return '';
   const date = new Date(`${draft.starts_at}T12:00:00`);
   const days = Number(draft.validity_days);
@@ -44,6 +48,8 @@ export const templateToPackageDraft = (service, { clientId = '', startsAt = '' }
     name: text(service.name),
     billing_unit: billingUnit,
     starts_at: startsAt,
+    shooting_date: '',
+    validity_mode_snapshot: packageValidityMode(service),
     validity_days: Math.max(1, Number.parseInt(service.validity_days || 90, 10)),
     quantity,
     payment_due_quantity: Math.max(0, paymentDue || 0),
@@ -54,6 +60,7 @@ export const templateToPackageDraft = (service, { clientId = '', startsAt = '' }
     payment_method: 'cash',
     notes: '',
   };
+  if (draft.validity_mode_snapshot === 'shooting_day') { draft.shooting_date = startsAt; draft.starts_at = startsAt; draft.validity_days = 1; }
   return { ...draft, expires_at: packageDraftExpiry(draft) };
 };
 
@@ -64,7 +71,7 @@ export const resetPackageDraftToTemplate = (draft, service, { startsAt = draft?.
 
 const comparableDraft = draft => ({
   name: text(draft?.name), billing_unit: text(draft?.billing_unit), quantity: number(draft?.quantity),
-  starts_at: text(draft?.starts_at), validity_days: number(draft?.validity_days),
+  starts_at: text(draft?.starts_at), shooting_date: text(draft?.shooting_date), validity_mode_snapshot: text(draft?.validity_mode_snapshot), validity_days: number(draft?.validity_days),
   payment_due_quantity: number(draft?.payment_due_quantity), deposit_percent_snapshot: number(draft?.deposit_percent_snapshot),
   overage_price_snapshot: money(draft?.overage_price_snapshot), total_price: money(draft?.total_price),
   paid_amount: money(draft?.paid_amount), payment_method: text(draft?.payment_method), notes: text(draft?.notes),
@@ -82,8 +89,11 @@ export const validatePackageDraft = draft => {
   if (!text(draft?.name)) errors.name = 'اسم الباقة مطلوب.';
   if (!['hour', 'reel'].includes(text(draft?.billing_unit))) errors.billing_unit = 'وحدة الرصيد غير صحيحة.';
   if (!(number(draft?.quantity) > 0)) errors.quantity = 'الرصيد يجب أن يكون أكبر من صفر.';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text(draft?.starts_at)) || !packageDraftExpiry(draft)) errors.starts_at = 'تاريخ البداية أو الصلاحية غير صحيح.';
-  if (!Number.isInteger(number(draft?.validity_days)) || number(draft?.validity_days) < 1) errors.validity_days = 'مدة الصلاحية يجب أن تكون يومًا واحدًا على الأقل.';
+  if (draft?.validity_mode_snapshot === 'shooting_day') { if (!/^\d{4}-\d{2}-\d{2}$/.test(text(draft?.shooting_date))) errors.shooting_date = 'حدد يوم التصوير.'; }
+  else {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text(draft?.starts_at)) || !packageDraftExpiry(draft)) errors.starts_at = 'تاريخ البداية أو الصلاحية غير صحيح.';
+    if (!Number.isInteger(number(draft?.validity_days)) || number(draft?.validity_days) < 1) errors.validity_days = 'مدة الصلاحية يجب أن تكون يومًا واحدًا على الأقل.';
+  }
   if (number(draft?.payment_due_quantity) < 0) errors.payment_due_quantity = 'حد الاستحقاق لا يمكن أن يكون سالبًا.';
   else if (number(draft?.payment_due_quantity) > number(draft?.quantity)) errors.payment_due_quantity = 'حد الاستحقاق لا يمكن أن يتجاوز رصيد الباقة.';
   if (number(draft?.deposit_percent_snapshot) < 0 || number(draft?.deposit_percent_snapshot) > 100) errors.deposit_percent_snapshot = 'نسبة المقدم يجب أن تكون بين 0 و100.';

@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { CalendarPlus, Trash2, DollarSign, X, CheckCircle, Truck, Pointer } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -49,9 +49,9 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const { data: bData } = await supabase.from('bookings').select('*');
-    const { data: cData } = await supabase.from('clients').select('id,name,color');
-    const { data: sData } = await supabase.from('services').select('*');
+    const { data: bData } = await dataClient.from('bookings').select('*');
+    const { data: cData } = await dataClient.from('clients').select('id,name,color');
+    const { data: sData } = await dataClient.from('services').select('*');
 
     if (bData) setBookings(bData);
     if (cData) {
@@ -95,7 +95,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
   };
 
   const handleClientCreated = async savedClient => {
-    const { data: refreshedClients, error } = await supabase.from('clients').select('id,name,color');
+    const { data: refreshedClients, error } = await dataClient.from('clients').select('id,name,color');
     const nextClients = error ? clients : (refreshedClients || []);
     const createdClient = resolveCreatedBookingClient(nextClients, savedClient);
     if (!createdClient?.id) throw new Error('تم إنشاء العميل لكن تعذر تحديد سجله الجديد.');
@@ -124,7 +124,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
   const handleCustomServiceSubmit = async payload => {
     if (customBusy) return;
     setCustomBusy(true); setCustomError('');
-    const { data, error } = await supabase.request('/projects/custom-service', { method: 'POST', body: JSON.stringify(payload) });
+    const { data, error } = await dataClient.request('/projects/custom-service', { method: 'POST', body: JSON.stringify(payload) });
     setCustomBusy(false);
     if (error) { setCustomError(error.message || 'تعذر إنشاء الخدمة المخصصة.'); return; }
     ['erpProjectsUpdated','erpBookingsUpdated','erpRequestsUpdated','erpFinanceUpdated','erpClientDashboardUpdated'].forEach(name => window.dispatchEvent(new CustomEvent(name, { detail: { project_id: data?.id, booking_id: data?.booking_id } })));
@@ -210,7 +210,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       });
     bookingsToInsert.forEach((b, i) => { if(i > 0) b.payment = 0; });
 
-    const client=clients.find(item=>String(item.id)===String(newBooking.client_id));const service=services.find(item=>item.name===newBooking.service);if(!client||!service)return alert('اختر عميلًا وخدمة مسجلين.');const results=[];for(const item of bookingsToInsert)results.push(await supabase.request('/bookings/request',{method:'POST',body:JSON.stringify({client_id:client.id,service_id:service.id,service:service.name,date:item.date,start_time:item.start_time,end_time:item.end_time,status:'confirmed',notes:item.notes})}));const error=results.find(result=>result.error)?.error;
+    const client=clients.find(item=>String(item.id)===String(newBooking.client_id));const service=services.find(item=>item.name===newBooking.service);if(!client||!service)return alert('اختر عميلًا وخدمة مسجلين.');const results=[];for(const item of bookingsToInsert)results.push(await dataClient.request('/bookings/request',{method:'POST',body:JSON.stringify({client_id:client.id,service_id:service.id,service:service.name,date:item.date,start_time:item.start_time,end_time:item.end_time,status:'confirmed',notes:item.notes})}));const error=results.find(result=>result.error)?.error;
 
     if (!error) {
       alert('تم إضافة الحجز بنجاح');

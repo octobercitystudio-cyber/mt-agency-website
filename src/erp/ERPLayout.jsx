@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Users, CalendarDays, DollarSign, LogOut, Home, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, Inbox, Package, FolderKanban, Fingerprint, FlaskConical, RotateCcw, CheckCircle2, AlertCircle, Landmark, TrendingUp } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import ERPSessionTimer from './ERPSessionTimer';
 import useExternalScripts from '../hooks/useExternalScripts';
 import useChangeSync from '../hooks/useChangeSync';
@@ -40,10 +40,10 @@ const ERPLayout = () => {
     if (!canOpenRequests) return setRequestsCount(0);
     const queries = [];
     if (canSeeOperationsRequests) {
-      queries.push(supabase.from('bookings').select('id,status'));
-      queries.push(supabase.from('reschedule_requests').select('id').eq('status', 'pending'));
+      queries.push(dataClient.from('bookings').select('id,status'));
+      queries.push(dataClient.from('reschedule_requests').select('id').eq('status', 'pending'));
     }
-    if (canSeeFinanceRequests) queries.push(supabase.from('payment_proofs').select('id').eq('status', 'pending'));
+    if (canSeeFinanceRequests) queries.push(dataClient.from('payment_proofs').select('id').eq('status', 'pending'));
     const results = await Promise.all(queries);
     let total = 0;
     results.forEach((result, index) => {

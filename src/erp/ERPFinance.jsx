@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { format, parseISO, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { AlertCircle, ChartNoAxesCombined, Layers3, PackageOpen, ShieldCheck, UserRound, X } from 'lucide-react';
@@ -67,11 +67,11 @@ const ERPFinance = () => {
 
     setLoadError('');
     const [financeResult, configResult, clientsResult, packagesResult, servicesResult] = await Promise.all([
-      supabase.request('/finance/entries', { method: 'GET' }),
-      supabase.from('app_config').select('*'),
-      supabase.from('clients').select('id,name,status').order('name'),
-      supabase.from('client_packages').select('id,client_id,name,status').order('name'),
-      supabase.from('services').select('id,name,is_active').eq('is_active', 1).order('name'),
+      dataClient.request('/finance/entries', { method: 'GET' }),
+      dataClient.from('app_config').select('*'),
+      dataClient.from('clients').select('id,name,status').order('name'),
+      dataClient.from('client_packages').select('id,client_id,name,status').order('name'),
+      dataClient.from('services').select('id,name,is_active').eq('is_active', 1).order('name'),
     ]);
     const fData = financeResult.data;
     const cData = configResult.data;
@@ -224,7 +224,7 @@ const ERPFinance = () => {
     if (txForm.entry_kind === 'income' && txForm.category === 'client_revenue' && !txForm.client_id) errors.push({ field: 'finance-client', message: 'اختر العميل المطلوب لإيراد العميل.' });
     if (txForm.entry_kind === 'income' && txForm.source_type && !txForm.source_id) errors.push({ field: 'finance-source', message: txForm.source_type === 'client_package' ? 'اختر الباقة المباعة المرتبطة.' : 'اختر الخدمة المرتبطة.' });
     if (errors.length) { setTxError(errors); return; }
-    const { error } = await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+    const { error } = await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
       entry_kind: txForm.entry_kind,
       category: txForm.category,
       client_id: txForm.entry_kind === 'income' && txForm.client_id ? Number(txForm.client_id) : null,
@@ -250,7 +250,7 @@ const ERPFinance = () => {
       return;
     }
     const amt = safeFloat(transferForm.amount);
-    const { error } = await supabase.request('/finance/transfer', { method: 'POST', body: JSON.stringify({ ...transferForm, amount: amt }) });
+    const { error } = await dataClient.request('/finance/transfer', { method: 'POST', body: JSON.stringify({ ...transferForm, amount: amt }) });
     if (error) return alert(error.message || 'تعذر تسجيل التحويل.');
 
     setModalState(s => ({...s, transfer: false}));
@@ -260,7 +260,7 @@ const ERPFinance = () => {
 
   const handleSettle = async (e) => {
     e.preventDefault();
-    await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+    await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
       entry_kind: 'settlement_out', category: 'partner_settlement',
       amount: safeFloat(settleForm.amount),
       method: settleForm.method,
@@ -275,7 +275,7 @@ const ERPFinance = () => {
 
   const handleAdvance = async (e) => {
     e.preventDefault();
-    await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+    await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
       entry_kind: 'advance_out', category: 'partner_advance',
       amount: safeFloat(advanceForm.amount),
       method: advanceForm.method,
@@ -290,7 +290,7 @@ const ERPFinance = () => {
 
   const handlePayAdvance = async (e) => {
     e.preventDefault();
-    await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+    await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
       entry_kind: 'advance_in', category: 'partner_advance_repayment',
       amount: safeFloat(payAdvanceForm.amount),
       method: payAdvanceForm.method,
@@ -321,9 +321,9 @@ const ERPFinance = () => {
 
     const exists = appConfig[adj_key] !== undefined;
     if (exists) {
-      await supabase.from('app_config').update({ value: new_adj.toString() }).eq('key', adj_key);
+      await dataClient.from('app_config').update({ value: new_adj.toString() }).eq('key', adj_key);
     } else {
-      await supabase.from('app_config').insert([{ key: adj_key, value: new_adj.toString() }]);
+      await dataClient.from('app_config').insert([{ key: adj_key, value: new_adj.toString() }]);
     }
 
     setModalState(s => ({...s, adjustPartner: false}));
@@ -350,7 +350,7 @@ const ERPFinance = () => {
     const type = diff > 0 ? 'إيراد' : 'مصروف';
     const amount = Math.abs(diff);
     
-    await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+    await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
       entry_kind: type === 'إيراد' ? 'income' : 'expense',
       category: 'wallet_adjustment',
       amount: amount,
@@ -422,7 +422,7 @@ const ERPFinance = () => {
     const replacementDistribution = Object.entries(ownerAction.replacementAllocation).map(([packageId, amount]) => ({ package_id: Number(packageId), amount }));
     const payload = { reason: ownerAction.reason, allocation_distribution: ownerAction.requiresAllocation ? distribution : undefined, replacement_distribution: ownerAction.requiresAllocation && ownerAction.mode === 'correct' ? replacementDistribution : undefined };
     if (ownerAction.mode === 'correct') Object.assign(payload, { amount: ownerAction.amount, method: ownerAction.method, detail: ownerAction.detail, date: ownerAction.date, entry_kind: entry.entry_kind });
-    const { error } = await supabase.request(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+    const { error } = await dataClient.request(endpoint, { method: 'POST', body: JSON.stringify(payload) });
     if (error) return setOwnerAction(state => ({ ...state, error: error.message || 'تعذر تنفيذ الإجراء.', requiresAllocation: state.requiresAllocation || error.code === 'ambiguous_legacy_allocation' }));
     closeOwnerAction(); await fetchData(true);
   };

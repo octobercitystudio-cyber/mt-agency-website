@@ -5,7 +5,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import arCalendarLocale from '@fullcalendar/core/locales/ar';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { safeUiError } from '../lib/uiError';
 import { formatBookingDate, formatDateTime12, formatEGP, formatTime12 } from '../lib/businessFormat';
@@ -49,10 +49,10 @@ export default function ERPRequests() {
     if (showLoading) setLoading(true);
     setError('');
     const queries = [
-      canOperations ? supabase.from('bookings').select('*').order('date', { ascending: true }) : Promise.resolve({ data: [] }),
-      canOperations ? supabase.from('reschedule_requests').select('*').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
-      canFinance ? supabase.from('payment_proofs').select('id,client_id,client_package_id,invoice_id,amount,original_name,mime_type,status,admin_note,created_at').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
-      supabase.from('clients').select('id,name,phone1,color'),
+      canOperations ? dataClient.from('bookings').select('*').order('date', { ascending: true }) : Promise.resolve({ data: [] }),
+      canOperations ? dataClient.from('reschedule_requests').select('*').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
+      canFinance ? dataClient.from('payment_proofs').select('id,client_id,client_package_id,invoice_id,amount,original_name,mime_type,status,admin_note,created_at').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
+      dataClient.from('clients').select('id,name,phone1,color'),
     ];
     const [bookingsResult, reschedulesResult, proofsResult, clientsResult] = await Promise.all(queries);
     const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult].find(result => result.error);
@@ -151,7 +151,7 @@ export default function ERPRequests() {
       path = `/payment-proofs/${decision.item.id}/decision`;
       payload = { action: decision.action, note: decision.note };
     }
-    const { error: requestError } = await supabase.request(path, { method: 'POST', body: JSON.stringify(payload) });
+    const { error: requestError } = await dataClient.request(path, { method: 'POST', body: JSON.stringify(payload) });
     setDecisionBusy(false);
     if (requestError) {
       if (requestError.code === 'booking_conflict' || requestError.status === 409) {

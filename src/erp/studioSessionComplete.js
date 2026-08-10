@@ -1,9 +1,9 @@
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { dispatchStudioSessionUpdates } from './studioSessionEvents';
 
 export async function completeStudioSession(session, { actualMinutes, actualReels = 0, reason = '', settlement = null, idempotencyKey = '', previewHash = '', expectedSessionVersion = null }) {
   if (!session?.booking_id) throw new Error('جلسة التصوير غير مرتبطة بحجز صالح.');
-  const { data, error } = await supabase.request(`/bookings/${session.booking_id}/session/complete`, {
+  const { data, error } = await dataClient.request(`/bookings/${session.booking_id}/session/complete`, {
     method: 'POST',
     body: JSON.stringify({
       actual_minutes: actualMinutes,

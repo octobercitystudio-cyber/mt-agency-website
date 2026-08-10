@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { Bell, AlertTriangle, Clock, CheckCircle, Package, Calendar } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { formatDateTime12, formatEGP } from '../lib/businessFormat';
@@ -11,10 +11,10 @@ export const useGlobalAlerts = () => {
   const fetchAlerts = async () => {
     setLoading(true);
     try {
-      const { data: clientsData } = await supabase.from('clients').select('name, dismissed_alerts, debt');
-      const { data: servicesData } = await supabase.from('services').select('*');
-      const { data: bookingsData } = await supabase.from('bookings').select('*').not('service', 'like', '%(مؤرشف)%');
-      const { data: remindersData } = await supabase.from('reminders').select('*').eq('status', 'pending');
+      const { data: clientsData } = await dataClient.from('clients').select('name, dismissed_alerts, debt');
+      const { data: servicesData } = await dataClient.from('services').select('*');
+      const { data: bookingsData } = await dataClient.from('bookings').select('*').not('service', 'like', '%(مؤرشف)%');
+      const { data: remindersData } = await dataClient.from('reminders').select('*').eq('status', 'pending');
 
       if (!clientsData || !servicesData || !bookingsData) return;
 
@@ -173,12 +173,12 @@ export const useGlobalAlerts = () => {
       return;
     }
 
-    const { data: cData } = await supabase.from('clients').select('id, dismissed_alerts').eq('name', clientName).single();
+    const { data: cData } = await dataClient.from('clients').select('id, dismissed_alerts').eq('name', clientName).single();
     if (cData) {
       const curr = cData.dismissed_alerts || "";
       if (!curr.includes(alertId)) {
         const newVal = curr ? `${curr},${alertId}` : alertId;
-        await supabase.from('clients').update({ dismissed_alerts: newVal }).eq('id', cData.id);
+        await dataClient.from('clients').update({ dismissed_alerts: newVal }).eq('id', cData.id);
       }
     }
     setAlerts(prev => prev.filter(a => a.id !== alertId));

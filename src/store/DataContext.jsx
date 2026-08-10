@@ -5,12 +5,12 @@ import './DataContext.css';
 const OFFICIAL_CONTACT_EMAIL = 'info@multitaskagency.com';
 const LOCAL_PREVIEW_SESSION_KEY = 'mt_agency_local_preview_session';
 const staffRoles = ['owner', 'admin', 'operations', 'finance', 'staff'];
-let supabasePromise;
+let dataClientPromise;
 let demoClientPromise;
 let publicDataClientPromise;
-const getSupabase = () => {
-  if (!supabasePromise) supabasePromise = import('../supabaseClient').then((module) => module.supabase);
-  return supabasePromise;
+const getDataClient = () => {
+  if (!dataClientPromise) dataClientPromise = import('../dataClient').then((module) => module.dataClient);
+  return dataClientPromise;
 };
 const getDemoClient = () => {
   if (!demoClientPromise) demoClientPromise = import('../lib/demoDataClient');
@@ -197,7 +197,7 @@ export const DataProvider = ({ children }) => {
   useEffect(() => {
     const loadData = async (dataClient) => {
       try {
-        const client = dataClient || await getSupabase();
+        const client = dataClient || await getDataClient();
         const { data, error } = await client
           .from('app_config')
           .select('value')
@@ -246,13 +246,13 @@ export const DataProvider = ({ children }) => {
     let disposed = false;
 
     const initializeAuthentication = async (authClient) => {
-      const supabase = authClient || await getSupabase();
+      const dataClient = authClient || await getDataClient();
       if (disposed) return;
 
       // Authentication is decided by the server role, never by localStorage.
       if (!restoredPreview) {
         const restoreRevision = authRevisionRef.current;
-        supabase.auth.getSession()
+        dataClient.auth.getSession()
           .then(({ data: { session } }) => {
             // A login may finish while this initial request is still in flight.
             // Never let that older response clear the newly authenticated user.
@@ -263,7 +263,7 @@ export const DataProvider = ({ children }) => {
           .finally(() => setIsAuthReady(true));
       }
 
-      const authListener = supabase.auth.onAuthStateChange((_event, session) => {
+      const authListener = dataClient.auth.onAuthStateChange((_event, session) => {
         applySession(session);
         setIsAuthReady(true);
       });
@@ -327,21 +327,21 @@ export const DataProvider = ({ children }) => {
     setSiteData(newSiteData);
     
     try {
-      const supabase = await getSupabase();
-      const { data, error: fetchErr } = await supabase.from('app_config').select('key').eq('key', 'website_data').maybeSingle();
+      const dataClient = await getDataClient();
+      const { data, error: fetchErr } = await dataClient.from('app_config').select('key').eq('key', 'website_data').maybeSingle();
       if (fetchErr) {
         alert("خطأ في الاتصال بقاعدة البيانات: " + fetchErr.message);
         return false;
       }
       
       if (data) {
-        const { error } = await supabase.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
+        const { error } = await dataClient.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
         if (error) {
           alert("فشل الحفظ في قاعدة البيانات: " + error.message);
           return false;
         }
       } else {
-        const { error } = await supabase.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
+        const { error } = await dataClient.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
         if (error) {
           alert("فشل الحفظ في قاعدة البيانات: " + error.message);
           return false;
@@ -360,21 +360,21 @@ export const DataProvider = ({ children }) => {
     setSiteData(newSiteData);
     
     try {
-      const supabase = await getSupabase();
-      const { data, error: fetchErr } = await supabase.from('app_config').select('key').eq('key', 'website_data').maybeSingle();
+      const dataClient = await getDataClient();
+      const { data, error: fetchErr } = await dataClient.from('app_config').select('key').eq('key', 'website_data').maybeSingle();
       if (fetchErr) {
         alert("خطأ في الاتصال بقاعدة البيانات: " + fetchErr.message);
         return false;
       }
       
       if (data) {
-        const { error } = await supabase.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
+        const { error } = await dataClient.from('app_config').update({ value: JSON.stringify(newSiteData) }).eq('key', 'website_data');
         if (error) {
           alert("فشل الحفظ في قاعدة البيانات: " + error.message);
           return false;
         }
       } else {
-        const { error } = await supabase.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
+        const { error } = await dataClient.from('app_config').insert([{ key: 'website_data', value: JSON.stringify(newSiteData) }]);
         if (error) {
           alert("فشل الحفظ في قاعدة البيانات: " + error.message);
           return false;
@@ -390,8 +390,8 @@ export const DataProvider = ({ children }) => {
 
   const login = async (username, password) => {
     authRevisionRef.current += 1;
-    const supabase = await getSupabase();
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const dataClient = await getDataClient();
+    const { data, error } = await dataClient.auth.signInWithPassword({
       email: username,
       password: password
     });
@@ -412,8 +412,8 @@ export const DataProvider = ({ children }) => {
       return;
     }
     authRevisionRef.current += 1;
-    const supabase = await getSupabase();
-    await supabase.auth.signOut();
+    const dataClient = await getDataClient();
+    await dataClient.auth.signOut();
   };
 
   const loginErp = async (username, password) => {
@@ -463,8 +463,8 @@ export const DataProvider = ({ children }) => {
       }
     }
 
-    const supabase = await getSupabase();
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const dataClient = await getDataClient();
+    const { data, error } = await dataClient.auth.signInWithPassword({
       email: username,
       identifier: username,
       password: password
@@ -486,8 +486,8 @@ export const DataProvider = ({ children }) => {
       return;
     }
     authRevisionRef.current += 1;
-    const supabase = await getSupabase();
-    await supabase.auth.signOut();
+    const dataClient = await getDataClient();
+    await dataClient.auth.signOut();
   };
 
   if (!isDataLoaded && !isPublicSurface()) {

@@ -4,7 +4,7 @@ import {
   AlertTriangle, ArrowLeft, BadgeDollarSign, CalendarDays, Check, Clock3,
   Eye, FileCheck2, PackageCheck, PlayCircle, Plus, RefreshCw, TimerOff, UserPlus, UsersRound,
 } from 'lucide-react';
-import { supabase, dataProvider } from '../supabaseClient';
+import { dataClient, dataProvider } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { attendanceApi } from '../lib/attendanceApi';
 import { formatBookingDate, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
@@ -54,15 +54,15 @@ const ERPDashboard = () => {
     const today = cairoDate(); const month = cairoMonth();
     try {
       const [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks, sessionEligibility] = await Promise.all([
-        supabase.from('bookings').select('*').eq('date', today).order('start_time', { ascending: true }),
-        supabase.from('bookings').select('id,client_name,status,date,start_time').in('status', ['pending', 'cancel_requested', 'late_cancel_requested']).limit(8),
-        supabase.from('reschedule_requests').select('id,booking_id,client_id,status,proposed_date,proposed_start_time').eq('status', 'pending').limit(8),
-        supabase.from('payment_proofs').select('id,client_id,amount,status,created_at').eq('status', 'pending').limit(8),
-        supabase.from('finance').select('id,type,entry_kind,amount,date').like('date', `${month}%`),
-        supabase.from('client_packages').select('id,name,billing_unit,status,starts_at,expires_at,total_price,overage_amount,paid_amount,source_invoice_id').eq('status', 'active'),
-        supabase.from('invoices').select('id,total,paid_amount,status'),
-        supabase.from('reminders').select('id,title,due_date,type,status,amount').eq('status', 'pending').order('due_date', { ascending: true }).limit(6),
-        supabase.request(`/studio-session-eligibility?date=${today}`),
+        dataClient.from('bookings').select('*').eq('date', today).order('start_time', { ascending: true }),
+        dataClient.from('bookings').select('id,client_name,status,date,start_time').in('status', ['pending', 'cancel_requested', 'late_cancel_requested']).limit(8),
+        dataClient.from('reschedule_requests').select('id,booking_id,client_id,status,proposed_date,proposed_start_time').eq('status', 'pending').limit(8),
+        dataClient.from('payment_proofs').select('id,client_id,amount,status,created_at').eq('status', 'pending').limit(8),
+        dataClient.from('finance').select('id,type,entry_kind,amount,date').like('date', `${month}%`),
+        dataClient.from('client_packages').select('id,name,billing_unit,status,starts_at,expires_at,total_price,overage_amount,paid_amount,source_invoice_id').eq('status', 'active'),
+        dataClient.from('invoices').select('id,total,paid_amount,status'),
+        dataClient.from('reminders').select('id,title,due_date,type,status,amount').eq('status', 'pending').order('due_date', { ascending: true }).limit(6),
+        dataClient.request(`/studio-session-eligibility?date=${today}`),
       ]);
       const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks, sessionEligibility].filter((result) => result.error);
       if (failedModules.length) console.error('Dashboard data modules unavailable:', failedModules.map((result) => result.error));

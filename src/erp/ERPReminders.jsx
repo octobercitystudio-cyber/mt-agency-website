@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { format, addMonths } from 'date-fns';
 import { ListTodo } from 'lucide-react';
 import ERPPageHero from './ERPPageHero';
@@ -44,7 +44,7 @@ const ERPReminders = () => {
       setLoading(true);
     }
     
-    const { data } = await supabase
+    const { data } = await dataClient
       .from('reminders')
       .select('*')
       .order('status', { ascending: false }) 
@@ -107,7 +107,7 @@ const ERPReminders = () => {
       notify_before: parseInt(formData.notify_before), is_recurring: formData.is_recurring,
       amount: parseFloat(formData.amount) || 0, status: 'pending'
     };
-    await supabase.from('reminders').insert([payload]);
+    await dataClient.from('reminders').insert([payload]);
     window.bootstrap.Modal.getInstance(document.getElementById('addTaskModal')).hide();
     fetchReminders();
   };
@@ -119,14 +119,14 @@ const ERPReminders = () => {
       notify_before: parseInt(formData.notify_before), is_recurring: formData.is_recurring,
       amount: parseFloat(formData.amount) || 0
     };
-    await supabase.from('reminders').update(payload).eq('id', editingId);
+    await dataClient.from('reminders').update(payload).eq('id', editingId);
     window.bootstrap.Modal.getInstance(document.getElementById('editReminderModal')).hide();
     fetchReminders();
   };
 
   const handlePaySubmit = async (e) => {
     e.preventDefault();
-    await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+    await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
       entry_kind: 'expense', category: 'reminder_expense',
       amount: payData.amount,
       method: payData.method,
@@ -140,10 +140,10 @@ const ERPReminders = () => {
     if (rem) {
       if (rem.is_recurring) {
         const nextDate = addMonths(new Date(rem.due_date), 1);
-        await supabase.from('reminders').update({ due_date: nextDate.toISOString() }).eq('id', rem.id);
+        await dataClient.from('reminders').update({ due_date: nextDate.toISOString() }).eq('id', rem.id);
         alert('تم صرف المبلغ وتجديد التذكير للشهر القادم تلقائياً!');
       } else {
-        await supabase.from('reminders').update({ status: 'completed' }).eq('id', rem.id);
+        await dataClient.from('reminders').update({ status: 'completed' }).eq('id', rem.id);
         alert('تم صرف المبلغ وإنجاز التذكير بنجاح!');
       }
     }
@@ -156,16 +156,16 @@ const ERPReminders = () => {
     if (!window.confirm('هل متأكد من إنجاز هذه المهمة؟')) return;
     if (rem.is_recurring) {
       const nextDate = addMonths(new Date(rem.due_date), 1);
-      await supabase.from('reminders').update({ due_date: nextDate.toISOString() }).eq('id', rem.id);
+      await dataClient.from('reminders').update({ due_date: nextDate.toISOString() }).eq('id', rem.id);
       alert('تم إنجاز المهمة وتجديدها للشهر القادم تلقائياً!');
     } else {
-      await supabase.from('reminders').update({ status: 'completed' }).eq('id', rem.id);
+      await dataClient.from('reminders').update({ status: 'completed' }).eq('id', rem.id);
     }
     fetchReminders();
   };
 
   const handleReopen = async rem => {
-    await supabase.from('reminders').update({ status: 'pending' }).eq('id', rem.id);
+    await dataClient.from('reminders').update({ status: 'pending' }).eq('id', rem.id);
     fetchReminders(true);
   };
 

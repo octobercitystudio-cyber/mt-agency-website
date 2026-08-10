@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Cropper from 'cropperjs';
 import { Settings } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
 import OwnerRecordActions from './OwnerRecordActions';
@@ -54,10 +54,10 @@ const ERPSettings = () => {
   const [userState, setUserState] = useState({ busy: false, type: '', message: '' });
 
   const fetchData = async () => {
-    const { data: sData } = await supabase.from('services').select('*').order('id', { ascending: true });
+    const { data: sData } = await dataClient.from('services').select('*').order('id', { ascending: true });
     if (sData) setServices(sData);
 
-    const { data: cfgData } = await supabase.from('app_config').select('*');
+    const { data: cfgData } = await dataClient.from('app_config').select('*');
     if (cfgData) {
       let cfgObj = { ...p_cfg };
       cfgData.forEach(item => {
@@ -69,7 +69,7 @@ const ERPSettings = () => {
     }
     
     if (isOwner) {
-      const [{ data: uData, error: usersError }, { data: resourceData }] = await Promise.all([supabase.request('/users', { method: 'GET' }), supabase.from('resources').select('*').order('id')]);
+      const [{ data: uData, error: usersError }, { data: resourceData }] = await Promise.all([dataClient.request('/users', { method: 'GET' }), dataClient.from('resources').select('*').order('id')]);
       if (usersError) setUserState({ busy: false, type: 'error', message: usersError.message || 'تعذر تحميل حسابات النظام.' });
       else setUsers(uData || []);
       setResources(resourceData || []);
@@ -88,9 +88,9 @@ const ERPSettings = () => {
     btn.disabled = true;
 
     for (const [key, value] of Object.entries(p_cfg)) {
-      const { data } = await supabase.from('app_config').select('id').eq('key', key).single();
-      if (data) await supabase.from('app_config').update({ value: value.toString() }).eq('key', key);
-      else await supabase.from('app_config').insert([{ key, value: value.toString() }]);
+      const { data } = await dataClient.from('app_config').select('id').eq('key', key).single();
+      if (data) await dataClient.from('app_config').update({ value: value.toString() }).eq('key', key);
+      else await dataClient.from('app_config').insert([{ key, value: value.toString() }]);
     }
     
     setTimeout(() => {
@@ -102,9 +102,9 @@ const ERPSettings = () => {
 
   const handleSaveBackupFreq = async (e) => {
     e.preventDefault();
-    const { data } = await supabase.from('app_config').select('id').eq('key', 'backup_freq').single();
-    if (data) await supabase.from('app_config').update({ value: backupFreq }).eq('key', 'backup_freq');
-    else await supabase.from('app_config').insert([{ key: 'backup_freq', value: backupFreq }]);
+    const { data } = await dataClient.from('app_config').select('id').eq('key', 'backup_freq').single();
+    if (data) await dataClient.from('app_config').update({ value: backupFreq }).eq('key', 'backup_freq');
+    else await dataClient.from('app_config').insert([{ key: 'backup_freq', value: backupFreq }]);
     alert('تم تحديث إعدادات النسخ الاحتياطي بنجاح');
   };
 
@@ -118,7 +118,7 @@ const ERPSettings = () => {
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الحفظ...';
     
-    const { error } = await supabase.request('/services', { method: 'POST', body: JSON.stringify({
+    const { error } = await dataClient.request('/services', { method: 'POST', body: JSON.stringify({
       name: addForm.name,
       category: resolvedCategory.category,
       billing_unit: addForm.billing_unit,
@@ -155,7 +155,7 @@ const ERPSettings = () => {
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الحفظ...';
     
-    const { error } = await supabase.request(`/services/${editForm.id}`, { method: 'PATCH', body: JSON.stringify({
+    const { error } = await dataClient.request(`/services/${editForm.id}`, { method: 'PATCH', body: JSON.stringify({
       name: editForm.name,
       category: resolvedCategory.category,
       billing_unit: editForm.billing_unit,
@@ -194,7 +194,7 @@ const ERPSettings = () => {
       return;
     }
     setUserState({ busy: true, type: '', message: '' });
-    const { error } = await supabase.request('/users', { method: 'POST', body: JSON.stringify({
+    const { error } = await dataClient.request('/users', { method: 'POST', body: JSON.stringify({
       full_name: addUserForm.full_name, email: addUserForm.email || null, phone: addUserForm.phone || null,
       password: addUserForm.password, role: addUserForm.role,
     }) });
@@ -204,7 +204,7 @@ const ERPSettings = () => {
     }
     setAddUserForm({ full_name: '', email: '', phone: '', password: '', role: 'staff' });
     setUserState({ busy: false, type: 'success', message: 'تم إنشاء الحساب بأمان.' });
-    const { data } = await supabase.request('/users', { method: 'GET' });
+    const { data } = await dataClient.request('/users', { method: 'GET' });
     setUsers(data || []);
     window.setTimeout(() => window.bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide(), 700);
   };
@@ -212,7 +212,7 @@ const ERPSettings = () => {
   const updateSystemUser = async (id, values) => {
     if (!isOwner) return;
     setUserState({ busy: true, type: '', message: '' });
-    const { error } = await supabase.request(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(values) });
+    const { error } = await dataClient.request(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(values) });
     if (error) {
       setUserState({ busy: false, type: 'error', message: error.message || 'تعذر تحديث الحساب.' });
       return;
@@ -237,7 +237,7 @@ const ERPSettings = () => {
 
   const saveResource = async event => {
     event.preventDefault(); if (!isOwner || !resourceForm.name.trim()) return;
-    const query = resourceForm.id ? supabase.from('resources').update({ name: resourceForm.name.trim(), type: resourceForm.type }).eq('id', resourceForm.id) : supabase.from('resources').insert([{ name: resourceForm.name.trim(), type: resourceForm.type, is_active: 1 }]);
+    const query = resourceForm.id ? dataClient.from('resources').update({ name: resourceForm.name.trim(), type: resourceForm.type }).eq('id', resourceForm.id) : dataClient.from('resources').insert([{ name: resourceForm.name.trim(), type: resourceForm.type, is_active: 1 }]);
     const { error } = await query;
     if (error) return setUserState({ busy: false, type: 'error', message: error.message || 'تعذر حفظ الاستديو/المورد.' });
     setResourceForm({ id: null, name: '', type: 'studio' }); await fetchData();
@@ -300,9 +300,9 @@ const ERPSettings = () => {
       reader.onloadend = async function() {
         const base64data = reader.result;
         
-        const { data } = await supabase.from('app_config').select('id').eq('key', 'system_logo').single();
-        if (data) await supabase.from('app_config').update({ value: base64data }).eq('key', 'system_logo');
-        else await supabase.from('app_config').insert([{ key: 'system_logo', value: base64data }]);
+        const { data } = await dataClient.from('app_config').select('id').eq('key', 'system_logo').single();
+        if (data) await dataClient.from('app_config').update({ value: base64data }).eq('key', 'system_logo');
+        else await dataClient.from('app_config').insert([{ key: 'system_logo', value: base64data }]);
         
         setCurrentLogo(base64data);
         btn.innerHTML = '<i class="fas fa-check me-2"></i> تم التحديث بنجاح';

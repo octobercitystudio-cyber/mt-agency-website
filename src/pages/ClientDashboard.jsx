@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import {
   CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign,
   Clock3, FileText, FileUp, FolderKanban, History, Home, LogOut, RefreshCw, RotateCcw, Send, X, XCircle
@@ -146,16 +146,16 @@ export default function ClientDashboard() {
       const preview = createLocalClientPreview();
       const previewClientId = 1;
       const [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, offersResult, invoicesResult, projectsResult, settlementsResult] = await Promise.all([
-        supabase.from('clients').select('*').eq('id', previewClientId).single(),
-        supabase.from('client_packages').select('*').eq('client_id', previewClientId).order('expires_at', { ascending: true }),
-        supabase.from('bookings').select('*').eq('client_id', previewClientId).order('date', { ascending: false }),
-        supabase.from('payments').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
-        supabase.from('payment_proofs').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
-        supabase.from('services').select('*').eq('is_active', 1),
-        supabase.request('/client/offers', { method: 'GET' }),
-        supabase.from('invoices').select('*').eq('client_id', previewClientId).order('issued_at', { ascending: false }),
-        supabase.request('/client/projects', { method: 'GET' }),
-        supabase.from('session_settlements').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
+        dataClient.from('clients').select('*').eq('id', previewClientId).single(),
+        dataClient.from('client_packages').select('*').eq('client_id', previewClientId).order('expires_at', { ascending: true }),
+        dataClient.from('bookings').select('*').eq('client_id', previewClientId).order('date', { ascending: false }),
+        dataClient.from('payments').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
+        dataClient.from('payment_proofs').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
+        dataClient.from('services').select('*').eq('is_active', 1),
+        dataClient.request('/client/offers', { method: 'GET' }),
+        dataClient.from('invoices').select('*').eq('client_id', previewClientId).order('issued_at', { ascending: false }),
+        dataClient.request('/client/projects', { method: 'GET' }),
+        dataClient.from('session_settlements').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
       ]);
       const availableServices = servicesResult.data || preview.services;
       const studioServiceIds = new Set(availableServices.filter(isStudioPackageService).map(service => Number(service.id)));
@@ -174,16 +174,16 @@ export default function ClientDashboard() {
       return;
     }
     const [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, offersResult, invoicesResult, projectsResult, settlementsResult] = await Promise.all([
-      supabase.from('clients').select('*').eq('id', clientId).single(),
-      supabase.from('client_packages').select('*').eq('client_id', clientId).order('expires_at', { ascending: true }),
-      supabase.from('bookings').select('*').eq('client_id', clientId).order('date', { ascending: false }),
-      supabase.from('payments').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
-      supabase.from('payment_proofs').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
-      supabase.from('services').select('*').eq('is_active', 1),
-      supabase.request('/client/offers', { method: 'GET' }),
-      supabase.from('invoices').select('*').eq('client_id', clientId).order('issued_at', { ascending: false }),
-      supabase.request('/client/projects', { method: 'GET' }),
-      supabase.from('session_settlements').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
+      dataClient.from('clients').select('*').eq('id', clientId).single(),
+      dataClient.from('client_packages').select('*').eq('client_id', clientId).order('expires_at', { ascending: true }),
+      dataClient.from('bookings').select('*').eq('client_id', clientId).order('date', { ascending: false }),
+      dataClient.from('payments').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
+      dataClient.from('payment_proofs').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
+      dataClient.from('services').select('*').eq('is_active', 1),
+      dataClient.request('/client/offers', { method: 'GET' }),
+      dataClient.from('invoices').select('*').eq('client_id', clientId).order('issued_at', { ascending: false }),
+      dataClient.request('/client/projects', { method: 'GET' }),
+      dataClient.from('session_settlements').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
     ]);
     const error = [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, offersResult, invoicesResult, projectsResult, settlementsResult].find(result => result.error)?.error;
     if (error) {
@@ -274,7 +274,7 @@ export default function ClientDashboard() {
       return showNotice('error', `راجع الوقت: أقل حجز ${minimum} دقيقة، والزيادة كل ${increment} دقيقة، ${BUSINESS_HOURS_LABEL}.`);
     }
     setBookingBusy(true);
-    const { error } = await supabase.request('/bookings/request', {
+    const { error } = await dataClient.request('/bookings/request', {
       method: 'POST',
       body: JSON.stringify({
         client_package_id: Number(pkg.id), service_id: service?.id || pkg.service_id,
@@ -306,7 +306,7 @@ export default function ClientDashboard() {
       return;
     }
     setActionBusy(`reschedule-${reschedule.booking.id}`);
-    const { error } = await supabase.request('/reschedule-requests', {
+    const { error } = await dataClient.request('/reschedule-requests', {
       method: 'POST', body: JSON.stringify({ booking_id: reschedule.booking.id, date: reschedule.date,
         start_time: reschedule.start_time, end_time: reschedule.end_time, reason: reschedule.reason }),
     });
@@ -321,7 +321,7 @@ export default function ClientDashboard() {
     const reason = window.prompt('سبب الإلغاء (اختياري):') ?? null;
     if (reason === null) return;
     setActionBusy(`cancel-${booking.id}`);
-    const { error } = await supabase.request(`/bookings/${booking.id}/cancel-request`, {
+    const { error } = await dataClient.request(`/bookings/${booking.id}/cancel-request`, {
       method: 'POST', body: JSON.stringify({ reason }),
     });
     setActionBusy(null);
@@ -333,7 +333,7 @@ export default function ClientDashboard() {
   const decideAlternative = async (booking, action) => {
     if (isLocalPreview) return showNotice('success', action === 'accept' ? 'تمت محاكاة قبول الموعد البديل.' : 'تمت محاكاة طلب موعد آخر.');
     setActionBusy(`alternative-${action}-${booking.id}`);
-    const { error } = await supabase.request(`/bookings/${booking.id}/alternative-decision`, { method: 'POST', body: JSON.stringify({ action }) });
+    const { error } = await dataClient.request(`/bookings/${booking.id}/alternative-decision`, { method: 'POST', body: JSON.stringify({ action }) });
     setActionBusy(null);
     if (error) return showNotice('error', error.message || 'تعذر حفظ قرار الموعد البديل.');
     showNotice('success', action === 'accept' ? 'تم تأكيد الموعد البديل.' : 'تم إبلاغ الإدارة بطلب موعد آخر.');
@@ -350,7 +350,7 @@ export default function ClientDashboard() {
     body.append('proof', proofForm.file);
     body.append(targetType === 'package' ? 'client_package_id' : 'invoice_id', targetId);
     setProofBusy(true);
-    const { error } = await supabase.request('/payment-proofs', { method: 'POST', body });
+    const { error } = await dataClient.request('/payment-proofs', { method: 'POST', body });
     setProofBusy(false);
     if (error) return showNotice('error', error.message || 'تعذر رفع إثبات التحويل.');
     setProofForm({ target: '', amount: '', file: null });
@@ -376,7 +376,7 @@ export default function ClientDashboard() {
     offerTriggerRef.current = event.currentTarget;
     setOfferDetail({ id: offer.id });
     setOfferDetailBusy(true);
-    const { data, error } = await supabase.request(`/offers/${offer.id}`, { method: 'GET' });
+    const { data, error } = await dataClient.request(`/offers/${offer.id}`, { method: 'GET' });
     setOfferDetailBusy(false);
     if (error) {
       setOfferDetail(null);
@@ -412,7 +412,7 @@ export default function ClientDashboard() {
   const acceptOffer = async () => {
     if (!offerDetail) return;
     setAcceptBusy(true);
-    const { error } = await supabase.request(`/offers/${offerDetail.id}/accept`, { method: 'POST', body: '{}' });
+    const { error } = await dataClient.request(`/offers/${offerDetail.id}/accept`, { method: 'POST', body: '{}' });
     setAcceptBusy(false);
     if (error) return showNotice('error', error.message || 'تعذر قبول العرض.');
     closeOfferDetail();

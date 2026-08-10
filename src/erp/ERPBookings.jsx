@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send, CalendarClock } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar as arDateLocale } from 'date-fns/locale';
@@ -122,9 +122,9 @@ const ERPBookings = () => {
       setLoading(true);
     }
     
-    const { data: bData } = await supabase.from('bookings').select('*').order('date', { ascending: false });
-    const { data: cData } = await supabase.from('clients').select('id,name,color');
-    const { data: sData } = await supabase.from('services').select('*');
+    const { data: bData } = await dataClient.from('bookings').select('*').order('date', { ascending: false });
+    const { data: cData } = await dataClient.from('clients').select('id,name,color');
+    const { data: sData } = await dataClient.from('services').select('*');
 
     if (bData) {
       setBookings(bData);
@@ -211,7 +211,7 @@ const ERPBookings = () => {
   const submitDecision = async (booking, action, extra = {}) => {
     setDecisionBusy(`${action}-${booking.id}`);
     setDecisionError('');
-    const { error } = await supabase.request(`/bookings/${booking.id}/decision`, {
+    const { error } = await dataClient.request(`/bookings/${booking.id}/decision`, {
       method: 'POST',
       body: JSON.stringify({ action, ...extra }),
     });
@@ -287,7 +287,7 @@ const ERPBookings = () => {
   const cancelBooking = async (id) => {
     if (!window.confirm('هل تريد إلغاء هذا الموعد؟ سيظل محفوظًا في السجل ولن تُخصم ساعات منه.')) return;
     setDecisionBusy(`cancel-${id}`);
-    const { error } = await supabase.request(`/bookings/${id}/admin-cancel`, {
+    const { error } = await dataClient.request(`/bookings/${id}/admin-cancel`, {
       method: 'POST',
       body: JSON.stringify({ charge: false, reason: 'إلغاء إداري دون خصم' }),
     });
@@ -432,7 +432,7 @@ const ERPBookings = () => {
     const service = services.find(item => item.name === newBooking.service);
     if (!client || !service) return alert('اختر عميلًا وخدمة مسجلين.');
     const results = [];
-    for (const item of bookingsToInsert) results.push(await supabase.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_id: client.id, service_id: service.id, service: service.name, date: item.date, start_time: item.start_time, end_time: item.end_time, status: 'confirmed', notes: item.notes }) }));
+    for (const item of bookingsToInsert) results.push(await dataClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_id: client.id, service_id: service.id, service: service.name, date: item.date, start_time: item.start_time, end_time: item.end_time, status: 'confirmed', notes: item.notes }) }));
     const error = results.find(result => result.error)?.error;
     const insertedBookings = results.filter(result => !result.error).map(result => result.data);
 
@@ -440,7 +440,7 @@ const ERPBookings = () => {
       // Record money only after every booking row has been accepted by the server.
       // This prevents a rejected/conflicting appointment from creating false revenue.
       if (newBooking.paid > 0) {
-        await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+        await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
           entry_kind: 'income', category: 'client_revenue', client_id: client.id,
           source_type: 'service', source_id: service.id,
           amount: newBooking.paid,
@@ -450,9 +450,9 @@ const ERPBookings = () => {
           entity: 'الشركة'
         }) });
 
-        const { data: clientData } = await supabase.from('clients').select('id, points').eq('name', newBooking.client_name).single();
+        const { data: clientData } = await dataClient.from('clients').select('id, points').eq('name', newBooking.client_name).single();
         if (clientData) {
-          const { data: cfg } = await supabase.from('app_config').select('key, value');
+          const { data: cfg } = await dataClient.from('app_config').select('key, value');
           let pSpent = 100, pEarn = 1;
           cfg?.forEach(c => {
             if (c.key === 'points_egp_spent') pSpent = Number(c.value) || 100;
@@ -460,7 +460,7 @@ const ERPBookings = () => {
           });
           const pointsToAdd = Math.floor((newBooking.paid / pSpent) * pEarn);
           const newPoints = (clientData.points || 0) + pointsToAdd;
-          await supabase.from('clients').update({ points: newPoints, points_updated_at: new Date().toISOString().split('T')[0] }).eq('id', clientData.id);
+          await dataClient.from('clients').update({ points: newPoints, points_updated_at: new Date().toISOString().split('T')[0] }).eq('id', clientData.id);
         }
       }
 
@@ -486,7 +486,7 @@ const ERPBookings = () => {
              });
         });
         if (remindersToInsert.length > 0) {
-          await supabase.from('reminders').insert(remindersToInsert);
+          await dataClient.from('reminders').insert(remindersToInsert);
         }
       }
 

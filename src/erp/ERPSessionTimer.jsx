@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StopCircle } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
 import ERPStopSessionDialog from './ERPStopSessionDialog';
 import { canRoleCompleteStudioSession } from './studioSessionPermissions';
@@ -14,8 +14,8 @@ export default function ERPSessionTimer({ role }) {
   const stopButtonRef = useRef(null);
 
   const loadSessions = useCallback(async () => {
-    if (typeof supabase.request !== 'function') return;
-    const { data, error: requestError } = await supabase.request('/studio-sessions/active', { method: 'GET' });
+    if (typeof dataClient.request !== 'function') return;
+    const { data, error: requestError } = await dataClient.request('/studio-sessions/active', { method: 'GET' });
     if (requestError) return;
     const items = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
     setSessions(items);

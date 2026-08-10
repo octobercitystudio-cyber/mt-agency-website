@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, BanknoteArrowDown, BanknoteArrowUp, CircleDollarSign, Eye, Landmark, Plus, ReceiptText, ShieldCheck, X } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
 import ERPPageHero from './ERPPageHero';
 import { allocateFormationExpense, toCents } from '../lib/formationFundMath';
@@ -51,7 +51,7 @@ const Dialog = ({ title, description, onClose, children }) => {
 
 const VoidEntryForm = ({ entry, onClose, onVoided }) => {
   const [reason, setReason] = useState(''); const [saving, setSaving] = useState(false); const [error, setError] = useState('');
-  const submit = async event => { event.preventDefault(); if (reason.trim().length < 3) return setError('اكتب سبب الإبطال بوضوح.'); setSaving(true); setError(''); const { error: requestError } = await supabase.request(`/formation-fund/entries/${entry.id}/void`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); setSaving(false); if (requestError) return setError(requestError.message); onVoided(); };
+  const submit = async event => { event.preventDefault(); if (reason.trim().length < 3) return setError('اكتب سبب الإبطال بوضوح.'); setSaving(true); setError(''); const { error: requestError } = await dataClient.request(`/formation-fund/entries/${entry.id}/void`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); setSaving(false); if (requestError) return setError(requestError.message); onVoided(); };
   return <form className="formation-form formation-void-form" onSubmit={submit}>
     <div className="formation-void-summary"><span className={`formation-type formation-type--${entry.entry_type}`}>{entry.entry_type === 'contribution' ? 'مساهمة' : 'مصروف'}</span><div><strong>{entry.title}</strong><small>{entry.entry_date} · {entry.entry_type === 'contribution' ? entry.founder_name : categoryLabels[entry.category] || 'مصروف تأسيس'}</small></div><b>{formatMoney(entry.amount)}</b></div>
     <div className="formation-void-impact"><AlertTriangle /><p>{entry.entry_type === 'expense' ? 'سيُحرّر الإبطال المبلغ الموزع ويعيده إلى أرصدة المؤسسين، مع الاحتفاظ بالقيد في السجل.' : 'لن يُسمح بالإبطال إذا كانت هذه المساهمة مستخدمة بالفعل لتمويل مصروفات قائمة.'}</p></div>
@@ -64,7 +64,7 @@ const VoidEntryForm = ({ entry, onClose, onVoided }) => {
 const ContributionForm = ({ founders, selectedFounder, onClose, onSaved }) => {
   const [form, setForm] = useState({ founder_id: selectedFounder || founders[0]?.id || '', amount: '', title: 'زيادة رصيد صندوق التأسيس', entry_date: today(), payment_method: 'تحويل بنكي', reference: '', note: '' });
   const [saving, setSaving] = useState(false); const [error, setError] = useState('');
-  const submit = async event => { event.preventDefault(); setSaving(true); setError(''); const { error: requestError } = await supabase.request('/formation-fund/contributions', { method: 'POST', body: JSON.stringify(form) }); setSaving(false); if (requestError) return setError(requestError.message); onSaved(); };
+  const submit = async event => { event.preventDefault(); setSaving(true); setError(''); const { error: requestError } = await dataClient.request('/formation-fund/contributions', { method: 'POST', body: JSON.stringify(form) }); setSaving(false); if (requestError) return setError(requestError.message); onSaved(); };
   return <form className="formation-form" onSubmit={submit}>
     <div className="formation-form-grid"><label>المؤسس<select value={form.founder_id} onChange={e => setForm({ ...form, founder_id: Number(e.target.value) })}>{founders.map(founder => <option key={founder.id} value={founder.id}>{founder.name_ar}</option>)}</select></label><label>قيمة المساهمة<input type="number" min="0.01" step="0.01" required value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} inputMode="decimal" /></label></div>
     <label>البيان<input required maxLength="180" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
@@ -79,7 +79,7 @@ const ExpenseForm = ({ founders, pooledAvailable, onClose, onSaved }) => {
   const [manual, setManual] = useState(Object.fromEntries(founders.map(founder => [founder.id, '']))); const [saving, setSaving] = useState(false); const [error, setError] = useState('');
   const preview = useMemo(() => form.allocation_mode === 'proportional' ? allocateFormationExpense(form.amount, founders) : founders.map(founder => ({ founder_id: founder.id, amount: Number(manual[founder.id] || 0) })), [form.allocation_mode, form.amount, founders, manual]);
   const manualDifference = toCents(form.amount) - preview.reduce((sum, row) => sum + toCents(row.amount), 0);
-  const submit = async event => { event.preventDefault(); if (toCents(form.amount) > toCents(pooledAvailable)) return setError('المصروف يتجاوز الرصيد المجمع المتاح.'); if (form.allocation_mode === 'manual' && manualDifference !== 0) return setError('يجب أن يساوي التوزيع اليدوي قيمة المصروف تمامًا.'); setSaving(true); setError(''); const body = { ...form, allocations: preview }; const { error: requestError } = await supabase.request('/formation-fund/expenses', { method: 'POST', body: JSON.stringify(body) }); setSaving(false); if (requestError) return setError(requestError.message); onSaved(); };
+  const submit = async event => { event.preventDefault(); if (toCents(form.amount) > toCents(pooledAvailable)) return setError('المصروف يتجاوز الرصيد المجمع المتاح.'); if (form.allocation_mode === 'manual' && manualDifference !== 0) return setError('يجب أن يساوي التوزيع اليدوي قيمة المصروف تمامًا.'); setSaving(true); setError(''); const body = { ...form, allocations: preview }; const { error: requestError } = await dataClient.request('/formation-fund/expenses', { method: 'POST', body: JSON.stringify(body) }); setSaving(false); if (requestError) return setError(requestError.message); onSaved(); };
   return <form className="formation-form" onSubmit={submit}>
     <label>بيان المصروف<input required maxLength="180" placeholder="مثال: دفعة شراء كاميرا وإضاءة" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
     <div className="formation-form-grid"><label>التصنيف<select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>{Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label>قيمة المصروف<input type="number" min="0.01" max={pooledAvailable} step="0.01" required value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} inputMode="decimal" /></label></div>
@@ -108,7 +108,7 @@ const CorrectionForm = ({ entry, founders, onClose, onSaved }) => {
     if (toCents(form.amount) <= 0) return setError('أدخل قيمة صحيحة أكبر من صفر.');
     if (form.reason.trim().length < 5) return setError('اكتب سبب التصحيح بوضوح.');
     setSaving(true); setError('');
-    const { error: requestError } = await supabase.request(`/formation-fund/entries/${entry.id}/correct`, { method: 'POST', body: JSON.stringify(form) });
+    const { error: requestError } = await dataClient.request(`/formation-fund/entries/${entry.id}/correct`, { method: 'POST', body: JSON.stringify(form) });
     setSaving(false);
     if (requestError) return setError(requestError.message);
     onSaved();
@@ -136,7 +136,7 @@ const FormationLedger = ({ entries, founders, currentUser, typeFilter, founderFi
 const ERPFormationFund = () => {
   const { currentUser } = useData();
   const [data, setData] = useState(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [modal, setModal] = useState(null); const [selectedFounder, setSelectedFounder] = useState(null); const [details, setDetails] = useState(null); const [voidTarget, setVoidTarget] = useState(null); const [editTarget, setEditTarget] = useState(null); const [typeFilter, setTypeFilter] = useState('all'); const [founderFilter, setFounderFilter] = useState('all');
-  const fetchData = useCallback(async () => { setLoading(true); const { data: response, error: requestError } = await supabase.request('/formation-fund', { method: 'GET' }); if (requestError) setError(requestError.message); else { setData(response); setError(''); } setLoading(false); }, []);
+  const fetchData = useCallback(async () => { setLoading(true); const { data: response, error: requestError } = await dataClient.request('/formation-fund', { method: 'GET' }); if (requestError) setError(requestError.message); else { setData(response); setError(''); } setLoading(false); }, []);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchData(); }, [fetchData]);
   useChangeSync(useCallback(topics => { if (topics.includes('formation_fund')) fetchData(); }, [fetchData]));

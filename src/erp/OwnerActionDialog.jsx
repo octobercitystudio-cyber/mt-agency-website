@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Archive, Ban, CheckCircle2, LoaderCircle, ShieldAlert, Trash2, X } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { ownerActionEvent } from './ownerPermissions';
 import './OwnerRecordActions.css';
 
@@ -23,7 +23,7 @@ export default function OwnerActionDialog({ entity, record, label, onClose, onCh
 
   useEffect(() => {
     let active = true;
-    supabase.request(`/owner/records/${entity}/${record.id}/impact`, { method: 'GET' }).then(({ data, error: requestError }) => {
+    dataClient.request(`/owner/records/${entity}/${record.id}/impact`, { method: 'GET' }).then(({ data, error: requestError }) => {
       if (!active) return;
       if (requestError) setError(requestError.message || 'تعذر فحص الروابط المرتبطة بالسجل.');
       else setImpact(data);
@@ -57,7 +57,7 @@ export default function OwnerActionDialog({ entity, record, label, onClose, onCh
     event.preventDefault();
     if (!canSubmit) return;
     setBusy(true); setError('');
-    const { data, error: requestError } = await supabase.request(`/owner/records/${entity}/${record.id}/action`, { method: 'POST', body: JSON.stringify({ reason: reason.trim(), confirmation: confirmation.trim(), expected_action: impact.action, version: record.version ?? null }) });
+    const { data, error: requestError } = await dataClient.request(`/owner/records/${entity}/${record.id}/action`, { method: 'POST', body: JSON.stringify({ reason: reason.trim(), confirmation: confirmation.trim(), expected_action: impact.action, version: record.version ?? null }) });
     if (requestError) { const message=requestError.message || 'تعذر تنفيذ الإجراء.'; setBusy(false); setError(message); onError?.({ id: record.id, entity, message }); return; }
     window.dispatchEvent(new CustomEvent(ownerActionEvent(entity), { detail: data }));
     window.dispatchEvent(new CustomEvent('erpDataChanged', { detail: { entity, id: record.id, action: data.action } }));

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { UserPlus, Edit, Trash2, Search, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText, Camera, Calendar, Tag, Play, RotateCcw } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ERPAddBookingModal from './ERPAddBookingModal';
@@ -64,7 +64,7 @@ const ERPClients = () => {
   const [bulkOwnerResults, setBulkOwnerResults] = useState([]);
 
   const fetchActivePackages = async (clientId) => {
-    const { data, error } = await supabase.from('client_packages').select('*').eq('client_id', clientId).eq('status', 'active').order('expires_at', { ascending: true });
+    const { data, error } = await dataClient.from('client_packages').select('*').eq('client_id', clientId).eq('status', 'active').order('expires_at', { ascending: true });
     if (error || !data) { setActivePackages([]); return; }
     setActivePackages(data.filter(pkg => effectivePackageStatus(pkg) === 'active').map(pkg => ({ ...pkg, service: pkg.name, total_hours: pkg.billing_unit === 'hour' ? Number(pkg.purchased_quantity) : 0, total_reels: pkg.billing_unit === 'reel' ? Number(pkg.purchased_quantity) : 0, used_hours: pkg.billing_unit === 'hour' ? Number(pkg.consumed_quantity) : 0, used_reels: pkg.billing_unit === 'reel' ? Number(pkg.consumed_quantity) : 0, paid: Number(pkg.paid_amount), price: Number(pkg.total_price), discount: 0, custom_expiry: pkg.expires_at })));
   };
@@ -89,10 +89,10 @@ const ERPClients = () => {
       setLoading(true);
     }
     
-    const { data, error } = await supabase.from('clients').select('*').order('id', { ascending: false });
-    const { data: allBookingsData } = await supabase.from('bookings').select('*');
-    const { data: allPackagesData } = await supabase.from('client_packages').select('*').eq('status', 'active');
-    const { data: configData } = await supabase.from('app_config').select('key, value').eq('key', 'points_validity_months');
+    const { data, error } = await dataClient.from('clients').select('*').order('id', { ascending: false });
+    const { data: allBookingsData } = await dataClient.from('bookings').select('*');
+    const { data: allPackagesData } = await dataClient.from('client_packages').select('*').eq('status', 'active');
+    const { data: configData } = await dataClient.from('app_config').select('key, value').eq('key', 'points_validity_months');
     const validityMonths = configData && configData[0] ? parseInt(configData[0].value) || 0 : 0;
 
     if (!error && data) {
@@ -104,7 +104,7 @@ const ERPClients = () => {
             if (new Date() > updatedDt) {
               c.points = 0;
               c.points_updated_at = new Date().toISOString().split('T')[0];
-              await supabase.from('clients').update({ points: 0, points_updated_at: c.points_updated_at }).eq('id', c.id);
+              await dataClient.from('clients').update({ points: 0, points_updated_at: c.points_updated_at }).eq('id', c.id);
             }
           }
         }
@@ -181,7 +181,7 @@ const ERPClients = () => {
     e.preventDefault();
     if (!selectedClient) return;
 
-    const { data: cfg } = await supabase.from('app_config').select('key, value');
+    const { data: cfg } = await dataClient.from('app_config').select('key, value');
     let pSpent = 100, pEarn = 1;
     cfg?.forEach(c => {
       if (c.key === 'points_egp_spent') pSpent = Number(c.value) || 100;
@@ -194,12 +194,12 @@ const ERPClients = () => {
 
     if (financeAction === 'pay_debt') {
       const newDebt = Math.max(0, (selectedClient.debt || 0) - financeAmount);
-      await supabase.from('clients').update({ debt: newDebt, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
-      await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({ entry_kind: 'income', category: 'legacy_client_debt', client_id: selectedClient.id, amount: financeAmount, method: financeMethod, detail: `سداد مديونية من العميل ${selectedClient.name}`, date: today, entity: 'الشركة' }) });
+      await dataClient.from('clients').update({ debt: newDebt, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
+      await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({ entry_kind: 'income', category: 'legacy_client_debt', client_id: selectedClient.id, amount: financeAmount, method: financeMethod, detail: `سداد مديونية من العميل ${selectedClient.name}`, date: today, entity: 'الشركة' }) });
     } else {
       const newCredit = (selectedClient.credit || 0) + financeAmount;
-      await supabase.from('clients').update({ credit: newCredit, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
-      await supabase.request('/finance/manual', { method: 'POST', body: JSON.stringify({ entry_kind: 'income', category: 'client_credit', client_id: selectedClient.id, amount: financeAmount, method: financeMethod, detail: `إيداع رصيد للعميل ${selectedClient.name}`, date: today, entity: 'الشركة' }) });
+      await dataClient.from('clients').update({ credit: newCredit, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
+      await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({ entry_kind: 'income', category: 'client_credit', client_id: selectedClient.id, amount: financeAmount, method: financeMethod, detail: `إيداع رصيد للعميل ${selectedClient.name}`, date: today, entity: 'الشركة' }) });
     }
     setIsFinanceModalOpen(false);
     setFinanceAmount(0);
@@ -209,9 +209,9 @@ const ERPClients = () => {
   const startSession = async (clientId, packageId) => {
     try {
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
-      const { data: matches, error: lookupError } = await supabase.from('bookings').select('id').eq('client_id', clientId).eq('client_package_id', packageId).eq('date', today).eq('status', 'confirmed').order('start_time', { ascending: true }).limit(1);
+      const { data: matches, error: lookupError } = await dataClient.from('bookings').select('id').eq('client_id', clientId).eq('client_package_id', packageId).eq('date', today).eq('status', 'confirmed').order('start_time', { ascending: true }).limit(1);
       if (lookupError || !matches?.length) return alert('لا يوجد موعد مؤكد اليوم مرتبط بهذه الباقة. أنشئ الحجز أولًا.');
-      const { error } = await supabase.request(`/bookings/${matches[0].id}/session/start`, { method: 'POST', body: '{}' });
+      const { error } = await dataClient.request(`/bookings/${matches[0].id}/session/start`, { method: 'POST', body: '{}' });
       if (error) {
         console.error(error);
         alert('حدث خطأ أثناء بدء الجلسة');
@@ -241,8 +241,8 @@ const ERPClients = () => {
     const activeServiceNames = activePackages.map(p => p.service);
 
     if (type === 'finance') {
-      const { data, error } = await supabase.from('finance').select('*').ilike('detail', `%${selectedClient.name}%`).order('id', { ascending: false });
-      const { data: bData, error: bError } = await supabase.from('bookings').select('*').eq('client_name', selectedClient.name).gt('payment', 0).order('id', { ascending: false });
+      const { data, error } = await dataClient.from('finance').select('*').ilike('detail', `%${selectedClient.name}%`).order('id', { ascending: false });
+      const { data: bData, error: bError } = await dataClient.from('bookings').select('*').eq('client_name', selectedClient.name).gt('payment', 0).order('id', { ascending: false });
       
       let allFinance = [];
       if (!error && data) allFinance = [...data];
@@ -269,7 +269,7 @@ const ERPClients = () => {
 
       setHistoryData(allFinance);
     } else {
-      const { data, error } = await supabase.from('bookings').select('*').eq('client_name', selectedClient.name).order('id', { ascending: false });
+      const { data, error } = await dataClient.from('bookings').select('*').eq('client_name', selectedClient.name).order('id', { ascending: false });
       if (!error && data) {
         if (type === 'packages') {
           const packagesMap = {};
@@ -350,7 +350,7 @@ const ERPClients = () => {
 
   const handleSaveEditAppointment = async (e) => {
     e.preventDefault();
-    const { error } = await supabase.request(`/bookings/${currentEditAppointment.id}/admin-reschedule`, { method: 'POST', body: JSON.stringify({
+    const { error } = await dataClient.request(`/bookings/${currentEditAppointment.id}/admin-reschedule`, { method: 'POST', body: JSON.stringify({
       date: currentEditAppointment.date,
       start_time: currentEditAppointment.start_time,
       end_time: currentEditAppointment.end_time,
@@ -367,7 +367,7 @@ const ERPClients = () => {
 
   const handleDeleteAppointment = async (id) => {
     if (!window.confirm('هل تريد إلغاء الموعد دون خصم؟ سيظل محفوظًا في سجل العميل.')) return;
-    const { error } = await supabase.request(`/bookings/${id}/admin-cancel`, { method: 'POST', body: JSON.stringify({ charge: false, reason: 'إلغاء إداري من ملف العميل' }) });
+    const { error } = await dataClient.request(`/bookings/${id}/admin-cancel`, { method: 'POST', body: JSON.stringify({ charge: false, reason: 'إلغاء إداري من ملف العميل' }) });
     if (error) return alert(error.message || 'تعذر إلغاء الموعد.');
     openHistory('bookings');
   };

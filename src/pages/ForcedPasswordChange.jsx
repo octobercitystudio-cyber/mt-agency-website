@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeyRound, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
+import { dataClient } from '../dataClient';
 import { CLIENT_PASSWORD_HINT, CLIENT_PASSWORD_MAX_LENGTH, CLIENT_PASSWORD_MIN_LENGTH, isValidClientPassword } from '../lib/clientPasswordPolicy';
 import './ForcedPasswordChange.css';
 
@@ -15,7 +15,7 @@ export default function ForcedPasswordChange() {
     if (!isValidClientPassword(password)) return setState({ busy: false, error: 'استخدم 6 خانات على الأقل لكلمة المرور.' });
     if (password !== confirmation) return setState({ busy: false, error: 'تأكيد كلمة المرور غير مطابق.' });
     setState({ busy: true, error: '' });
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await dataClient.auth.updateUser({ password });
     if (error) return setState({ busy: false, error: error.message || 'تعذر تغيير كلمة المرور.' });
     navigate('/dashboard', { replace: true });
   };

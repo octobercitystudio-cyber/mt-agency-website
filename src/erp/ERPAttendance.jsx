@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarClock, ChevronLeft, Clock3, Download, Edit3, Settings2, TimerOff, UserRoundCheck, X } from 'lucide-react';
-import { dataProvider } from '../supabaseClient';
+import { dataProvider } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { attendanceApi } from '../lib/attendanceApi';
 import { formatEGP, formatTime12, normalizeTime } from '../lib/businessFormat';
