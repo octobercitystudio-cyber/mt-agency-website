@@ -1,0 +1,23 @@
+.owner-confirm-row {
+  min-height: 44px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.owner-tab-short {
+  display: none;
+}
+
+@media (max-width: 420px) {
+  .owner-center-tabs button {
+    font-size: .62rem;
+  }
+
+  .owner-tab-label {
+    display: none;
+  }
+
+  .owner-tab-short {
+    display: inline;
+  }
+}

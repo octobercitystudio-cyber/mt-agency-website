@@ -31,6 +31,17 @@ test('dashboard quick actions open shared forms without leaving the command cent
   assert.doesNotMatch(dashboard, /navigate\('\/erp\/bookings', \{ state: \{ openCreateBooking: true \} \}\)/);
 });
 
+test('dashboard skips modules the signed-in staff role is not allowed to read', async () => {
+  const dashboard = await load('src/erp/ERPDashboard.jsx');
+
+  assert.match(dashboard, /const scopedRequest = \(roles, request, fallback = \[\]\)/);
+  assert.match(dashboard, /scopedRequest\(\['owner', 'admin', 'finance'\], \(\) => dataClient\.from\('payment_proofs'\)/);
+  assert.match(dashboard, /scopedRequest\(\['owner', 'admin', 'finance'\], \(\) => dataClient\.from\('finance'\)/);
+  assert.match(dashboard, /scopedRequest\(\['owner', 'admin', 'finance'\], \(\) => dataClient\.from\('invoices'\)/);
+  assert.match(dashboard, /scopedRequest\(\['owner', 'admin', 'operations'\], \(\) => dataClient\.request\(`\/studio-session-eligibility/);
+  assert.match(dashboard, /\[currentUser\?\.role\]/, 'dashboard reloads its role-aware contract when the session role changes');
+});
+
 test('destination pages consume and clear direct-action state', async () => {
   const [bookings, clients, promotions] = await Promise.all([
     load('src/erp/ERPBookings.jsx'),

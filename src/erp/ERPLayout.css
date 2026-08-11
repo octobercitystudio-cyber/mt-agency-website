@@ -1062,7 +1062,7 @@
     justify-content: center;
     gap: 7px;
     flex: 0 0 auto;
-    min-height: 36px;
+    min-height: 44px;
     padding: 8px 12px;
     border: 1px solid #0b6e91;
     border-radius: var(--erp-radius-sm, 9px);
@@ -1131,7 +1131,7 @@
     .erp-layout .erp-main .erp-demo-banner__reset {
         grid-column: 1 / -1;
         width: 100%;
-        min-height: 38px;
+        min-height: 44px;
     }
 }
 

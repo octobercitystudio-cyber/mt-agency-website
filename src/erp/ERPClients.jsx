@@ -9,7 +9,7 @@ import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
 import { ClientDirectory, ClientProfileDrawer } from './ERPClientCRM';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
-import { effectivePackageStatus, formatEGP, formatTime12, normalizeTime, packageFinancialSummary } from '../lib/businessFormat';
+import { effectivePackageStatus, formatEGP, formatPaymentMethod, formatTime12, normalizeTime, packageFinancialSummary } from '../lib/businessFormat';
 import './ERPClients.css';
 import OwnerActionDialog from './OwnerActionDialog';
 
@@ -241,33 +241,8 @@ const ERPClients = () => {
     const activeServiceNames = activePackages.map(p => p.service);
 
     if (type === 'finance') {
-      const { data, error } = await dataClient.from('finance').select('*').ilike('detail', `%${selectedClient.name}%`).order('id', { ascending: false });
-      const { data: bData, error: bError } = await dataClient.from('bookings').select('*').eq('client_name', selectedClient.name).gt('payment', 0).order('id', { ascending: false });
-      
-      let allFinance = [];
-      if (!error && data) allFinance = [...data];
-      
-      if (!bError && bData) {
-        const mappedBookings = bData.map(b => ({
-          id: 'b_' + b.id,
-          date: b.date,
-          detail: b.notes || 'دفعة حجز: ' + (b.service || ''),
-          amount: b.payment,
-          method: 'غير محدد',
-          type: 'إيراد',
-          service: b.service
-        }));
-        allFinance = [...allFinance, ...mappedBookings].sort((a, b) => new Date(b.date) - new Date(a.date));
-      }
-
-      if (activeServiceNames.length > 0) {
-         allFinance = allFinance.filter(f => {
-            if (f.service) return activeServiceNames.includes(f.service);
-            return activeServiceNames.some(s => f.detail && f.detail.includes(s));
-         });
-      }
-
-      setHistoryData(allFinance);
+      const { data, error } = await dataClient.request(`/clients/${selectedClient.id}/payment-history`, { method: 'GET' });
+      setHistoryData(error ? [] : data?.items || []);
     } else {
       const { data, error } = await dataClient.from('bookings').select('*').eq('client_name', selectedClient.name).order('id', { ascending: false });
       if (!error && data) {
@@ -950,9 +925,9 @@ const ERPClients = () => {
                         {historyType === 'finance' ? (
                           <>
                             <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', direction: 'ltr', textAlign: 'right' }}>{row.date}</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6' }}>{row.detail}</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center', fontWeight: 'bold', color: row.type === 'وارد' ? '#198754' : '#dc3545' }}>{formatEGP(row.amount)}</td>
-                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>{row.method}</td>
+                            <td className="client-payment-history-detail" style={{ padding: '15px', borderBottom: '1px solid #dee2e6' }}><strong>{row.detail}</strong>{row.package_name&&<small>الباقة #{row.package_id} · {row.package_name}</small>}<span>{row.record_type==='payment'?(row.status==='approved'?'دفعة معتمدة':'حالة الدفعة: '+row.status):'معاملة مالية مسجلة'}{row.reference?` · المرجع: ${row.reference}`:''}</span>{row.note&&<em>ملاحظة: {row.note}</em>}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center', fontWeight: 'bold', color: row.record_type === 'payment' || row.entry_kind === 'income' ? '#198754' : '#dc3545' }}>{formatEGP(row.amount)}</td>
+                            <td style={{ padding: '15px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>{formatPaymentMethod(row.method)}</td>
                           </>
                         ) : (
                           <>

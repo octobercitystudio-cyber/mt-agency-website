@@ -872,3 +872,4 @@
   .client-crm-packages article > header,
   .client-crm-packages footer { flex-direction: column; }
 }
+.client-payment-history-detail{min-width:260px}.client-payment-history-detail>*{display:block}.client-payment-history-detail strong{color:var(--erp-text-main);font-size:.86rem}.client-payment-history-detail small,.client-payment-history-detail span{margin-top:4px;color:var(--erp-text-muted);font-size:.72rem}.client-payment-history-detail em{margin-top:6px;padding:6px 8px;border-inline-start:3px solid #9ddac4;background:#eaf9f3;color:#086c50;font-size:.72rem;font-style:normal}@media(max-width:600px){.client-payment-history-detail{min-width:220px}}

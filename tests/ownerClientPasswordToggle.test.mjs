@@ -247,10 +247,11 @@ test('all non-owner roles are denied password and access controls and no secret 
 });
 
 test('production and owner UI contracts keep password save independent, scoped, hash-only and ephemeral', async () => {
-  const [api, accessMigration, component, styles] = await Promise.all([
+  const [api, accessMigration, component, clientModal, styles] = await Promise.all([
     readFile(new URL('api/index.php', root), 'utf8'),
     readFile(new URL('database/mysql/022_client_access_authority.sql', root), 'utf8'),
     readFile(new URL('src/erp/ClientCredentialSecurity.jsx', root), 'utf8'),
+    readFile(new URL('src/erp/ERPClientModal.jsx', root), 'utf8'),
     readFile(new URL('src/erp/ClientCredentialSecurity.css', root), 'utf8'),
   ]);
   const passwordBlock = api.slice(api.indexOf("credentials/password$#"), api.indexOf("credentials/temporary$#"));
@@ -265,7 +266,8 @@ test('production and owner UI contracts keep password save independent, scoped, 
   assert.ok(passwordBlock.includes('password_hash($next,PASSWORD_DEFAULT)'));
   assert.ok(passwordBlock.includes('passwordWasUsed'));
   assert.ok(passwordBlock.includes('retainPasswordHash'));
-  assert.ok(passwordBlock.includes('DELETE FROM api_sessions WHERE user_id=?'));
+  assert.ok(passwordBlock.includes('DELETE FROM api_sessions WHERE user_id=? AND user_id<>?'));
+  assert.ok(passwordBlock.includes("[$accountId,$user['id']]"), 'the acting owner session is excluded from client-session revocation');
   assert.ok(passwordBlock.includes('password_reset_tokens'));
   assert.ok(passwordBlock.includes("'client',0,'active'"), 'new credential is explicitly disabled');
   assert.doesNotMatch(passwordBlock, /UPDATE users SET[^\n]*is_active=/, 'password update preserves access');
@@ -295,7 +297,9 @@ test('production and owner UI contracts keep password save independent, scoped, 
   assert.equal(component.includes('current_password'), false);
   assert.equal(component.includes('إظهار كلمة المرور الحالية'), false);
   assert.ok(component.includes('setPasswordForm(emptyPasswordForm())'));
+  assert.ok(component.includes('event.stopPropagation()'), 'credential submit cannot bubble into the client details form');
   assert.equal(/localStorage|sessionStorage/.test(component), false);
+  assert.ok(clientModal.lastIndexOf('</form>') < clientModal.indexOf('<ClientCredentialSecurity'), 'credential controls are not nested inside the client details form');
   assert.match(styles, /credential-security__control-grid\{[^}]*grid-template-columns:minmax\(0,1\.35fr\) minmax\(280px,\.65fr\)/);
   assert.match(styles, /@media\(max-width:980px\)\{\.credential-security__control-grid\{grid-template-columns:1fr\}/);
   assert.match(styles, /credential-password-dialog\{[^}]*width:min\(100%,560px\);[^}]*max-height:calc\(100dvh - 32px\);[^}]*overflow:auto/);

@@ -14,7 +14,7 @@
 
 1. افتح phpMyAdmin من hPanel.
 2. اختر قاعدة البيانات الخاصة بالمشروع.
-3. استورد ملفات قاعدة البيانات بالترتيب: `database/mysql/001_initial_schema.sql` ثم `002_seed_service_catalog.sql` ثم `003_projects_and_content.sql` ثم الترحيلات من `004_attendance.sql` حتى `024_package_sale_calendar.sql` بالترتيب. يضيف 023 حماية تكرار البيع، ويضيف 024 سياسة الباقة اليومية ومرجع الصلاحية للباقة المباعة.
+3. استورد ملفات قاعدة البيانات بالترتيب: `database/mysql/001_initial_schema.sql` ثم `002_seed_service_catalog.sql` ثم `003_projects_and_content.sql` ثم الترحيلات من `004_attendance.sql` حتى `025_client_package_payment_idempotency.sql` بالترتيب. يضيف 023 حماية تكرار البيع، ويضيف 024 سياسة الباقة اليومية ومرجع الصلاحية للباقة المباعة، ويضيف 025 حماية تكرار دفعات الباقات وحقل ملاحظة الدفع.
 4. إذا كنت تنقل بيانات البرنامج القديم، راجع `database/mysql/900_legacy_report.json` ثم استورد `database/mysql/900_legacy_data.sql`.
 5. انسخ `api/config.example.php` إلى `public_html/api/config.php` على الخادم فقط.
 6. ضع بيانات MySQL الحقيقية، رابط الموقع، ومفتاح إعداد طويل وعشوائي داخل `config.php`.

@@ -64,6 +64,7 @@ export default function ClientCredentialSecurity({ clientId }) {
 
   const savePassword = async event => {
     event.preventDefault();
+    event.stopPropagation();
     setPasswordError('');
     if (!checks.length) { setPasswordError('اكتب كلمة مرور من 6 خانات على الأقل.'); return; }
     if (!checks.match) { setPasswordError('تأكيد كلمة المرور غير مطابق.'); return; }

@@ -52,17 +52,21 @@ const ERPDashboard = () => {
   const load = useCallback(async () => {
     setState((old) => ({ ...old, loading: true, error: '' }));
     const today = cairoDate(); const month = cairoMonth();
+    const role = currentUser?.role;
+    const scopedRequest = (roles, request, fallback = []) => roles.includes(role)
+      ? request()
+      : Promise.resolve({ data: fallback, error: null, skipped: true });
     try {
       const [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks, sessionEligibility] = await Promise.all([
         dataClient.from('bookings').select('*').eq('date', today).order('start_time', { ascending: true }),
         dataClient.from('bookings').select('id,client_name,status,date,start_time').in('status', ['pending', 'cancel_requested', 'late_cancel_requested']).limit(8),
-        dataClient.from('reschedule_requests').select('id,booking_id,client_id,status,proposed_date,proposed_start_time').eq('status', 'pending').limit(8),
-        dataClient.from('payment_proofs').select('id,client_id,amount,status,created_at').eq('status', 'pending').limit(8),
-        dataClient.from('finance').select('id,type,entry_kind,amount,date').like('date', `${month}%`),
-        dataClient.from('client_packages').select('id,name,billing_unit,status,starts_at,expires_at,total_price,overage_amount,paid_amount,source_invoice_id').eq('status', 'active'),
-        dataClient.from('invoices').select('id,total,paid_amount,status'),
+        scopedRequest(['owner', 'admin', 'operations', 'staff'], () => dataClient.from('reschedule_requests').select('id,booking_id,client_id,status,proposed_date,proposed_start_time').eq('status', 'pending').limit(8)),
+        scopedRequest(['owner', 'admin', 'finance'], () => dataClient.from('payment_proofs').select('id,client_id,amount,status,created_at').eq('status', 'pending').limit(8)),
+        scopedRequest(['owner', 'admin', 'finance'], () => dataClient.from('finance').select('id,type,entry_kind,amount,date').like('date', `${month}%`)),
+        scopedRequest(['owner', 'admin', 'operations', 'finance'], () => dataClient.from('client_packages').select('id,name,billing_unit,status,starts_at,expires_at,total_price,overage_amount,paid_amount,source_invoice_id').eq('status', 'active')),
+        scopedRequest(['owner', 'admin', 'finance'], () => dataClient.from('invoices').select('id,total,paid_amount,status')),
         dataClient.from('reminders').select('id,title,due_date,type,status,amount').eq('status', 'pending').order('due_date', { ascending: true }).limit(6),
-        dataClient.request(`/studio-session-eligibility?date=${today}`),
+        scopedRequest(['owner', 'admin', 'operations'], () => dataClient.request(`/studio-session-eligibility?date=${today}`), { items: [] }),
       ]);
       const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks, sessionEligibility].filter((result) => result.error);
       if (failedModules.length) console.error('Dashboard data modules unavailable:', failedModules.map((result) => result.error));
@@ -98,7 +102,7 @@ const ERPDashboard = () => {
       console.error('Dashboard load failed:', error);
       setState((old) => ({ ...old, loading: false, error: 'تعذر تحميل بيانات التشغيل الآن. تحقق من الاتصال ثم أعد المحاولة.' }));
     }
-  }, []);
+  }, [currentUser?.role]);
 
   const loadAttendance = useCallback(async () => {
     setAttendance({ loading: true, error: '', data: null });

@@ -72,10 +72,10 @@ export default function ERPClientModal({ isOpen, onClose, onSuccess, client = em
         <div className="erp-client-modal-grid"><div><label style={labelStyle}>وسيلة التواصل المفضلة</label><select value={draft.preferred_contact || 'whatsapp'} onChange={e => update('preferred_contact', e.target.value)} style={fieldStyle}><option value="whatsapp">واتساب</option><option value="phone">مكالمة</option><option value="email">بريد إلكتروني</option></select></div><label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', borderRadius: '.5rem', background: 'rgba(25,135,84,.08)', fontSize: '.78rem', fontWeight: 700 }}><input type="checkbox" checked={Boolean(Number(draft.whatsapp_opt_in ?? 1))} onChange={e => update('whatsapp_opt_in', e.target.checked ? 1 : 0)}/>موافق على إشعارات واتساب</label></div>
         <div><label style={labelStyle}>ملاحظات العميل</label><textarea rows="2" value={draft.notes || ''} onChange={e => update('notes', e.target.value)} style={{ ...fieldStyle, resize: 'vertical' }}/></div>
         {!isEditing && <p className="erp-client-modal-security-note">بعد حفظ العميل، افتح بياناته واستخدم قسم «الدخول والأمان» لإنشاء بيانات دخول مؤقتة وآمنة.</p>}
-        {isEditing && canManageAccess && <ClientCredentialSecurity clientId={draft.id} />}
         {saveState.message && <div className={`erp-client-modal-message ${saveState.type}`} role={saveState.type === 'error' ? 'alert' : 'status'} style={{ padding: '11px 13px', borderRadius: '9px', fontSize: '.76rem', background: saveState.type === 'error' ? 'rgba(220,53,69,.1)' : 'rgba(25,135,84,.1)', color: saveState.type === 'error' ? '#dc3545' : '#198754' }}>{saveState.message}</div>}
         <button type="submit" className="erp-client-modal-submit" disabled={saveState.busy} style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: isEditing ? 'var(--erp-text-main)' : '#0d6efd', color: 'var(--erp-surface)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '15px', opacity: saveState.busy ? .6 : 1 }}>{saveState.busy ? 'جارٍ الحفظ...' : isEditing ? 'تحديث البيانات' : 'حفظ العميل'}</button>
       </form>
+      {isEditing && canManageAccess && <ClientCredentialSecurity clientId={draft.id} />}
     </div>
   </div>;
 }
