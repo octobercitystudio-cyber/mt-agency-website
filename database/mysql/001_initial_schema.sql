@@ -111,8 +111,8 @@ CREATE TABLE IF NOT EXISTS client_packages (
   consumed_quantity DECIMAL(10,2) NOT NULL DEFAULT 0,
   total_price DECIMAL(12,2) NOT NULL DEFAULT 0,
   paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
-  starts_at DATE NOT NULL,
-  expires_at DATE NOT NULL,
+  starts_at DATE NULL,
+  expires_at DATE NULL,
   status VARCHAR(24) NOT NULL DEFAULT 'active',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -217,6 +217,7 @@ CREATE TABLE IF NOT EXISTS finance (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
   client_id BIGINT UNSIGNED NULL,
+  employee_user_id BIGINT UNSIGNED NULL,
   type VARCHAR(48) NOT NULL,
   amount DECIMAL(12,2) NOT NULL,
   method VARCHAR(64) NULL,
@@ -226,8 +227,10 @@ CREATE TABLE IF NOT EXISTS finance (
   created_by BIGINT UNSIGNED NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_finance_org_date (organization_id, date),
+  KEY idx_finance_org_employee_date (organization_id, employee_user_id, date),
   CONSTRAINT fk_finance_org FOREIGN KEY (organization_id) REFERENCES organizations(id),
   CONSTRAINT fk_finance_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE SET NULL,
+  CONSTRAINT fk_finance_employee_user FOREIGN KEY (employee_user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_finance_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

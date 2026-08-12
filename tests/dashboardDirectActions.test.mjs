@@ -36,8 +36,9 @@ test('dashboard skips modules the signed-in staff role is not allowed to read', 
 
   assert.match(dashboard, /const scopedRequest = \(roles, request, fallback = \[\]\)/);
   assert.match(dashboard, /scopedRequest\(\['owner', 'admin', 'finance'\], \(\) => dataClient\.from\('payment_proofs'\)/);
-  assert.match(dashboard, /scopedRequest\(\['owner', 'admin', 'finance'\], \(\) => dataClient\.from\('finance'\)/);
-  assert.match(dashboard, /scopedRequest\(\['owner', 'admin', 'finance'\], \(\) => dataClient\.from\('invoices'\)/);
+  assert.match(dashboard, /scopedRequest\(\['owner', 'admin', 'operations', 'finance'\], \(\) => dataClient\.request\('\/dashboard\/kpis'\)/);
+  assert.doesNotMatch(dashboard, /dataClient\.from\('finance'\)/, 'financial KPIs come from the role-redacted aggregate');
+  assert.doesNotMatch(dashboard, /dataClient\.from\('invoices'\)/, 'invoice balances are not reconstructed in the browser');
   assert.match(dashboard, /scopedRequest\(\['owner', 'admin', 'operations'\], \(\) => dataClient\.request\(`\/studio-session-eligibility/);
   assert.match(dashboard, /\[currentUser\?\.role\]/, 'dashboard reloads its role-aware contract when the session role changes');
 });

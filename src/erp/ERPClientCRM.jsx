@@ -4,7 +4,7 @@ import {
   Coins, Edit3, FileText, History, Mail, MessageCircle, PackageCheck, Phone,
   Play, SearchX, UserRound, WalletCards, X,
 } from 'lucide-react';
-import { centsToMoney, formatBookingDate, formatEGP, formatPackageQuantity, formatTime12, packageFinancialSummary, packageQuantitySummary, remainingBusinessDays } from '../lib/businessFormat';
+import { centsToMoney, formatBookingDate, formatEGP, formatPackageQuantity, formatTime12, packageFinancialSummary, packageQuantitySummary, remainingCalendarDays } from '../lib/businessFormat';
 import OwnerRecordActions from './OwnerRecordActions';
 
 const money = formatEGP;
@@ -193,7 +193,7 @@ function PackagesTab({ client, packages, onFinance, onStartSession, onOpenHistor
   if (!packages.length) return <DrawerEmpty icon={PackageCheck} title="لا توجد باقة نشطة" text="يمكن مراجعة الباقات المنتهية أو إضافة حجز/خدمة جديدة من دليل العميل." action="عرض سجل الباقات" onAction={() => onOpenHistory('packages')} />;
   return <div className="client-crm-packages">{packages.map((pkg, index) => {
     const quantity = packageQuantitySummary(pkg); const financial = packageFinancialSummary(pkg);
-    return <article key={pkg.id || `${pkg.service}-${index}`}><header><div><span>باقة نشطة</span><h3>{pkg.service.replace(' (مؤرشف)', '')}</h3></div>{financial.outstandingCents > 0 ? <StatusPill tone="danger">متبقي {money(centsToMoney(financial.outstandingCents))}</StatusPill> : <StatusPill tone="success">مدفوعة</StatusPill>}</header><dl><div><dt>المتبقي غير المستهلك</dt><dd>{formatPackageQuantity(quantity.remaining,pkg.billing_unit)}</dd></div><div><dt>محجوز قادمًا / متاح جديد</dt><dd>{formatPackageQuantity(quantity.held,pkg.billing_unit)} / {formatPackageQuantity(quantity.available,pkg.billing_unit)}</dd></div><div><dt>المدفوع</dt><dd>{money(centsToMoney(financial.paidCents))}</dd></div><div><dt>الصلاحية</dt><dd>{formatBookingDate(pkg.expires_at)} · {remainingBusinessDays(pkg.expires_at).toLocaleString('ar-EG-u-nu-latn')} يوم عمل</dd></div></dl><footer>{(quantity.purchased > 0) && <button className="session" onClick={() => onStartSession(client.id, pkg.id)}><Play size={16} /> ابدأ التصوير</button>}{financial.outstandingCents > 0 && <button onClick={() => onFinance('pay_debt')}><WalletCards size={16} /> سداد المتبقي</button>}</footer></article>;
+    return <article key={pkg.id || `${pkg.service}-${index}`}><header><div><span>باقة نشطة</span><h3>{pkg.service.replace(' (مؤرشف)', '')}</h3></div>{financial.outstandingCents > 0 ? <StatusPill tone="danger">متبقي {money(centsToMoney(financial.outstandingCents))}</StatusPill> : <StatusPill tone="success">مدفوعة</StatusPill>}</header><dl><div><dt>المتبقي غير المستهلك</dt><dd>{formatPackageQuantity(quantity.remaining,pkg.billing_unit)}</dd></div><div><dt>محجوز قادمًا / متاح جديد</dt><dd>{formatPackageQuantity(quantity.held,pkg.billing_unit)} / {formatPackageQuantity(quantity.available,pkg.billing_unit)}</dd></div><div><dt>المدفوع</dt><dd>{money(centsToMoney(financial.paidCents))}</dd></div><div><dt>الصلاحية</dt><dd>{pkg.expires_at ? `${formatBookingDate(pkg.expires_at)} · ${remainingCalendarDays(pkg.expires_at).toLocaleString('ar-EG-u-nu-latn')} يوم تقويمي` : 'تبدأ عند أول حجز تصوير'}</dd></div></dl><footer>{(quantity.purchased > 0) && <button className="session" onClick={() => onStartSession(client.id, pkg.id)}><Play size={16} /> ابدأ التصوير</button>}{financial.outstandingCents > 0 && <button onClick={() => onFinance('pay_debt')}><WalletCards size={16} /> سداد المتبقي</button>}</footer></article>;
   })}</div>;
 }
 

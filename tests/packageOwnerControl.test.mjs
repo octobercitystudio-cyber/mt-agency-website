@@ -10,9 +10,9 @@ test('owner package center exposes four safe sections and no held or remaining s
   for (const label of ['الرصيد والاستخدام', 'السعر والمدفوع', 'الصلاحية والبيانات', 'مواعيد الباقة']) assert.match(ui, new RegExp(label));
   assert.match(ui, /usage-adjustment/);
   assert.match(ui, /admin-reschedule/);
-  assert.match(ui, /admin-cancel/);
-  assert.match(ui, /release/);
-  assert.match(ui, /charge/);
+  assert.match(ui, /'DELETE'/);
+  assert.match(ui, /حذف الموعد/);
+  assert.doesNotMatch(ui, /سبب الإلغاء/);
   assert.match(ui, /immutable_reason/);
   assert.doesNotMatch(ui, /target_held|target_remaining/);
   assert.match(css, /min-height:44px/);

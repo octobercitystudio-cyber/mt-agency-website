@@ -8,6 +8,7 @@ import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import './ERPAttendance.css';
 import './ERPAttendanceResponsive.css';
 import ERPPageHero from './ERPPageHero';
+import EmployeeFinanceAccounts from './EmployeeFinanceAccounts';
 
 const currentMonth = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
 const money = formatEGP;
@@ -48,6 +49,7 @@ const previewDetails = userId => {
 const ERPAttendance = () => {
   const { currentUser } = useData();
   const isOwner = currentUser?.role === 'owner';
+  const canManageEmployeeFinance = ['owner', 'admin'].includes(currentUser?.role);
   const isPreview = currentUser?.is_local_preview || dataProvider !== 'hostinger';
   const [month, setMonth] = useState(currentMonth());
   const [statusFilter, setStatusFilter] = useState('all');
@@ -185,8 +187,8 @@ const ERPAttendance = () => {
       <ERPPageHero
         icon={CalendarClock}
         eyebrow="الوقت والرواتب"
-        title="الحضور والانصراف"
-        description="الحسابات تتم آليًا بتوقيت القاهرة وفق سياسة كل موظف."
+        title="الحضور والرواتب"
+        description="الحضور والخصومات وحسابات الموظفين في تسوية واحدة واضحة بتوقيت القاهرة."
         details={<div className="attendance-head__tools"><label>الشهر<input type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label>{selfRecord && !selfRecord.check_out_at && <button className="attendance-checkout" onClick={handleCheckout}><TimerOff size={17} /> تسجيل الانصراف</button>}</div>}
       />
 
@@ -200,6 +202,8 @@ const ERPAttendance = () => {
         <div><span>أيام الغياب</span><strong>{loading ? '—' : totals.absent}</strong><small>حتى يوم أمس فقط</small></div>
         <div><span>الخصومات المقدرة</span><strong>{loading ? '—' : money(totals.deduction)}</strong><small>من الخادم، قبل اعتماد الراتب</small></div>
       </section>
+
+      <EmployeeFinanceAccounts month={month} canManage={canManageEmployeeFinance} />
 
       <section className="attendance-workspace">
         <div className="attendance-toolbar"><div className="attendance-filters" role="group" aria-label="تصفية الموظفين">{[['all', 'الكل'], ['late', 'لديه تأخير'], ['absent', 'لديه غياب'], ['exempt', 'معفي']].map(([value, label]) => <button key={value} className={statusFilter === value ? 'active' : ''} onClick={() => setStatusFilter(value)}>{label}</button>)}</div><button className="attendance-export" type="button" onClick={() => window.print()}><Download size={15} /> طباعة التقرير</button></div>

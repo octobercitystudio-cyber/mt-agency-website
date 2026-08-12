@@ -12,7 +12,6 @@ import ERPPageHero from './ERPPageHero';
 import ERPRescheduleBookingDialog from './ERPRescheduleBookingDialog';
 import ERPBookingDetailsDialog from './ERPBookingDetailsDialog';
 import { startStudioSession } from './studioSessionStart';
-import OwnerRecordActions from './OwnerRecordActions';
 import ERPAddBookingModal from './ERPAddBookingModal';
 import { activeServiceCategories, isProjectServiceCategory } from '../lib/serviceCategories';
 
@@ -285,14 +284,13 @@ const ERPBookings = () => {
   };
 
   const cancelBooking = async (id) => {
-    if (!window.confirm('هل تريد إلغاء هذا الموعد؟ سيظل محفوظًا في السجل ولن تُخصم ساعات منه.')) return;
+    if (!window.confirm('هل تريد حذف هذا الموعد نهائيًا؟ سيختفي من الحجوزات ويُعاد الرصيد المحجوز للعميل.')) return;
     setDecisionBusy(`cancel-${id}`);
-    const { error } = await dataClient.request(`/bookings/${id}/admin-cancel`, {
-      method: 'POST',
-      body: JSON.stringify({ charge: false, reason: 'إلغاء إداري دون خصم' }),
+    const { error } = await dataClient.request(`/bookings/${id}`, {
+      method: 'DELETE',
     });
     setDecisionBusy(null);
-    if (error) return setDecisionError(error.message || 'تعذر إلغاء الموعد.');
+    if (error) return setDecisionError(error.message || 'تعذر حذف الموعد.');
     await fetchData(true);
     setSelectedBookingDetails(null);
   };
@@ -901,7 +899,6 @@ const ERPBookings = () => {
         onStart={handleStartBooking}
         onCancel={() => cancelBooking(selectedBookingDetails?.id)}
         onReschedule={trigger => openReschedule(selectedBookingDetails, null, trigger)}
-        ownerActions={selectedBookingDetails && <OwnerRecordActions user={currentUser} entity="bookings" record={selectedBookingDetails} label={`${selectedBookingDetails.client_name} · ${formatBookingDate(selectedBookingDetails.date)}`} onEdit={selectedBookingDetails.status === 'confirmed' ? event => openReschedule(selectedBookingDetails, null, event.currentTarget) : null} onChanged={async () => { setSelectedBookingDetails(null); await fetchData(true); }} />}
       />
 
       {/* Legacy markup kept hidden as a no-script compatibility snapshot; the live flow above is React-controlled. */}
@@ -986,7 +983,7 @@ const ERPBookings = () => {
                     )}
                     {isAdmin && !['in_progress', 'completed', 'cancelled', 'منتهي'].includes(selectedBookingDetails.status) && (
                       <button disabled={decisionBusy === `cancel-${selectedBookingDetails.id}`} className="btn btn-outline-danger py-3 rounded-4 fw-bold px-4" onClick={() => cancelBooking(selectedBookingDetails.id)}>
-                        <i className="fas fa-ban me-1"></i> {decisionBusy === `cancel-${selectedBookingDetails.id}` ? 'جارٍ الإلغاء...' : 'إلغاء الموعد'}
+                        <i className="fas fa-trash me-1"></i> {decisionBusy === `cancel-${selectedBookingDetails.id}` ? 'جارٍ الحذف...' : 'حذف الموعد'}
                       </button>
                     )}
                   </div>

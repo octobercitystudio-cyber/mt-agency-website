@@ -8,9 +8,7 @@ export const packageBookingAvailability = (pkg, todayKey) => {
   const quantity = packageQuantitySummary(pkg);
   if (status !== 'active') return { bookable: false, reason: status === 'expired' ? 'منتهية الصلاحية' : 'غير نشطة' };
   if (quantity.available <= 0) return { bookable: false, reason: 'لا يوجد رصيد متاح' };
-  if (!dateKey(pkg.starts_at) || !dateKey(pkg.expires_at) || dateKey(pkg.starts_at) > dateKey(pkg.expires_at)) {
-    return { bookable: false, reason: 'فترة الصلاحية غير مكتملة' };
-  }
+  if ((dateKey(pkg.starts_at) || dateKey(pkg.expires_at)) && (!dateKey(pkg.starts_at) || !dateKey(pkg.expires_at) || dateKey(pkg.starts_at) > dateKey(pkg.expires_at))) return { bookable: false, reason: 'فترة الصلاحية غير مكتملة' };
   return { bookable: true, reason: '' };
 };
 
@@ -47,7 +45,7 @@ export const validatePackageBookingDraft = ({ pkg, service, dates, todayKey }) =
   if (!service || String(service.id) !== String(pkg.service_id)) return 'خدمة الباقة غير متاحة.';
   const rows = dates || [];
   if (!rows.length) return 'أضف موعدًا واحدًا على الأقل.';
-  if (rows.some(row => dateKey(row.date) < dateKey(pkg.starts_at) || dateKey(row.date) > dateKey(pkg.expires_at))) return 'الموعد يجب أن يكون داخل فترة صلاحية الباقة.';
-  if (pkg.validity_mode_snapshot === 'shooting_day' && rows.some(row => dateKey(row.date) !== dateKey(pkg.starts_at))) return 'الباقة اليومية صالحة في يوم التصوير فقط.';
+  if (dateKey(pkg.starts_at) && rows.some(row => dateKey(row.date) < dateKey(pkg.starts_at) || dateKey(row.date) > dateKey(pkg.expires_at))) return 'الموعد يجب أن يكون داخل فترة صلاحية الباقة.';
+  if (dateKey(pkg.starts_at) && pkg.validity_mode_snapshot === 'shooting_day' && rows.some(row => dateKey(row.date) !== dateKey(pkg.starts_at))) return 'الباقة اليومية صالحة في يوم التصوير فقط.';
   return '';
 };

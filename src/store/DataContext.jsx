@@ -490,7 +490,7 @@ export const DataProvider = ({ children }) => {
     await dataClient.auth.signOut();
   };
 
-  if (!isDataLoaded && !isPublicSurface()) {
+  if ((!isDataLoaded || !isAuthReady) && !isPublicSurface()) {
     return (
       <div
         className="data-loading"

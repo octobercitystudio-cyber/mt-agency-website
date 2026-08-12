@@ -3,6 +3,7 @@ import { dataClient } from '../dataClient';
 import { format, parseISO, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { AlertCircle, ChartNoAxesCombined, Layers3, PackageOpen, ShieldCheck, UserRound, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import ERPPageHero from './ERPPageHero';
 import { CURRENCY_LABEL, formatEGP, formatPaymentMethod } from '../lib/businessFormat';
 import useChangeSync from '../hooks/useChangeSync';
@@ -13,32 +14,32 @@ let globalFinanceCache = null;
 let globalConfigCache = null;
 
 const ERPFinance = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser } = useData();
   const [allTransactions, setAllTransactions] = useState(globalFinanceCache || []);
   const [appConfig, setAppConfig] = useState(globalConfigCache || {});
   const [clients, setClients] = useState([]);
   const [packages, setPackages] = useState([]);
   const [services, setServices] = useState([]);
+  const [employeeAccounts, setEmployeeAccounts] = useState([]);
   const [loading, setLoading] = useState(!globalFinanceCache);
   const [loadError, setLoadError] = useState('');
   
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const isAdmin = ['owner', 'admin'].includes(currentUser?.role);
   const isOwner = currentUser?.role === 'owner';
+  const employeeFilter = searchParams.get('employee_user_id') || '';
+  const targetEntryId = searchParams.get('finance_entry_id') || '';
   const [ownerAction, setOwnerAction] = useState({ open: false, mode: 'void', entry: null, amount: '', method: '', detail: '', date: '', reason: '', confirmed: false, error: '', requiresAllocation: false, allocation: {}, replacementAllocation: {} });
 
   // Modals States
   const [modalState, setModalState] = useState({
     transfer: false,
-    addTransaction: false,
-    settleDues: false,
-    advance: false,
-    payAdvance: false,
-    adjustPartner: false
+    addTransaction: false
   });
 
   // Form States
-  const emptyTransaction = () => ({ type: 'إيراد', entry_kind: 'income', category: 'other_income', client_id: '', source_type: '', source_id: '', amount: '', method: 'cash', detail: '', date: format(new Date(), 'yyyy-MM-dd'), entity: 'الشركة' });
+  const emptyTransaction = () => ({ type: 'إيراد', entry_kind: 'income', category: 'other_income', client_id: '', employee_user_id: 'company', source_type: '', source_id: '', amount: '', method: 'cash', detail: '', date: format(new Date(), 'yyyy-MM-dd'), entity: 'الشركة' });
   const [txForm, setTxForm] = useState(emptyTransaction);
   const [txError, setTxError] = useState([]);
   const transactionDialogRef = useRef(null);
@@ -47,14 +48,9 @@ const ERPFinance = () => {
   const ownerDialogRef = useRef(null);
   const ownerActionTriggerRef = useRef(null);
   const [transferForm, setTransferForm] = useState({ from_method: 'cash', to_method: 'vodafone_cash', amount: '', date: format(new Date(), 'yyyy-MM-dd'), note: '' });
-  const [settleForm, setSettleForm] = useState({ partner: 'اشرف', amount: '', method: 'cash', date: format(new Date(), 'yyyy-MM-dd') });
-  const [advanceForm, setAdvanceForm] = useState({ partner: 'اشرف', amount: '', method: 'cash', date: format(new Date(), 'yyyy-MM-dd') });
-  const [payAdvanceForm, setPayAdvanceForm] = useState({ partner: 'اشرف', amount: '', method: 'cash', date: format(new Date(), 'yyyy-MM-dd') });
-  const [adjustDueForm, setAdjustDueForm] = useState({ partner: 'اشرف', new_due: '', current_due: 0 });
   const [adjustWalletForm, setAdjustWalletForm] = useState({ method: '', new_balance: '', current_balance: 0 });
 
   const methodsList = ['cash', 'bank_transfer', 'vodafone_cash', 'instapay'].map(value => ({ value, label: formatPaymentMethod(value) }));
-  const partnersList = ['اشرف', 'مروة'];
 
   const fetchData = useCallback(async () => {
     if (globalFinanceCache && globalConfigCache) {
@@ -66,16 +62,17 @@ const ERPFinance = () => {
     }
 
     setLoadError('');
-    const [financeResult, configResult, clientsResult, packagesResult, servicesResult] = await Promise.all([
+    const [financeResult, configResult, clientsResult, packagesResult, servicesResult, employeeAccountsResult] = await Promise.all([
       dataClient.request('/finance/entries', { method: 'GET' }),
       dataClient.from('app_config').select('*'),
       dataClient.from('clients').select('id,name,status').order('name'),
       dataClient.from('client_packages').select('id,client_id,name,status').order('name'),
       dataClient.from('services').select('id,name,is_active').eq('is_active', 1).order('name'),
+      dataClient.request(`/attendance/employee-accounts?month=${format(new Date(), 'yyyy-MM')}`, { method: 'GET' }),
     ]);
     const fData = financeResult.data;
     const cData = configResult.data;
-    const fetchError = [financeResult, configResult, clientsResult, packagesResult, servicesResult].find(result => result.error)?.error;
+    const fetchError = [financeResult, configResult, clientsResult, packagesResult, servicesResult, employeeAccountsResult].find(result => result.error)?.error;
     if (fetchError) setLoadError(fetchError.message || 'تعذر تحميل دفتر الحسابات.');
     
     if (fData) {
@@ -91,6 +88,7 @@ const ERPFinance = () => {
     setClients((clientsResult.data || []).filter(client => client.status !== 'archived'));
     setPackages(packagesResult.data || []);
     setServices(servicesResult.data || []);
+    setEmployeeAccounts(employeeAccountsResult.data?.accounts || []);
     
     setLoading(false);
   }, []);
@@ -128,14 +126,11 @@ const ERPFinance = () => {
   };
 
   // Derived Calculations
+  const filteredEmployee = employeeAccounts.find(account => String(account.user.id) === employeeFilter);
+
   const calculations = useMemo(() => {
     let total_inc = 0;
     let total_exp = 0;
-    
-    let ashraf_e1 = 0; // مصروف, سداد سلفة
-    let ashraf_e2 = 0; // سداد مستحقات, سحب سلفة
-    let marwa_e1 = 0;
-    let marwa_e2 = 0;
     
     const balances = { 'كاش': 0, 'فودافون كاش': 0, 'انستاباي': 0, 'إنستاباي (InstaPay)': 0, 'تحويل بنكي': 0 };
 
@@ -182,19 +177,9 @@ const ERPFinance = () => {
         balances[method] -= amt;
       }
 
-      if (t.entity === 'اشرف') {
-        if (['مصروف', 'سداد سلفة'].includes(t.type)) ashraf_e1 += amt;
-        if (['سداد مستحقات', 'سحب سلفة'].includes(t.type)) ashraf_e2 += amt;
-      } else if (t.entity === 'مروة') {
-        if (['مصروف', 'سداد سلفة'].includes(t.type)) marwa_e1 += amt;
-        if (['سداد مستحقات', 'سحب سلفة'].includes(t.type)) marwa_e2 += amt;
-      }
     });
 
     const net_profit = total_inc - total_exp;
-    const ashraf_due = (ashraf_e1 - ashraf_e2) + safeFloat(appConfig['partner_اشرف_adj'] || 0);
-    const marwa_due = (marwa_e1 - marwa_e2) + safeFloat(appConfig['partner_مروة_adj'] || 0);
-
     const cash_adj = safeFloat(appConfig['wallet_كاش_adj'] || 0);
     const vodafone_adj = safeFloat(appConfig['wallet_فودافون كاش_adj'] || 0);
     const instapay_adj = safeFloat(appConfig['wallet_انستاباي_adj'] || 0);
@@ -206,12 +191,15 @@ const ERPFinance = () => {
     return { 
       total_inc, total_exp, net_profit, 
       balances: { cash: final_cash, vodafone: final_vodafone, instapay: final_instapay }, 
-      ashraf_due, marwa_due, 
       incomes, expenses 
     };
   }, [allTransactions, appConfig, selectedMonth]);
 
-  const { total_inc, total_exp, net_profit, balances, ashraf_due, marwa_due, incomes, expenses } = calculations;
+  const { total_inc, total_exp, net_profit, balances, incomes, expenses } = calculations;
+  const displayIncomes = employeeFilter ? incomes.filter(entry => String(entry.employee_user_id || '') === employeeFilter) : incomes;
+  const displayExpenses = employeeFilter ? expenses.filter(entry => String(entry.employee_user_id || '') === employeeFilter) : expenses;
+  const displayIncomeTotal = displayIncomes.reduce((sum, entry) => sum + safeFloat(entry.amount), 0);
+  const displayExpenseTotal = displayExpenses.reduce((sum, entry) => sum + safeFloat(entry.amount), 0);
 
   const handleAddTransaction = async (e) => {
     e.preventDefault();
@@ -232,6 +220,7 @@ const ERPFinance = () => {
       source_id: txForm.entry_kind === 'income' && txForm.source_id ? Number(txForm.source_id) : null,
       amount: safeFloat(txForm.amount), method: txForm.method, detail: txForm.detail, date: txForm.date,
       entity: txForm.entry_kind === 'expense' ? txForm.entity : 'الشركة',
+      employee_user_id: txForm.entry_kind === 'expense' && txForm.employee_user_id !== 'company' ? Number(txForm.employee_user_id) : null,
     }) });
 
     if (!error) {
@@ -255,78 +244,6 @@ const ERPFinance = () => {
 
     setModalState(s => ({...s, transfer: false}));
     setTransferForm({ from_method: 'cash', to_method: 'vodafone_cash', amount: '', date: format(new Date(), 'yyyy-MM-dd'), note: '' });
-    fetchData(true);
-  };
-
-  const handleSettle = async (e) => {
-    e.preventDefault();
-    await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
-      entry_kind: 'settlement_out', category: 'partner_settlement',
-      amount: safeFloat(settleForm.amount),
-      method: settleForm.method,
-      detail: `سداد مستحقات أ. ${settleForm.partner}`,
-      date: settleForm.date,
-      entity: settleForm.partner
-    }) });
-    setModalState(s => ({...s, settleDues: false}));
-    setSettleForm({ partner: 'اشرف', amount: '', method: 'cash', date: format(new Date(), 'yyyy-MM-dd') });
-    fetchData(true);
-  };
-
-  const handleAdvance = async (e) => {
-    e.preventDefault();
-    await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
-      entry_kind: 'advance_out', category: 'partner_advance',
-      amount: safeFloat(advanceForm.amount),
-      method: advanceForm.method,
-      detail: `سحب سلفة لـ أ. ${advanceForm.partner}`,
-      date: advanceForm.date,
-      entity: advanceForm.partner
-    }) });
-    setModalState(s => ({...s, advance: false}));
-    setAdvanceForm({ partner: 'اشرف', amount: '', method: 'cash', date: format(new Date(), 'yyyy-MM-dd') });
-    fetchData(true);
-  };
-
-  const handlePayAdvance = async (e) => {
-    e.preventDefault();
-    await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
-      entry_kind: 'advance_in', category: 'partner_advance_repayment',
-      amount: safeFloat(payAdvanceForm.amount),
-      method: payAdvanceForm.method,
-      detail: `سداد سلفة من أ. ${payAdvanceForm.partner}`,
-      date: payAdvanceForm.date,
-      entity: payAdvanceForm.partner
-    }) });
-    setModalState(s => ({...s, payAdvance: false}));
-    setPayAdvanceForm({ partner: 'اشرف', amount: '', method: 'cash', date: format(new Date(), 'yyyy-MM-dd') });
-    fetchData(true);
-  };
-
-  const handleAdjustDue = async (e) => {
-    e.preventDefault();
-    const partner = adjustDueForm.partner;
-    const new_due = safeFloat(adjustDueForm.new_due);
-    
-    let e1 = 0, e2 = 0;
-    allTransactions.forEach(t => {
-      if (t.entity === partner) {
-        if (['مصروف', 'سداد سلفة'].includes(t.type)) e1 += safeFloat(t.amount);
-        if (['سداد مستحقات', 'سحب سلفة'].includes(t.type)) e2 += safeFloat(t.amount);
-      }
-    });
-    const base_due = e1 - e2;
-    const new_adj = new_due - base_due;
-    const adj_key = `partner_${partner}_adj`;
-
-    const exists = appConfig[adj_key] !== undefined;
-    if (exists) {
-      await dataClient.from('app_config').update({ value: new_adj.toString() }).eq('key', adj_key);
-    } else {
-      await dataClient.from('app_config').insert([{ key: adj_key, value: new_adj.toString() }]);
-    }
-
-    setModalState(s => ({...s, adjustPartner: false}));
     fetchData(true);
   };
 
@@ -431,26 +348,6 @@ const ERPFinance = () => {
     const current = parseISO(`${selectedMonth}-01`);
     const newDate = offset > 0 ? addMonths(current, 1) : subMonths(current, 1);
     setSelectedMonth(format(newDate, 'yyyy-MM'));
-  };
-
-  const openSettleModal = (partner, maxDue) => {
-    setSettleForm({ ...settleForm, partner, amount: maxDue > 0 ? maxDue : '' });
-    setModalState(s => ({...s, settleDues: true}));
-  };
-
-  const openAdvanceModal = (partner) => {
-    setAdvanceForm({ ...advanceForm, partner });
-    setModalState(s => ({...s, advance: true}));
-  };
-
-  const openPayAdvanceModal = (partner, maxAdv) => {
-    setPayAdvanceForm({ ...payAdvanceForm, partner, amount: maxAdv > 0 ? maxAdv : '' });
-    setModalState(s => ({...s, payAdvance: true}));
-  };
-
-  const openAdjustPartnerModal = (partner, currentDue) => {
-    setAdjustDueForm({ partner, new_due: '', current_due: currentDue });
-    setModalState(s => ({...s, adjustPartner: true}));
   };
 
   const openAdjustWalletModal = (method, currentBalance) => {
@@ -589,42 +486,10 @@ const ERPFinance = () => {
         </div>
       </div>
 
-      {/* Partners Dues */}
-      <div className="row g-3 mb-4">
-        {[
-          { name: 'أ. أشرف', key: 'اشرف', due: ashraf_due },
-          { name: 'أ. مروة', key: 'مروة', due: marwa_due }
-        ].map(partner => (
-          <div className="col-6" key={partner.key}>
-            <div className="card border-0 shadow-sm rounded-4 p-2 p-md-3 d-flex flex-column align-items-center justify-content-center wallet-card text-center h-100" style={{ background: 'var(--erp-surface)' }}>
-              <div className="d-flex flex-column flex-md-row align-items-center mb-2">
-                <div className="mb-2 mb-md-0 ms-md-2" style={{ background: 'var(--erp-bg)', padding: '10px', borderRadius: '50%' }}>
-                  <i className="fas fa-user text-dark" style={{ fontSize: '1rem' }}></i>
-                </div>
-                <h6 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)', fontSize: '0.9rem' }}>
-                  {partner.name}
-                  {isAdmin && <button className="btn btn-sm btn-link p-0 ms-1" style={{ color: 'var(--erp-primary)' }} onClick={() => openAdjustPartnerModal(partner.key, partner.due)}><i className="fas fa-edit"></i></button>}
-                </h6>
-              </div>
-              <div className="text-center w-100">
-                {partner.due > 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-success)' }}>له: {formatEGP(partner.due)}</h5>}
-                {partner.due < 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-danger)' }}>عليه: {formatEGP(partner.due * -1)}</h5>}
-                {partner.due === 0 && <h5 className="fw-bold m-0 mb-1" style={{ color: 'var(--erp-text-muted)' }}>0 <small style={{ fontSize: '0.7rem' }}>ج</small></h5>}
-                
-                <div className="d-flex gap-1 justify-content-center mt-2 flex-wrap">
-                  <button className="btn btn-outline-danger rounded-pill px-3 py-1 fw-bold no-print" style={{ fontSize: '0.75rem' }} onClick={() => openAdvanceModal(partner.key)}>سلفة</button>
-                  {partner.due > 0 && <button className="btn btn-outline-success rounded-pill px-3 py-1 fw-bold no-print" style={{ fontSize: '0.75rem' }} onClick={() => openSettleModal(partner.key, partner.due)}>سداد</button>}
-                  {partner.due < 0 && <button className="btn btn-outline-primary rounded-pill px-3 py-1 fw-bold no-print" style={{ fontSize: '0.75rem' }} onClick={() => openPayAdvanceModal(partner.key, partner.due * -1)}>تسديد</button>}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
+      {employeeFilter && <div className="finance-employee-filter" role="status"><UserRound/><div><strong>عرض معاملات {filteredEmployee?.user.full_name || `الموظف #${employeeFilter}`}</strong><span>كل هذه القيود هي نفسها الظاهرة في حساب الموظف بصفحة الحضور والرواتب.</span></div><button type="button" onClick={() => setSearchParams({})}>عرض كل الحسابات</button></div>}
       <div className="finance-ledgers-grid" aria-label="دفتر الإيرادات والمصروفات">
-        <FinanceLedgerPanel kind="income" entries={incomes} total={total_inc} isOwner={isOwner} onAction={openOwnerAction}/>
-        <FinanceLedgerPanel kind="expense" entries={expenses} total={total_exp} isOwner={isOwner} onAction={openOwnerAction}/>
+        <FinanceLedgerPanel kind="income" entries={displayIncomes} total={employeeFilter ? displayIncomeTotal : total_inc} isOwner={isOwner} onAction={openOwnerAction} targetEntryId={targetEntryId}/>
+        <FinanceLedgerPanel kind="expense" entries={displayExpenses} total={employeeFilter ? displayExpenseTotal : total_exp} isOwner={isOwner} onAction={openOwnerAction} targetEntryId={targetEntryId}/>
       </div>
 
       {/* --- MODALS --- */}
@@ -642,7 +507,7 @@ const ERPFinance = () => {
               <div className="row g-3">
                 <div className="col-md-6">
                   <label htmlFor="finance-entry-type" className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>نوع العملية</label>
-                  <select id="finance-entry-type" data-finance-initial className="form-select border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={txForm.type} onChange={e => setTxForm({...txForm,type:e.target.value,entry_kind:e.target.value==='إيراد'?'income':'expense',category:e.target.value==='إيراد'?'other_income':'general_expense',client_id:'',source_type:'',source_id:'',entity:'الشركة'})} required>
+                  <select id="finance-entry-type" data-finance-initial className="form-select border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={txForm.type} onChange={e => setTxForm({...txForm,type:e.target.value,entry_kind:e.target.value==='إيراد'?'income':'expense',category:e.target.value==='إيراد'?'other_income':'general_expense',client_id:'',employee_user_id:'company',source_type:'',source_id:'',entity:'الشركة'})} required>
                     <option value="إيراد" style={{ color: 'var(--erp-success)' }}>إيراد (+)</option>
                     <option value="مصروف" style={{ color: 'var(--erp-danger)' }}>مصروف (-)</option>
                   </select>
@@ -671,9 +536,9 @@ const ERPFinance = () => {
                 {txForm.type === 'مصروف' && (
                   <div className="col-12 mt-3 animate__animated animate__fadeIn">
                     <label htmlFor="finance-expense-entity" className="small fw-bold mb-1" style={{ color: 'var(--erp-danger)' }}>دُفع بواسطة (الجهة)</label>
-                    <select id="finance-expense-entity" className="form-select border-0 fw-bold" style={{ background: 'rgba(220, 53, 69, 0.1)', color: 'var(--erp-danger)' }} value={txForm.entity} onChange={e => setTxForm({...txForm, entity: e.target.value})} required>
-                      <option value="الشركة">من خزينة الشركة</option>
-                      {partnersList.map(p => <option key={p} value={p}>أ. {p} (من ماله الخاص)</option>)}
+                    <select id="finance-expense-entity" className="form-select border-0 fw-bold" style={{ background: 'rgba(220, 53, 69, 0.1)', color: 'var(--erp-danger)' }} value={txForm.employee_user_id} onChange={e => { const account = employeeAccounts.find(item => String(item.user.id) === e.target.value); setTxForm({...txForm, employee_user_id: e.target.value, entity: account?.user.full_name || 'الشركة'}); }} required>
+                      <option value="company">من خزينة الشركة</option>
+                      {employeeAccounts.map(account => <option key={account.user.id} value={account.user.id}>{account.user.full_name} (من ماله الخاص)</option>)}
                     </select>
                   </div>
                 )}
@@ -728,118 +593,6 @@ const ERPFinance = () => {
         </div>
       )}
 
-      {/* 3. Settle Dues Modal */}
-      {modalState.settleDues && (
-        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, settleDues: false})}>
-          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-success)', color: 'white' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-hand-holding-usd me-2"></i> سداد مستحقات شريك</h5>
-            </div>
-            <form onSubmit={handleSettle} className="p-4 bg-white text-center">
-              <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سداد لـ أ. {settleForm.partner}</h5>
-              <div className="mb-3 text-start mt-4">
-                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ المعاملة</label>
-                <input type="date" className="form-control border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={settleForm.date} onChange={e => setSettleForm({...settleForm, date: e.target.value})} required />
-              </div>
-              <div className="mb-3 text-start">
-                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>المبلغ المراد سداده الآن</label>
-                <input type="number" step="0.01" className="form-control border-0 py-3 fs-3 fw-bold text-center rounded-4" style={{ background: 'rgba(25, 135, 84, 0.1)', color: 'var(--erp-success)' }} value={settleForm.amount} onChange={e => setSettleForm({...settleForm, amount: e.target.value})} required />
-              </div>
-              <div className="mb-3 text-start">
-                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>سحب المبلغ من خزينة:</label>
-                <select className="form-select border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={settleForm.method} onChange={e => setSettleForm({...settleForm, method: e.target.value})} required>
-                  {methodsList.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}
-                </select>
-              </div>
-              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-3" style={{ background: 'var(--erp-success)', color: 'white' }}>تأكيد السداد</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Advance Modal */}
-      {modalState.advance && (
-        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, advance: false})}>
-          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-danger)', color: 'white' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-hand-holding-usd me-2"></i> سحب سلفة للشريك</h5>
-            </div>
-            <form onSubmit={handleAdvance} className="p-4 bg-white text-center">
-              <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سلفة لـ أ. {advanceForm.partner}</h5>
-              <p className="small mb-3" style={{ color: 'var(--erp-text-muted)' }}>هذا المبلغ سيتحول لمديونية شخصية على الشريك وسيخصم من أرباحه مستقبلاً.</p>
-              <div className="mb-3 text-start mt-4">
-                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ المعاملة</label>
-                <input type="date" className="form-control border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={advanceForm.date} onChange={e => setAdvanceForm({...advanceForm, date: e.target.value})} required />
-              </div>
-              <div className="mb-3 text-start">
-                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>المبلغ المراد سحبه كسلفة</label>
-                <input type="number" step="0.01" className="form-control border-0 py-3 fs-3 fw-bold text-center rounded-4" style={{ background: 'rgba(220, 53, 69, 0.1)', color: 'var(--erp-danger)' }} value={advanceForm.amount} onChange={e => setAdvanceForm({...advanceForm, amount: e.target.value})} required />
-              </div>
-              <div className="mb-3 text-start">
-                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>سحب المبلغ من خزينة:</label>
-                <select className="form-select border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={advanceForm.method} onChange={e => setAdvanceForm({...advanceForm, method: e.target.value})} required>
-                  {methodsList.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}
-                </select>
-              </div>
-              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-3" style={{ background: 'var(--erp-danger)', color: 'white' }}>تأكيد سحب السلفة</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 5. Pay Advance Modal */}
-      {modalState.payAdvance && (
-        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, payAdvance: false})}>
-          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-undo me-2"></i> سداد سلفة الشريك</h5>
-            </div>
-            <form onSubmit={handlePayAdvance} className="p-4 bg-white text-center">
-              <h5 className="fw-bold mb-1" style={{ color: 'var(--erp-text-main)' }}>سداد من أ. {payAdvanceForm.partner}</h5>
-              <div className="mb-3 text-start mt-4">
-                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>تاريخ المعاملة</label>
-                <input type="date" className="form-control border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={payAdvanceForm.date} onChange={e => setPayAdvanceForm({...payAdvanceForm, date: e.target.value})} required />
-              </div>
-              <div className="mb-3 text-start">
-                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>المبلغ المراد سداده الآن لخزينة الشركة</label>
-                <input type="number" step="0.01" className="form-control border-0 py-3 fs-3 fw-bold text-center rounded-4" style={{ background: 'rgba(67, 24, 255, 0.1)', color: 'var(--erp-primary)' }} value={payAdvanceForm.amount} onChange={e => setPayAdvanceForm({...payAdvanceForm, amount: e.target.value})} required />
-              </div>
-              <div className="mb-3 text-start">
-                <label className="small fw-bold mb-1" style={{ color: 'var(--erp-text-muted)' }}>إيداع المبلغ في خزينة:</label>
-                <select className="form-select border-0 py-2 fw-bold rounded-4" style={{ background: 'var(--erp-bg)' }} value={payAdvanceForm.method} onChange={e => setPayAdvanceForm({...payAdvanceForm, method: e.target.value})} required>
-                  {methodsList.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}
-                </select>
-              </div>
-              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-3" style={{ background: 'var(--erp-primary)', color: 'white' }}>تأكيد السداد والخزينة</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 6. Adjust Partner Due Modal (Admin Only) */}
-      {modalState.adjustPartner && isAdmin && (
-        <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, adjustPartner: false})}>
-          <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header border-0 p-4" style={{ background: '#1e293b', color: 'white' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-balance-scale me-2 text-warning"></i> تعديل إداري لمستحقات الشريك</h5>
-            </div>
-            <form onSubmit={handleAdjustDue} className="p-4 bg-white text-center">
-              <div className="p-3 rounded-4 mb-4 border" style={{ background: 'var(--erp-bg)' }}>
-                <small className="fw-bold block" style={{ color: 'var(--erp-text-muted)' }}>الرصيد الحالي المُسجل لـ (<span style={{ color: 'var(--erp-primary)' }}>أ. {adjustDueForm.partner}</span>)</small>
-                <h3 className="fw-bold m-0 mt-1" style={{ color: 'var(--erp-text-main)' }}>{formatEGP(adjustDueForm.current_due)}</h3>
-              </div>
-              <div className="mb-4 text-start">
-                <label className="small fw-bold mb-2" style={{ color: 'var(--erp-text-main)' }}>المبلغ الجديد الصحيح (للمستحقات) بالموجب أو السالب:</label>
-                <input type="number" step="0.01" className="form-control border-0 py-3 fs-2 fw-bold text-center rounded-4" style={{ background: 'rgba(255, 193, 7, 0.2)', color: '#000' }} value={adjustDueForm.new_due} onChange={e => setAdjustDueForm({...adjustDueForm, new_due: e.target.value})} required placeholder="مثال: 0 لتصفير الحساب" />
-              </div>
-              <div className="alert border-0 rounded-4 small fw-bold mb-4 text-start" style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#856404' }}>
-                <i className="fas fa-info-circle me-1"></i> سيتم إنشاء عملية "تسوية إدارية" خفية لضبط الدفاتر بحيث يصبح الرصيد مساوياً للرقم الجديد.
-              </div>
-              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow" style={{ background: '#1e293b', color: 'white' }}>اعتماد الرصيد الجديد</button>
-            </form>
-          </div>
-        </div>
-      )}
       {/* 7. Adjust Wallet Modal (Admin Only) */}
       {modalState.adjustWallet && isAdmin && (
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, adjustWallet: false})}>
@@ -891,6 +644,7 @@ const FINANCE_CATEGORY_LABELS = {
   rent: 'إيجار', equipment: 'معدات وصيانة', utilities: 'مرافق واتصالات', marketing: 'تسويق وإعلانات',
   transport: 'انتقالات', general_expense: 'مصروف عام', reminder_expense: 'سداد تذكير', wallet_adjustment: 'تسوية خزينة',
   partner_settlement: 'سداد مستحقات', partner_advance: 'سلفة شريك', partner_advance_repayment: 'سداد سلفة', internal_transfer: 'تحويل داخلي',
+  employee_out_of_pocket: 'مدفوع من جيب الموظف', employee_advance: 'سلفة موظف', employee_advance_repayment: 'سداد سلفة موظف', employee_settlement: 'سداد مستحقات موظف',
 };
 
 const financeCategoryLabel = entry => {
@@ -914,11 +668,11 @@ function FinanceEntryState({ entry }) {
 function ExpenseIdentity({ entry }) {
   return <div className="finance-expense-identity">
     <strong>{entry.detail || 'مصروف بلا وصف'}</strong>
-    <span>{entry.entity || 'الشركة'} · {financeCategoryLabel(entry)}</span>
+    <span>{entry.employee_name ? `حساب الموظف: ${entry.employee_name}` : entry.entity || 'الشركة'} · {financeCategoryLabel(entry)}{entry.employee_user_id ? ` · قيد #${entry.id}` : ''}</span>
   </div>;
 }
 
-function FinanceLedgerPanel({ kind, entries, total, isOwner, onAction }) {
+function FinanceLedgerPanel({ kind, entries, total, isOwner, onAction, targetEntryId }) {
   const income = kind === 'income';
   const title = income ? 'الإيرادات' : 'المصروفات';
   const headingId = `finance-${kind}-heading`;
@@ -933,22 +687,22 @@ function FinanceLedgerPanel({ kind, entries, total, isOwner, onAction }) {
           <caption className="visually-hidden">{title} للفترة المحددة، متضمنة المبلغ وإجراءات المالك</caption>
           <thead><tr><th scope="col">{income ? 'العميل والمصدر' : 'البيان والجهة'}</th><th scope="col">تفاصيل الحركة</th><th scope="col">المبلغ والإجراءات</th></tr></thead>
           <tbody>
-            {entries.map(entry => <FinanceLedgerRow key={entry.id} entry={entry} kind={kind} isOwner={isOwner} onAction={onAction}/>)}
+            {entries.map(entry => <FinanceLedgerRow key={entry.id} entry={entry} kind={kind} isOwner={isOwner} onAction={onAction} highlighted={String(entry.id) === String(targetEntryId)}/>)}
             {!entries.length && <tr><td colSpan="3"><FinanceLedgerEmpty kind={kind}/></td></tr>}
           </tbody>
         </table>
       </div>
       <div className="finance-ledger-cards" aria-label={`بطاقات ${title}`}>
-        {entries.map(entry => <FinanceLedgerCard key={entry.id} entry={entry} kind={kind} isOwner={isOwner} onAction={onAction}/>)}
+        {entries.map(entry => <FinanceLedgerCard key={entry.id} entry={entry} kind={kind} isOwner={isOwner} onAction={onAction} highlighted={String(entry.id) === String(targetEntryId)}/>)}
         {!entries.length && <FinanceLedgerEmpty kind={kind}/>}
       </div>
     </div>
   </section>;
 }
 
-function FinanceLedgerRow({ entry, kind, isOwner, onAction }) {
+function FinanceLedgerRow({ entry, kind, isOwner, onAction, highlighted }) {
   const income = kind === 'income';
-  return <tr className={entry.entry_kind === 'reversal' ? 'is-reversal' : ''}>
+  return <tr id={`finance-entry-${entry.id}`} className={`${entry.entry_kind === 'reversal' ? 'is-reversal' : ''} ${highlighted ? 'is-highlighted' : ''}`}>
     <td>{income ? <RevenueIdentity entry={entry}/> : <ExpenseIdentity entry={entry}/>}<span className="finance-row-date">{financeDayName(entry.date)} · {entry.date}</span></td>
     <td><p className="finance-row-description">{income ? entry.detail : financeCategoryLabel(entry)}</p><div className="finance-row-tags"><span>{formatPaymentMethod(entry.method)}</span><FinanceEntryState entry={entry}/></div></td>
     <td><FinanceLedgerAmount entry={entry} kind={kind}/>{isOwner && <FinanceOwnerActions entry={entry} onAction={onAction}/>}</td>
@@ -960,9 +714,9 @@ function FinanceLedgerAmount({ entry, kind }) {
   return <strong className={`finance-ledger-amount ${entry.entry_kind === 'reversal' ? 'reversal' : ''}`}>{prefix}{formatEGP(entry.amount)}</strong>;
 }
 
-function FinanceLedgerCard({ entry, kind, isOwner, onAction }) {
+function FinanceLedgerCard({ entry, kind, isOwner, onAction, highlighted }) {
   const income = kind === 'income';
-  return <article className={`finance-ledger-card ${kind} ${entry.entry_kind === 'reversal' ? 'is-reversal' : ''}`}>
+  return <article id={`finance-entry-card-${entry.id}`} className={`finance-ledger-card ${kind} ${entry.entry_kind === 'reversal' ? 'is-reversal' : ''} ${highlighted ? 'is-highlighted' : ''}`}>
     <header>{income ? <RevenueIdentity entry={entry}/> : <ExpenseIdentity entry={entry}/>}<FinanceLedgerAmount entry={entry} kind={kind}/></header>
     <p>{income ? entry.detail : financeCategoryLabel(entry)}</p>
     <footer><span>{financeDayName(entry.date)} · {entry.date}</span><span className="finance-method-chip">{formatPaymentMethod(entry.method)}</span><FinanceEntryState entry={entry}/></footer>
@@ -991,7 +745,7 @@ function FinanceOwnerDialog({dialogRef,state,setState,packages,onClose,onSubmit}
     {correct&&<div className="finance-owner-grid"><label>المبلغ الجديد<input type="number" min="0.01" step="0.01" required value={state.amount} onChange={event=>setState({...state,amount:event.target.value})}/></label><label>طريقة الدفع<input required value={state.method} onChange={event=>setState({...state,method:event.target.value})}/></label><label>التاريخ<input type="date" required value={state.date} onChange={event=>setState({...state,date:event.target.value})}/></label><label>البيان<input required value={state.detail} onChange={event=>setState({...state,detail:event.target.value})}/></label></div>}
     <section className="finance-impact-strip"><article><span>القيد الأصلي</span><b>{formatEGP(entry.amount)}</b></article><article><span>الخزينة</span><b>{transfer?'عكس الخروج والدخول':correct?`عكس ثم ${formatEGP(state.amount)}`:'عكس كامل'}</b></article><article><span>المصدر</span><b>{entry.source_type==='payment'?'دفعة وحصص وفاتورة':transfer?'تحويل داخلي · طرفان':'قيد يدوي'}</b></article></section>
     {needsAllocation&&<section className="finance-allocation"><h3>توزيع الدفعة القديمة مطلوب</h3><p>إجمالي الدفعة الأصلية: <b>{formatEGP(entry.amount)}</b>. أدخل كل حصة في عمودها؛ لن يخمّن النظام التوزيع.</p><div className={`finance-allocation-head ${correct?'with-replacement':''}`}><span>الباقة</span><b>التوزيع الأصلي</b>{correct&&<b>التوزيع البديل</b>}</div>{Object.keys(state.allocation).map((packageId,index)=>{const pkg=packages.find(item=>Number(item.id)===Number(packageId));const name=pkg?.name||`باقة #${packageId}`;return <div className={`finance-allocation-row ${correct?'with-replacement':''}`} key={packageId}><strong>{name}</strong><label><span>الأصلي</span><input data-allocation-input={index===0?true:undefined} aria-label={`التوزيع الأصلي لـ ${name}`} type="number" min="0" step="0.01" required value={state.allocation[packageId]} onChange={event=>setState({...state,allocation:{...state.allocation,[packageId]:event.target.value}})}/></label>{correct&&<label><span>البديل</span><input aria-label={`التوزيع البديل لـ ${name}`} type="number" min="0" step="0.01" required value={state.replacementAllocation[packageId]} onChange={event=>setState({...state,replacementAllocation:{...state.replacementAllocation,[packageId]:event.target.value}})}/></label>}</div>})}<div className="finance-allocation-totals"><strong className={Math.abs(originalRemaining)<.005?'balanced':'unbalanced'}>الأصلية {formatEGP(allocationTotal)} · المتبقي {formatEGP(originalRemaining)}</strong>{correct&&<strong className={Math.abs(replacementRemaining)<.005?'balanced':'unbalanced'}>البديلة {formatEGP(replacementTotal)} · المتبقي {formatEGP(replacementRemaining)}</strong>}</div></section>}
-    {state.error&&<div className="finance-owner-error" role="alert"><AlertCircle/>{state.error}</div>}<label className="finance-owner-reason">سبب {correct?'التصحيح':'الإلغاء'}<textarea minLength="5" required rows="3" value={state.reason} onChange={event=>setState({...state,reason:event.target.value})}/></label><label className="finance-owner-confirm"><input type="checkbox" checked={state.confirmed} onChange={event=>setState({...state,confirmed:event.target.checked})}/> أفهم أن التاريخ لن يُحذف وسيُنشأ قيد عكسي موثق{transfer?' لطرفي التحويل معًا':''}.</label><button className={correct?'correct':'void'} disabled={!state.confirmed||state.reason.trim().length<5}>{correct?'حفظ كعكس + بديل':transfer?'إلغاء طرفي التحويل':'تأكيد الإلغاء الموثق'}</button>
+    {state.error&&<div className="finance-owner-error" role="alert"><AlertCircle/>{state.error}</div>}<label className="finance-owner-reason">{correct?'سبب التصحيح':'ملاحظة داخلية (اختيارية)'}<textarea minLength={correct ? 5 : undefined} required={correct} rows="3" value={state.reason} onChange={event=>setState({...state,reason:event.target.value})} placeholder={correct ? 'اكتب سببًا واضحًا للتصحيح' : 'يمكنك تركها فارغة'}/></label><label className="finance-owner-confirm"><input type="checkbox" checked={state.confirmed} onChange={event=>setState({...state,confirmed:event.target.checked})}/> أفهم أن التاريخ لن يُحذف وسيُنشأ قيد عكسي موثق{transfer?' لطرفي التحويل معًا':''}.</label><button className={correct?'correct':'void'} disabled={!state.confirmed||(correct&&state.reason.trim().length<5)}>{correct?'حفظ كعكس + بديل':transfer?'إلغاء طرفي التحويل':'تأكيد الإلغاء الموثق'}</button>
   </form></div>;
 }
 

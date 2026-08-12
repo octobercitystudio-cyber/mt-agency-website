@@ -93,8 +93,15 @@ export const remainingBusinessDays = (expiresAt, todayKey = cairoDateKey()) => {
   return count;
 };
 
+export const remainingCalendarDays = (expiresAt, todayKey = cairoDateKey()) => {
+  const today = dateOnlyToUtc(todayKey);
+  const expiry = dateOnlyToUtc(expiresAt);
+  if (!today || !expiry || expiry < today) return 0;
+  return Math.floor((expiry.getTime() - today.getTime()) / 86400000) + 1;
+};
+
 export const effectivePackageStatus = (pkg, todayKey = cairoDateKey()) => (
-  pkg?.status === 'active' && String(pkg?.expires_at || '').slice(0, 10) < todayKey ? 'expired' : pkg?.status
+  pkg?.status === 'active' && pkg?.expires_at && String(pkg.expires_at).slice(0, 10) < todayKey ? 'expired' : pkg?.status
 );
 
 export const formatPackageQuantity = (value, billingUnit = 'hour') => {

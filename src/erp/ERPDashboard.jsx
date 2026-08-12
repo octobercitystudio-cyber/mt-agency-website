@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, BadgeDollarSign, CalendarDays, Check, Clock3,
-  Eye, FileCheck2, PackageCheck, PlayCircle, Plus, RefreshCw, TimerOff, UserPlus, UsersRound,
+  Eye, FileCheck2, FolderKanban, PackageCheck, PlayCircle, Plus, RefreshCw, TimerOff, UserPlus, UsersRound,
 } from 'lucide-react';
 import { dataClient, dataProvider } from '../dataClient';
 import { useData } from '../store/DataContext';
@@ -16,13 +16,13 @@ import useChangeSync from '../hooks/useChangeSync';
 import ERPStartSessionDialog from './ERPStartSessionDialog';
 import { canRoleStartStudioSession } from './studioSessionStart';
 import { eligibilityMap, studioBookingEligible } from './studioSessionEligibility';
+import { requestDashboardModule } from '../lib/dashboardLoad';
 import './ERPDashboard.css';
 import './ERPDashboardFixes.css';
 
 const cairoDate = (date = new Date()) => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(date);
-const cairoMonth = () => cairoDate().slice(0, 7);
 const money = (value) => formatEGP(value, { maximumFractionDigits: 0 });
 const roleLabels = { owner: 'مالك', admin: 'مدير', operations: 'تشغيل', finance: 'مالية', staff: 'موظف' };
 const statusLabels = {
@@ -32,7 +32,7 @@ const statusLabels = {
 const normalizeStatus = (status = '') => ({ 'قيد الانتظار': 'pending', 'مؤكد': 'confirmed', 'ملغي': 'cancelled' }[status] || status);
 
 const ERPDashboard = () => {
-  const { currentUser } = useData();
+  const { currentUser, isAuthReady } = useData();
   const navigate = useNavigate();
   const [clock, setClock] = useState(new Date());
   const [state, setState] = useState({ loading: true, error: '', bookings: [], actions: [], tasks: [], health: {}, packageMap: {}, sessionEligibility: {} });
@@ -42,6 +42,7 @@ const ERPDashboard = () => {
   const [sessionStart, setSessionStart] = useState({ open: false, booking: null });
   const sessionTriggerRef = useRef(null);
   const bookingTriggerRef = useRef(null);
+  const loadSequenceRef = useRef(0);
   const openBookingCreate = event => { bookingTriggerRef.current = event?.currentTarget || null; setCreateAction('booking'); };
 
   useEffect(() => {
@@ -50,59 +51,68 @@ const ERPDashboard = () => {
   }, []);
 
   const load = useCallback(async () => {
+    if (!isAuthReady || !currentUser?.role) return;
+    const loadSequence = ++loadSequenceRef.current;
     setState((old) => ({ ...old, loading: true, error: '' }));
-    const today = cairoDate(); const month = cairoMonth();
+    const today = cairoDate();
     const role = currentUser?.role;
     const scopedRequest = (roles, request, fallback = []) => roles.includes(role)
       ? request()
       : Promise.resolve({ data: fallback, error: null, skipped: true });
     try {
-      const [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks, sessionEligibility] = await Promise.all([
-        dataClient.from('bookings').select('*').eq('date', today).order('start_time', { ascending: true }),
-        dataClient.from('bookings').select('id,client_name,status,date,start_time').in('status', ['pending', 'cancel_requested', 'late_cancel_requested']).limit(8),
-        scopedRequest(['owner', 'admin', 'operations', 'staff'], () => dataClient.from('reschedule_requests').select('id,booking_id,client_id,status,proposed_date,proposed_start_time').eq('status', 'pending').limit(8)),
-        scopedRequest(['owner', 'admin', 'finance'], () => dataClient.from('payment_proofs').select('id,client_id,amount,status,created_at').eq('status', 'pending').limit(8)),
-        scopedRequest(['owner', 'admin', 'finance'], () => dataClient.from('finance').select('id,type,entry_kind,amount,date').like('date', `${month}%`)),
-        scopedRequest(['owner', 'admin', 'operations', 'finance'], () => dataClient.from('client_packages').select('id,name,billing_unit,status,starts_at,expires_at,total_price,overage_amount,paid_amount,source_invoice_id').eq('status', 'active')),
-        scopedRequest(['owner', 'admin', 'finance'], () => dataClient.from('invoices').select('id,total,paid_amount,status')),
-        dataClient.from('reminders').select('id,title,due_date,type,status,amount').eq('status', 'pending').order('due_date', { ascending: true }).limit(6),
-        scopedRequest(['owner', 'admin', 'operations'], () => dataClient.request(`/studio-session-eligibility?date=${today}`), { items: [] }),
+      const [bookingsResult, pendingBookings, reschedules, proofs, packages, tasks, sessionEligibility, dashboardKpis] = await Promise.all([
+        requestDashboardModule(() => dataClient.from('bookings').select('*').eq('date', today).order('start_time', { ascending: true })),
+        requestDashboardModule(() => dataClient.from('bookings').select('id,client_name,status,date,start_time').in('status', ['pending', 'cancel_requested', 'late_cancel_requested']).limit(8)),
+        requestDashboardModule(() => scopedRequest(['owner', 'admin', 'operations', 'staff'], () => dataClient.from('reschedule_requests').select('id,booking_id,client_id,status,proposed_date,proposed_start_time').eq('status', 'pending').limit(8))),
+        requestDashboardModule(() => scopedRequest(['owner', 'admin', 'finance'], () => dataClient.from('payment_proofs').select('id,client_id,amount,status,created_at').eq('status', 'pending').limit(8))),
+        requestDashboardModule(() => scopedRequest(['owner', 'admin', 'operations'], () => dataClient.from('client_packages').select('id,name').eq('status', 'active'))),
+        requestDashboardModule(() => dataClient.from('reminders').select('id,title,due_date,type,status,amount').eq('status', 'pending').order('due_date', { ascending: true }).limit(6)),
+        requestDashboardModule(() => scopedRequest(['owner', 'admin', 'operations'], () => dataClient.request(`/studio-session-eligibility?date=${today}`), { items: [] })),
+        requestDashboardModule(
+          () => scopedRequest(['owner', 'admin', 'operations', 'finance'], () => dataClient.request('/dashboard/kpis'), {}),
+          { shouldRetryResult: (result) => Boolean(result?.error || result?.data?.partial_errors?.length) },
+        ),
       ]);
-      const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, finance, packages, invoices, tasks, sessionEligibility].filter((result) => result.error);
-      if (failedModules.length) console.error('Dashboard data modules unavailable:', failedModules.map((result) => result.error));
+      if (loadSequence !== loadSequenceRef.current) return;
+      const partialKpiFailure = (dashboardKpis.data?.partial_errors || []).length > 0;
+      const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, packages, tasks, sessionEligibility, dashboardKpis].filter((result) => result.error);
+      if (failedModules.length || partialKpiFailure) console.error('Dashboard data modules unavailable:', [...failedModules.map((result) => result.error), ...(dashboardKpis.data?.partial_errors || [])]);
       const actions = [
         ...(pendingBookings.data || []).map((item) => ({ ...item, kind: 'booking', title: `${statusLabels[normalizeStatus(item.status)] || 'طلب حجز'} — ${item.client_name}`, meta: `${formatBookingDate(item.date)} · ${formatTime12(item.start_time, '')}`, to: '/erp/requests' })),
         ...(reschedules.data || []).map((item) => ({ ...item, kind: 'reschedule', title: 'طلب تغيير موعد', meta: `${formatBookingDate(item.proposed_date)} · ${formatTime12(item.proposed_start_time, '')}`, to: '/erp/requests' })),
         ...(proofs.data || []).map((item) => ({ ...item, kind: 'payment', title: 'إثبات تحويل يحتاج مراجعة', meta: money(item.amount), to: '/erp/requests' })),
       ].slice(0, 8);
-      let cashIn = 0; let cashOut = 0;
-      (finance.data || []).forEach((entry) => {
-        if (['income', 'transfer_in', 'advance_in'].includes(entry.entry_kind) || ['إيراد', 'سداد سلفة', 'income'].includes(entry.type)) cashIn += Number(entry.amount || 0);
-        else cashOut += Number(entry.amount || 0);
-      });
-      const invoiceOutstanding = (invoices.data || []).filter((invoice) => !['cancelled', 'void'].includes(invoice.status)).reduce((sum, invoice) => sum + Math.max(0, Number(invoice.total || 0) - Number(invoice.paid_amount || 0)), 0);
-      const packageOnlyOutstanding = (packages.data || []).reduce((sum, pkg) => {
-        const total = Number(pkg.total_price || 0); const paid = Number(pkg.paid_amount || 0);
-        const fullDue = Math.max(0, total + Number(pkg.overage_amount || 0) - paid);
-        return sum + (pkg.source_invoice_id ? Math.max(0, fullDue - Math.max(0, total - paid)) : fullDue);
-      }, 0);
-      const outstanding = invoiceOutstanding + packageOnlyOutstanding;
-      const soon = new Date(); soon.setDate(soon.getDate() + 14); const soonDate = cairoDate(soon);
+      const kpis = dashboardKpis.data || {};
       const packageMap = Object.fromEntries((packages.data || []).map(pkg => [Number(pkg.id), pkg]));
       setState({
         loading: false,
-        error: failedModules.length ? 'تعذر تحميل بعض بيانات التشغيل الآن. يمكنك متابعة الأقسام المتاحة أو إعادة المحاولة.' : '',
+        error: failedModules.length || partialKpiFailure ? 'تعذر تحميل بعض بيانات التشغيل الآن. يمكنك متابعة الأقسام المتاحة أو إعادة المحاولة.' : '',
         bookings: (bookingsResult.data || []).filter((booking) => normalizeStatus(booking.status) !== 'cancelled'), actions,
         tasks: tasks.data || [],
         packageMap,
         sessionEligibility: eligibilityMap(sessionEligibility.data),
-        health: { outstanding, cashIn, cashOut, activePackages: (packages.data || []).length, expiringSoon: (packages.data || []).filter((item) => item.expires_at && item.expires_at <= soonDate).length },
+        health: {
+          kpiFailed: Boolean(dashboardKpis.error) || partialKpiFailure,
+          receivablesAvailable: kpis.receivables?.available === true,
+          cashAvailable: kpis.cash_movement?.available === true,
+          outstanding: Number(kpis.receivables?.amount || 0),
+          cashIn: Number(kpis.cash_movement?.cash_in || 0),
+          cashOut: Number(kpis.cash_movement?.cash_out || 0),
+          packagesAvailable: kpis.active_packages?.available === true,
+          activePackages: Number(kpis.active_packages?.count || 0),
+          expiringSoon: Number(kpis.active_packages?.expiring_within_14_days || 0),
+          servicesAvailable: kpis.active_services?.available === true,
+          activeProjects: Number(kpis.active_services?.active_projects || 0),
+          pausedProjects: Number(kpis.active_services?.paused_projects || 0),
+          activeContent: Number(kpis.active_services?.active_content_items || 0),
+        },
       });
     } catch (error) {
+      if (loadSequence !== loadSequenceRef.current) return;
       console.error('Dashboard load failed:', error);
       setState((old) => ({ ...old, loading: false, error: 'تعذر تحميل بيانات التشغيل الآن. تحقق من الاتصال ثم أعد المحاولة.' }));
     }
-  }, [currentUser?.role]);
+  }, [currentUser?.role, isAuthReady]);
 
   const loadAttendance = useCallback(async () => {
     setAttendance({ loading: true, error: '', data: null });
@@ -125,9 +135,14 @@ const ERPDashboard = () => {
     catch (error) { setAttendance({ loading: false, error: error.message || 'تعذر تحميل الحضور.', data: null }); }
   }, [currentUser]);
 
-  useEffect(() => { load(); loadAttendance(); }, [load, loadAttendance]);
+  useEffect(() => {
+    if (!isAuthReady || !currentUser?.role) return undefined;
+    load();
+    loadAttendance();
+    return () => { loadSequenceRef.current += 1; };
+  }, [currentUser?.role, isAuthReady, load, loadAttendance]);
   useChangeSync(useCallback((topics) => {
-    if (topics.some(topic => ['bookings', 'client_packages', 'finance', 'notifications'].includes(topic))) load();
+    if (topics.some(topic => ['bookings', 'client_packages', 'finance', 'invoices', 'clients', 'projects', 'content_items', 'notifications'].includes(topic))) load();
   }, [load]), !currentUser?.is_local_preview);
 
   const checkOut = async () => {
@@ -170,6 +185,9 @@ const ERPDashboard = () => {
     return acc;
   }, { present: 0, late: 0, absent: 0 });
   const selfRecord = attendance.data?.self?.record;
+  const unavailableKpiCopy = state.health.kpiFailed ? 'تعذر تحميل المؤشر' : 'غير متاح لهذا الدور';
+  const cashNet = Number(state.health.cashIn || 0) - Number(state.health.cashOut || 0);
+  const activeProjectsUnit = state.health.activeProjects === 1 ? 'مشروع' : 'مشروعات';
 
   return (
     <main className="ops-dashboard" aria-busy={state.loading}>
@@ -190,10 +208,11 @@ const ERPDashboard = () => {
         </div>}
       />
 
-      <section className="ops-health" aria-label="صحة العمل">
-        <div><span>مستحقات غير محصلة</span><strong>{state.loading ? '—' : money(state.health.outstanding)}</strong><small>من الفواتير النشطة</small></div>
-        <div><span>صافي حركة الشهر</span><strong className={(state.health.cashIn - state.health.cashOut) < 0 ? 'negative' : ''}>{state.loading ? '—' : money(state.health.cashIn - state.health.cashOut)}</strong><small>دخل {money(state.health.cashIn)} · خرج {money(state.health.cashOut)}</small></div>
-        <div><span>الباقات الفعالة</span><strong>{state.loading ? '—' : state.health.activePackages || 0}</strong><small><PackageCheck size={14} /> {state.health.expiringSoon || 0} تنتهي خلال 14 يومًا</small></div>
+      <section className="ops-health" aria-label="صحة العمل" aria-busy={state.loading}>
+        <div><span>مستحقات غير محصلة</span><strong>{state.loading || !state.health.receivablesAvailable ? '—' : money(state.health.outstanding)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.receivablesAvailable ? 'فواتير وباقات وأرصدة عملاء' : unavailableKpiCopy}</small></div>
+        <div><span>صافي حركة الشهر</span><strong className={cashNet < 0 ? 'negative' : ''}>{state.loading || !state.health.cashAvailable ? '—' : money(cashNet)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.cashAvailable ? <>دخل {money(state.health.cashIn)} · خرج {money(state.health.cashOut)}</> : unavailableKpiCopy}</small></div>
+        <div><span>الباقات الفعالة</span><strong>{state.loading || !state.health.packagesAvailable ? '—' : state.health.activePackages}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.packagesAvailable ? <><PackageCheck size={14} aria-hidden="true" /> {state.health.expiringSoon} تنتهي خلال 14 يومًا</> : unavailableKpiCopy}</small></div>
+        <div><span>الخدمات النشطة</span><strong>{state.loading || !state.health.servicesAvailable ? '—' : `${state.health.activeProjects} ${activeProjectsUnit}`}</strong><small>{state.loading ? 'جارٍ تحديث المؤشرات…' : state.health.servicesAvailable ? <><FolderKanban size={14} aria-hidden="true" /> {state.health.activeProjects} مشروع · {state.health.activeContent} محتوى{state.health.pausedProjects > 0 ? ` · ${state.health.pausedProjects} متوقف مؤقتًا` : ''}</> : unavailableKpiCopy}</small></div>
       </section>
 
       {state.error && <div className="ops-state ops-state--error" role="alert"><AlertTriangle size={18} /> {state.error}<button onClick={load}>إعادة المحاولة</button></div>}

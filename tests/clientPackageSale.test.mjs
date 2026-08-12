@@ -19,7 +19,7 @@ test('pure template mapper normalizes hour/day/month and reel templates with eve
     const draft = templateToPackageDraft(template({ billing_unit }), { clientId: 44, startsAt: '2026-08-10' });
     assert.equal(draft.billing_unit, 'hour'); assert.equal(draft.quantity, 7.5); assert.equal(draft.payment_due_quantity, 3.25);
     assert.equal(draft.deposit_percent_snapshot, 35); assert.equal(Number(draft.overage_price_snapshot), 1250.75); assert.equal(Number(draft.total_price), 9000.1);
-    assert.equal(draft.expires_at, '2026-09-24'); assert.equal(draft.client_id, '44');
+    assert.equal(draft.expires_at, '2026-09-23'); assert.equal(draft.client_id, '44');
   }
   const reel = templateToPackageDraft(template({ billing_unit: 'reel', total_hours: 0, total_reels: 8, payment_due_reels: 4 }), { clientId: 2, startsAt: '2026-08-10' });
   assert.equal(reel.billing_unit, 'reel'); assert.equal(reel.quantity, 8); assert.equal(reel.payment_due_quantity, 4);

@@ -119,31 +119,29 @@ test('demo and production contracts reject staff access and derive client scope 
   for (const hidden of ['started_by', 'ended_by', 'created_by', 'internal_cost', 'internal_note', 'adjustment_reason', 'audit_logs']) assert.equal(route.includes(`'${hidden}'`), false, `${hidden} must not be selected or returned`);
 });
 
-test('client navigation keeps service history immediately before offers and offers last', async () => {
-  const [dashboard, css, view] = await Promise.all([
-    load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboard.css'), load('src/pages/ClientServiceHistory.jsx'),
+test('client navigation keeps history and offers reachable as Home quick links', async () => {
+  const [dashboard, overview, css, view] = await Promise.all([
+    load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboardOverview.jsx'), load('src/pages/ClientDashboard.css'), load('src/pages/ClientServiceHistory.jsx'),
   ]);
-  const navigation = dashboard.slice(dashboard.indexOf("['home', Home"), dashboard.indexOf('].map(([key, Icon, label, shortLabel])'));
-  assert.ok(navigation.indexOf("['history', History, 'سجل الخدمات', 'السجل']") < navigation.indexOf("['offers', FileText, 'العروض']"));
-  assert.match(navigation.trim(), /\['offers', FileText, 'العروض'\],?$/);
-  assert.match(css, /grid-template-columns:repeat\(6,1fr\)/);
+  const navigation = dashboard.slice(dashboard.indexOf("['home', Home"), dashboard.indexOf('].map(([key, Icon, label])'));
+  assert.doesNotMatch(navigation, /'history'|'offers'/);
+  assert.match(overview, /onNavigate\('history'\)/);
+  assert.match(overview, /onNavigate\('offers'\)/);
+  assert.match(css, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)!important/);
   assert.match(view, /سجل الخدمات/);
   assert.match(view, /كل ما تم تنفيذه أو تسليمه لك في مكان واحد/);
   assert.match(view, /<details><summary>عرض التفاصيل<\/summary>/);
 });
 
-test('client projects navigation is renamed without changing its key or offers-last order', async () => {
+test('client projects navigation keeps its key inside the four primary destinations', async () => {
   const [dashboard, css] = await Promise.all([load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboard.css')]);
-  const navigation = dashboard.slice(dashboard.indexOf("['home', Home"), dashboard.indexOf('].map(([key, Icon, label, shortLabel])'));
-  assert.match(navigation, /\['projects', FolderKanban, 'الباقات والخدمات', 'الخدمات'\]/);
+  const navigation = dashboard.slice(dashboard.indexOf("['home', Home"), dashboard.indexOf('].map(([key, Icon, label])'));
+  assert.match(navigation, /\['projects', FolderKanban, 'الباقات والخدمات'\]/);
   assert.doesNotMatch(navigation, /'أعمالي'/);
-  assert.ok(navigation.indexOf("['projects', FolderKanban") < navigation.indexOf("['offers', FileText, 'العروض']"));
-  assert.match(navigation.trim(), /\['offers', FileText, 'العروض'\],?$/);
+  assert.equal((navigation.match(/\['(?:home|schedule|projects|finance)'/g) || []).length, 4);
   assert.match(dashboard, /aria-label=\{label\} title=\{label\}/);
-  assert.match(dashboard, /client-nav-label__short" aria-hidden="true">\{shortLabel\}/);
   assert.match(dashboard, /activeTab === 'projects'/);
   assert.match(dashboard, /setActiveTab\(key\)/);
   assert.match(css, /@media\(min-width:681px\) and \(max-width:800px\)/);
-  assert.match(css, /client-sidebar nav \.client-nav-label__short\{display:none\}/);
-  assert.match(css, /@media\(max-width:680px\).*client-nav-label--responsive \.client-nav-label__full\{display:none\}.*client-nav-label--responsive \.client-nav-label__short\{display:block\}/s);
+  assert.match(css, /@media\(max-width:340px\)/);
 });

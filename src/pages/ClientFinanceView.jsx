@@ -208,8 +208,8 @@ export default function ClientFinanceView({
     <section className="client-finance-section" aria-labelledby="payment-history-title">
       <header><div><span>بعد اعتماد المالك</span><h3 id="payment-history-title">سجل المدفوعات المعتمدة</h3><p>هذا السجل فقط هو الذي يدخل ضمن قيمة المدفوع في الملخص.</p></div></header>
       <div className="client-approved-list">
-        {payments.filter(payment => payment.status === 'approved').map(payment => <article key={payment.id}><CheckCircle2 /><div><strong>{formatEGP(payment.amount)}</strong><span>{allocationName(payment)}</span><small>{payment.method || 'تحويل بنكي'} · {formatDateTime12(payment.reviewed_at || payment.created_at)}{payment.reference ? ` · ${payment.reference}` : ''}</small></div></article>)}
-        {!payments.some(payment => payment.status === 'approved') && <div className="client-finance-empty compact"><CircleDollarSign /><p>لا توجد مدفوعات معتمدة بعد.</p></div>}
+        {payments.filter(payment => payment.status === 'approved' && !payment.voided_at && payment.entry_kind !== 'reversal').map(payment => <article key={payment.id}><CheckCircle2 /><div><strong>{formatEGP(payment.amount)}</strong><span>{allocationName(payment)}</span><small>{payment.method || 'تحويل بنكي'} · {formatDateTime12(payment.reviewed_at || payment.created_at)}{payment.reference ? ` · ${payment.reference}` : ''}</small></div></article>)}
+        {!payments.some(payment => payment.status === 'approved' && !payment.voided_at && payment.entry_kind !== 'reversal') && <div className="client-finance-empty compact"><CircleDollarSign /><p>لا توجد مدفوعات معتمدة بعد.</p></div>}
       </div>
     </section>
   </section>;

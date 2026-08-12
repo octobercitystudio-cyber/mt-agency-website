@@ -21,3 +21,20 @@
 @keyframes runwayLive{70%{box-shadow:0 0 0 7px rgba(22,163,111,0)}100%{box-shadow:0 0 0 0 rgba(22,163,111,0)}}
 @media(max-width:720px){.runway-booking__identity{align-items:flex-start;flex-wrap:wrap}.runway-booking__start{font-size:.68rem;max-width:100%}.runway-booking__details{flex:none}}
 @media(prefers-reduced-motion:reduce){.runway-booking__running>i{animation:none}}
+
+/* Authoritative dashboard KPI strip */
+.ops-health{grid-template-columns:repeat(4,minmax(0,1fr));overflow:hidden}
+.ops-health>div{min-width:0}
+.ops-health small{min-width:0;line-height:1.55}
+.ops-health small svg{flex:none}
+@media(max-width:1100px){
+  .ops-health{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ops-health>div{border-bottom:1px solid #31384f}
+  .ops-health>div:nth-child(even){border-left:0}
+  .ops-health>div:nth-child(n+3){border-bottom:0}
+}
+@media(max-width:720px){
+  .ops-health{grid-template-columns:1fr}
+  .ops-health>div:nth-child(n){border-left:0;border-bottom:1px solid #31384f}
+  .ops-health>div:last-child{border-bottom:0}
+}

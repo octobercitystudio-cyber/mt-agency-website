@@ -33,8 +33,26 @@ export const packageDraftExpiry = draft => {
   const date = new Date(`${draft.starts_at}T12:00:00`);
   const days = Number(draft.validity_days);
   if (Number.isNaN(date.getTime()) || !Number.isInteger(days) || days < 1) return '';
-  date.setDate(date.getDate() + days);
+  // The booking day is day 1 of the package validity. A 15-day package
+  // therefore ends 14 calendar days after its first booking; Fridays and all
+  // other calendar days are included.
+  date.setDate(date.getDate() + days - 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+export const packageFirstBookingDate = bookings => (Array.isArray(bookings) ? bookings : [])
+  .map(item => text(item?.date))
+  .filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value))
+  .sort()[0] || '';
+
+export const anchorPackageDraftToBookings = (draft, bookings) => {
+  const startsAt = packageFirstBookingDate(bookings);
+  const anchored = {
+    ...draft,
+    starts_at: startsAt,
+    shooting_date: draft?.validity_mode_snapshot === 'shooting_day' ? startsAt : '',
+  };
+  return { ...anchored, expires_at: startsAt ? packageDraftExpiry(anchored) : '' };
 };
 
 export const templateToPackageDraft = (service, { clientId = '', startsAt = '' } = {}) => {
@@ -89,9 +107,9 @@ export const validatePackageDraft = draft => {
   if (!text(draft?.name)) errors.name = 'اسم الباقة مطلوب.';
   if (!['hour', 'reel'].includes(text(draft?.billing_unit))) errors.billing_unit = 'وحدة الرصيد غير صحيحة.';
   if (!(number(draft?.quantity) > 0)) errors.quantity = 'الرصيد يجب أن يكون أكبر من صفر.';
-  if (draft?.validity_mode_snapshot === 'shooting_day') { if (!/^\d{4}-\d{2}-\d{2}$/.test(text(draft?.shooting_date))) errors.shooting_date = 'حدد يوم التصوير.'; }
+  if (draft?.validity_mode_snapshot === 'shooting_day') { if (text(draft?.shooting_date) && !/^\d{4}-\d{2}-\d{2}$/.test(text(draft?.shooting_date))) errors.shooting_date = 'يوم التصوير غير صحيح.'; }
   else {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(text(draft?.starts_at)) || !packageDraftExpiry(draft)) errors.starts_at = 'تاريخ البداية أو الصلاحية غير صحيح.';
+    if (text(draft?.starts_at) && (!/^\d{4}-\d{2}-\d{2}$/.test(text(draft?.starts_at)) || !packageDraftExpiry(draft))) errors.starts_at = 'تاريخ البداية أو الصلاحية غير صحيح.';
     if (!Number.isInteger(number(draft?.validity_days)) || number(draft?.validity_days) < 1) errors.validity_days = 'مدة الصلاحية يجب أن تكون يومًا واحدًا على الأقل.';
   }
   if (number(draft?.payment_due_quantity) < 0) errors.payment_due_quantity = 'حد الاستحقاق لا يمكن أن يكون سالبًا.';

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dataClient } from '../dataClient';
 import {
   CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign,
-  Clock3, FileText, FileUp, FolderKanban, History, Home, LogOut, RefreshCw, RotateCcw, Send, X, XCircle
+  Clock3, FolderKanban, Home, LogOut, RefreshCw, RotateCcw, Send, X, XCircle
 } from 'lucide-react';
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, startOfMonth, startOfWeek, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -263,7 +263,6 @@ export default function ClientDashboard() {
 
   const submitBooking = async (event) => {
     event.preventDefault();
-    if (isLocalPreview) return showNotice('success', 'هذه معاينة محلية؛ لم يُرسل أي طلب إلى الخادم.');
     const pkg = activePackages.find(item => String(item.id) === String(bookingForm.client_package_id));
     if (!pkg) return showNotice('error', 'اختر الباقة التي تريد الحجز منها.');
     const service = serviceForPackage(pkg);
@@ -300,11 +299,6 @@ export default function ClientDashboard() {
       showNotice('error', `الموعد البديل يجب أن يكون ${BUSINESS_HOURS_LABEL}، بحد أدنى ${minimum} دقيقة وبزيادات ${increment} دقيقة.`);
       return;
     }
-    if (isLocalPreview) {
-      setReschedule(initialReschedule);
-      showNotice('success', 'تمت محاكاة طلب تغيير الموعد محليًا دون تعديل أي بيانات.');
-      return;
-    }
     setActionBusy(`reschedule-${reschedule.booking.id}`);
     const { error } = await dataClient.request('/reschedule-requests', {
       method: 'POST', body: JSON.stringify({ booking_id: reschedule.booking.id, date: reschedule.date,
@@ -317,21 +311,18 @@ export default function ClientDashboard() {
   };
 
   const requestCancel = async (booking) => {
-    if (isLocalPreview) return showNotice('success', `تمت محاكاة طلب إلغاء ${booking.service} محليًا.`);
-    const reason = window.prompt('سبب الإلغاء (اختياري):') ?? null;
-    if (reason === null) return;
+    if (!window.confirm(`إرسال طلب حذف موعد ${booking.service}؟`)) return;
     setActionBusy(`cancel-${booking.id}`);
     const { error } = await dataClient.request(`/bookings/${booking.id}/cancel-request`, {
-      method: 'POST', body: JSON.stringify({ reason }),
+      method: 'POST', body: '{}',
     });
     setActionBusy(null);
-    if (error) return showNotice('error', error.message || 'تعذر إرسال طلب الإلغاء.');
-    showNotice('success', 'تم إرسال طلب الإلغاء للإدارة.');
+    if (error) return showNotice('error', error.message || 'تعذر إرسال طلب الحذف.');
+    showNotice('success', 'تم إرسال طلب حذف الموعد للإدارة.');
     await fetchClientData();
   };
 
   const decideAlternative = async (booking, action) => {
-    if (isLocalPreview) return showNotice('success', action === 'accept' ? 'تمت محاكاة قبول الموعد البديل.' : 'تمت محاكاة طلب موعد آخر.');
     setActionBusy(`alternative-${action}-${booking.id}`);
     const { error } = await dataClient.request(`/bookings/${booking.id}/alternative-decision`, { method: 'POST', body: JSON.stringify({ action }) });
     setActionBusy(null);
@@ -343,7 +334,6 @@ export default function ClientDashboard() {
   const uploadProof = async (event) => {
     event.preventDefault();
     if (!proofForm.file || !proofForm.target) return;
-    if (isLocalPreview) return showNotice('success', 'تم رفع التحويل وهو الآن قيد مراجعة المالك. هذه معاينة محلية ولم تُحفظ بيانات.');
     const [targetType, targetId] = proofForm.target.split(':');
     const body = new FormData();
     body.append('amount', proofForm.amount);
@@ -436,24 +426,24 @@ export default function ClientDashboard() {
         <nav aria-label="التنقل الرئيسي">
           {[
             ['home', Home, 'الرئيسية'], ['schedule', CalendarDays, 'المواعيد'],
-            ['projects', FolderKanban, 'الباقات والخدمات', 'الخدمات'], ['finance', CircleDollarSign, 'المالية والفواتير'],
-            ['history', History, 'سجل الخدمات', 'السجل'], ['offers', FileText, 'العروض'],
-          ].map(([key, Icon, label, shortLabel]) => <button key={key} aria-label={label} title={label} className={activeTab === key ? 'active' : ''} onClick={() => setActiveTab(key)}><Icon size={19}/><span className={shortLabel ? 'client-nav-label client-nav-label--responsive' : 'client-nav-label'}><span className="client-nav-label__full">{label}</span>{shortLabel && <span className="client-nav-label__short" aria-hidden="true">{shortLabel}</span>}</span></button>)}
+            ['projects', FolderKanban, 'الباقات والخدمات'], ['finance', CircleDollarSign, 'المالية'],
+          ].map(([key, Icon, label]) => <button key={key} aria-label={label} title={label} className={activeTab === key ? 'active' : ''} onClick={() => setActiveTab(key)}><Icon size={19}/><span className="client-nav-label">{label}</span></button>)}
         </nav>
         <button className="client-logout" onClick={handleLogout}><LogOut size={18}/> تسجيل الخروج</button>
       </aside>
 
       <main className="client-main">
         <header className={`client-topbar ${activeTab === 'home' ? 'client-topbar--home' : ''}`}>
-          <div><span className="client-eyebrow">مساحة العميل الخاصة</span><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><p>تابع باقاتك ومشروعاتك ومواعيدك وحالتك المالية من مكان واحد.</p></div>
-          <div className="client-topbar-actions"><ClientNotifications key={clientId} clientId={clientId} onNavigate={setActiveTab}/><button className="client-primary" onClick={() => setActiveTab('schedule')}><CalendarDays size={18}/> طلب حجز جديد</button>{activeTab === 'home' && <button className="client-secondary" onClick={() => setActiveTab('finance')}><FileUp size={18}/> رفع إثبات تحويل</button>}</div>
+          <div><span className="client-eyebrow">حسابك في Multi Task</span><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><p>باقاتك وموعدك ورصيدك أمامك ببساطة.</p></div>
+          <div className="client-topbar-actions"><ClientNotifications key={clientId} clientId={clientId} onNavigate={setActiveTab}/><button className="client-primary" onClick={() => setActiveTab('schedule')}><CalendarDays size={18}/> حجز موعد</button></div>
         </header>
 
-        {isLocalPreview && <div className="client-notice client-notice--success" role="status">معاينة عميل محلية ببيانات تمثيلية فقط — لن تُرسل الإجراءات أو الملفات إلى الخادم.</div>}
+        {isLocalPreview && <div className="client-notice client-notice--success" role="status">معاينة عميل محلية ببيانات تمثيلية — تُحفظ الإجراءات على هذا الجهاز لتجربة دورة العمل كاملة.</div>}
         {notice && <div className={`client-notice client-notice--${notice.type}`} role="status">{notice.message}</div>}
         {loadError && <div className="client-notice client-notice--error">تعذر تحديث بعض البيانات. <button onClick={fetchClientData}>حاول مجددًا</button></div>}
 
         {activeTab === 'home' && <ClientDashboardOverview
+          client={client}
           activePackages={activePackages}
           upcomingBookings={upcomingBookings}
           sessionByBookingId={sessionByBookingId}
@@ -493,7 +483,15 @@ export default function ClientDashboard() {
           </form></aside>
         </section>}
 
-        {activeTab === 'projects' && <ClientProjectsView projects={projects.filter(project => ['planning', 'active', 'on_hold'].includes(project.status))}/>}
+        {activeTab === 'projects' && <ClientProjectsView
+          client={client}
+          packages={activePackages}
+          projects={projects.filter(project => ['planning', 'active', 'on_hold'].includes(project.status))}
+          onBookPackage={packageId => {
+            setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) }));
+            setActiveTab('schedule');
+          }}
+        />}
 
         {activeTab === 'history' && <ClientServiceHistory />}
 

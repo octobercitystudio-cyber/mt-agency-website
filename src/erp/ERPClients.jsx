@@ -341,9 +341,9 @@ const ERPClients = () => {
   };
 
   const handleDeleteAppointment = async (id) => {
-    if (!window.confirm('هل تريد إلغاء الموعد دون خصم؟ سيظل محفوظًا في سجل العميل.')) return;
-    const { error } = await dataClient.request(`/bookings/${id}/admin-cancel`, { method: 'POST', body: JSON.stringify({ charge: false, reason: 'إلغاء إداري من ملف العميل' }) });
-    if (error) return alert(error.message || 'تعذر إلغاء الموعد.');
+    if (!window.confirm('هل تريد حذف الموعد نهائيًا؟ سيختفي من سجل الحجوزات ويُعاد الرصيد المحجوز.')) return;
+    const { error } = await dataClient.request(`/bookings/${id}`, { method: 'DELETE' });
+    if (error) return alert(error.message || 'تعذر حذف الموعد.');
     openHistory('bookings');
   };
 

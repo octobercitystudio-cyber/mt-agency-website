@@ -8,6 +8,7 @@ import ERPSessionTimer from './ERPSessionTimer';
 import useExternalScripts from '../hooks/useExternalScripts';
 import useChangeSync from '../hooks/useChangeSync';
 import { resetDemoDatabase } from '../lib/demoDataClient';
+import OwnerNotifications from './OwnerNotifications';
 import './ERPLayout.css';
 import './ERPEnterpriseTheme.css';
 
@@ -195,7 +196,7 @@ const ERPLayout = () => {
           <h2 id="erp-nav-system-label" className="erp-nav-group-label">النظام</h2>
           <div className="erp-nav-item mb-1">
             <button className="erp-nav-link erp-nav-alert-btn position-relative" onClick={() => setNotificationsOpen(true)} style={{width: '100%', border: '1px solid rgba(255, 152, 0, 0.2)', background: 'rgba(255, 193, 7, 0.1)', color: '#ff9800', justifyContent: 'flex-start'}}>
-              <Bell size={20} style={{color: '#ff9800'}} /> مركز الإشعارات
+              <Bell size={20} style={{color: '#ff9800'}} /> التنبيهات التشغيلية
               {unreadCount > 0 && (
                 <span className="position-absolute top-50 translate-middle-y badge rounded-pill bg-danger" style={{left: '15px'}}>
                   {unreadCount}
@@ -219,6 +220,7 @@ const ERPLayout = () => {
 
       {/* Main Content Area */}
       <div className="erp-main" style={{marginTop: '0'}}>
+        {role === 'owner' && <OwnerNotifications userId={currentUser?.id} onNavigate={navigate}/>}
         {currentUser?.is_local_preview && (
           <aside className={`erp-demo-banner erp-demo-banner--${demoResetState}`} aria-label="تنبيه وضع التجربة">
             <div className="erp-demo-banner__status" aria-hidden="true">

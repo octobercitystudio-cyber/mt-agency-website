@@ -35,9 +35,12 @@ test('server and migration preserve linked history and expose owner-only safe ac
 
 test('listed ERP screens expose coherent owner controls and audited correction entry points', async () => {
   const files = await Promise.all([
-    'ERPClientCRM.jsx', 'ERPBookings.jsx', 'ERPProjects.jsx', 'ERPReminders.jsx', 'ERPSettings.jsx', 'ERPOfferGenerator.jsx',
+    'ERPClientCRM.jsx', 'ERPProjects.jsx', 'ERPReminders.jsx', 'ERPSettings.jsx', 'ERPOfferGenerator.jsx',
   ].map(file => load(`src/erp/${file}`)));
   for (const source of files) assert.match(source, /OwnerRecordActions/);
+  const bookings = await load('src/erp/ERPBookings.jsx');
+  assert.doesNotMatch(bookings, /OwnerRecordActions/);
+  assert.match(bookings, /method:\s*'DELETE'/);
   assert.match(await load('src/erp/ERPClients.jsx'), /OwnerActionDialog/);
   const [formation, social, offers] = await Promise.all([load('src/erp/ERPFormationFund.jsx'), load('src/erp/ERPSocialProfits.jsx'), load('src/erp/ERPOfferGenerator.jsx')]);
   assert.match(formation, /formation-fund\/entries\/\$\{entry\.id\}\/correct/);

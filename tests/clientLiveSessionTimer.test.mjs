@@ -101,9 +101,9 @@ test('client hook keeps last active state on failure and API uses authenticated 
   assert.doesNotMatch(component, /button|input|onClick|onChange/);
 });
 
-test('client home promotes the appointment card before packages and transforms that card in place', async () => {
+test('client home places packages before the appointment and transforms that appointment card in place', async () => {
   const overview = await load('src/pages/ClientDashboardOverview.jsx');
-  assert.ok(overview.indexOf('className={`client-next-home') < overview.indexOf('className="client-packages-home"'));
+  assert.ok(overview.indexOf('<ClientPackageCards') < overview.indexOf('className={`client-next-home'));
   assert.match(overview, /activeSession \? 'تم بدء جلسة التصوير' : 'الموعد القادم'/);
   assert.match(overview, /activeSession \? <span className="client-status client-status--live">جاري التصوير<\/span>/);
   assert.equal((overview.match(/<ClientAppointmentLiveStatus/g) || []).length, 1);

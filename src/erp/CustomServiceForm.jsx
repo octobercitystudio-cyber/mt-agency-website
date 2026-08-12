@@ -54,6 +54,11 @@ export default function CustomServiceForm({ clients = [], initialService = 'cust
   }, []);
 
   const set = updates => setForm(previous => ({ ...previous, ...updates }));
+  const setBasicName = value => {
+    setForm(previous => ({ ...previous, name: value }));
+    setItems(values => values.map((item, index) => index === 0 && (!item.description || item.description === form.name) ? { ...item, description: value } : item));
+  };
+  const setAgreedTotal = value => setItems(values => values.map((item, index) => index === 0 ? { ...item, quantity: '1', unit_price: value } : item));
   const setService = serviceType => {
     const meta = serviceMeta(serviceType);
     set({ service_type: serviceType, pricing_model: meta.pricing[0] || 'custom', requires_booking: false });
@@ -72,7 +77,7 @@ export default function CustomServiceForm({ clients = [], initialService = 'cust
     const normalizedStages = stages.map((stage, index) => ({ ...stage, title: String(stage.title || '').trim(), sort_order: index })).filter(stage => stage.title);
     if (normalizedStages.length < 2) return setLocalError('يجب إضافة مرحلتي إنتاج على الأقل.');
     const normalizedItems = items.map((item, index) => ({
-      description: String(item.description || '').trim(), quantity: Number(item.quantity), unit: String(item.unit || '').trim(),
+      description: String(item.description || (index === 0 ? form.name || form.description : '')).trim(), quantity: Number(item.quantity), unit: String(item.unit || '').trim(),
       unit_price: Number(money(moneyCents(item.unit_price))), total_price: Number(money(moneyCents(item.unit_price) * Number(item.quantity))),
       internal_cost: Number(money(moneyCents(item.internal_cost))), is_client_visible: Boolean(item.is_client_visible), sort_order: index,
     }));
@@ -94,25 +99,33 @@ export default function CustomServiceForm({ clients = [], initialService = 'cust
   };
 
   return <form className="custom-service-form" onSubmit={submit} noValidate={false}>
-    <div className="custom-form-intro"><span className="dialog-kicker">خدمة مخصصة جديدة</span><h2 id="project-modal-title">ابنِ الخدمة حسب احتياج العميل</h2><p>ستظهر الخدمة تلقائيًا في المشروعات والمحتوى، مع إضافة موعد اختياري إن لزم.</p></div>
+    <div className="custom-form-intro"><span className="dialog-kicker">خدمة جديدة</span><h2 id="project-modal-title">إضافة خدمة للعميل</h2><p>أكمل البيانات الأساسية واحفظ، أو افتح الخيارات المتقدمة عند الحاجة.</p></div>
 
     <fieldset className="custom-form-section"><legend><b>01</b><span>الخدمة والعميل</span></legend><div className="form-grid">
       <label>العميل<select required value={form.client_id} onChange={event => set({ client_id: event.target.value })}><option value="">اختر العميل</option>{clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
       <label>نوع الخدمة<select value={form.service_type} onChange={event => setService(event.target.value)}>{Object.entries(CUSTOM_SERVICES).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}</select></label>
+      <label className="wide-field">اسم الخدمة<input required value={form.name} onChange={event => setBasicName(event.target.value)} placeholder="مثال: إطلاق حملة منتج جديد"/></label>
+      <label className="wide-field">وصف مختصر<textarea rows="3" value={form.description} onChange={event => set({ description: event.target.value })} placeholder="ما الذي سيتم تنفيذه وتسليمه؟"/></label>
+      <label>إجمالي الاتفاق<input required type="number" min="0" step="0.01" value={items[0]?.unit_price || '0.00'} onChange={event => setAgreedTotal(event.target.value)}/></label>
+      <label>المبلغ المدفوع<input type="number" min="0" step="0.01" max={money(totalCents)} value={form.paid_amount} onChange={event => set({ paid_amount: event.target.value })}/></label>
+    </div></fieldset>
+
+    <details className="custom-advanced-options">
+      <summary><span><strong>خيارات متقدمة</strong><small>المراحل والبنود والتكلفة والمسؤول والموعد</small></span></summary>
+      <div className="custom-advanced-body">
+    <fieldset className="custom-form-section"><legend><b>02</b><span>بيانات التشغيل</span></legend><div className="form-grid">
       <label>الحالة<select value={form.status} onChange={event => set({ status: event.target.value })}>{Object.entries(STATUS_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <label className="wide-field">اسم المشروع / الخدمة<input required value={form.name} onChange={event => set({ name: event.target.value })} placeholder="مثال: إطلاق حملة منتج جديد"/></label>
       <label>تاريخ البدء<input required type="date" value={form.starts_at} onChange={event => set({ starts_at: event.target.value })}/></label>
       <label>التسليم المتوقع<input type="date" min={form.starts_at} value={form.due_at} onChange={event => set({ due_at: event.target.value })}/></label>
       <label>المسؤول<input value={form.assigned_to} onChange={event => set({ assigned_to: event.target.value })} placeholder="اسم المسؤول أو الموظف"/></label>
-      <label className="wide-field">وصف الخدمة<textarea rows="3" value={form.description} onChange={event => set({ description: event.target.value })} placeholder="ما الذي سيتم تنفيذه وتسليمه؟"/></label>
       <label className="wide-field">متطلبات العميل<textarea rows="3" value={form.requirements} onChange={event => set({ requirements: event.target.value })} placeholder="التفاصيل، المراجع، التجهيزات وشروط التسليم..."/></label>
     </div></fieldset>
 
-    <fieldset className="custom-form-section"><legend><b>02</b><span>مراحل الإنتاج</span></legend><div className="stage-template-heading"><p>رتّب مراحل العمل بالشكل الذي سيراه العميل.</p><span>{stages.length.toLocaleString('ar-EG')} مراحل</span></div><div className="stage-template-editor">
+    <fieldset className="custom-form-section"><legend><b>03</b><span>مراحل الإنتاج</span></legend><div className="stage-template-heading"><p>رتّب مراحل العمل بالشكل الذي سيراه العميل.</p><span>{stages.length.toLocaleString('ar-EG')} مراحل</span></div><div className="stage-template-editor">
       {stages.map((stage, index) => <div className="stage-template-row" key={stage.key || `${stage.title}_${index}`}><b>{(index + 1).toLocaleString('ar-EG')}</b><input required value={stage.title} aria-label={`اسم المرحلة ${index + 1}`} onChange={event => setStages(values => values.map((value, itemIndex) => itemIndex === index ? { ...value, title: event.target.value } : value))}/><div className="stage-order-actions"><button type="button" disabled={index === 0} onClick={() => move(setStages, index, -1)} aria-label="تحريك لأعلى"><ArrowUp/></button><button type="button" disabled={index === stages.length - 1} onClick={() => move(setStages, index, 1)} aria-label="تحريك لأسفل"><ArrowDown/></button></div><button type="button" className="stage-delete" disabled={stages.length <= 2} onClick={() => setStages(values => values.filter((_, itemIndex) => itemIndex !== index))} aria-label="حذف المرحلة"><Trash2/></button></div>)}
     </div><button type="button" className="add-stage-button" onClick={() => setStages(values => [...values, { key: itemKey(), title: 'مرحلة جديدة' }])}><Plus/> إضافة مرحلة</button></fieldset>
 
-    <fieldset className="custom-form-section"><legend><b>03</b><span>البنود والتسعير</span></legend><div className="custom-pricing-head"><label>نموذج التسعير<select value={form.pricing_model} onChange={event => set({ pricing_model: event.target.value })}>{service.pricing.map(value => <option key={value} value={value}>{PRICING_LABELS[value] || value}</option>)}</select></label><p>الإجمالي يُحسب تلقائيًا من البنود بدقة القرش.</p></div><div className="custom-items-editor">
+    <fieldset className="custom-form-section"><legend><b>04</b><span>البنود والتسعير</span></legend><div className="custom-pricing-head"><label>نموذج التسعير<select value={form.pricing_model} onChange={event => set({ pricing_model: event.target.value })}>{service.pricing.map(value => <option key={value} value={value}>{PRICING_LABELS[value] || value}</option>)}</select></label><p>الإجمالي يُحسب تلقائيًا من البنود بدقة القرش.</p></div><div className="custom-items-editor">
       <div className="custom-items-labels"><span>البند</span><span>الكمية</span><span>الوحدة</span><span>سعر الوحدة</span><span>الإجمالي</span><span>التكلفة</span><span>للعميل</span><span>ترتيب</span></div>
       {items.map((item, index) => <div className="custom-item-row" key={item.key}>
         <label className="custom-item-field item-description"><span>البند</span><input required value={item.description} onChange={event => updateItem(index, { description: event.target.value })} placeholder="وصف البند"/></label>
@@ -124,9 +137,11 @@ export default function CustomServiceForm({ clients = [], initialService = 'cust
         <button type="button" className={`item-visibility ${item.is_client_visible ? 'is-visible' : ''}`} onClick={() => updateItem(index, { is_client_visible: !item.is_client_visible })} aria-label="تغيير ظهور البند للعميل">{item.is_client_visible ? <Eye/> : <EyeOff/>}<span>{item.is_client_visible ? 'ظاهر' : 'مخفي'}</span></button>
         <div className="item-order-actions"><button type="button" disabled={index === 0} onClick={() => move(setItems, index, -1)} aria-label={`تحريك ${item.description || 'البند'} لأعلى`}><ArrowUp/></button><button type="button" disabled={index === items.length - 1} onClick={() => move(setItems, index, 1)} aria-label={`تحريك ${item.description || 'البند'} لأسفل`}><ArrowDown/></button><button type="button" className="item-remove" disabled={items.length === 1} onClick={() => setItems(values => values.filter((_, itemIndex) => itemIndex !== index))} aria-label="حذف البند"><Trash2/></button></div>
       </div>)}
-    </div><button type="button" className="add-starter-item" onClick={() => setItems(values => [...values, buildItem(service.unit)])}><Plus/> إضافة بند</button><div className="custom-financial-summary"><article><span>إجمالي الخدمة</span><strong>{money(totalCents)} <small>ج.م</small></strong></article><label>المدفوع مبدئيًا<input type="number" min="0" step="0.01" max={money(totalCents)} value={form.paid_amount} onChange={event => set({ paid_amount: event.target.value })}/></label><article className="remaining"><span>المتبقي</span><strong>{money(remainingCents)} <small>ج.م</small></strong></article></div></fieldset>
+    </div><button type="button" className="add-starter-item" onClick={() => setItems(values => [...values, buildItem(service.unit)])}><Plus/> إضافة بند</button><div className="custom-financial-summary"><article><span>إجمالي الخدمة</span><strong>{money(totalCents)} <small>ج.م</small></strong></article><article><span>المدفوع</span><strong>{money(paidCents)} <small>ج.م</small></strong></article><article className="remaining"><span>المتبقي</span><strong>{money(remainingCents)} <small>ج.م</small></strong></article></div></fieldset>
 
-    <fieldset className="custom-form-section custom-booking-toggle"><legend><b>04</b><span>الموعد الاختياري</span></legend><label className="form-check booking-toggle"><input type="checkbox" checked={form.requires_booking} onChange={event => set({ requires_booking: event.target.checked })}/><span><strong>إضافة موعد لهذه الخدمة في جدول الحجوزات</strong><small>عند تفعيله، سيُنشأ الموعد بحالة «بانتظار التأكيد» دون المساس برصيد أي باقة.</small></span></label>{form.requires_booking && <CustomServiceSchedule sectionRef={scheduleRef} value={schedule} onChange={setSchedule} resources={resources} bookings={bookings}/>}</fieldset>
+    <fieldset className="custom-form-section custom-booking-toggle"><legend><b>05</b><span>الموعد الاختياري</span></legend><label className="form-check booking-toggle"><input type="checkbox" checked={form.requires_booking} onChange={event => set({ requires_booking: event.target.checked })}/><span><strong>إضافة موعد لهذه الخدمة في جدول الحجوزات</strong><small>عند تفعيله، سيُنشأ الموعد بحالة «بانتظار التأكيد» دون المساس برصيد أي باقة.</small></span></label>{form.requires_booking && <CustomServiceSchedule sectionRef={scheduleRef} value={schedule} onChange={setSchedule} resources={resources} bookings={bookings}/>}</fieldset>
+      </div>
+    </details>
 
     {(localError || error) && <p className="custom-form-error" role="alert">{localError || error}</p>}
     <footer className="custom-form-footer"><span><Check/> سيتم إدراجها فورًا في المشروعات والمحتوى.</span><button className="dialog-submit" disabled={busy}>{busy ? <RefreshCw className="spin"/> : <Plus/>}{busy ? 'جارٍ الإنشاء...' : 'إنشاء الخدمة المخصصة'}</button></footer>

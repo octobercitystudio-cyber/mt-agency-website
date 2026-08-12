@@ -16,4 +16,6 @@ export const attendanceApi = {
   correctRecord: (id, values) => request(`/attendance/records/${id}`, { method: 'PATCH', body: JSON.stringify(values) }),
   addAdjustment: (values) => request('/attendance/adjustments', { method: 'POST', body: JSON.stringify(values) }),
   correctAdjustment: (id, values) => request(`/attendance/adjustments/${id}/correct`, { method: 'POST', body: JSON.stringify(values) }),
+  employeeAccounts: (month) => request(`/attendance/employee-accounts?month=${encodeURIComponent(month)}`),
+  addEmployeeMovement: (values) => request('/attendance/employee-accounts/movements', { method: 'POST', body: JSON.stringify(values) }),
 };

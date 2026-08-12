@@ -4,7 +4,7 @@ const focusableSelector = 'button:not([disabled]),input:not([disabled]),textarea
 const openModalStack = [];
 let scrollLockPreviousOverflow = '';
 
-export default function useModalDialog(isOpen, onClose, { returnFocusRef } = {}) {
+export default function useModalDialog(isOpen, onClose, { returnFocusRef, isolateBackground = false } = {}) {
   const dialogRef = useRef(null);
   const triggerRef = useRef(null);
   const onCloseRef = useRef(onClose);
@@ -22,6 +22,17 @@ export default function useModalDialog(isOpen, onClose, { returnFocusRef } = {})
     if (openModalStack.length === 0) scrollLockPreviousOverflow = document.body.style.overflow;
     openModalStack.push(modalToken);
     document.body.style.overflow = 'hidden';
+    const isolatedElements = [];
+    if (isolateBackground && dialog) {
+      let modalRoot = dialog;
+      while (modalRoot.parentElement && modalRoot.parentElement !== document.body) modalRoot = modalRoot.parentElement;
+      [...document.body.children].forEach(element => {
+        if (element === modalRoot || element.contains(modalRoot)) return;
+        isolatedElements.push({ element, ariaHidden: element.getAttribute('aria-hidden'), inert: element.inert });
+        element.inert = true;
+        element.setAttribute('aria-hidden', 'true');
+      });
+    }
 
     const focusables = () => [...(dialog?.querySelectorAll(focusableSelector) || [])];
     const handleKeyDown = event => {
@@ -51,10 +62,14 @@ export default function useModalDialog(isOpen, onClose, { returnFocusRef } = {})
       document.removeEventListener('keydown', handleKeyDown);
       const stackIndex = openModalStack.lastIndexOf(modalToken);
       if (stackIndex !== -1) openModalStack.splice(stackIndex, 1);
+      isolatedElements.forEach(({ element, ariaHidden, inert }) => {
+        element.inert = inert;
+        if (ariaHidden === null) element.removeAttribute('aria-hidden'); else element.setAttribute('aria-hidden', ariaHidden);
+      });
       document.body.style.overflow = openModalStack.length ? 'hidden' : scrollLockPreviousOverflow;
       window.requestAnimationFrame(() => triggerRef.current?.focus());
     };
-  }, [isOpen, returnFocusRef]);
+  }, [isOpen, isolateBackground, returnFocusRef]);
 
   return dialogRef;
 }

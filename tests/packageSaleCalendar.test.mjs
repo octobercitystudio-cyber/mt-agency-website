@@ -88,15 +88,15 @@ test('demo sale executes zero and one appointment paths without phantom holds', 
   deactivateDemoMode();
 });
 
-test('daily package snapshots the shooting day and rejects appointments on another date', async () => {
+test('daily package waits for its first booking and then allows that day only', async () => {
   const storage = browserGlobals();
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); activateDemoMode('owner');
   const db = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const service = db.services.find(item => ['hour', 'day', 'month'].includes(item.billing_unit) && Number(item.total_hours) > 0); service.package_validity_mode = 'shooting_day'; storage.set('mt_agency_erp_demo_v12', JSON.stringify(db));
   const draft = templateToPackageDraft(service, { clientId: 1, startsAt: '2026-08-20' });
   const ok = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...draft, shooting_date: '2026-08-20', starts_at: '2026-08-20', expires_at: '2026-08-20', idempotency_key: 'daily-sale-ok-001', bookings: [] }) });
-  assert.equal(ok.error, null); assert.equal(ok.data.expires_at, '2026-08-20');
-  const bad = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...draft, shooting_date: '2026-08-20', starts_at: '2026-08-20', expires_at: '2026-08-20', idempotency_key: 'daily-sale-bad-001', bookings: [{ resource_id: 1, date: '2026-08-21', start_time: '12:00', end_time: '13:00' }] }) });
+  assert.equal(ok.error, null); assert.equal(ok.data.expires_at, null);
+  const bad = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...draft, idempotency_key: 'daily-sale-bad-001', bookings: [{ resource_id: 1, date: '2026-08-21', start_time: '12:00', end_time: '13:00' }, { resource_id: 1, date: '2026-08-22', start_time: '12:00', end_time: '13:00' }] }) });
   assert.equal(bad.error?.code, 'booking_outside_package_validity'); deactivateDemoMode();
 });
 

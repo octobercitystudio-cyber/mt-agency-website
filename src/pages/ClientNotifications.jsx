@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, CalendarClock, CheckCheck, CircleDollarSign, FileText, FolderKanban, History, Package, RefreshCw, Trash2, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
+import { captureNotificationOpen, reconcileNotificationOpen, resolveNotificationOpenBoundary, unreadNotifications } from '../lib/notificationReadBoundary';
 import './ClientNotifications.css';
 
 const safeItems = value => Array.isArray(value) ? value.filter(item => item && Number(item.id) > 0 && item.title && item.message) : [];
@@ -28,20 +29,39 @@ const timeLabel = value => {
 };
 
 export default function ClientNotifications({ clientId, onNavigate }) {
-  const bellRef = useRef(null); const previousUnreadRef = useRef(null);
+  const bellRef = useRef(null); const previousUnreadRef = useRef(null); const openRequestRef = useRef(0); const initialLoadedRef = useRef(false); const initialRequestInFlightRef = useRef(false); const pendingInitialOpenRef = useRef(null);
   const [open, setOpen] = useState(false); const [filter, setFilter] = useState('unread'); const [items, setItems] = useState(() => {
     try { return safeItems(JSON.parse(localStorage.getItem(cacheKey(clientId)) || '[]')); } catch { return []; }
   });
   const [unreadCount, setUnreadCount] = useState(() => items.filter(item => !item.read_at).length);
   const [loading, setLoading] = useState(!items.length); const [loadingOlder, setLoadingOlder] = useState(false); const [nextCursor, setNextCursor] = useState(null); const [error, setError] = useState(''); const [announcement, setAnnouncement] = useState('');
-  const close = useCallback(() => setOpen(false), []); const dialogRef = useModalDialog(open, close, { returnFocusRef: bellRef });
+  const close = useCallback(() => { openRequestRef.current += 1; pendingInitialOpenRef.current = null; setOpen(false); }, []); const dialogRef = useModalDialog(open, close, { returnFocusRef: bellRef });
 
   const load = useCallback(async ({ quiet = false, cursor = null, append = false } = {}) => {
+    const initialRequest = !append && !cursor && !initialLoadedRef.current; if (initialRequest) initialRequestInFlightRef.current = true;
     if (append) setLoadingOlder(true); else if (!quiet) setLoading(true); setError('');
     const cursorQuery = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
     const { data, error: requestError } = await dataClient.request(`/app-notifications?status=all&limit=50${cursorQuery}`, { method: 'GET' });
-    if (requestError) { setError('تعذر تحديث الإشعارات. نعرض آخر نسخة محفوظة لديك.'); setLoading(false); setLoadingOlder(false); return; }
-    const received = safeItems(data?.items); setNextCursor(data?.next_cursor || null); setUnreadCount(Number(data?.unread_count ?? received.filter(item => !item.read_at).length)); setLoading(false); setLoadingOlder(false);
+    if (requestError) {
+      const pending = pendingInitialOpenRef.current;
+      if (pending && openRequestRef.current === pending.requestId) { setItems(pending.captured.snapshotItems); setUnreadCount(pending.captured.snapshotUnreadCount); }
+      if (initialRequest) initialRequestInFlightRef.current = false; setError('تعذر تحديث الإشعارات. نعرض آخر نسخة محفوظة لديك.'); setLoading(false); setLoadingOlder(false); return;
+    }
+    const received = safeItems(data?.items);
+    const pending = !append && !cursor ? pendingInitialOpenRef.current : null;
+    if (pending && openRequestRef.current === pending.requestId && !initialLoadedRef.current) {
+      const boundary = resolveNotificationOpenBoundary(pending.captured.boundary, true, received); const reconciled = reconcileNotificationOpen(received, boundary);
+      initialLoadedRef.current = true; initialRequestInFlightRef.current = false; pendingInitialOpenRef.current = null; setNextCursor(data?.next_cursor || null); setUnreadCount(reconciled.unreadCount); setLoading(false); setLoadingOlder(false);
+      setItems(reconciled.items); try { localStorage.setItem(cacheKey(clientId), JSON.stringify(reconciled.items)); } catch { /* cache is best effort */ }
+      if (boundary) {
+        const { error: readError } = await dataClient.request('/app-notifications/read-all', { method: 'POST', body: JSON.stringify({ up_to_id: boundary }) });
+        if (openRequestRef.current !== pending.requestId) return;
+        if (readError) { setItems(received); try { localStorage.setItem(cacheKey(clientId), JSON.stringify(received)); } catch { /* cache is best effort */ } setUnreadCount(Number(data?.unread_count ?? unreadNotifications(received))); setError('تعذر حفظ حالة القراءة. أُعيد العداد كما كان.'); }
+      }
+      return;
+    }
+    initialLoadedRef.current = true; if (initialRequest) initialRequestInFlightRef.current = false;
+    setNextCursor(data?.next_cursor || null); setUnreadCount(Number(data?.unread_count ?? unreadNotifications(received))); setLoading(false); setLoadingOlder(false);
     setItems(current => { const nextItems = append ? [...current, ...received.filter(item => !current.some(existing => Number(existing.id) === Number(item.id)))] : received; try { localStorage.setItem(cacheKey(clientId), JSON.stringify(nextItems)); } catch { /* cache is best effort */ } return nextItems; });
   }, [clientId]);
 
@@ -61,6 +81,28 @@ export default function ClientNotifications({ clientId, onNavigate }) {
   const visibleItems = useMemo(() => filter === 'unread' ? items.filter(item => !item.read_at) : items, [filter, items]);
   const groups = useMemo(() => ['اليوم', 'أمس', 'الأقدم'].map(label => ({ label, items: visibleItems.filter(item => dateBucket(item.created_at) === label) })).filter(group => group.items.length), [visibleItems]);
   const updateItems = next => { setItems(current => { const value = typeof next === 'function' ? next(current) : next; try { localStorage.setItem(cacheKey(clientId), JSON.stringify(value)); } catch { /* cache is best effort */ } return value; }); };
+  const openNotifications = async () => {
+    const requestId = openRequestRef.current + 1; openRequestRef.current = requestId;
+    const openedBeforeInitialLoad = !initialLoadedRef.current; const captured = captureNotificationOpen(items, unreadCount);
+    updateItems(captured.optimisticItems); setUnreadCount(captured.optimisticUnreadCount); setOpen(true); setError('');
+    if (openedBeforeInitialLoad) { pendingInitialOpenRef.current = { requestId, captured }; if (!initialRequestInFlightRef.current) load({ quiet: true }); return; }
+    const { data, error: requestError } = await dataClient.request('/app-notifications?status=all&limit=50', { method: 'GET' });
+    if (openRequestRef.current !== requestId) return;
+    if (requestError) {
+      updateItems(captured.snapshotItems); setUnreadCount(captured.snapshotUnreadCount); setLoading(false); setError('تعذر تحديث الإشعارات. لم تتغير حالة القراءة.');
+      return;
+    }
+    const received = safeItems(data?.items); const reconciled = reconcileNotificationOpen(received, captured.boundary);
+    if (captured.boundary) {
+      const { error: readError } = await dataClient.request('/app-notifications/read-all', { method: 'POST', body: JSON.stringify({ up_to_id: captured.boundary }) });
+      if (openRequestRef.current !== requestId) return;
+      if (readError) {
+        updateItems(received); setUnreadCount(Number(data?.unread_count ?? unreadNotifications(received))); setError('تعذر حفظ حالة القراءة. أُعيد العداد كما كان.');
+        return;
+      }
+    }
+    updateItems(reconciled.items); setUnreadCount(reconciled.unreadCount); setNextCursor(data?.next_cursor || null); setLoading(false);
+  };
   const markRead = async item => {
     if (item.read_at) return; const stamp = new Date().toISOString(); updateItems(current => current.map(row => Number(row.id) === Number(item.id) ? { ...row, read_at: stamp } : row)); setUnreadCount(count => Math.max(0, count - 1));
     const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/read`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true });
@@ -73,7 +115,7 @@ export default function ClientNotifications({ clientId, onNavigate }) {
   const dismiss = async (event, item) => { event.stopPropagation(); updateItems(current => current.filter(row => Number(row.id) !== Number(item.id))); if (!item.read_at) setUnreadCount(count => Math.max(0, count - 1)); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/dismiss`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
 
   return <div className="client-notifications">
-    <button ref={bellRef} type="button" className={`client-notifications__bell ${unreadCount ? 'has-unread' : ''}`} aria-label={unreadCount ? `الإشعارات، ${unreadCount} غير مقروء` : 'الإشعارات'} aria-expanded={open} aria-controls="client-notification-center" onClick={() => setOpen(value => !value)}>
+    <button ref={bellRef} type="button" className={`client-notifications__bell ${unreadCount ? 'has-unread' : ''}`} aria-label={unreadCount ? `الإشعارات، ${unreadCount} غير مقروء` : 'الإشعارات'} aria-expanded={open} aria-controls="client-notification-center" onClick={() => open ? close() : openNotifications()}>
       <Bell aria-hidden="true" />{unreadCount > 0 && <span className="client-notifications__badge" aria-hidden="true">{unreadCount > 99 ? '99+' : unreadCount}</span>}
     </button>
     <span className="client-sr-only" aria-live="polite">{announcement}</span>

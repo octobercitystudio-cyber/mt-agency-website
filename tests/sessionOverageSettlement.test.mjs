@@ -55,7 +55,7 @@ test('fresh eligibility and sale-confirm-reschedule-cancel-edit-preview keep exa
   assert.equal(first.error, null); assert.equal(database().client_packages.find(row => row.id === packageId).held_minutes, 60);
   const rescheduled = await demoClient.request(`/bookings/${first.data.id}/admin-reschedule`, { method: 'POST', body: JSON.stringify({ date: today, start_time: '20:00', end_time: '21:30' }) });
   assert.equal(rescheduled.error, null); assert.equal(database().client_packages.find(row => row.id === packageId).held_minutes, 90);
-  const cancelled = await demoClient.request(`/bookings/${first.data.id}/admin-cancel`, { method: 'POST', body: JSON.stringify({ charge: false }) });
+  const cancelled = await demoClient.request(`/bookings/${first.data.id}`, { method: 'DELETE' });
   assert.equal(cancelled.error, null); assert.equal(database().client_packages.find(row => row.id === packageId).held_minutes, 0);
   const edited = await demoClient.request(`/client-packages/${packageId}/adjust`, { method: 'POST', body: JSON.stringify({ target_quantity: 6, reason: 'زيادة معتمدة للاختبار' }) });
   assert.equal(edited.error, null); assert.equal(database().client_packages.find(row => row.id === packageId).purchased_minutes, 360);

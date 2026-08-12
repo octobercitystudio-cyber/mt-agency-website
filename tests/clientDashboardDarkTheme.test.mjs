@@ -45,10 +45,9 @@ test('client finance proof and charts finish with the shared dark palette', asyn
   assert.doesNotMatch(css, /color-scheme\s*:\s*light/);
 });
 
-test('package charts use client theme tokens instead of isolated light colors', async () => {
-  const source = await readSource('../src/pages/ClientDashboardOverview.jsx');
-
-  assert.match(source, /var\(--client-purple-soft\)/);
-  assert.match(source, /var\(--client-chart-track\)/);
+test('package cards keep the shared dark palette without adding Home charts', async () => {
+  const [source, css] = await Promise.all([readSource('../src/pages/ClientDashboardOverview.jsx'), readSource('../src/pages/ClientDashboard.css')]);
+  assert.match(css, /\.client-simple-package-card[^{]*\{[^}]*var\(--client-purple\)/s);
+  assert.doesNotMatch(source, /PieChart|ResponsiveContainer|recharts/);
   assert.doesNotMatch(source, /'#31263c'/);
 });
