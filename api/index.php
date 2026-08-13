@@ -2731,7 +2731,17 @@ if (preg_match('#^/data/([a-z_]+)$#', $path, $m)) {
 
     if ($method === 'GET') {
         $columns=cleanColumns($definition,(string)($_GET['columns'] ?? '*'));
-        $sql='SELECT '.implode(',',array_map(fn($c)=>'`'.$c.'`',$columns))." FROM `$table` WHERE $where";
+        // Hostinger deploys application files before database migrations are
+        // imported manually. Keep reads available during that short schema
+        // drift window: legacy rows must still render, while newly introduced
+        // allow-listed columns are returned as NULL until their migration runs.
+        $selectColumns=array_map(
+            fn($column)=>schemaColumnExists($pdo,$table,$column)
+                ? '`'.$column.'`'
+                : 'NULL AS `'.$column.'`',
+            $columns
+        );
+        $sql='SELECT '.implode(',',$selectColumns)." FROM `$table` WHERE $where";
         $orders=json_decode((string)($_GET['orders'] ?? '[]'),true); $orderParts=[];
         if (is_array($orders)) foreach($orders as $order) if(in_array($order['column']??'',$definition['columns'],true)) $orderParts[]='`'.$order['column'].'` '.(($order['ascending']??true)?'ASC':'DESC');
         if($orderParts) $sql.=' ORDER BY '.implode(',',$orderParts);

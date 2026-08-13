@@ -103,3 +103,10 @@ test('production schema and API require the first-booking validity contract', ()
   assert.match(api, /function activatePackageOnFirstBooking/);
   assert.match(api, /026_package_first_booking_validity\.sql/);
 });
+
+test('sold-package reads remain available while Hostinger migration 026 is pending', () => {
+  const api = fs.readFileSync(new URL('../api/index.php', import.meta.url), 'utf8');
+  assert.match(api, /schemaColumnExists\(\$pdo,\$table,\$column\)/);
+  assert.match(api, /NULL AS `'.\$column\.'`/);
+  assert.match(api, /\$sql='SELECT '\.implode\(',',\$selectColumns\)/);
+});
