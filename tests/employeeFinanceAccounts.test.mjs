@@ -153,3 +153,11 @@ test('attendance salary adjustments stay outside employee finance balances', asy
   const after = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 1).net_due_to_employee;
   assert.equal(after, before); deactivateDemoMode();
 });
+
+test('ordinary manual finance remains writable before Hostinger migration 027', async () => {
+  const api = await load('api/index.php');
+  assert.match(api, /\$hasEmployeeColumn=schemaColumnExists\(\$pdo,'finance','employee_user_id'\)/);
+  assert.match(api, /if\(\$employeeUserId&&!\$hasEmployeeColumn\)fail\([^;]+employee_finance_migration_required/);
+  assert.match(api, /INSERT INTO finance \(organization_id,client_id,type,entry_kind,category,amount,method,detail,date,entity,source_type,source_id,is_system,created_by\)/);
+  assert.match(api, /if\(\$hasEmployeeColumn\).*?else\{.*?INSERT INTO finance/s);
+});
