@@ -222,7 +222,7 @@ function clearAuthCookies(array $config): void {
 
 function requireCsrf(array $config, string $path, string $method): void {
     if (in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) return;
-    if (in_array($path, ['/auth/login', '/auth/bootstrap', '/cron/whatsapp-queue'], true)) return;
+    if (in_array($path, ['/auth/login', '/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue'], true)) return;
     $cookie = (string)($_COOKIE[csrfCookieName($config)] ?? $_COOKIE['mt_csrf'] ?? '');
     $header = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
     if ($cookie === '' || $header === '' || !hash_equals($cookie, $header)) {
@@ -485,6 +485,47 @@ function schemaTableColumns(PDO $pdo,string $table): array {
     return $cache[$table]=array_map('strval',$stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
+function pushConfiguration(array $config): array {
+    $push=is_array($config['push']??null)?$config['push']:[];$firebase=is_array($push['firebase']??null)?$push['firebase']:[];
+    $public=[
+        'apiKey'=>trim((string)($firebase['api_key']??'')),
+        'authDomain'=>trim((string)($firebase['auth_domain']??'')),
+        'projectId'=>trim((string)($firebase['project_id']??'')),
+        'storageBucket'=>trim((string)($firebase['storage_bucket']??'')),
+        'messagingSenderId'=>trim((string)($firebase['messaging_sender_id']??'')),
+        'appId'=>trim((string)($firebase['app_id']??'')),
+    ];
+    $vapid=trim((string)($firebase['vapid_public_key']??''));$enabled=!empty($push['enabled'])&&$vapid!=='';
+    foreach(['apiKey','projectId','messagingSenderId','appId'] as $required)if($public[$required]==='')$enabled=false;
+    return ['enabled'=>$enabled,'firebase'=>$public,'vapid_public_key'=>$vapid];
+}
+
+function queuePushNotification(PDO $pdo,int $organizationId,int $notificationId): void {
+    global $config;if($notificationId<1||empty($config['push']['enabled'])||!schemaTableExists($pdo,'app_push_jobs'))return;
+    $stmt=$pdo->prepare("INSERT IGNORE INTO app_push_jobs (organization_id,notification_id,status,available_at) VALUES (?,?,'pending',NOW())");$stmt->execute([$organizationId,$notificationId]);
+}
+
+function pushBase64Url(string $value): string { return rtrim(strtr(base64_encode($value),'+/','-_'),'='); }
+
+function firebaseAccessToken(array $config): array {
+    static $cached=null;if(is_array($cached)&&($cached['expires_at']??0)>time()+60)return $cached;
+    $file=trim((string)($config['push']['service_account_file']??''));if($file===''||!is_file($file))throw new RuntimeException('firebase_service_account_missing');
+    $account=json_decode((string)file_get_contents($file),true);if(!is_array($account)||empty($account['client_email'])||empty($account['private_key'])||empty($account['project_id']))throw new RuntimeException('firebase_service_account_invalid');
+    $now=time();$header=pushBase64Url(json_encode(['alg'=>'RS256','typ'=>'JWT'],JSON_UNESCAPED_SLASHES));$claims=pushBase64Url(json_encode(['iss'=>$account['client_email'],'scope'=>'https://www.googleapis.com/auth/firebase.messaging','aud'=>'https://oauth2.googleapis.com/token','iat'=>$now,'exp'=>$now+3600],JSON_UNESCAPED_SLASHES));$unsigned=$header.'.'.$claims;
+    $signature='';if(!openssl_sign($unsigned,$signature,$account['private_key'],OPENSSL_ALGO_SHA256))throw new RuntimeException('firebase_jwt_sign_failed');$assertion=$unsigned.'.'.pushBase64Url($signature);
+    $curl=curl_init('https://oauth2.googleapis.com/token');curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>20,CURLOPT_HTTPHEADER=>['Content-Type: application/x-www-form-urlencoded'],CURLOPT_POSTFIELDS=>http_build_query(['grant_type'=>'urn:ietf:params:oauth:grant-type:jwt-bearer','assertion'=>$assertion])]);$raw=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_HTTP_CODE);$error=curl_error($curl);curl_close($curl);$decoded=is_string($raw)?json_decode($raw,true):null;
+    if($status<200||$status>=300||!is_array($decoded)||empty($decoded['access_token']))throw new RuntimeException('firebase_oauth_failed:'.($error?:$status));
+    return $cached=['token'=>(string)$decoded['access_token'],'project_id'=>(string)$account['project_id'],'expires_at'=>$now+max(300,(int)($decoded['expires_in']??3600))];
+}
+
+function sendFirebasePush(array $config,string $token,array $notification): void {
+    $auth=firebaseAccessToken($config);$title=mb_substr(trim((string)($notification['title']??'MT Agency')),0,180);$body=mb_substr(trim((string)($notification['message']??'لديك تحديث جديد.')),0,500);$notificationId=(string)(int)($notification['id']??0);$tab=trim((string)($notification['action_tab']??''));$clientAudience=(string)($notification['audience']??'')==='client';
+    $staffRoutes=['requests'=>'/erp/requests','bookings'=>'/erp/bookings','packages'=>'/erp/packages','clients'=>'/erp/clients','finance'=>'/erp/finance','projects'=>'/erp/projects','offers'=>'/erp/offers'];$url=$clientAudience?('/dashboard'.($tab!==''?'?tab='.rawurlencode($tab):'')):($staffRoutes[$tab]??'/erp');
+    $message=['message'=>['token'=>$token,'notification'=>['title'=>$title,'body'=>$body],'data'=>['title'=>$title,'body'=>$body,'url'=>$url,'notification_id'=>$notificationId],'webpush'=>['headers'=>['Urgency'=>'high'],'fcm_options'=>['link'=>'https://multitaskagency.com'.$url]]]];
+    $endpoint='https://fcm.googleapis.com/v1/projects/'.rawurlencode($auth['project_id']).'/messages:send';$curl=curl_init($endpoint);curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>20,CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$auth['token'],'Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode($message,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);$raw=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_HTTP_CODE);$error=curl_error($curl);curl_close($curl);
+    if($status<200||$status>=300){$detail=is_string($raw)?mb_substr($raw,0,500):$error;throw new RuntimeException('firebase_send_failed:'.$status.':'.$detail,$status);}
+}
+
 function deleteEligibleBooking(PDO $pdo, array $user, array $booking): float {
     $bookingId=(int)$booking['id'];$organizationId=(int)$user['organization_id'];
     if(!in_array((string)$booking['status'],['pending','confirmed','alternative_proposed','cancel_requested','late_cancel_requested'],true))fail('حالة الموعد لا تسمح بحذفه.',409,'booking_delete_forbidden');
@@ -603,7 +644,7 @@ function appNotification(PDO $pdo, int $organizationId, ?int $clientId, string $
     $stmt=$pdo->prepare('INSERT IGNORE INTO app_notifications (organization_id,client_id,recipient_user_id,audience,type,title,message,entity_type,entity_id,dedupe_key,severity,action_tab,payload_json,source_event_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     $stmt->execute([$organizationId,$clientId,$recipientUserId,$audience,$type,$title,$message,$entityType,$entityId,$dedupeKey,$severity,$actionTab,$safePayload?json_encode($safePayload,JSON_UNESCAPED_UNICODE):null,$dedupeKey]);
     if($stmt->rowCount()!==1){if($ownTransaction)$pdo->commit();return false;}
-    recordChangeEvent($pdo,$organizationId,$clientId,'notifications','app_notifications',(int)$pdo->lastInsertId(),'created');if($ownTransaction)$pdo->commit();return true;
+    $notificationId=(int)$pdo->lastInsertId();recordChangeEvent($pdo,$organizationId,$clientId,'notifications','app_notifications',$notificationId,'created');queuePushNotification($pdo,$organizationId,$notificationId);if($ownTransaction)$pdo->commit();return true;
     }catch(Throwable $error){if($ownTransaction&&$pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
@@ -1283,6 +1324,21 @@ if ($path === '/health' && $method === 'GET') {
     respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives')]);
 }
 
+if ($path === '/push/config' && $method === 'GET') {
+    requireUser($user);$push=pushConfiguration($config);$push['schema_ready']=schemaTableExists($pdo,'app_push_subscriptions')&&schemaTableExists($pdo,'app_push_jobs');
+    if(!$push['schema_ready'])$push['enabled']=false;respond($push);
+}
+
+if ($path === '/push/subscriptions' && $method === 'POST') {
+    $user=requireUser($user);if(!schemaTableExists($pdo,'app_push_subscriptions'))fail('تحديث قاعدة بيانات الإشعارات مطلوب.',503,'push_migration_required');$push=pushConfiguration($config);if(!$push['enabled'])fail('إشعارات التطبيق غير مفعلة على الخادم.',503,'push_not_configured');$payload=body();$token=trim((string)($payload['token']??''));$platform=trim((string)($payload['platform']??'web-android'));$label=mb_substr(trim((string)($payload['device_label']??'')),0,120);
+    if(strlen($token)<80||strlen($token)>4096||preg_match('/[\x00-\x20\x7F]/',$token))fail('رمز جهاز الإشعارات غير صحيح.',422,'invalid_push_token');if(!in_array($platform,['web-android','web'],true))fail('منصة الإشعارات غير مدعومة.',422,'invalid_push_platform');$hash=hash('sha256',$token);$userId=$user['role']==='client'?null:(int)$user['id'];$clientId=$user['role']==='client'?(int)$user['client_id']:null;
+    $stmt=$pdo->prepare('INSERT INTO app_push_subscriptions (organization_id,user_id,client_id,token_hash,token,platform,device_label,is_active,last_seen_at) VALUES (?,?,?,?,?,?,?,1,NOW()) ON DUPLICATE KEY UPDATE organization_id=VALUES(organization_id),user_id=VALUES(user_id),client_id=VALUES(client_id),token=VALUES(token),platform=VALUES(platform),device_label=VALUES(device_label),is_active=1,last_seen_at=NOW()');$stmt->execute([(int)$user['organization_id'],$userId,$clientId,$hash,$token,$platform,$label?:null]);respond(['registered'=>true]);
+}
+
+if ($path === '/push/subscriptions' && $method === 'DELETE') {
+    $user=requireUser($user);if(!schemaTableExists($pdo,'app_push_subscriptions'))respond(['unregistered'=>true,'changed'=>false]);$payload=body();$token=trim((string)($payload['token']??''));if($token==='')fail('رمز جهاز الإشعارات مطلوب.',422,'push_token_required');$sql='UPDATE app_push_subscriptions SET is_active=0,last_seen_at=NOW() WHERE organization_id=? AND token_hash=?';$params=[(int)$user['organization_id'],hash('sha256',$token)];if($user['role']==='client'){$sql.=' AND client_id=?';$params[]=(int)$user['client_id'];}else{$sql.=' AND user_id=?';$params[]=(int)$user['id'];}$stmt=$pdo->prepare($sql);$stmt->execute($params);respond(['unregistered'=>true,'changed'=>$stmt->rowCount()>0]);
+}
+
 if ($path === '/dashboard/kpis' && $method === 'GET') {
     $user=requireUser($user);requireRole($user,['owner','admin','operations','finance']);
     $organizationId=(int)$user['organization_id'];$role=(string)$user['role'];$today=cairoNow()->format('Y-m-d');$month=substr($today,0,7);
@@ -1450,6 +1506,17 @@ if ($path === '/auth/session' && $method === 'GET') {
     if (!$user) respond(['session' => null, 'user' => null]);
     if (empty($_COOKIE[csrfCookieName($config)])) setCsrfCookie($config);
     respond(['session' => ['active' => true], 'user' => $user]);
+}
+
+if ($path === '/cron/push-queue' && $method === 'POST') {
+    $workerKey=(string)($config['push']['worker_key']??'');$provided=(string)($_SERVER['HTTP_X_WORKER_KEY']??'');if($workerKey===''||$provided===''||!hash_equals($workerKey,$provided))fail('غير مصرح بتشغيل عامل إشعارات التطبيق.',401,'invalid_worker_key');$push=pushConfiguration($config);if(!$push['enabled'])fail('إشعارات التطبيق غير مفعلة.',503,'push_not_configured');if(!schemaTableExists($pdo,'app_push_jobs')||!schemaTableExists($pdo,'app_push_subscriptions'))fail('تحديث قاعدة بيانات الإشعارات مطلوب.',503,'push_migration_required');
+    $pdo->exec("UPDATE app_push_jobs SET status='pending' WHERE status='processing' AND available_at<=NOW() AND attempts<5");$pdo->beginTransaction();$stmt=$pdo->query("SELECT * FROM app_push_jobs WHERE status='pending' AND available_at<=NOW() AND attempts<5 ORDER BY id LIMIT 20 FOR UPDATE");$jobs=$stmt->fetchAll();if($jobs){$ids=array_map('intval',array_column($jobs,'id'));$marks=implode(',',array_fill(0,count($ids),'?'));$pdo->prepare("UPDATE app_push_jobs SET status='processing',available_at=DATE_ADD(NOW(),INTERVAL 10 MINUTE) WHERE id IN ($marks)")->execute($ids);}$pdo->commit();$sent=0;$failed=0;$devices=0;
+    foreach($jobs as $job){try{$notificationStmt=$pdo->prepare('SELECT id,organization_id,client_id,recipient_user_id,audience,title,message,action_tab FROM app_notifications WHERE id=? AND organization_id=? AND dismissed_at IS NULL');$notificationStmt->execute([$job['notification_id'],$job['organization_id']]);$notification=$notificationStmt->fetch();if(!$notification){$pdo->prepare("UPDATE app_push_jobs SET status='sent',attempts=attempts+1,sent_at=NOW(),last_error=NULL WHERE id=?")->execute([$job['id']]);$sent++;continue;}
+            $where=['organization_id=?','is_active=1'];$params=[(int)$job['organization_id']];if((string)$notification['audience']==='client'){$where[]='client_id=?';$params[]=(int)$notification['client_id'];}elseif(!empty($notification['recipient_user_id'])){$where[]='user_id=?';$params[]=(int)$notification['recipient_user_id'];}else{$where[]='user_id IS NOT NULL';}$subscriptions=$pdo->prepare('SELECT id,token FROM app_push_subscriptions WHERE '.implode(' AND ',$where));$subscriptions->execute($params);
+            foreach($subscriptions->fetchAll() as $subscription){try{sendFirebasePush($config,(string)$subscription['token'],$notification);$devices++;}catch(RuntimeException $sendError){if(in_array($sendError->getCode(),[400,404],true)){$pdo->prepare('UPDATE app_push_subscriptions SET is_active=0 WHERE id=?')->execute([$subscription['id']]);continue;}throw $sendError;}}
+            $pdo->prepare("UPDATE app_push_jobs SET status='sent',attempts=attempts+1,sent_at=NOW(),last_error=NULL WHERE id=? AND status='processing'")->execute([$job['id']]);$sent++;
+        }catch(Throwable $error){$attempts=(int)$job['attempts']+1;$status=$attempts>=5?'failed':'pending';$delay=min(1440,5*(2**max(0,$attempts-1)));$pdo->prepare('UPDATE app_push_jobs SET status=?,attempts=?,available_at=DATE_ADD(NOW(),INTERVAL ? MINUTE),last_error=? WHERE id=?')->execute([$status,$attempts,$delay,mb_substr($error->getMessage(),0,1000),$job['id']]);$failed++;}}
+    respond(['processed'=>count($jobs),'sent_jobs'=>$sent,'failed_jobs'=>$failed,'delivered_devices'=>$devices]);
 }
 
 if ($path === '/auth/logout' && $method === 'POST') {

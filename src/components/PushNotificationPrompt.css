@@ -1,0 +1,263 @@
+.push-notification-prompt {
+  --push-prompt-violet: var(--erp-primary, #6d28d9);
+  --push-prompt-violet-hover: var(--erp-primary-hover, #5b21b6);
+  --push-prompt-ink: #171a27;
+  --push-prompt-muted: #596173;
+  --push-prompt-border: #dedbd4;
+  position: fixed;
+  inset-inline-end: 24px;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 1040;
+  isolation: isolate;
+  width: min(460px, calc(100vw - 48px));
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 14px;
+  padding: 17px 18px;
+  overflow: hidden;
+  border: 1px solid var(--push-prompt-border);
+  border-inline-start: 3px solid var(--push-prompt-violet);
+  border-radius: 15px;
+  background: #fffefa;
+  box-shadow: 0 18px 50px rgba(22, 24, 39, .18), 0 2px 8px rgba(22, 24, 39, .07);
+  color: var(--push-prompt-ink);
+  font-family: 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
+  text-align: right;
+  animation: push-prompt-enter .32s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.push-notification-prompt::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(109, 40, 217, .25), transparent);
+  content: '';
+  pointer-events: none;
+}
+
+.push-notification-prompt__mark {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e3d8f5;
+  border-radius: 13px;
+  background: #f3ecff;
+  color: var(--push-prompt-violet);
+}
+
+.push-notification-prompt__mark svg {
+  width: 23px;
+  height: 23px;
+  stroke-width: 1.9;
+}
+
+.push-notification-prompt__mark span {
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 8px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid #f3ecff;
+  border-radius: 50%;
+  background: #dc3045;
+  box-shadow: 0 0 0 2px rgba(220, 48, 69, .1);
+}
+
+.push-notification-prompt__content,
+.push-notification-prompt__copy {
+  min-width: 0;
+}
+
+.push-notification-prompt__copy h2 {
+  margin: 0 0 3px;
+  color: var(--push-prompt-ink);
+  font: 800 1rem/1.45 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
+  letter-spacing: -.01em;
+}
+
+.push-notification-prompt__copy p {
+  margin: 0;
+  color: var(--push-prompt-muted);
+  font-size: .78rem;
+  font-weight: 500;
+  line-height: 1.7;
+  text-wrap: pretty;
+}
+
+.push-notification-prompt__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.push-notification-prompt__actions button {
+  min-height: 44px;
+  border-radius: 9px;
+  padding: 8px 13px;
+  font: 800 .76rem/1.25 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
+  cursor: pointer;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+
+.push-notification-prompt__enable {
+  min-width: 144px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--push-prompt-violet);
+  background: var(--push-prompt-violet);
+  color: #fff;
+  box-shadow: 0 7px 18px rgba(109, 40, 217, .2);
+}
+
+.push-notification-prompt__enable svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.push-notification-prompt__enable:hover:not(:disabled) {
+  border-color: var(--push-prompt-violet-hover);
+  background: var(--push-prompt-violet-hover);
+  transform: translateY(-1px);
+}
+
+.push-notification-prompt__dismiss {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #5e6470;
+}
+
+.push-notification-prompt__dismiss:hover:not(:disabled) {
+  border-color: #ddd8d0;
+  background: #f5f2ed;
+  color: var(--push-prompt-ink);
+}
+
+.push-notification-prompt__actions button:focus-visible {
+  outline: 3px solid rgba(109, 40, 217, .23);
+  outline-offset: 2px;
+}
+
+.push-notification-prompt__actions button:disabled {
+  cursor: wait;
+  opacity: .68;
+  transform: none;
+}
+
+.push-notification-prompt.is-success .push-notification-prompt__enable:disabled {
+  border-color: #147a56;
+  background: #147a56;
+  cursor: default;
+  opacity: 1;
+}
+
+.push-notification-prompt__status {
+  display: none;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 0;
+  margin-top: 9px;
+  font-size: .7rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.push-notification-prompt__status.has-message {
+  display: flex;
+}
+
+.push-notification-prompt__status svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.push-notification-prompt__status.is-info { color: #4b5565; }
+.push-notification-prompt__status.is-success { color: #117052; }
+.push-notification-prompt__status.is-error { color: #b4233a; }
+
+.push-notification-prompt__spinner {
+  animation: push-prompt-spin .85s linear infinite;
+}
+
+@keyframes push-prompt-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes push-prompt-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 680px) {
+  .push-notification-prompt {
+    inset-inline: 12px;
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    width: auto;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 10px;
+    padding: 13px 12px;
+    border-radius: 13px;
+  }
+
+  .push-notification-prompt__mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .push-notification-prompt__mark svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .push-notification-prompt__mark span {
+    top: 6px;
+    inset-inline-start: 6px;
+  }
+
+  .push-notification-prompt__copy h2 { font-size: .91rem; }
+  .push-notification-prompt__copy p { font-size: .72rem; line-height: 1.62; }
+  .push-notification-prompt__actions { gap: 5px; margin-top: 10px; }
+  .push-notification-prompt__actions button { padding-inline: 9px; font-size: .71rem; }
+  .push-notification-prompt__enable { min-width: 0; flex: 1 1 auto; }
+  .push-notification-prompt__dismiss { flex: 0 0 auto; }
+}
+
+@media (max-width: 340px) {
+  .push-notification-prompt {
+    inset-inline: 8px;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .push-notification-prompt__mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .push-notification-prompt__enable svg { display: none; }
+  .push-notification-prompt__actions button { padding-inline: 7px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .push-notification-prompt,
+  .push-notification-prompt__spinner {
+    animation: none;
+  }
+
+  .push-notification-prompt__actions button {
+    transition: none;
+  }
+}
+
+@media print {
+  .push-notification-prompt { display: none !important; }
+}

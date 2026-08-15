@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MT Agency">
+  <rect width="512" height="512" fill="#6d28d9"/>
+  <circle cx="256" cy="256" r="190" fill="#5b21b6"/>
+  <path d="M276 125c-6 0-11 3-15 8l-66 93c-9 12 0 28 14 28h51c14 0 22 17 14 28l-49 68c-9 13 6 28 18 18l94-81c10-9 4-25-9-25h-43c-14 0-22-16-14-28l58-81c9-12 0-28-14-28h-39Z" fill="#fff"/>
+</svg>

@@ -1,0 +1,47 @@
+{
+  "packageId": "com.multitaskagency.app",
+  "host": "multitaskagency.com",
+  "name": "MT Agency",
+  "launcherName": "MT Agency",
+  "display": "standalone",
+  "themeColor": "#6D28D9",
+  "themeColorDark": "#4C1D95",
+  "navigationColor": "#0F1020",
+  "navigationColorDark": "#090A14",
+  "navigationDividerColor": "#0F1020",
+  "navigationDividerColorDark": "#090A14",
+  "backgroundColor": "#0F1020",
+  "enableNotifications": true,
+  "startUrl": "/login?source=android-app",
+  "iconUrl": "https://multitaskagency.com/app-icon.svg",
+  "maskableIconUrl": "https://multitaskagency.com/app-icon-maskable.svg",
+  "monochromeIconUrl": "https://multitaskagency.com/app-icon-monochrome.svg",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "mtagency"
+  },
+  "appVersionCode": 1,
+  "appVersion": "1.0.0",
+  "shortcuts": [
+    {
+      "name": "لوحة القيادة",
+      "shortName": "لوحة القيادة",
+      "url": "/login?source=android-shortcut",
+      "chosenIconUrl": "https://multitaskagency.com/app-icon.svg"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": { "enabled": false },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://multitaskagency.com/",
+  "minSdkVersion": 23,
+  "orientation": "portrait-primary",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": []
+}

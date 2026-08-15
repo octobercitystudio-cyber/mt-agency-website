@@ -1,0 +1,44 @@
+{
+  "id": "/?source=mt-agency-android",
+  "name": "MT Agency",
+  "short_name": "MT Agency",
+  "description": "إدارة الحجوزات والباقات والمشروعات والحسابات في MT Agency",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/login?source=android-app",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#0f1020",
+  "theme_color": "#6d28d9",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/app-icon-monochrome.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "monochrome"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "لوحة القيادة",
+      "short_name": "لوحة القيادة",
+      "url": "/login?source=android-shortcut",
+      "icons": [{ "src": "/app-icon.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+    }
+  ]
+}

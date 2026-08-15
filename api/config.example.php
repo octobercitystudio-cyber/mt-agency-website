@@ -32,4 +32,20 @@ return [
         'expiry_reminder_days' => [7, 1, 0],
         'worker_key' => 'replace-with-a-long-random-cron-worker-key',
     ],
+    'push' => [
+        'enabled' => false,
+        // Public Firebase Web App identifiers. They are safe to expose to the browser.
+        'firebase' => [
+            'api_key' => 'replace-with-firebase-web-api-key',
+            'auth_domain' => 'your-project.firebaseapp.com',
+            'project_id' => 'your-project-id',
+            'storage_bucket' => 'your-project.firebasestorage.app',
+            'messaging_sender_id' => 'replace-with-sender-id',
+            'app_id' => 'replace-with-web-app-id',
+            'vapid_public_key' => 'replace-with-web-push-vapid-public-key',
+        ],
+        // Keep the service-account JSON outside public_html.
+        'service_account_file' => dirname(__DIR__, 2) . '/private_config/firebase-service-account.json',
+        'worker_key' => 'replace-with-a-long-random-push-worker-key',
+    ],
 ];

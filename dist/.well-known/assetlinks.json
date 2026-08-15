@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.multitaskagency.app",
+      "sha256_cert_fingerprints": [
+        "28:0C:7B:AE:3E:EF:12:72:34:59:91:CC:C0:E8:80:A0:05:A9:F5:82:31:E1:97:04:83:D1:5E:25:E7:C8:A5:DA"
+      ]
+    }
+  }
+]

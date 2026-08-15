@@ -21,6 +21,14 @@ window.addEventListener('vite:preloadError', event => {
   window.location.reload();
 });
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(error => {
+      console.warn('Service worker registration failed:', error);
+    });
+  });
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>

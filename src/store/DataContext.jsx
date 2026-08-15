@@ -1,6 +1,7 @@
 import { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../data/studioGalleries';
 import './DataContext.css';
+import { unregisterPushNotifications } from '../lib/pushNotifications';
 
 const OFFICIAL_CONTACT_EMAIL = 'info@multitaskagency.com';
 const LOCAL_PREVIEW_SESSION_KEY = 'mt_agency_local_preview_session';
@@ -413,6 +414,7 @@ export const DataProvider = ({ children }) => {
     }
     authRevisionRef.current += 1;
     const dataClient = await getDataClient();
+    await unregisterPushNotifications(dataClient).catch(() => undefined);
     await dataClient.auth.signOut();
   };
 
@@ -487,6 +489,7 @@ export const DataProvider = ({ children }) => {
     }
     authRevisionRef.current += 1;
     const dataClient = await getDataClient();
+    await unregisterPushNotifications(dataClient).catch(() => undefined);
     await dataClient.auth.signOut();
   };
 

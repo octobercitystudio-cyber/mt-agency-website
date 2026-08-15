@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import HomePage from './pages/HomePage';
 import { DataProvider, useData } from './store/DataContext';
 import PublicLayout from './layouts/PublicLayout';
+import PushNotificationsBridge from './components/PushNotificationsBridge';
 
 const ERP_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
 
@@ -119,6 +120,7 @@ function App() {
     <DataProvider>
       <BrowserRouter>
         <ScrollToTop />
+        <PushNotificationsBridge />
         <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0a0a0a', color: '#7a28cb' }}>جاري التحميل...</div>}>
           <Routes>
             <Route element={<PublicLayout />}>
