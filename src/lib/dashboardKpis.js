@@ -1,4 +1,6 @@
 import { cairoDateKey, centsToMoney, moneyToCents } from './businessFormat.js';
+import { isSellablePackageTemplate } from './clientPackageDraft.js';
+import { calculateOperationalFinanceMovement } from './financeMetrics.js';
 
 export const DASHBOARD_KPI_ROLES = Object.freeze({
   finance: ['owner', 'admin', 'finance'],
@@ -20,9 +22,17 @@ const dateOnlyUtc = value => {
 };
 
 export const calculateDashboardReceivables = ({ invoices = [], packages = [], clients = [] } = {}) => {
-  const invoiceCents = invoices
-    .filter(invoice => !EXCLUDED_INVOICE_STATUSES.has(String(invoice.status || '')))
-    .reduce((sum, invoice) => sum + Math.max(0, moneyToCents(invoice.total) - moneyToCents(invoice.paid_amount)), 0);
+  const validInvoices = invoices.filter(invoice => !EXCLUDED_INVOICE_STATUSES.has(String(invoice.status || '')));
+  const activeInvoiceIds = new Set(validInvoices.map(invoice => Number(invoice.id)).filter(Boolean));
+  const migratedByClient = new Map();
+  const addMigrated = (clientId, cents) => {
+    if (!Number(clientId) || cents <= 0) return;
+    migratedByClient.set(Number(clientId), (migratedByClient.get(Number(clientId)) || 0) + cents);
+  };
+  const invoiceCents = validInvoices.reduce((sum, invoice) => {
+    const due = Math.max(0, moneyToCents(invoice.total) - moneyToCents(invoice.paid_amount));
+    addMigrated(invoice.client_id, due); return sum + due;
+  }, 0);
 
   const packageCents = packages
     .filter(pkg => !EXCLUDED_PACKAGE_STATUSES.has(String(pkg.status || '')))
@@ -31,14 +41,21 @@ export const calculateDashboardReceivables = ({ invoices = [], packages = [], cl
       const paidCents = Math.max(0, moneyToCents(pkg.paid_amount));
       const overageCents = Math.max(0, moneyToCents(pkg.overage_amount));
       const fullDueCents = Math.max(0, totalCents + overageCents - paidCents);
-      if (!pkg.source_invoice_id) return sum + fullDueCents;
+      if (!Number(pkg.source_invoice_id) || !activeInvoiceIds.has(Number(pkg.source_invoice_id))) {
+        addMigrated(pkg.client_id, fullDueCents); return sum + fullDueCents;
+      }
       const baseDueCents = Math.max(0, totalCents - paidCents);
-      return sum + Math.max(0, fullDueCents - baseDueCents);
+      const overageDue = Math.max(0, fullDueCents - baseDueCents);
+      addMigrated(pkg.client_id, overageDue); return sum + overageDue;
     }, 0);
 
-  const legacyClientDebtCents = clients
-    .filter(client => String(client.status || '') !== 'archived')
-    .reduce((sum, client) => sum + Math.max(0, moneyToCents(client.debt)), 0);
+  let legacyClientDebtCents = 0; let legacyReconciledCents = 0;
+  clients.filter(client => String(client.status || '') !== 'archived').forEach(client => {
+    const legacy = Math.max(0, moneyToCents(client.debt));
+    const migrated = Number(client.id) ? migratedByClient.get(Number(client.id)) || 0 : 0;
+    legacyClientDebtCents += Math.max(0, legacy - migrated);
+    legacyReconciledCents += Math.min(legacy, migrated);
+  });
 
   const totalCents = invoiceCents + packageCents + legacyClientDebtCents;
   return {
@@ -46,12 +63,20 @@ export const calculateDashboardReceivables = ({ invoices = [], packages = [], cl
     invoice_amount: centsToMoney(invoiceCents),
     direct_package_and_overage_amount: centsToMoney(packageCents),
     legacy_client_debt_amount: centsToMoney(legacyClientDebtCents),
+    legacy_unreconciled_amount: centsToMoney(legacyClientDebtCents),
+    legacy_reconciled_excluded_amount: centsToMoney(legacyReconciledCents),
   };
 };
 
-export const calculateDashboardPackageCounts = (packages = [], todayKey = cairoDateKey()) => {
+export const dashboardPackageScope = (packages = [], services = null) => {
+  if (!Array.isArray(services)) return packages;
+  const eligibleServiceIds = new Set(services.filter(isSellablePackageTemplate).map(service => Number(service.id)));
+  return packages.filter(pkg => eligibleServiceIds.has(Number(pkg.service_id)));
+};
+
+export const calculateDashboardPackageCounts = (packages = [], todayKey = cairoDateKey(), services = null) => {
   const today = dateOnlyUtc(todayKey);
-  const active = packages.filter(pkg => {
+  const active = dashboardPackageScope(packages, services).filter(pkg => {
     if (String(pkg.status || '') !== 'active') return false;
     const expiresAt = dateOnlyUtc(pkg.expires_at);
     return !expiresAt || !today || expiresAt >= today;
@@ -78,14 +103,13 @@ export const calculateDashboardServiceCounts = (projects = [], contentItems = []
 };
 
 export const calculateDashboardCashMovement = (entries = [], monthKey = cairoDateKey().slice(0, 7)) => {
-  let cashInCents = 0;
-  let cashOutCents = 0;
-  entries.filter(entry => String(entry.date || '').startsWith(monthKey)).forEach(entry => {
-    const amountCents = Math.max(0, moneyToCents(entry.amount));
-    if (['income', 'transfer_in', 'advance_in'].includes(entry.entry_kind) || ['إيراد', 'سداد سلفة', 'income'].includes(entry.type)) cashInCents += amountCents;
-    else cashOutCents += amountCents;
-  });
-  return { cash_in: centsToMoney(cashInCents), cash_out: centsToMoney(cashOutCents) };
+  const movement = calculateOperationalFinanceMovement(entries, monthKey);
+  return {
+    definition: movement.definition,
+    transfers_included: movement.transfers_included,
+    cash_in: movement.income,
+    cash_out: movement.expense,
+  };
 };
 
 export const buildDashboardKpis = (database, role, todayKey = cairoDateKey()) => {
@@ -105,7 +129,7 @@ export const buildDashboardKpis = (database, role, todayKey = cairoDateKey()) =>
     partial_errors: [],
     receivables: canFinance ? { available: true, ...calculateDashboardReceivables({ invoices: database.invoices || [], packages, clients: database.clients || [] }) } : { available: false },
     cash_movement: canFinance ? { available: true, ...calculateDashboardCashMovement(database.finance || [], todayKey.slice(0, 7)) } : { available: false },
-    active_packages: canPackages ? { available: true, ...calculateDashboardPackageCounts(packages, todayKey) } : { available: false },
+    active_packages: canPackages ? { available: true, ...calculateDashboardPackageCounts(packages, todayKey, database.services || null) } : { available: false },
     active_services: canServices ? { available: true, ...calculateDashboardServiceCounts(database.projects || [], contentItems) } : { available: false },
   };
 };

@@ -73,7 +73,9 @@ export function buildDemoClientServiceHistory(database, options = {}, clientId =
     }
     const settlement = settlements.get(Number(booking.id));
     const actualMinutes = settlement ? safeNumber(settlement.actual_minutes) : minutesFrom(booking.actual_seconds, booking.actual_hours);
-    const deducted = settlement && settlement.covered_minutes != null ? safeNumber(settlement.covered_minutes) / 60 : safeNumber(booking.billable_quantity);
+    const deducted = pkg?.billing_unit === 'reel'
+      ? safeNumber(booking.billable_quantity ?? booking.actual_reels)
+      : settlement && settlement.covered_minutes != null ? safeNumber(settlement.covered_minutes) / 60 : safeNumber(booking.billable_quantity);
     const excessMinutes = settlement ? safeNumber(settlement.excess_minutes) : Math.max(0, Math.round(safeNumber(booking.overage_quantity) * 60));
     rows.push({ id: `studio_session:${booking.id}`, type: 'studio_session', status: 'completed', unfulfilled: false, title: safeText(booking.service) || 'جلسة تصوير', subtitle: pkg?.name || 'جلسة مستقلة', date: safeText(booking.date), sort_at: `${safeText(booking.date)} ${safeText(booking.end_time)}`, details: { package_name: pkg?.name || null, start_time: booking.start_time || null, end_time: booking.end_time || null, actual_minutes: actualMinutes, deducted_quantity: deducted, billing_unit: pkg?.billing_unit || 'hour', excess_minutes: excessMinutes, settlement_outcome: settlement?.client_note || serviceHistoryOutcomeLabel(settlement?.settlement_mode || 'none'), amount_due: safeNumber(settlement?.amount_due ?? booking.overage_amount) } });
   });

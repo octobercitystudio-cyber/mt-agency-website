@@ -17,7 +17,7 @@ import './ERPStopSessionDialog.css';
 const emptyNewPackage = session => ({
   service_id: String(session.service_id || ''),
   name: `${session.package_name || 'باقة استديو'} — استكمال`,
-  purchased_minutes: '60', validity_days: '90', total_price: '0', initial_paid: '0', notes: '',
+  purchased_minutes: '60', validity_days: '90', total_price: '0', initial_paid: '0', payment_method: 'cash', notes: '',
 });
 
 const emptyCustom = { description: 'وقت تصوير إضافي', hourly_rate: '', amount: '', project_name: 'خدمة وقت تصوير إضافي' };
@@ -129,7 +129,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
     if (!hasExcess) return null;
     if (family === 'new_package') return { mode: 'new_package', ...newPackage, purchased_minutes: Number(newPackage.purchased_minutes), validity_days: Number(newPackage.validity_days), total_price: newPackage.total_price, initial_paid: newPackage.initial_paid };
     if (family === 'waive') return { mode: 'waive', internal_reason: waiverReason.trim(), client_note: clientNote.trim() };
-    if (otherMode === 'existing_package') return { mode: 'existing_package', target_package_id: Number(existingPackageId) };
+    if (otherMode === 'existing_package') { const target = preview?.eligible_packages?.find(item => String(item.id) === String(existingPackageId)); return { mode: 'existing_package', target_package_id: Number(existingPackageId), target_package_version: Number(target?.version || 1) }; }
     if (otherMode === 'package_overage') return { mode: 'package_overage', hourly_rate: custom.hourly_rate || preview?.overage_rate };
     if (otherMode === 'custom_project') return { mode: 'custom_project', name: custom.project_name.trim(), description: custom.description.trim(), amount: custom.amount };
     return { mode: 'custom_invoice', description: custom.description.trim(), hourly_rate: custom.hourly_rate, amount: custom.amount };
@@ -230,6 +230,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
               <label><span>الصلاحية بالأيام</span><input type="number" min="1" value={newPackage.validity_days} readOnly={!isOwner} onChange={event => setNewPackage({ ...newPackage, validity_days: event.target.value })} /></label>
               <label><span>إجمالي السعر</span><input type="number" min="0" step="0.01" value={newPackage.total_price} readOnly={!isOwner} onChange={event => setNewPackage({ ...newPackage, total_price: event.target.value })} /></label>
               <label><span>المدفوع الآن</span><input type="number" min="0" step="0.01" value={newPackage.initial_paid} onChange={event => setNewPackage({ ...newPackage, initial_paid: event.target.value })} /></label>
+              <label><span>طريقة الدفع</span><select value={newPackage.payment_method} onChange={event => setNewPackage({ ...newPackage, payment_method: event.target.value })}><option value="cash">نقدي</option><option value="bank_transfer">تحويل بنكي</option><option value="vodafone_cash">فودافون كاش</option><option value="instapay">إنستاباي</option></select></label>
             </div><label className="session-settlement-note"><span>ملاحظات</span><textarea rows="2" value={newPackage.notes} onChange={event => setNewPackage({ ...newPackage, notes: event.target.value })} /></label><p className="session-settlement-result">سيُخصم {durationLabel(preview.excess_minutes)} الآن، ويتبقى في الباقة الجديدة {durationLabel(packageAfter)}.</p></section>}
 
             {family === 'other' && <section className="session-settlement-panel"><h3><WalletCards /> اختر النظام البديل</h3><div className="session-other-modes">

@@ -13,6 +13,29 @@ const PAYMENT_METHOD_LABELS = new Map([
 
 export const formatPaymentMethod = value => PAYMENT_METHOD_LABELS.get(String(value || '').trim()) || String(value || '').trim() || 'غير محدد';
 
+const BOOKING_STATUS_LABELS = Object.freeze({
+  pending: 'بانتظار التأكيد', confirmed: 'مؤكد', alternative_proposed: 'موعد بديل مقترح',
+  cancel_requested: 'إلغاء قيد المراجعة', late_cancel_requested: 'إلغاء متأخر قيد المراجعة',
+  in_progress: 'جارٍ الآن', completed: 'مكتمل', cancelled: 'ملغي', rejected: 'مرفوض',
+});
+const PACKAGE_STATUS_LABELS = Object.freeze({
+  draft: 'مسودة', active: 'نشطة', expired: 'منتهية', suspended: 'موقوفة',
+  completed: 'مكتملة', cancelled: 'ملغاة', archived: 'مؤرشفة',
+});
+const warnedUnknownStatuses = new Set();
+const formatStatus = (scope, labels, value) => {
+  const key = String(value || '').trim();
+  if (labels[key]) return labels[key];
+  if (key && !warnedUnknownStatuses.has(`${scope}:${key}`)) {
+    warnedUnknownStatuses.add(`${scope}:${key}`);
+    console.warn(`[business-status] Unknown ${scope} status:`, key);
+  }
+  return 'حالة غير معروفة';
+};
+
+export const formatBookingStatus = value => formatStatus('booking', BOOKING_STATUS_LABELS, value);
+export const formatPackageStatus = value => formatStatus('package', PACKAGE_STATUS_LABELS, value);
+
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 const numberFormatter = new Intl.NumberFormat('ar-EG-u-nu-latn', {

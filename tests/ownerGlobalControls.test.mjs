@@ -66,7 +66,7 @@ test('demo API enforces owner-only offer and invoice corrections', async () => {
   activateDemoMode('owner');
   const corrected = await demoClient.request(`/offers/${created.data.id}`, { method: 'PATCH', body: JSON.stringify({ client_id: 101, title: 'تعديل مالك', reason: 'تصحيح موثق للعرض', items: [{ description: 'خدمة', quantity: 2, unit: 'project', unit_price: 100 }] }) });
   assert.equal(corrected.error, null);
-  assert.equal(corrected.data.total, 200);
+  assert.equal(corrected.data.total, '200.00');
   deactivateDemoMode();
 });
 

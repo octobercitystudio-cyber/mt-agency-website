@@ -14,16 +14,16 @@ const load = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 test('dashboard receivables count invoices once, add direct packages and linked overage, and keep legacy debt', () => {
   const summary = calculateDashboardReceivables({
     invoices: [
-      { total: '100.00', paid_amount: '20.00', status: 'issued' },
-      { total: '999.00', paid_amount: '0.00', status: 'cancelled' },
+      { id: 1, client_id: 1, total: '100.00', paid_amount: '20.00', status: 'issued' },
+      { id: 2, client_id: 2, total: '999.00', paid_amount: '0.00', status: 'cancelled' },
     ],
     packages: [
-      { total_price: '50.00', overage_amount: '5.00', paid_amount: '10.00', source_invoice_id: null, status: 'active' },
-      { total_price: '100.00', overage_amount: '3.00', paid_amount: '20.00', source_invoice_id: 1, status: 'active' },
+      { client_id: 2, total_price: '50.00', overage_amount: '5.00', paid_amount: '10.00', source_invoice_id: null, status: 'active' },
+      { client_id: 1, total_price: '100.00', overage_amount: '3.00', paid_amount: '20.00', source_invoice_id: 1, status: 'active' },
       { total_price: '500.00', overage_amount: '0.00', paid_amount: '0.00', source_invoice_id: null, status: 'archived' },
     ],
     clients: [
-      { debt: '7.00', status: 'active' },
+      { id: 3, debt: '7.00', status: 'active' },
       { debt: '400.00', status: 'archived' },
       { debt: '-10.00', status: 'active' },
     ],
@@ -33,6 +33,8 @@ test('dashboard receivables count invoices once, add direct packages and linked 
     invoice_amount: '80.00',
     direct_package_and_overage_amount: '48.00',
     legacy_client_debt_amount: '7.00',
+    legacy_unreconciled_amount: '7.00',
+    legacy_reconciled_excluded_amount: '0.00',
   });
 });
 

@@ -8,6 +8,7 @@ const request = async (path, options) => {
 
 export const attendanceApi = {
   today: () => request('/attendance/today'),
+  checkIn: () => request('/attendance/check-in', { method: 'POST', body: '{}' }),
   checkOut: () => request('/attendance/check-out', { method: 'POST', body: '{}' }),
   summary: (month, userId) => request(`/attendance/summary?month=${encodeURIComponent(month)}${userId ? `&user_id=${userId}` : ''}`),
   records: (month, userId) => request(`/attendance/records?month=${encodeURIComponent(month)}${userId ? `&user_id=${userId}` : ''}`),

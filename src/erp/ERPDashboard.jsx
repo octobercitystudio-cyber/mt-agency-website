@@ -7,7 +7,7 @@ import {
 import { dataClient, dataProvider } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { attendanceApi } from '../lib/attendanceApi';
-import { formatBookingDate, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
+import { formatBookingDate, formatBookingStatus, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
 import ERPPageHero from './ERPPageHero';
 import ERPAddBookingModal from './ERPAddBookingModal';
 import ERPClientModal from './ERPClientModal';
@@ -23,12 +23,8 @@ import './ERPDashboardFixes.css';
 const cairoDate = (date = new Date()) => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(date);
-const money = (value) => formatEGP(value, { maximumFractionDigits: 0 });
+const money = (value) => formatEGP(value);
 const roleLabels = { owner: 'مالك', admin: 'مدير', operations: 'تشغيل', finance: 'مالية', staff: 'موظف' };
-const statusLabels = {
-  pending: 'بانتظار التأكيد', confirmed: 'مؤكد', in_progress: 'جارٍ الآن', completed: 'مكتمل',
-  cancelled: 'ملغي', cancel_requested: 'طلب إلغاء', late_cancel_requested: 'إلغاء متأخر',
-};
 const normalizeStatus = (status = '') => ({ 'قيد الانتظار': 'pending', 'مؤكد': 'confirmed', 'ملغي': 'cancelled' }[status] || status);
 
 const ERPDashboard = () => {
@@ -78,7 +74,7 @@ const ERPDashboard = () => {
       const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, packages, tasks, sessionEligibility, dashboardKpis].filter((result) => result.error);
       if (failedModules.length || partialKpiFailure) console.error('Dashboard data modules unavailable:', [...failedModules.map((result) => result.error), ...(dashboardKpis.data?.partial_errors || [])]);
       const actions = [
-        ...(pendingBookings.data || []).map((item) => ({ ...item, kind: 'booking', title: `${statusLabels[normalizeStatus(item.status)] || 'طلب حجز'} — ${item.client_name}`, meta: `${formatBookingDate(item.date)} · ${formatTime12(item.start_time, '')}`, to: '/erp/requests' })),
+        ...(pendingBookings.data || []).map((item) => ({ ...item, kind: 'booking', title: `${formatBookingStatus(normalizeStatus(item.status))} — ${item.client_name}`, meta: `${formatBookingDate(item.date)} · ${formatTime12(item.start_time, '')}`, to: '/erp/requests' })),
         ...(reschedules.data || []).map((item) => ({ ...item, kind: 'reschedule', title: 'طلب تغيير موعد', meta: `${formatBookingDate(item.proposed_date)} · ${formatTime12(item.proposed_start_time, '')}`, to: '/erp/requests' })),
         ...(proofs.data || []).map((item) => ({ ...item, kind: 'payment', title: 'إثبات تحويل يحتاج مراجعة', meta: money(item.amount), to: '/erp/requests' })),
       ].slice(0, 8);
@@ -210,7 +206,7 @@ const ERPDashboard = () => {
 
       <section className="ops-health" aria-label="صحة العمل" aria-busy={state.loading}>
         <div><span>مستحقات غير محصلة</span><strong>{state.loading || !state.health.receivablesAvailable ? '—' : money(state.health.outstanding)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.receivablesAvailable ? 'فواتير وباقات وأرصدة عملاء' : unavailableKpiCopy}</small></div>
-        <div><span>صافي حركة الشهر</span><strong className={cashNet < 0 ? 'negative' : ''}>{state.loading || !state.health.cashAvailable ? '—' : money(cashNet)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.cashAvailable ? <>دخل {money(state.health.cashIn)} · خرج {money(state.health.cashOut)}</> : unavailableKpiCopy}</small></div>
+        <div><span>صافي التشغيل للشهر</span><strong className={cashNet < 0 ? 'negative' : ''}>{state.loading || !state.health.cashAvailable ? '—' : money(cashNet)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.cashAvailable ? <>إيراد {money(state.health.cashIn)} · مصروف {money(state.health.cashOut)} · دون التحويل الداخلي</> : unavailableKpiCopy}</small></div>
         <div><span>الباقات الفعالة</span><strong>{state.loading || !state.health.packagesAvailable ? '—' : state.health.activePackages}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.packagesAvailable ? <><PackageCheck size={14} aria-hidden="true" /> {state.health.expiringSoon} تنتهي خلال 14 يومًا</> : unavailableKpiCopy}</small></div>
         <div><span>الخدمات النشطة</span><strong>{state.loading || !state.health.servicesAvailable ? '—' : `${state.health.activeProjects} ${activeProjectsUnit}`}</strong><small>{state.loading ? 'جارٍ تحديث المؤشرات…' : state.health.servicesAvailable ? <><FolderKanban size={14} aria-hidden="true" /> {state.health.activeProjects} مشروع · {state.health.activeContent} محتوى{state.health.pausedProjects > 0 ? ` · ${state.health.pausedProjects} متوقف مؤقتًا` : ''}</> : unavailableKpiCopy}</small></div>
       </section>
@@ -239,7 +235,7 @@ const ERPDashboard = () => {
                       {canStartBooking(booking) && <button type="button" className="runway-booking__start" onClick={event => openSessionStart(booking, event)} aria-label={`ابدأ تصوير ${booking.client_name}`}><PlayCircle aria-hidden="true" /> ابدأ التصوير</button>}
                       {booking.normalizedStatus === 'in_progress' && <span className="runway-booking__running" role="status"><i /> التصوير جارٍ</span>}
                     </div>
-                    <div className="runway-booking__footer"><em>{statusLabels[booking.normalizedStatus] || booking.status}</em><span className="runway-booking__controls"><button type="button" className="runway-booking__details" onClick={() => navigate('/erp/bookings')} aria-label={`عرض حجز ${booking.client_name}`}><Eye /></button>{booking.normalizedStatus === 'completed' && <span className="runway-booking__completed"><Check /> تم</span>}</span></div>
+                    <div className="runway-booking__footer"><em>{formatBookingStatus(booking.normalizedStatus)}</em><span className="runway-booking__controls"><button type="button" className="runway-booking__details" onClick={() => navigate('/erp/bookings')} aria-label={`عرض حجز ${booking.client_name}`}><Eye /></button>{booking.normalizedStatus === 'completed' && <span className="runway-booking__completed"><Check /> تم</span>}</span></div>
                   </article>
                 ))}
               </div>

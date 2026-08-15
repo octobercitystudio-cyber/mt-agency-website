@@ -72,6 +72,8 @@ const ERPAttendance = () => {
       const preview = previewPayload(currentUser); setSummary(preview.summary.items); setPolicies(preview.policies); setToday({ self: { tracked: false } }); setLoading(false); return;
     }
     try {
+      // Attendance is an explicit ERP action; session restore and public views are read-only.
+      await attendanceApi.checkIn();
       const [summaryData, policyData, todayData] = await Promise.all([attendanceApi.summary(month), attendanceApi.policies(), attendanceApi.today()]);
       setSummary(summaryData.items || []); setPolicies(Array.isArray(policyData) ? policyData : [policyData]); setToday(todayData);
     } catch (requestError) { setError(requestError.message || 'تعذر تحميل بيانات الحضور.'); }

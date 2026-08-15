@@ -36,7 +36,11 @@ test('preview uses current hold plus free original balance but never future hold
   assert.equal(pkg.held_quantity, 2, 'preview must not mutate held time');
 });
 
-test('fresh eligibility and sale-confirm-reschedule-cancel-edit-preview keep exact booking minutes', async () => {
+test('fresh eligibility and sale-confirm-reschedule-cancel-edit-preview keep exact booking minutes', async t => {
+  // Pin this workflow to a Tuesday so the test proves the normal business-day
+  // contract regardless of the weekday on which the suite is executed.
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-08-11T10:00:00.000Z') });
+  resetDemoDatabase();
   const freshEligibility = await demoClient.request(`/studio-session-eligibility?date=${database().bookings.find(row => row.id === 301).date}`);
   assert.equal(freshEligibility.error, null);
   assert.equal(freshEligibility.data.items.find(row => row.booking_id === 301).eligible, true);

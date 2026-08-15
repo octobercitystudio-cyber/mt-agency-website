@@ -1151,3 +1151,35 @@
 .erp-nav-item--social-profits { margin-top: .2rem; }
 .erp-nav-link--social-profits svg { color: #60a5fa; }
 .erp-nav-link--social-profits.active svg { color: #93c5fd; }
+
+/* Shared ERP touch contract: visual density stays compact while every action remains tappable. */
+.erp-sidebar .erp-nav-link,
+.erp-bottom-nav .erp-bottom-nav-item,
+.erp-main :where(button, [role="button"], [role="tab"], summary, select),
+.erp-main :where(input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), textarea) {
+    min-height: 44px !important;
+}
+
+.erp-main a[href] {
+    min-height: 44px !important;
+    display: inline-flex;
+    align-items: center;
+}
+
+.erp-main :where(button, [role="button"], [role="tab"], summary, .fc-button, .fc-event),
+.erp-sidebar .erp-nav-link,
+.erp-bottom-nav .erp-bottom-nav-item {
+    min-width: 44px !important;
+}
+
+.erp-main .fc-event {
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center;
+    white-space: normal;
+}
+
+.erp-main :where(button, a[href], [role="button"], [role="tab"], summary, select):focus-visible {
+    outline: 3px solid rgba(67, 24, 255, .24);
+    outline-offset: 2px;
+}

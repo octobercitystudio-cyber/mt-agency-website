@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { dataClient } from '../dataClient';
 import { format, parseISO, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { AlertCircle, ChartNoAxesCombined, Layers3, PackageOpen, ShieldCheck, UserRound, X } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowLeftRight, ArrowUp, Banknote, ChartNoAxesCombined, ChevronLeft, ChevronRight, CirclePlus, Info, Layers3, PackageOpen, Pencil, Printer, ReceiptText, Send, ShieldCheck, SlidersHorizontal, Smartphone, Sparkles, UserRound, Wallet, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import ERPPageHero from './ERPPageHero';
 import { CURRENCY_LABEL, formatEGP, formatPaymentMethod } from '../lib/businessFormat';
+import { calculateOperationalFinanceMovement, normalizeFinanceEntryKind } from '../lib/financeMetrics';
 import useChangeSync from '../hooks/useChangeSync';
 import { useData } from '../store/DataContext';
 import './ERPFinance.css';
@@ -129,38 +130,13 @@ const ERPFinance = () => {
   const filteredEmployee = employeeAccounts.find(account => String(account.user.id) === employeeFilter);
 
   const calculations = useMemo(() => {
-    let total_inc = 0;
-    let total_exp = 0;
-    
+    const movement = calculateOperationalFinanceMovement(allTransactions, selectedMonth);
     const balances = { 'كاش': 0, 'فودافون كاش': 0, 'انستاباي': 0, 'إنستاباي (InstaPay)': 0, 'تحويل بنكي': 0 };
-
-    const incomes = [];
-    const expenses = [];
 
     allTransactions.forEach(t => {
       const amt = safeFloat(t.amount);
-      const kind = t.entry_kind || ({ 'إيراد': 'income', 'مصروف': 'expense', 'تحويل وارد': 'transfer_in', 'تحويل صادر': 'transfer_out', 'سحب سلفة': 'advance_out', 'سداد سلفة': 'advance_in', 'سداد مستحقات': 'settlement_out' }[t.type] || 'expense');
-      const isCurrentMonth = t.date && t.date.startsWith(selectedMonth);
-
+      const kind = normalizeFinanceEntryKind(t);
       const reversedKind = kind === 'reversal' ? String(t.category || '').replace(/^reversal_/, '') : '';
-      if (isCurrentMonth) {
-        if (kind === 'reversal') {
-          if (['income','advance_in','transfer_in'].includes(reversedKind)) {
-            if (['income','advance_in'].includes(reversedKind)) total_inc -= amt;
-            incomes.push(t);
-          } else {
-            if (['expense','advance_out'].includes(reversedKind)) total_exp -= amt;
-            expenses.push(t);
-          }
-        } else
-        if (['income', 'advance_in', 'transfer_in'].includes(kind)) {
-          if (['income', 'advance_in'].includes(kind)) total_inc += amt;
-          incomes.push(t);
-        } else if (['expense', 'transfer_out', 'advance_out', 'settlement_out', 'reversal'].includes(kind)) {
-          if (['expense', 'advance_out'].includes(kind)) total_exp += amt;
-          expenses.push(t);
-        }
-      }
 
       const displayMethod = formatPaymentMethod(t.method);
       const method = displayMethod === 'نقدي' ? 'كاش' : displayMethod === 'إنستاباي' ? 'انستاباي' : displayMethod;
@@ -179,7 +155,6 @@ const ERPFinance = () => {
 
     });
 
-    const net_profit = total_inc - total_exp;
     const cash_adj = safeFloat(appConfig['wallet_كاش_adj'] || 0);
     const vodafone_adj = safeFloat(appConfig['wallet_فودافون كاش_adj'] || 0);
     const instapay_adj = safeFloat(appConfig['wallet_انستاباي_adj'] || 0);
@@ -189,17 +164,18 @@ const ERPFinance = () => {
     const final_vodafone = balances['فودافون كاش'] + vodafone_adj;
 
     return { 
-      total_inc, total_exp, net_profit, 
+      total_inc: movement.income, total_exp: movement.expense, net_profit: movement.net,
       balances: { cash: final_cash, vodafone: final_vodafone, instapay: final_instapay }, 
-      incomes, expenses 
+      incomes: movement.incomes, expenses: movement.expenses,
     };
   }, [allTransactions, appConfig, selectedMonth]);
 
   const { total_inc, total_exp, net_profit, balances, incomes, expenses } = calculations;
   const displayIncomes = employeeFilter ? incomes.filter(entry => String(entry.employee_user_id || '') === employeeFilter) : incomes;
   const displayExpenses = employeeFilter ? expenses.filter(entry => String(entry.employee_user_id || '') === employeeFilter) : expenses;
-  const displayIncomeTotal = displayIncomes.reduce((sum, entry) => sum + safeFloat(entry.amount), 0);
-  const displayExpenseTotal = displayExpenses.reduce((sum, entry) => sum + safeFloat(entry.amount), 0);
+  const employeeMovement = employeeFilter ? calculateOperationalFinanceMovement(allTransactions.filter(entry => String(entry.employee_user_id || '') === employeeFilter), selectedMonth) : null;
+  const displayIncomeTotal = employeeMovement?.income ?? total_inc;
+  const displayExpenseTotal = employeeMovement?.expense ?? total_exp;
 
   const handleAddTransaction = async (e) => {
     e.preventDefault();
@@ -394,14 +370,14 @@ const ERPFinance = () => {
         title="الإدارة المالية"
         description="تابع الإيرادات والمصروفات والمستحقات وحركة المحافظ للفترة المختارة."
         actions={<>
-          <button onClick={() => window.print()}><i className="fas fa-print"></i> طباعة</button>
-          <button onClick={() => setModalState({...modalState, transfer: true})}><i className="fas fa-exchange-alt"></i> تحويل</button>
-          {isAdmin && <button ref={transactionTriggerRef} data-variant="primary" onClick={openTransactionModal}><i className="fas fa-plus-circle"></i> عملية مالية</button>}
+          <button onClick={() => window.print()}><Printer aria-hidden="true"/> طباعة</button>
+          <button onClick={() => setModalState({...modalState, transfer: true})}><ArrowLeftRight aria-hidden="true"/> تحويل</button>
+          {isAdmin && <button ref={transactionTriggerRef} data-variant="primary" onClick={openTransactionModal}><CirclePlus aria-hidden="true"/> عملية مالية</button>}
         </>}
         details={<div className="month-selector" aria-label="الشهر المالي">
-            <button onClick={() => changeMonth(1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-right"></i></button>
+            <button type="button" onClick={() => changeMonth(1)} className="finance-month-button" aria-label="عرض الشهر التالي" title="الشهر التالي"><ChevronRight aria-hidden="true"/></button>
             <span className="m-0 px-4 fw-bold" style={{ color: '#2b3674' }}>{selectedMonth}</span>
-            <button onClick={() => changeMonth(-1)} className="btn btn-sm btn-light rounded-circle text-primary"><i className="fas fa-chevron-left"></i></button>
+            <button type="button" onClick={() => changeMonth(-1)} className="finance-month-button" aria-label="عرض الشهر السابق" title="الشهر السابق"><ChevronLeft aria-hidden="true"/></button>
         </div>}
       />
       {loadError && <div className="finance-load-error" role="alert"><AlertCircle/><span>{loadError}</span><button type="button" onClick={() => fetchData(true)}>إعادة المحاولة</button></div>}
@@ -410,25 +386,25 @@ const ERPFinance = () => {
       <div className="row g-3 mb-4">
         <div className="col-12 col-md-4">
           <div className="card border-0 rounded-4 p-3 h-100 gradient-success shadow-sm wallet-card position-relative overflow-hidden">
-            <i className="fas fa-arrow-up position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '60px', transform: 'scaleX(-1)' }}></i>
+            <ArrowUp className="finance-kpi-watermark" aria-hidden="true"/>
             <div className="position-relative z-1">
-              <p className="mb-1 fw-bold opacity-75 small">إيرادات ({format(parseISO(`${selectedMonth}-01`), 'MM-yy')})</p>
+              <p className="mb-1 fw-bold opacity-75 small">إيرادات تشغيلية ({format(parseISO(`${selectedMonth}-01`), 'MM-yy')})</p>
               <h3 className="fw-bold m-0">{formatEGP(total_inc)}</h3>
             </div>
           </div>
         </div>
         <div className="col-12 col-md-4">
           <div className="card border-0 rounded-4 p-3 h-100 gradient-danger shadow-sm wallet-card position-relative overflow-hidden">
-            <i className="fas fa-arrow-down position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '60px', transform: 'scaleX(-1)' }}></i>
+            <ArrowDown className="finance-kpi-watermark" aria-hidden="true"/>
             <div className="position-relative z-1">
-              <p className="mb-1 fw-bold opacity-75 small">مصروفات ({format(parseISO(`${selectedMonth}-01`), 'MM-yy')})</p>
+              <p className="mb-1 fw-bold opacity-75 small">مصروفات تشغيلية ({format(parseISO(`${selectedMonth}-01`), 'MM-yy')})</p>
               <h3 className="fw-bold m-0">{formatEGP(total_exp)}</h3>
             </div>
           </div>
         </div>
         <div className="col-12 col-md-4">
           <div className="card border-0 rounded-4 p-3 p-md-4 h-100 gradient-primary shadow-sm wallet-card position-relative overflow-hidden">
-            <i className="fas fa-star position-absolute end-0 top-0 mt-3 ms-3 opacity-25" style={{ fontSize: '80px' }}></i>
+            <Sparkles className="finance-kpi-watermark" aria-hidden="true"/>
             <div className="position-relative z-1">
               <p className="mb-1 fw-bold opacity-75">صافي الأرباح للشهر</p>
               <h2 className="fw-bold m-0">{formatEGP(net_profit)}</h2>
@@ -439,17 +415,17 @@ const ERPFinance = () => {
 
       {/* Vault Balances */}
       <h5 className="fw-bold mb-3" style={{ color: 'var(--erp-text-main)' }}>
-        <i className="fas fa-wallet ms-2 text-muted"></i> أرصدة الخزائن الحالية (تراكمي)
+        <Wallet className="finance-heading-icon" aria-hidden="true"/> أرصدة الخزائن الحالية (تراكمي)
       </h5>
       <div className="row g-3 mb-4">
         <div className="col-6 col-md-4">
           <div className="card border-0 shadow-sm rounded-4 p-3 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-center mb-2">
               <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <i className="fas fa-money-bill-wave fs-5"></i>
+                <Banknote aria-hidden="true"/>
               </div>
               {isAdmin && (
-                <button className="btn btn-link p-0 text-primary no-print" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('كاش', balances.cash)}><i className="fas fa-pen"></i></button>
+                <button className="finance-wallet-edit no-print" aria-label="تسوية رصيد الكاش" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('كاش', balances.cash)}><Pencil aria-hidden="true"/></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>الكاش (النقدية)</p>
@@ -460,10 +436,10 @@ const ERPFinance = () => {
           <div className="card border-0 shadow-sm rounded-4 p-3 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-center mb-2">
               <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <i className="fas fa-mobile-alt fs-5"></i>
+                <Smartphone aria-hidden="true"/>
               </div>
               {isAdmin && (
-                <button className="btn btn-link p-0 text-danger no-print" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('فودافون كاش', balances.vodafone)}><i className="fas fa-pen"></i></button>
+                <button className="finance-wallet-edit danger no-print" aria-label="تسوية رصيد فودافون كاش" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('فودافون كاش', balances.vodafone)}><Pencil aria-hidden="true"/></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>فودافون كاش</p>
@@ -474,10 +450,10 @@ const ERPFinance = () => {
           <div className="card border-0 shadow-sm rounded-4 p-3 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
             <div className="d-flex justify-content-between align-items-center mb-2">
               <div style={{ background: '#f4f0ff', color: '#6f42c1', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <i className="fas fa-paper-plane fs-5"></i>
+                <Send aria-hidden="true"/>
               </div>
               {isAdmin && (
-                <button className="btn btn-link p-0 no-print" style={{ color: '#6f42c1' }} title="تسوية الرصيد" onClick={() => openAdjustWalletModal('انستاباي', balances.instapay)}><i className="fas fa-pen"></i></button>
+                <button className="finance-wallet-edit instapay no-print" aria-label="تسوية رصيد إنستاباي" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('انستاباي', balances.instapay)}><Pencil aria-hidden="true"/></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>حساب البنك (InstaPay)</p>
@@ -499,7 +475,7 @@ const ERPFinance = () => {
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, addTransaction: false})}>
           <div ref={transactionDialogRef} className="erp-modal-content finance-manual-dialog border-0 shadow-lg p-0" role="dialog" aria-modal="true" aria-labelledby="finance-manual-title" style={{ maxWidth: '680px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>
-              <h5 id="finance-manual-title" className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-file-invoice-dollar me-2"></i> تسجيل عملية مالية يدوية</h5>
+              <h5 id="finance-manual-title" className="fw-bold m-0 d-flex align-items-center"><ReceiptText className="finance-inline-icon" aria-hidden="true"/> تسجيل عملية مالية يدوية</h5>
               <button type="button" className="finance-dialog-close" aria-label="إغلاق" onClick={() => setModalState(state => ({ ...state, addTransaction: false }))}>×</button>
             </div>
             <form onSubmit={handleAddTransaction} className="p-4 bg-white" noValidate>
@@ -558,7 +534,7 @@ const ERPFinance = () => {
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, transfer: false})}>
           <div className="erp-modal-content border-0 shadow-lg rounded-5 overflow-hidden p-0" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header border-0 p-4" style={{ background: '#0dcaf0', color: '#000' }}>
-              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-exchange-alt me-2"></i> تحويل رصيد بين المحافظ</h5>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><ArrowLeftRight className="finance-inline-icon" aria-hidden="true"/> تحويل رصيد بين المحافظ</h5>
             </div>
             <form onSubmit={handleTransfer} className="p-4 bg-white">
               <div className="row g-3">
@@ -598,7 +574,7 @@ const ERPFinance = () => {
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, adjustWallet: false})}>
           <div className="erp-modal-content rounded-5 border-0 shadow-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div className="modal-header bg-dark text-white border-0 p-4 rounded-top-5">
-              <h5 className="fw-bold m-0 d-flex align-items-center"><i className="fas fa-sliders-h me-2"></i> تسوية إدارية لخزينة ({adjustWalletForm.method})</h5>
+              <h5 className="fw-bold m-0 d-flex align-items-center"><SlidersHorizontal className="finance-inline-icon" aria-hidden="true"/> تسوية إدارية لخزينة ({adjustWalletForm.method})</h5>
               <button type="button" className="btn-close btn-close-white" onClick={() => setModalState({...modalState, adjustWallet: false})}></button>
             </div>
             <form onSubmit={handleAdjustWallet} className="p-4 bg-white text-center">
@@ -614,7 +590,7 @@ const ERPFinance = () => {
               </div>
 
               <div className="alert alert-info text-start mb-0 p-3 rounded-4 border-0 bg-opacity-10" style={{ fontSize: '0.85rem' }}>
-                <i className="fas fa-info-circle me-1"></i> سيتم إنشاء عملية "تسوية إدارية" إما كإيراد أو مصروف لضبط الدفاتر بحيث يصبح الرصيد مساوياً للرقم الجديد.
+                <Info className="finance-inline-icon" aria-hidden="true"/> سيتم إنشاء عملية "تسوية إدارية" إما كإيراد أو مصروف لضبط الدفاتر بحيث يصبح الرصيد مساوياً للرقم الجديد.
               </div>
 
               <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-4" style={{ background: '#000', color: 'white' }}>حفظ التعديل الدفتري</button>
