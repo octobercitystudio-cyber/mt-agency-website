@@ -6,6 +6,11 @@ import { templateToPackageDraft } from '../src/lib/clientPackageDraft.js';
 
 const root = new URL('../', import.meta.url);
 const load = path => readFile(new URL(path, root), 'utf8');
+const futureBookableDate = (days = 30) => {
+  let date = shiftPackageCalendarDate(cairoAppointmentNowKey().slice(0, 10), days);
+  while (new Date(`${date}T12:00:00`).getDay() === 5) date = shiftPackageCalendarDate(date, 1);
+  return date;
+};
 const browserGlobals = () => {
   const storage = new Map();
   globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) };
@@ -51,10 +56,12 @@ test('demo sale atomically creates multiple confirmed bookings, exact holds and 
   resetDemoDatabase(); activateDemoMode('owner');
   const services = (await demoClient.from('services').select('*')).data;
   const service = services.find(item => ['hour', 'day', 'month'].includes(item.billing_unit) && Number(item.total_hours) >= 3);
-  const draft = templateToPackageDraft(service, { clientId: 1, startsAt: '2026-08-10' });
+  const bookingDate = futureBookableDate(40);
+  const rollbackDate = futureBookableDate(43);
+  const draft = templateToPackageDraft(service, { clientId: 1, startsAt: bookingDate });
   const body = { ...draft, paid_amount: 100, idempotency_key: 'calendar-sale-multi-001', bookings: [
-    { resource_id: 1, date: '2026-08-20', start_time: '12:00', end_time: '13:30' },
-    { resource_id: 1, date: '2026-08-20', start_time: '14:00', end_time: '15:00' },
+    { resource_id: 1, date: bookingDate, start_time: '12:00', end_time: '13:30' },
+    { resource_id: 1, date: bookingDate, start_time: '14:00', end_time: '15:00' },
   ] };
   const first = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify(body) });
   assert.equal(first.error, null); assert.equal(first.data.booking_ids.length, 2);
@@ -63,7 +70,7 @@ test('demo sale atomically creates multiple confirmed bookings, exact holds and 
   const replay = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...body, bookings: [...body.bookings].reverse() }) });
   assert.equal(replay.error, null); assert.equal(replay.data.idempotent, true); assert.deepEqual(replay.data.booking_ids, first.data.booking_ids);
   const before = storage.get('mt_agency_erp_demo_v12');
-  const rollbackBookings = body.bookings.map(item => ({ ...item, date: '2026-08-21' }));
+  const rollbackBookings = body.bookings.map(item => ({ ...item, date: rollbackDate }));
   const failed = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...body, bookings: rollbackBookings, idempotency_key: 'calendar-sale-rollback-002', __test_fail_at: 'booking:2' }) });
   assert.equal(failed.error?.code, 'demo_fault_injected'); assert.equal(storage.get('mt_agency_erp_demo_v12'), before);
   deactivateDemoMode();
@@ -76,8 +83,9 @@ test('demo sale executes zero and one appointment paths without phantom holds', 
   for (const count of [0, 1]) {
     resetDemoDatabase();
     const service = (await demoClient.from('services').select('*')).data.find(item => ['hour', 'day', 'month'].includes(item.billing_unit) && Number(item.total_hours) >= 2);
-    const draft = templateToPackageDraft(service, { clientId: 1, startsAt: '2026-08-10' });
-    const bookings = count ? [{ resource_id: 1, date: '2026-08-22', start_time: '12:00', end_time: '13:00' }] : [];
+    const bookingDate = futureBookableDate(46 + count);
+    const draft = templateToPackageDraft(service, { clientId: 1, startsAt: bookingDate });
+    const bookings = count ? [{ resource_id: 1, date: bookingDate, start_time: '12:00', end_time: '13:00' }] : [];
     const result = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...draft, bookings, idempotency_key: `calendar-sale-count-${count}` }) });
     assert.equal(result.error, null); assert.equal(result.data.booking_ids.length, count);
     const db = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const pkg = db.client_packages.find(item => item.id === result.data.id);
@@ -93,10 +101,11 @@ test('daily package waits for its first booking and then allows that day only', 
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); activateDemoMode('owner');
   const db = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const service = db.services.find(item => ['hour', 'day', 'month'].includes(item.billing_unit) && Number(item.total_hours) > 0); service.package_validity_mode = 'shooting_day'; storage.set('mt_agency_erp_demo_v12', JSON.stringify(db));
-  const draft = templateToPackageDraft(service, { clientId: 1, startsAt: '2026-08-20' });
-  const ok = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...draft, shooting_date: '2026-08-20', starts_at: '2026-08-20', expires_at: '2026-08-20', idempotency_key: 'daily-sale-ok-001', bookings: [] }) });
+  const shootingDate = futureBookableDate(52); const outsideDate = futureBookableDate(55);
+  const draft = templateToPackageDraft(service, { clientId: 1, startsAt: shootingDate });
+  const ok = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...draft, shooting_date: shootingDate, starts_at: shootingDate, expires_at: shootingDate, idempotency_key: 'daily-sale-ok-001', bookings: [] }) });
   assert.equal(ok.error, null); assert.equal(ok.data.expires_at, null);
-  const bad = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...draft, idempotency_key: 'daily-sale-bad-001', bookings: [{ resource_id: 1, date: '2026-08-21', start_time: '12:00', end_time: '13:00' }, { resource_id: 1, date: '2026-08-22', start_time: '12:00', end_time: '13:00' }] }) });
+  const bad = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ ...draft, idempotency_key: 'daily-sale-bad-001', bookings: [{ resource_id: 1, date: shootingDate, start_time: '12:00', end_time: '13:00' }, { resource_id: 1, date: outsideDate, start_time: '12:00', end_time: '13:00' }] }) });
   assert.equal(bad.error?.code, 'booking_outside_package_validity'); deactivateDemoMode();
 });
 

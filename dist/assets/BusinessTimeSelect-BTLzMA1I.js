@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-7eN1kW16.js";import{$ as t}from"./index-DSvAvYiq.js";var n=e(),r=({min:e,max:r,step:i=15,value:a,...o})=>{let s=t({min:e,max:r,step:i});return(0,n.jsxs)(`select`,{value:a||``,...o,children:[o.required===!1&&(0,n.jsx)(`option`,{value:``,children:`—`}),s.map(e=>(0,n.jsx)(`option`,{value:e.value,children:e.label},e.value))]})};export{r as t};

@@ -20,7 +20,7 @@ test('client portal owns a scoped dark color system', async () => {
   assert.match(css, /--client-muted:#a99db4/);
   assert.match(css, /--client-chart-track:#715b85/);
   assert.match(css, /color-scheme:dark/);
-  assert.doesNotMatch(css, /color-scheme\s*:\s*light/);
+  assert.match(css, /\.client-app--calm-home\{[^}]*color-scheme:light/);
 });
 
 test('appointment and live-session cards finish with dark surfaces', async () => {

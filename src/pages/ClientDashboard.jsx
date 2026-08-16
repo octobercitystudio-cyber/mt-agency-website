@@ -420,7 +420,7 @@ export default function ClientDashboard() {
   if (loadError && !client) return <div className="client-state client-state--error"><XCircle /><h2>تعذر تحميل لوحة الحساب</h2><p>{loadError}</p><button onClick={fetchClientData}>إعادة المحاولة</button></div>;
 
   return (
-    <div className="client-app" dir="rtl">
+    <div className={`client-app${activeTab === 'home' ? ' client-app--calm-home' : ''}`} dir="rtl">
       <aside className="client-sidebar">
         <div className="client-brand"><img src="/logo.webp" alt="MT Agency" /><div><strong>MT Agency</strong><span>مساحة العميل</span></div></div>
         <nav aria-label="التنقل الرئيسي">
@@ -434,7 +434,7 @@ export default function ClientDashboard() {
 
       <main className="client-main">
         <header className={`client-topbar ${activeTab === 'home' ? 'client-topbar--home' : ''}`}>
-          <div><span className="client-eyebrow">حسابك في Multi Task</span><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><p>باقاتك وموعدك ورصيدك أمامك ببساطة.</p></div>
+          <div className="client-topbar-profile"><span className="client-mobile-avatar" aria-hidden="true">{String(client?.name || currentUser?.full_name || 'ع').trim().charAt(0)}</span><div><span className="client-eyebrow">حسابك في Multi Task</span><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><p>باقاتك وموعدك ورصيدك أمامك ببساطة.</p></div></div>
           <div className="client-topbar-actions"><ClientNotifications key={clientId} clientId={clientId} onNavigate={setActiveTab}/><button className="client-primary" onClick={() => setActiveTab('schedule')}><CalendarDays size={18}/> حجز موعد</button></div>
         </header>
 
@@ -446,6 +446,7 @@ export default function ClientDashboard() {
           client={client}
           activePackages={activePackages}
           upcomingBookings={upcomingBookings}
+          projects={projects}
           sessionByBookingId={sessionByBookingId}
           sessionServerOffset={sessionServerOffset}
           onNavigate={setActiveTab}
