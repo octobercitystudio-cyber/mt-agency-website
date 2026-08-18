@@ -43,6 +43,11 @@ const numberFormatter = new Intl.NumberFormat('ar-EG-u-nu-latn', {
   maximumFractionDigits: 2,
 });
 
+export const formatClientPoints = value => {
+  const points = Number(value);
+  return (Number.isFinite(points) ? points : 0).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2 });
+};
+
 export const formatEGP = (value, options = {}) => {
   const { minimumFractionDigits = 0, maximumFractionDigits = 2 } = options;
   const formatter = minimumFractionDigits === 0 && maximumFractionDigits === 2

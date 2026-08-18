@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Clock3, Eye, FileText, Hourglass, ShieldCheck, Sparkles, XCircle } from 'lucide-react';
+import { BadgePercent, CheckCircle2, Clock3, Eye, FileText, Hourglass, Send, ShieldCheck, Sparkles, XCircle } from 'lucide-react';
 import { formatBookingDate, formatEGP } from '../lib/businessFormat';
 import { millisecondsToNextSecond } from '../lib/promotionCountdown';
 import { clientOfferCountdown, clientOfferDiscount, clientOfferIsActionable, clientOfferRuntimeStatus, clientOfferSummary, orderClientOffers } from '../lib/clientOfferAdapter';
@@ -50,6 +50,23 @@ export default function ClientOfferTickets({ offers, serverOffset = 0, onView, l
     <div className="client-offer-summary"><article><strong>{summary.available}</strong><span>متاح الآن</span></article><article><strong>{summary.accepted}</strong><span>تم قبولها</span></article><article><strong>{summary.closed}</strong><span>منتهية أو ملغاة</span></article></div>
     <div className="client-offer-ticket-grid">{visibleOffers.map(offer => <OfferTicket key={offer.id} offer={offer} now={now} serverOffset={serverOffset} onView={onView}/>)}</div>
     {!visibleOffers.length && <div className="client-offer-state"><ShieldCheck/><h3>لا توجد عروض خاصة حاليًا</h3><p>سيظهر هنا فقط العرض الذي يرسله المالك إلى حسابك.</p></div>}
+  </section>;
+}
+
+export function ClientPublicPromotions({ promotions = [], busyId = null, onSubscribe }) {
+  return <section className="client-public-promotions" aria-labelledby="client-public-promotions-title">
+    <header><span><BadgePercent aria-hidden="true"/> عروض الموقع</span><h2 id="client-public-promotions-title">عروض الشركة المتاحة الآن</h2><p>اختر العرض المناسب، وسيصل طلبك مباشرة إلى الإدارة للتواصل معك.</p></header>
+    {promotions.length ? <div className="client-public-promotions__grid">{promotions.map(promotion => {
+      const subscribed = Boolean(Number(promotion.subscribed));
+      return <article key={promotion.id} data-promotion-id={promotion.id}>
+        <div className="client-public-promotions__badge">{promotion.badge || promotion.discount_text || 'عرض متاح'}</div>
+        <h3>{promotion.public_title}</h3>
+        <p>{promotion.description}</p>
+        <div className="client-public-promotions__price">{Number(promotion.original_price) > Number(promotion.promotional_price) && <del>{formatEGP(promotion.original_price)}</del>}<strong>{formatEGP(promotion.promotional_price)}</strong></div>
+        <small><Clock3 aria-hidden="true"/> حتى {formatBookingDate(String(promotion.ends_at).slice(0, 10))}</small>
+        <button type="button" disabled={subscribed || Number(busyId) === Number(promotion.id)} onClick={() => onSubscribe(promotion.id)}>{subscribed ? <CheckCircle2/> : <Send/>}{subscribed ? 'تم إرسال طلبك' : promotion.cta_label || 'اشترك الآن'}</button>
+      </article>;
+    })}</div> : <div className="client-offer-state"><ShieldCheck/><h3>لا توجد عروض عامة الآن</h3><p>ستظهر عروض الشركة الجديدة هنا فور نشرها على الموقع.</p></div>}
   </section>;
 }
 

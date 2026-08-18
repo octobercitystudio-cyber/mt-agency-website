@@ -1,6 +1,6 @@
 import { CalendarDays, CheckCircle2, CircleDollarSign, FolderKanban, Milestone, WalletCards } from 'lucide-react';
 import { formatBookingDate, formatEGP, formatTime12 } from '../lib/businessFormat';
-import { ClientPackageCards, ClientPointsCard } from './ClientDashboardOverview';
+import { ClientPackageCards } from './ClientDashboardOverview';
 
 const SERVICES = {
   reels: 'إنتاج ريلز', advertising: 'إنتاج إعلاني', website: 'تصميم موقع', software: 'تطوير برمجيات',
@@ -19,7 +19,6 @@ export default function ClientProjectsView({ client, packages = [], projects = [
 
   return <section className="client-view client-projects-view" aria-labelledby="client-projects-title">
     <div className="client-page-title client-projects-title"><span>باقاتك وخدماتك</span><h2 id="client-projects-title">الباقات والخدمات</h2><p>افتح التفاصيل التي تحتاجها فقط، وتابع مشروعاتك من مكان واحد.</p></div>
-    <ClientPointsCard client={client} compact/>
     <ClientPackageCards packages={packages} points={client?.points} onBookPackage={onBookPackage}/>
     <div className="client-projects-subtitle"><span>الخدمات المخصصة</span><h2>المشروعات الجارية</h2></div>
     <section className="client-project-summary" aria-label="ملخص المشروعات">

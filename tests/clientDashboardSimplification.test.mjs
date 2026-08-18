@@ -11,29 +11,27 @@ const browserGlobals = () => {
   globalThis.CustomEvent = class CustomEvent { constructor(type, init) { this.type = type; this.detail = init?.detail; } };
 };
 
-test('client home shows safe points, packages before appointment, and complete progressive package details', async () => {
-  const [dashboard, overview, css] = await Promise.all([
-    load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboardOverview.jsx'), load('src/pages/ClientDashboard.css'),
+test('client home shows next appointment first, safe points, and direct package metrics', async () => {
+  const [dashboard, overview, css, businessFormat] = await Promise.all([
+    load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboardOverview.jsx'), load('src/pages/ClientDashboard.css'), load('src/lib/businessFormat.js'),
   ]);
   assert.match(dashboard, /<ClientDashboardOverview[\s\S]*?client=\{client\}/);
-  assert.match(overview, /Number\.isFinite\(points\) \? points : 0/);
-  assert.match(overview, /maximumFractionDigits: 2/);
-  assert.ok(overview.indexOf('<ClientPointsCard') < overview.indexOf('<ClientPackageCards'));
-  assert.ok(overview.indexOf('<ClientPackageCards') < overview.indexOf('client-next-home'));
-  for (const label of ['إجمالي الرصيد', 'المستخدم', 'محجوز لمواعيد قادمة', 'متاح الآن', 'حد السداد', 'قيمة الباقة', 'إضافات الجلسات', 'المدفوع', 'المتبقي المالي', 'الدفعة المقدمة', 'بداية الصلاحية', 'نهاية الصلاحية', 'نظام الصلاحية', 'نقاط حسابك']) assert.ok(overview.includes(label), `missing ${label}`);
+  assert.match(businessFormat, /Number\.isFinite\(points\) \? points : 0/);
+  assert.match(businessFormat, /maximumFractionDigits: 2/);
+  assert.ok(overview.indexOf('client-next-home') < overview.indexOf('<ClientPackageCards'));
+  for (const label of ['إجمالي الباقة', 'المستخدم', 'إجمالي التكلفة', 'المتبقي', 'محجوز لمواعيد', 'متاح الآن', 'المدفوع', 'المتبقي المالي', 'بداية الصلاحية', 'نهاية الصلاحية', 'نظام الصلاحية', 'نقاط حسابك']) assert.ok(overview.includes(label), `missing ${label}`);
   assert.doesNotMatch(overview, /pkg\.notes/);
   assert.match(overview, /pkg\.client_notes/);
   assert.match(css, /@media\(max-width:340px\)/);
   assert.match(css, /min-height:54px/);
 });
 
-test('only four primary tabs remain while history and offers stay reachable on Home', async () => {
+test('the four primary pages are home, appointments, finance, and offers', async () => {
   const dashboard = await load('src/pages/ClientDashboard.jsx');
   const nav = dashboard.slice(dashboard.indexOf('<nav aria-label="التنقل الرئيسي"'), dashboard.indexOf('</nav>'));
-  for (const key of ["'home'", "'schedule'", "'projects'", "'finance'"]) assert.ok(nav.includes(key));
-  assert.doesNotMatch(nav, /'history'|'offers'/);
+  for (const key of ["'home'", "'schedule'", "'finance'", "'offers'"]) assert.ok(nav.includes(key));
+  assert.doesNotMatch(nav, /'history'|'projects'/);
   const overview = await load('src/pages/ClientDashboardOverview.jsx');
-  assert.match(overview, /onNavigate\('history'\)/);
   assert.match(overview, /onNavigate\('offers'\)/);
 });
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, CalendarClock, CheckCheck, CircleDollarSign, FileText, FolderKanban, History, Package, RefreshCw, Trash2, X } from 'lucide-react';
+import { Bell, CalendarClock, CheckCheck, CircleDollarSign, FileText, FolderKanban, History, Package, RefreshCw, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
 import { captureNotificationOpen, reconcileNotificationOpen, resolveNotificationOpenBoundary, unreadNotifications } from '../lib/notificationReadBoundary';
@@ -30,7 +30,7 @@ const timeLabel = value => {
 
 export default function ClientNotifications({ clientId, onNavigate }) {
   const bellRef = useRef(null); const previousUnreadRef = useRef(null); const openRequestRef = useRef(0); const initialLoadedRef = useRef(false); const initialRequestInFlightRef = useRef(false); const pendingInitialOpenRef = useRef(null);
-  const [open, setOpen] = useState(false); const [filter, setFilter] = useState('unread'); const [items, setItems] = useState(() => {
+  const [open, setOpen] = useState(false); const [filter, setFilter] = useState('all'); const [items, setItems] = useState(() => {
     try { return safeItems(JSON.parse(localStorage.getItem(cacheKey(clientId)) || '[]')); } catch { return []; }
   });
   const [unreadCount, setUnreadCount] = useState(() => items.filter(item => !item.read_at).length);
@@ -121,14 +121,14 @@ export default function ClientNotifications({ clientId, onNavigate }) {
     <span className="client-sr-only" aria-live="polite">{announcement}</span>
     {open && <div className="client-notifications__backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
       <section ref={dialogRef} id="client-notification-center" className="client-notifications__panel" role="dialog" aria-modal="true" aria-labelledby="client-notifications-title">
-        <header><div><span>مركز تحديثات حسابك</span><h2 id="client-notifications-title">الإشعارات</h2></div><button type="button" className="client-notifications__close" aria-label="إغلاق الإشعارات" onClick={close} data-dialog-initial><X /></button></header>
-        <div className="client-notifications__toolbar"><span>{unreadCount} غير مقروء</span><button type="button" onClick={readAll} disabled={!unreadCount}><CheckCheck /> تعليم الكل كمقروء</button></div>
-        <div className="client-notifications__tabs" role="tablist" aria-label="تصفية الإشعارات"><button type="button" role="tab" aria-selected={filter === 'unread'} onClick={() => setFilter('unread')}>غير المقروء</button><button type="button" role="tab" aria-selected={filter === 'all'} onClick={() => setFilter('all')}>الكل</button></div>
+        <header><div><h2 id="client-notifications-title">الإشعارات</h2><span>{unreadCount ? `${unreadCount} إشعار جديد` : 'أنت على اطلاع بكل جديد'}</span></div><button type="button" className="client-notifications__close" aria-label="إغلاق الإشعارات" onClick={close} data-dialog-initial><X /></button></header>
+        <div className="client-notifications__toolbar"><span>تحديثات مواعيدك وباقاتك ومدفوعاتك</span><button type="button" onClick={readAll} disabled={!unreadCount}><CheckCheck /> تعليم الكل كمقروء</button></div>
+        <div className="client-notifications__tabs" role="tablist" aria-label="تصفية الإشعارات"><button type="button" role="tab" aria-selected={filter === 'all'} onClick={() => setFilter('all')}>الكل</button><button type="button" role="tab" aria-selected={filter === 'unread'} onClick={() => setFilter('unread')}>غير المقروء{unreadCount > 0 && <b>{unreadCount > 99 ? '99+' : unreadCount}</b>}</button></div>
         {error && <div className="client-notifications__error" role="status"><span>{error}</span><button type="button" onClick={() => load()}><RefreshCw /> إعادة المحاولة</button></div>}
         <div className="client-notifications__list">
           {loading && !items.length && <div className="client-notifications__skeleton" aria-label="جارٍ تحميل الإشعارات">{[1, 2, 3].map(value => <i key={value} />)}</div>}
           {!loading && !visibleItems.length && <div className="client-notifications__empty"><Bell /><strong>{filter === 'unread' ? 'لا توجد إشعارات غير مقروءة' : 'لا توجد إشعارات حاليًا'}</strong><p>{filter === 'unread' ? 'كل تحديثات حسابك تمت مراجعتها.' : 'ستظهر هنا تحديثات الباقات والمواعيد والخدمات والمدفوعات.'}</p></div>}
-          {groups.map(group => <section className="client-notifications__group" key={group.label}><h3>{group.label}</h3>{group.items.map(item => { const Icon = iconFor(item); return <article key={item.id} className={`client-notification-item is-${item.severity || 'info'} ${item.read_at ? 'is-read' : 'is-unread'}`}><button type="button" className="client-notification-item__main" onClick={() => openItem(item)}><span className="client-notification-item__icon"><Icon aria-hidden="true" /></span><span className="client-notification-item__copy"><strong>{item.title}</strong><span>{item.message}</span><time dateTime={item.created_at}>{timeLabel(item.created_at)}</time></span>{!item.read_at && <i className="client-notification-item__dot" aria-label="غير مقروء" />}</button><button type="button" className="client-notification-item__dismiss" aria-label={`إخفاء إشعار: ${item.title}`} onClick={event => dismiss(event, item)}><Trash2 /></button></article>; })}</section>)}
+          {groups.map(group => <section className="client-notifications__group" key={group.label}><h3>{group.label}</h3>{group.items.map(item => { const Icon = iconFor(item); return <article key={item.id} className={`client-notification-item is-${item.severity || 'info'} ${item.read_at ? 'is-read' : 'is-unread'}`}><button type="button" className="client-notification-item__main" onClick={() => openItem(item)}><span className="client-notification-item__icon"><Icon aria-hidden="true" /></span><span className="client-notification-item__copy"><strong>{item.title}</strong><span>{item.message}</span><time dateTime={item.created_at}>{timeLabel(item.created_at)}</time></span>{!item.read_at && <i className="client-notification-item__dot" aria-label="غير مقروء" />}</button><button type="button" className="client-notification-item__dismiss" aria-label={`إخفاء إشعار: ${item.title}`} onClick={event => dismiss(event, item)}><X /></button></article>; })}</section>)}
           {filter === 'all' && nextCursor && <button type="button" className="client-notifications__load-more" style={{ width: '100%', minHeight: 44, marginTop: 10 }} disabled={loadingOlder} onClick={() => load({ cursor: nextCursor, append: true })}><RefreshCw aria-hidden="true" />{loadingOlder ? 'جارٍ التحميل…' : 'تحميل إشعارات أقدم'}</button>}
         </div>
       </section>

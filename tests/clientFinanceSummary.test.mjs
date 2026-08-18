@@ -61,15 +61,18 @@ test('zero finance summary is stable and never produces NaN', () => {
   assert.deepEqual(summary, { rows: [], totalPiastres: 0, paidPiastres: 0, remainingPiastres: 0, paidPercent: 0 });
 });
 
-test('transfer proof is the first finance content and charts follow it', async () => {
+test('finance opens payment proof in a focused sheet while charts remain first at rest', async () => {
   const source = await readFile(new URL('../src/pages/ClientFinanceView.jsx', import.meta.url), 'utf8');
-  const proof = source.indexOf('id="client-transfer-proof"');
+  const proof = source.indexOf('className="client-payment-modal"');
   const overview = source.indexOf('<FinanceOverview');
   const packageDetails = source.indexOf('id="package-finance-title"');
 
   assert.ok(proof > 0);
-  assert.ok(overview > proof);
+  assert.ok(overview > 0);
   assert.ok(packageDetails > overview);
-  assert.match(source, /قيد المراجعة ولا يُحتسب كمدفوع/);
+  assert.ok(proof > packageDetails);
+  assert.match(source, /إرسال إثبات الدفع/);
+  assert.match(source, /01114466646/);
+  assert.match(source, /01094084424/);
   assert.match(source, /client-sr-only/);
 });

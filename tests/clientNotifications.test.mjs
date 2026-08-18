@@ -21,8 +21,9 @@ test.afterEach(() => deactivateDemoMode());
 test('client notification list is client/audience scoped and returns only the safe contract', async () => {
   const response = await demoClient.request('/app-notifications?status=all&limit=50', { method: 'GET' });
   assert.equal(response.error, null);
-  assert.equal(response.data.items.length, 4);
-  assert.equal(response.data.unread_count, 3);
+  assert.equal(response.data.items.length, 5);
+  assert.equal(response.data.unread_count, 4);
+  assert.ok(response.data.items.some(item => item.type === 'payment_due'));
   assert.deepEqual(new Set(response.data.items.map(item => item.entity_type)), new Set(['client_packages', 'bookings', 'projects', 'payment_proofs']));
   const serialized = JSON.stringify(response.data);
   for (const hidden of ['dedupe_key', 'source_event_key', 'recipient_user_id', 'audience', 'client_id', 'organization_id', 'internal_note', 'before_data', 'after_data', 'file_path', 'created_by']) assert.equal(serialized.includes(hidden), false, `${hidden} must stay private`);
@@ -179,8 +180,9 @@ test('notification center UI covers badge, filters, navigation, offline retentio
   assert.match(view, /إعادة المحاولة/);
   assert.match(dialog, /event\.key === 'Escape'/);
   assert.match(dialog, /triggerRef\.current\?\.focus/);
-  assert.match(dashboard, /<ClientNotifications key=\{clientId\} clientId=\{clientId\} onNavigate=\{setActiveTab\}\/>/);
+  assert.match(dashboard, /<ClientNotifications key=\{clientId\} clientId=\{clientId\} onNavigate=\{navigateClient\}\/>/);
   assert.match(css, /min-width:44px/);
   assert.match(css, /@media\(max-width:800px\)/);
-  assert.doesNotMatch(css, /background:\s*#fff/i);
+  assert.match(css, /\.client-app--calm \.client-notifications__panel\{[^}]*background:#fffefa/);
+  assert.match(css, /\.client-app--calm \.client-notification-item\{[^}]*background:#fff/);
 });

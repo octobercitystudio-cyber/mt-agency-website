@@ -21,7 +21,7 @@
 3. أنشئ Service Account للتطبيق، ونزّل ملف JSON وضعه خارج `public_html`.
 4. في `api/config.php` فعّل قسم `push` وانسخ إعدادات Web App ومفتاح VAPID ومسار Service Account ومفتاح عامل طويلًا وعشوائيًا.
 5. شغّل الترحيل `database/mysql/029_android_push_notifications.sql` على قاعدة Hostinger.
-6. أضف Cron Job كل دقيقة:
+6. أضف Cron Job كل دقيقة. العامل ينشئ أيضًا تنبيهات استحقاق الدفع وقرب انتهاء الباقة قبل إرسال طابور Firebase:
 
 ```bash
 curl -sS -X POST -H "X-Worker-Key: YOUR_LONG_PUSH_WORKER_KEY" https://multitaskagency.com/api/cron/push-queue

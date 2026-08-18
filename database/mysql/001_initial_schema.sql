@@ -348,6 +348,8 @@ CREATE TABLE IF NOT EXISTS payment_proofs (
   payment_id BIGINT UNSIGNED NULL,
   client_id BIGINT UNSIGNED NOT NULL,
   amount DECIMAL(12,2) NOT NULL,
+  payment_method VARCHAR(32) NULL,
+  transfer_account_snapshot VARCHAR(64) NULL,
   file_path VARCHAR(255) NOT NULL,
   original_name VARCHAR(255) NOT NULL,
   mime_type VARCHAR(80) NOT NULL,

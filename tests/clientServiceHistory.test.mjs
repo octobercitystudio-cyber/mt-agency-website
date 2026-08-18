@@ -119,13 +119,12 @@ test('demo and production contracts reject staff access and derive client scope 
   for (const hidden of ['started_by', 'ended_by', 'created_by', 'internal_cost', 'internal_note', 'adjustment_reason', 'audit_logs']) assert.equal(route.includes(`'${hidden}'`), false, `${hidden} must not be selected or returned`);
 });
 
-test('client navigation keeps history and offers reachable as Home quick links', async () => {
+test('client navigation exposes offers directly while Home keeps simple shortcuts', async () => {
   const [dashboard, overview, css, view] = await Promise.all([
     load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboardOverview.jsx'), load('src/pages/ClientDashboard.css'), load('src/pages/ClientServiceHistory.jsx'),
   ]);
   const navigation = dashboard.slice(dashboard.indexOf("['home', Home"), dashboard.indexOf('].map(([key, Icon, label])'));
-  assert.doesNotMatch(navigation, /'history'|'offers'/);
-  assert.match(overview, /onNavigate\('history'\)/);
+  assert.doesNotMatch(navigation, /'history'|'projects'/);
   assert.match(overview, /onNavigate\('offers'\)/);
   assert.match(css, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)!important/);
   assert.match(view, /سجل الخدمات/);
@@ -133,15 +132,15 @@ test('client navigation keeps history and offers reachable as Home quick links',
   assert.match(view, /<details><summary>عرض التفاصيل<\/summary>/);
 });
 
-test('client projects navigation keeps its key inside the four primary destinations', async () => {
+test('client primary navigation is exactly home, appointments, finance, and offers', async () => {
   const [dashboard, css] = await Promise.all([load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboard.css')]);
   const navigation = dashboard.slice(dashboard.indexOf("['home', Home"), dashboard.indexOf('].map(([key, Icon, label])'));
-  assert.match(navigation, /\['projects', FolderKanban, 'الباقات والخدمات'\]/);
-  assert.doesNotMatch(navigation, /'أعمالي'/);
-  assert.equal((navigation.match(/\['(?:home|schedule|projects|finance)'/g) || []).length, 4);
+  assert.match(navigation, /\['offers', Megaphone, 'العروض'\]/);
+  assert.doesNotMatch(navigation, /'projects'|'history'|'أعمالي'/);
+  assert.equal((navigation.match(/\['(?:home|schedule|finance|offers)'/g) || []).length, 4);
   assert.match(dashboard, /aria-label=\{label\} title=\{label\}/);
   assert.match(dashboard, /activeTab === 'projects'/);
-  assert.match(dashboard, /setActiveTab\(key\)/);
+  assert.match(dashboard, /navigateClient\(key\)/);
   assert.match(css, /@media\(min-width:681px\) and \(max-width:800px\)/);
   assert.match(css, /@media\(max-width:340px\)/);
 });

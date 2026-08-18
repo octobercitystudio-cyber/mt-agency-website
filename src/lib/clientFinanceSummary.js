@@ -1,6 +1,8 @@
 const inactiveInvoiceStatuses = new Set(['cancelled', 'void']);
 const inactivePackageStatuses = new Set(['cancelled', 'void', 'archived', 'draft']);
 
+export const PACKAGE_PAYMENT_DUE_MESSAGE = 'لقد تجاوزتم حد الدفع للباقة برجاء سرعة سداد باقي المستحقات لتجنب توقف الباقة';
+
 export const moneyToPiastres = value => {
   const normalized = Number(value || 0);
   if (!Number.isFinite(normalized)) return 0;
@@ -8,6 +10,36 @@ export const moneyToPiastres = value => {
 };
 
 const clampPaid = (paid, total) => Math.min(Math.max(0, paid), Math.max(0, total));
+
+const authoritativePackageUsage = (pkg, kind) => {
+  if (String(pkg?.billing_unit || '') !== 'hour') return Math.max(0, Number(pkg?.[`${kind}_quantity`] || 0));
+  const minuteValue = pkg?.[`${kind}_minutes`];
+  if (minuteValue !== null && minuteValue !== undefined && Number.isFinite(Number(minuteValue))) {
+    return Math.max(0, Math.round(Number(minuteValue)));
+  }
+  return Math.max(0, Math.round(Number(pkg?.[`${kind}_quantity`] || 0) * 60));
+};
+
+export const packageOutstandingPiastres = pkg => Math.max(
+  0,
+  moneyToPiastres(pkg?.total_price) + Math.max(0, moneyToPiastres(pkg?.overage_amount)) - moneyToPiastres(pkg?.paid_amount),
+);
+
+export const isPackagePaymentDue = pkg => {
+  const status = String(pkg?.status || '').toLowerCase();
+  if (status && status !== 'active') return false;
+  const threshold = authoritativePackageUsage(pkg, 'payment_due');
+  const consumed = authoritativePackageUsage(pkg, 'consumed');
+  return threshold > 0 && consumed >= threshold && packageOutstandingPiastres(pkg) > 0;
+};
+
+export const packagePaymentDueItems = (packages = []) => packages
+  .filter(isPackagePaymentDue)
+  .map(pkg => ({
+    id: pkg.id,
+    name: String(pkg.name || `باقة #${pkg.id}`),
+    outstandingPiastres: packageOutstandingPiastres(pkg),
+  }));
 
 const compareObligations = (left, right) => {
   const leftOpen = left.remainingPiastres > 0 ? 0 : 1;
@@ -35,8 +67,7 @@ export function buildClientFinanceSummary(packages = [], invoices = []) {
     const overagePiastres = Math.max(0, moneyToPiastres(pkg.overage_amount));
     const rawPaidPiastres = Math.max(0, moneyToPiastres(pkg.paid_amount));
     const linkedToVisibleInvoice = Number(pkg.source_invoice_id) > 0 && invoiceIds.has(Number(pkg.source_invoice_id));
-    const threshold = Math.max(0, Number(pkg.payment_due_quantity || 0));
-    const consumed = Math.max(0, Number(pkg.consumed_quantity || 0));
+    const paymentDue = isPackagePaymentDue(pkg);
 
     if (linkedToVisibleInvoice) {
       if (overagePiastres <= 0) return;
@@ -47,12 +78,13 @@ export function buildClientFinanceSummary(packages = [], invoices = []) {
       rows.push({
         key: `package-overage:${pkg.id}`,
         kind: 'package-overage',
+        displayKind: 'package-overage',
         sourceId: pkg.id,
         label: `وقت زائد — ${pkg.name || `باقة #${pkg.id}`}`,
         totalPiastres: overagePiastres,
         paidPiastres,
         remainingPiastres,
-        dueNow: threshold > 0 && consumed >= threshold && remainingPiastres > 0,
+        dueNow: paymentDue && remainingPiastres > 0,
         dueAt: pkg.expires_at || null,
       });
       return;
@@ -63,12 +95,13 @@ export function buildClientFinanceSummary(packages = [], invoices = []) {
     rows.push({
       key: `package:${pkg.id}`,
       kind: 'package',
+      displayKind: 'package',
       sourceId: pkg.id,
       label: pkg.name || `باقة #${pkg.id}`,
       totalPiastres,
       paidPiastres,
       remainingPiastres: Math.max(0, totalPiastres - paidPiastres),
-      dueNow: threshold > 0 && consumed >= threshold && totalPiastres > paidPiastres,
+      dueNow: paymentDue && totalPiastres > paidPiastres,
       dueAt: pkg.expires_at || null,
     });
   });
@@ -79,8 +112,9 @@ export function buildClientFinanceSummary(packages = [], invoices = []) {
     rows.push({
       key: `invoice:${invoice.id}`,
       kind: 'invoice',
+      displayKind: invoice.client_kind || 'invoice',
       sourceId: invoice.id,
-      label: invoice.invoice_number ? `فاتورة ${invoice.invoice_number}` : `فاتورة #${invoice.id}`,
+      label: invoice.client_label || (invoice.invoice_number ? `فاتورة ${invoice.invoice_number}` : `فاتورة #${invoice.id}`),
       totalPiastres,
       paidPiastres,
       remainingPiastres: Math.max(0, totalPiastres - paidPiastres),
@@ -89,7 +123,7 @@ export function buildClientFinanceSummary(packages = [], invoices = []) {
     });
   });
 
-  const sortedRows = rows.filter(row => row.totalPiastres > 0).sort(compareObligations);
+  const sortedRows = rows.sort(compareObligations);
   const totalPiastres = sortedRows.reduce((sum, row) => sum + row.totalPiastres, 0);
   const paidPiastres = sortedRows.reduce((sum, row) => sum + row.paidPiastres, 0);
   const remainingPiastres = Math.max(0, totalPiastres - paidPiastres);
@@ -97,7 +131,7 @@ export function buildClientFinanceSummary(packages = [], invoices = []) {
   return {
     rows: sortedRows.map(row => ({
       ...row,
-      paidPercent: row.totalPiastres > 0 ? Math.min(100, Math.round((row.paidPiastres / row.totalPiastres) * 1000) / 10) : 0,
+      paidPercent: row.totalPiastres > 0 ? Math.min(100, Math.round((row.paidPiastres / row.totalPiastres) * 1000) / 10) : 100,
     })),
     totalPiastres,
     paidPiastres,

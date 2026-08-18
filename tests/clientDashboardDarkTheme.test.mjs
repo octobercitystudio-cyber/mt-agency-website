@@ -11,43 +11,46 @@ function lastRule(css, selector) {
   return css.slice(start, end + 1);
 }
 
-test('client portal owns a scoped dark color system', async () => {
+test('client portal owns one scoped calm light color system', async () => {
   const css = await readSource('../src/pages/ClientDashboard.css');
 
-  assert.match(css, /\.client-app,\.client-state\s*\{[^}]*--client-bg:#0b0711/);
-  assert.match(css, /--client-panel:#15101d/);
-  assert.match(css, /--client-text:#f8f4ff/);
-  assert.match(css, /--client-muted:#a99db4/);
-  assert.match(css, /--client-chart-track:#715b85/);
-  assert.match(css, /color-scheme:dark/);
-  assert.match(css, /\.client-app--calm-home\{[^}]*color-scheme:light/);
+  const calmRule = lastRule(css, '.client-app--calm');
+  assert.match(calmRule, /--client-bg:#f7f4ee/);
+  assert.match(calmRule, /--client-panel:#fffefa/);
+  assert.match(calmRule, /--client-text:#171a27/);
+  assert.match(calmRule, /--client-muted:#6f707a/);
+  assert.match(calmRule, /--client-chart-track:#d8d2ca/);
+  assert.match(calmRule, /color-scheme:light/);
 });
 
-test('appointment and live-session cards finish with dark surfaces', async () => {
+test('appointment surfaces use the same calm cards at every viewport', async () => {
   const css = await readSource('../src/pages/ClientDashboard.css');
 
-  assert.match(lastRule(css, '.client-next-home'), /background:linear-gradient\([^}]*var\(--client-panel\)/);
-  assert.match(lastRule(css, '.client-simple-next-card'), /background:#100b16/);
-  assert.match(lastRule(css, '.client-simple-empty'), /background:#100b16/);
-  assert.match(lastRule(css, '.client-next-home--live'), /background:linear-gradient\([^}]*#13231f/);
-  assert.match(lastRule(css, '.client-appointment-live'), /background:#11231e/);
-  assert.match(lastRule(css, '.client-session-settlement'), /background:#171222/);
+  assert.match(lastRule(css, '.client-app--calm .client-simple-next-card'), /background:#fffefa/);
+  assert.match(lastRule(css, '.client-app--calm .client-simple-date-block'), /background:#f2ebff/);
+  assert.match(lastRule(css, '.client-app--calm .client-next-appointment,.client-app--calm .client-appointment-cards'), /background:#fffefa/);
+  assert.match(lastRule(css, '.client-app--calm .client-booking-date'), /background:#f2ebff/);
+  assert.match(css, /\.client-home-focus-grid\{[^}]*grid-template-columns:220px minmax\(0,1fr\)/);
+  assert.match(css, /\.client-app--calm \.client-modal-card :is\(input,select,textarea\)\{[^}]*min-height:44px/);
 });
 
-test('client finance proof and charts finish with the shared dark palette', async () => {
+test('client finance charts and payment sheet share the calm light system', async () => {
   const css = await readSource('../src/pages/ClientFinanceView.css');
 
-  assert.match(lastRule(css, '.client-transfer-section'), /var\(--client-panel\)/);
-  assert.match(lastRule(css, '.client-proof-preview'), /background:#100b16/);
-  assert.match(lastRule(css, '.client-finance-overview'), /var\(--client-panel\)/);
-  assert.match(lastRule(css, '.client-finance-ring-card,.client-finance-breakdown-card'), /background:#100b16/);
-  assert.match(lastRule(css, '.client-finance-breakdown-list>article'), /background:#15101d/);
-  assert.doesNotMatch(css, /color-scheme\s*:\s*light/);
+  assert.match(lastRule(css, '.client-app--calm .client-finance-overview'), /background:#faf8f4/);
+  assert.match(css, /\.client-finance-obligation-card\{[^}]*background:#fffefa/);
+  assert.match(lastRule(css, '.client-app--calm .client-package-finance-card,.client-app--calm .client-finance-invoices>article'), /background:#fff/);
+  assert.match(css, /client-transaction-status\.accepted[^}]*#e5f5ee/);
+  assert.match(css, /client-transaction-status\.pending[^}]*#fff0d9/);
+  assert.match(css, /client-transaction-status\.rejected[^}]*#fde8eb/);
+  assert.match(css, /client-payment-modal[^}]*background:rgba/);
+  assert.match(css, /client-payment-modal>section[^}]*background:#fffefa/);
 });
 
-test('package cards keep the shared dark palette without adding Home charts', async () => {
+test('package cards keep the shared light palette without adding Home charts', async () => {
   const [source, css] = await Promise.all([readSource('../src/pages/ClientDashboardOverview.jsx'), readSource('../src/pages/ClientDashboard.css')]);
-  assert.match(css, /\.client-simple-package-card[^{]*\{[^}]*var\(--client-purple\)/s);
+  assert.match(css, /\.client-app--calm \.client-home-notification-card,[^}]*\.client-app--calm \.client-simple-package-card,[^}]*background:#fffefa/);
+  assert.match(lastRule(css, '.client-app--calm .client-package-metrics>div'), /background:#faf8f4/);
   assert.doesNotMatch(source, /PieChart|ResponsiveContainer|recharts/);
   assert.doesNotMatch(source, /'#31263c'/);
 });
