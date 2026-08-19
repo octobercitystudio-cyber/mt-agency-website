@@ -7,7 +7,7 @@ import arCalendarLocale from '@fullcalendar/core/locales/ar';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
-import { calculateDurationMinutes, formatBookingDate, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
+import { calculateDurationMinutes, formatBookingDate, formatDurationMinutes, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
 import ERPPageHero from './ERPPageHero';
 import ERPRescheduleBookingDialog from './ERPRescheduleBookingDialog';
 import ERPBookingDetailsDialog from './ERPBookingDetailsDialog';
@@ -364,7 +364,7 @@ const ERPBookings = () => {
         if (d.start_time && d.end_time) {
           const diffInMinutes = calculateDurationMinutes(d.start_time, d.end_time);
           if (!isValidBusinessBooking(d.start_time, d.end_time, minimumMinutes) || diffInMinutes % incrementMinutes !== 0) {
-            alert(`مواعيد الحجز من 12:00 م إلى 12:00 ص، بحد أدنى ${minimumMinutes} دقيقة وبزيادات ${incrementMinutes} دقيقة حسب إعدادات الخدمة.`);
+            alert(`مواعيد الحجز من 12:00 م إلى 12:00 ص، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)} حسب إعدادات الخدمة.`);
             return;
           }
         }

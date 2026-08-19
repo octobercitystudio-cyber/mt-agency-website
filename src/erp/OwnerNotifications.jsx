@@ -7,7 +7,7 @@ import { captureNotificationOpen, markNotificationsReadThrough, notificationBoun
 import './OwnerNotifications.css';
 
 const safeItems = value => Array.isArray(value) ? value.filter(item => item && Number(item.id) > 0 && item.title && item.message) : [];
-const routes = { requests: '/erp/requests', bookings: '/erp/bookings', offers: '/erp/offers', finance: '/erp/finance', packages: '/erp/packages', projects: '/erp/projects', clients: '/erp/clients' };
+const routes = { requests: '/erp/requests', bookings: '/erp/bookings', offers: '/erp/offers', finance: '/erp/finance', packages: '/erp/packages', projects: '/erp/projects', clients: '/erp/clients', 'post-production': '/erp/post-production' };
 const destination = item => routes[item.action_tab] || '/erp';
 const itemIcon = item => item.action_tab === 'finance' ? CircleDollarSign : item.action_tab === 'offers' ? FileCheck2 : item.action_tab === 'requests' ? Inbox : CalendarClock;
 const clientInitial = title => String(title).split('—').at(-1)?.trim()?.charAt(0) || 'ع';

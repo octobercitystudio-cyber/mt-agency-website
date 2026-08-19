@@ -7,7 +7,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
-import { calculateDurationMinutes, cairoDateKey, centsToMoney, effectivePackageStatus, formatBookingDate, formatEGP, formatPackageQuantity, formatTime12, isValidBusinessBooking } from '../lib/businessFormat';
+import { calculateDurationMinutes, cairoDateKey, centsToMoney, effectivePackageStatus, formatBookingDate, formatDurationMinutes, formatEGP, formatPackageQuantity, formatTime12, isValidBusinessBooking } from '../lib/businessFormat';
 import useModalDialog from '../hooks/useModalDialog';
 import ERPClientModal from './ERPClientModal';
 import { applyBookingClientToDraft, bookingClientIndicatorStyle, resolveCreatedBookingClient } from './bookingClientSelection';
@@ -234,7 +234,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     const minimumMinutes = Math.max(15, Number(selectedService?.minimum_booking_minutes || 60));
     const incrementMinutes = Math.max(15, Number(selectedService?.booking_increment_minutes || 15));
     if (needsDates && newBooking.dates.some((date) => !isValidBusinessBooking(date.start_time, date.end_time, minimumMinutes) || calculateDurationMinutes(date.start_time, date.end_time) % incrementMinutes !== 0)) {
-      alert(`مواعيد الحجز من 12:00 م إلى 12:00 ص، بحد أدنى ${minimumMinutes} دقيقة وبزيادات ${incrementMinutes} دقيقة حسب إعدادات الخدمة.`);
+      alert(`مواعيد الحجز من 12:00 م إلى 12:00 ص، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)} حسب إعدادات الخدمة.`);
       return;
     }
 

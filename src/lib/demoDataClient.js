@@ -1,7 +1,7 @@
 import { getProjectStageTemplate } from './projectStageTemplates.js';
 import { allocateFormationExpense, summarizeFormationFund, toCents } from './formationFundMath.js';
 import { socialAmountToCents, socialCentsToAmount, summarizeSocialProfits } from './socialProfitMath.js';
-import { cairoDateKey, centsToMoney, moneyToCents, packageFinancialSummary, packageQuantitySummary, remainingCalendarDays } from './businessFormat.js';
+import { cairoDateKey, centsToMoney, formatDurationMinutes, moneyToCents, packageFinancialSummary, packageQuantitySummary, remainingCalendarDays } from './businessFormat.js';
 import { getBookingAvailability } from '../erp/bookingAvailability.js';
 import { buildDemoClientServiceHistory } from './clientServiceHistory.js';
 import { cairoDateTimeToIso, cairoDateTimeToEpoch } from './promotionTime.js';
@@ -27,9 +27,8 @@ const normalizeDemoServiceBody = (body, before = null) => {
 let demoMode = false;
 let demoRole = 'owner';
 let demoUserId = 1;
-const demoTemporaryVerifiers = new Map();
-const demoPermanentVerifiers = new Map();
-const demoPasswordHistory = new Map();
+let demoOrganizationId = 1;
+let demoCsrfReady = false;
 let demoCredentialSessionVersion = null;
 
 const demoSecretHash = async value => {
@@ -37,18 +36,36 @@ const demoSecretHash = async value => {
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 };
-const createDemoTemporaryPassword = () => {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-  const bytes = new Uint8Array(20); crypto.getRandomValues(bytes);
-  const generated = [...bytes].map(byte => alphabet[byte % alphabet.length]).join('');
-  return `Aa7!${generated}`;
+const createDemoResetToken = () => {
+  const bytes = new Uint8Array(32); crypto.getRandomValues(bytes);
+  return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+};
+const demoResetRows = database => {
+  if (!Array.isArray(database.credential_reset_links)) database.credential_reset_links = [];
+  return database.credential_reset_links;
+};
+const demoResetIssueRows = database => {
+  if (!Array.isArray(database.credential_reset_issue_times)) database.credential_reset_issue_times = [];
+  return database.credential_reset_issue_times;
+};
+const scopedDemoClient = (database, id) => {
+  const client = findById(database, 'clients', id);
+  return client && Number(client.organization_id || 1) === Number(demoOrganizationId) ? client : null;
 };
 const containsControlCharacter = value => [...String(value)].some(character => { const code = character.codePointAt(0); return code < 32 || code === 127; });
 const validDemoPassword = value => String(value).length >= 12 && /\p{L}/u.test(String(value)) && /\d/.test(String(value)) && !containsControlCharacter(value);
 const validDemoClientPassword = isValidClientPassword;
-const rememberDemoVerifier = (clientId, verifier) => {
-  const history = demoPasswordHistory.get(Number(clientId)) || [];
-  demoPasswordHistory.set(Number(clientId), [verifier, ...history.filter(item => item !== verifier)].slice(0, 5));
+const currentDemoVerifier = client => String(client?.credential_verifier_digest || '');
+const demoVerifierHistory = client => Array.isArray(client?.credential_history_digests)
+  ? client.credential_history_digests.filter(item => /^[a-f0-9]{64}$/.test(String(item))).slice(0, 5)
+  : [];
+const rememberDemoVerifier = (client, verifier) => {
+  if (!client || !/^[a-f0-9]{64}$/.test(String(verifier))) return;
+  const history = demoVerifierHistory(client);
+  client.credential_history_digests = [verifier, ...history.filter(item => item !== verifier)].slice(0, 5);
+};
+const setDemoVerifier = (client, verifier) => {
+  client.credential_verifier_digest = verifier;
 };
 
 const pad = value => String(value).padStart(2, '0');
@@ -227,6 +244,8 @@ const demoSettlementPreview = (database, bookingId, actualMinutes) => {
 };
 
 const createDemoDatabase = () => ({
+  credential_reset_links: [],
+  credential_reset_issue_times: [],
   clients: [
     { id: 1, name: 'سارة أحمد', company_name: 'سارة بيوتي', contact_person: 'سارة أحمد', phone1: '01012345678', phone2: '01124567890', email: 'sara@example.com', job: 'صاحبة علامة تجارية', address: 'الشيخ زايد', city: 'الجيزة', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, color: '#2563eb', notes: 'تفضل مواعيد بعد الساعة 4 مساءً', debt: 0, credit: 500, points: 180, points_updated_at: dateOnly(-12), status: 'active', portal_account_exists: true, portal_enabled: true, password_status: 'active', must_change_password: false, credential_version: 1, portal_active_sessions: 0, created_at: dateTime(-120) },
     { id: 2, name: 'د. محمد عادل', company_name: 'أكاديمية عادل', contact_person: 'محمد عادل', phone1: '01023456789', email: 'adel@example.com', job: 'مدرب أعمال', address: 'المهندسين', city: 'الجيزة', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, color: '#7c3aed', notes: 'تصوير كورسات تعليمية طويلة', debt: 2500, credit: 0, points: 95, points_updated_at: dateOnly(-25), status: 'active', created_at: dateTime(-95) },
@@ -472,6 +491,22 @@ const createDemoDatabase = () => ({
     { id: 1507, client_id: 1, audience: 'client', type: 'payment_proof_approved', title: 'تم اعتماد إثبات التحويل', message: 'تم اعتماد التحويل وتحديث رصيدك المالي.', entity_type: 'payment_proofs', entity_id: 1203, action_tab: 'finance', payload: {}, severity: 'success', read_at: null, dismissed_at: null, created_at: dateTime(-2, '13:00:00') },
     { id: 1506, client_id: 2, audience: 'client', type: 'offer_sent', title: 'عرض خاص بعميل آخر', message: 'لا يجب أن يظهر هذا الإشعار للعميل الحالي.', entity_type: 'offers', entity_id: 777, action_tab: 'offers', payload: { offer_id: 777 }, severity: 'info', read_at: null, dismissed_at: null, created_at: dateTime(0) },
   ],
+  post_production_jobs: [
+    { id: 1901, booking_session_id: 1601, booking_id: 307, client_id: 1, status: 'upload_completed', version: 4, status_changed_at: dateTime(-2, '18:30:00'), needs_review: 0, is_client_visible: 1, created_by: 3, updated_by: 1, created_at: dateTime(-10, '16:48:00'), updated_at: dateTime(-2, '18:30:00') },
+    { id: 1902, booking_session_id: 1602, booking_id: 308, client_id: 2, status: 'editing_in_progress', version: 1, status_changed_at: dateTime(-18, '15:49:00'), needs_review: 0, is_client_visible: 1, created_by: 4, updated_by: 4, created_at: dateTime(-18, '15:49:00'), updated_at: dateTime(-18, '15:49:00') },
+  ],
+  post_production_status_history: [
+    { id: 1911, post_production_job_id: 1901, from_status: null, to_status: 'editing_in_progress', version: 1, changed_at: dateTime(-10, '16:48:00') },
+    { id: 1912, post_production_job_id: 1901, from_status: 'editing_in_progress', to_status: 'editing_completed', version: 2, changed_at: dateTime(-4, '17:10:00') },
+    { id: 1913, post_production_job_id: 1901, from_status: 'editing_completed', to_status: 'uploading', version: 3, changed_at: dateTime(-3, '12:20:00') },
+    { id: 1914, post_production_job_id: 1901, from_status: 'uploading', to_status: 'upload_completed', version: 4, changed_at: dateTime(-2, '18:30:00') },
+    { id: 1915, post_production_job_id: 1902, from_status: null, to_status: 'editing_in_progress', version: 1, changed_at: dateTime(-18, '15:49:00') },
+  ],
+  video_delivery_links: [
+    { id: 1921, post_production_job_id: 1901, title: 'فولدر فيديوهات جلسة المنتجات', link_kind: 'folder', url: 'https://drive.google.com/drive/folders/demo-client-delivery', url_hash: 'demo-client-delivery', sort_order: 0, is_active: 1, created_at: dateTime(-1, '18:30:00') },
+  ],
+  pickup_availability: { revision: 1, expires_at: `${dateOnly(4)}T23:00:00+03:00`, windows: [{ date: dateOnly(2), start_time: '14:00', end_time: '18:00', label: 'متاحون في مقر الشركة' }] },
+  pickup_availability_by_job: { 1901: { revision: 1, expires_at: `${dateOnly(4)}T23:00:00+03:00`, windows: [{ date: dateOnly(2), start_time: '14:00', end_time: '18:00', label: 'استلام فيديوهات جلسة المنتجات' }] } },
   booking_sessions: [
     { id: 1601, booking_id: 307, client_id: 1, scheduled_start_at: `${dateOnly(-10)} 15:00:00`, started_at: `${dateOnly(-10)} 15:03:00`, ended_at: `${dateOnly(-10)} 16:48:00`, actual_seconds: 6300, billable_quantity: 1.75, status: 'completed', start_source: 'manual', started_by: 3, ended_by: 3, adjustment_reason: 'تم اعتماد المدة الفعلية بعد انتهاء الجلسة', created_at: dateTime(-10, '15:03:00') },
     { id: 1602, booking_id: 308, client_id: 2, scheduled_start_at: `${dateOnly(-18)} 12:30:00`, started_at: `${dateOnly(-18)} 12:34:00`, ended_at: `${dateOnly(-18)} 15:49:00`, actual_seconds: 11700, billable_quantity: 3.25, status: 'completed', start_source: 'manual', started_by: 3, ended_by: 4, adjustment_reason: '', created_at: dateTime(-18, '12:34:00') },
@@ -519,6 +554,31 @@ const upgradeOwnerControlsDemo = database => {
   return changed;
 };
 
+const upgradePostProductionDemo = database => {
+  const seed = createDemoDatabase(); let changed = false;
+  ['post_production_jobs', 'post_production_status_history', 'video_delivery_links'].forEach(table => {
+    if (!Array.isArray(database[table])) { database[table] = clone(seed[table] || []); changed = true; }
+  });
+  if (!database.pickup_availability || typeof database.pickup_availability !== 'object') { database.pickup_availability = clone(seed.pickup_availability); changed = true; }
+  if (!database.pickup_availability_legacy || typeof database.pickup_availability_legacy !== 'object') { database.pickup_availability_legacy = clone(database.pickup_availability); changed = true; }
+  if (!database.pickup_availability_by_job || typeof database.pickup_availability_by_job !== 'object' || Array.isArray(database.pickup_availability_by_job)) { database.pickup_availability_by_job = {}; changed = true; }
+  return changed;
+};
+
+const upgradeCredentialResetDemo = database => {
+  let changed = false;
+  if (!Array.isArray(database.credential_reset_links)) { database.credential_reset_links = []; changed = true; }
+  if (!Array.isArray(database.credential_reset_issue_times)) { database.credential_reset_issue_times = []; changed = true; }
+  tableRows(database, 'clients').forEach(client => {
+    const verifier = String(client.credential_verifier_digest || '');
+    if (verifier && !/^[a-f0-9]{64}$/.test(verifier)) { delete client.credential_verifier_digest; changed = true; }
+    const history = [...new Set(demoVerifierHistory(client))];
+    const before = Array.isArray(client.credential_history_digests) ? client.credential_history_digests : [];
+    if (JSON.stringify(before) !== JSON.stringify(history)) { client.credential_history_digests = history; changed = true; }
+  });
+  return changed;
+};
+
 const readDatabase = () => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -526,12 +586,16 @@ const readDatabase = () => {
       const database = JSON.parse(stored);
       const financeChanged = upgradeFinanceDemoCoverage(database);
       const ownerChanged = upgradeOwnerControlsDemo(database);
-      if (financeChanged || ownerChanged) localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+      const postProductionChanged = upgradePostProductionDemo(database);
+      const credentialChanged = upgradeCredentialResetDemo(database);
+      if (financeChanged || ownerChanged || postProductionChanged || credentialChanged) localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
       return database;
     }
   } catch { /* reset below */ }
   const database = createDemoDatabase();
   upgradeOwnerControlsDemo(database);
+  upgradePostProductionDemo(database);
+  upgradeCredentialResetDemo(database);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
   return database;
 };
@@ -724,10 +788,52 @@ const demoNotificationClientId = (database, entityType, entityId, before, after)
 
 const demoCreateClientNotification = (database, { clientId, type, title, message, entityType, entityId, actionTab, severity = 'info', sourceEventKey, payload = {} }) => {
   if (!clientId || !sourceEventKey || database.app_notifications.some(item => item.source_event_key === sourceEventKey || item.dedupe_key === sourceEventKey)) return null;
-  const notification = addRow(database, 'app_notifications', { client_id: Number(clientId), audience: 'client', type, title, message, entity_type: entityType, entity_id: Number(entityId), action_tab: actionTab, payload, severity, source_event_key: sourceEventKey, dedupe_key: sourceEventKey, read_at: null, dismissed_at: null });
+  const notification = addRow(database, 'app_notifications', { client_id: Number(clientId), audience: 'client', type, title, message, entity_type: entityType, entity_id: Number(entityId), action_tab: actionTab === 'montage' ? 'videos' : actionTab, payload, severity, source_event_key: sourceEventKey, dedupe_key: sourceEventKey, read_at: null, dismissed_at: null });
   addRow(database, 'change_events', { client_id: Number(clientId), topic: 'notifications', entity_type: 'app_notifications', entity_id: notification.id, action: 'created' });
   return notification;
 };
+
+const DEMO_POST_PRODUCTION_STATUSES = ['editing_in_progress', 'editing_completed', 'uploading', 'upload_completed', 'ready_for_pickup', 'delivered'];
+const demoPostProductionNext = status => ({ editing_in_progress: ['editing_completed'], editing_completed: ['uploading', 'ready_for_pickup'], uploading: ['upload_completed'], upload_completed: ['delivered'], ready_for_pickup: ['delivered'] })[status] || [];
+const demoPostProductionLabel = status => ({ editing_in_progress: 'جاري العمل في المونتاج', editing_completed: 'اكتمل المونتاج', uploading: 'جاري الرفع', upload_completed: 'اكتمل الرفع', ready_for_pickup: 'جاهزة للاستلام', delivered: 'تم التسليم' })[status] || 'حالة غير معروفة';
+const demoPostProductionNotification = status => ({
+  editing_completed: ['editing_completed', 'اكتمل مونتاج جلسة التصوير', 'انتهى مونتاج جلسة التصوير الخاصة بك.', 'videos', 'success'],
+  uploading: ['uploading', 'بدأ رفع فيديوهاتك', 'بدأ رفع فيديوهات جلسة التصوير الخاصة بك.', 'videos', 'info'],
+  upload_completed: ['upload_completed', 'اكتمل رفع فيديوهاتك', 'الفيديوهات المرفوعة جاهزة الآن في صفحة تسليمات الفيديوهات.', 'videos', 'success'],
+  ready_for_pickup: ['ready_for_pickup', 'الفيديوهات جاهزة للاستلام من الشركة', 'راجع مواعيد تواجدنا المؤقتة في صفحة تسليمات الفيديوهات.', 'videos', 'success'],
+})[status] || null;
+const demoEnsurePostProductionJob = (database, booking, session) => {
+  const existing = tableRows(database, 'post_production_jobs').find(row => Number(row.booking_session_id) === Number(session.id) || Number(row.booking_id) === Number(booking.id));
+  if (existing) return existing;
+  const job = addRow(database, 'post_production_jobs', { booking_session_id: Number(session.id), booking_id: Number(booking.id), client_id: Number(booking.client_id), status: 'editing_in_progress', version: 1, status_changed_at: nowText(), needs_review: 0, is_client_visible: 1, created_by: Number(demoUserId || 1), updated_by: Number(demoUserId || 1) });
+  addRow(database, 'post_production_status_history', { post_production_job_id: job.id, from_status: null, to_status: 'editing_in_progress', version: 1, changed_at: nowText() });
+  addRow(database, 'change_events', { client_id: Number(booking.client_id), topic: 'post_production', entity_type: 'post_production_jobs', entity_id: job.id, action: 'created' });
+  return job;
+};
+const demoValidateDriveLinks = raw => {
+  if (!Array.isArray(raw) || raw.length > 30) throw formationDemoError('قائمة روابط الفيديو غير صحيحة.', 'invalid_delivery_links');
+  const seen = new Set();
+  return raw.map((item, index) => {
+    let parsed; try { parsed = new URL(String(item?.url || '')); } catch { throw formationDemoError('يسمح فقط بروابط HTTPS من Google Drive.', 'untrusted_delivery_link'); }
+    const title = String(item?.title || '').trim().slice(0, 160); const kind = String(item?.link_kind || 'folder'); const host = parsed.hostname.toLowerCase();
+    if (!title || !['folder', 'video'].includes(kind)) throw formationDemoError('اكتب اسم الرابط وحدد نوعه.', 'invalid_delivery_link');
+    if (parsed.protocol !== 'https:' || !['drive.google.com', 'docs.google.com'].includes(host) || parsed.username || parsed.password) throw formationDemoError('يسمح فقط بروابط HTTPS من Google Drive.', 'untrusted_delivery_link');
+    parsed.hash = ''; const canonical = parsed.toString(); if (seen.has(canonical)) throw formationDemoError('لا يمكن تكرار الرابط نفسه.', 'duplicate_delivery_link'); seen.add(canonical);
+    return { title, link_kind: kind, url: canonical, url_hash: canonical, sort_order: index, is_active: item?.is_active === false || Number(item?.is_active) === 0 ? 0 : 1 };
+  });
+};
+const demoPostProductionRows = (database, clientOnly = false) => tableRows(database, 'post_production_jobs')
+  .filter(job => !clientOnly || Number(job.client_id) === 1 && Number(job.is_client_visible) === 1 && Number(job.needs_review) === 0)
+  .map(job => {
+    const booking = findById(database, 'bookings', job.booking_id) || {}; const session = tableRows(database, 'booking_sessions').find(row => Number(row.id) === Number(job.booking_session_id)) || {}; const client = findById(database, 'clients', job.client_id) || {}; const pkg = booking.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null;
+    const history = tableRows(database, 'post_production_status_history').filter(row => Number(row.post_production_job_id) === Number(job.id)).sort((a, b) => Number(a.version) - Number(b.version));
+    const links = tableRows(database, 'video_delivery_links').filter(row => { const createdAt = new Date(row.created_at || 0).getTime(); return Number(row.post_production_job_id) === Number(job.id) && (!clientOnly || Number(row.is_active) === 1 && Number.isFinite(createdAt) && createdAt + 48 * 60 * 60 * 1000 > Date.now()); }).sort((a, b) => Number(a.sort_order) - Number(b.sort_order)).map(link => ({ ...clone(link), available_until: new Date(new Date(link.created_at).getTime() + 48 * 60 * 60 * 1000).toISOString() }));
+    const storedPickup = clone(database.pickup_availability_by_job?.[String(job.id)] || { revision: 0, expires_at: null, windows: [] }); const pickupExpired = storedPickup.expires_at && new Date(storedPickup.expires_at).getTime() <= Date.now(); const pickup = pickupExpired ? { revision: Number(storedPickup.revision || 0), expires_at: storedPickup.expires_at, windows: [], expired: true } : { ...storedPickup, expired: false };
+    const publicFields = { id: Number(job.id), booking_id: Number(job.booking_id), status: job.status, status_changed_at: job.status_changed_at, session_date: booking.date, start_time: booking.start_time, end_time: booking.end_time, service: booking.service, client_package_id: booking.client_package_id || null, package_name: pkg?.name || null, actual_seconds: Number(session.actual_seconds || booking.actual_seconds || 0), status_label: demoPostProductionLabel(job.status), delivery_link_count: links.filter(link => Number(link.is_active) === 1).length, delivery_links: clone(links), pickup_availability: pickup };
+    const result = clientOnly ? publicFields : { ...clone(job), ...publicFields, client_name: client.name || booking.client_name || '' };
+    if (!clientOnly) { result.valid_next_statuses = demoPostProductionNext(job.status); result.history = clone(history); }
+    return result;
+  }).sort((a, b) => `${b.session_date || ''}${b.start_time || ''}`.localeCompare(`${a.session_date || ''}${a.start_time || ''}`));
 
 const demoPackageReminderQuantity = (pkg, kind) => {
   if (pkg.billing_unit !== 'hour') return Number(pkg[`${kind}_quantity`] || 0);
@@ -781,8 +887,11 @@ const demoNotificationTemplate = (entityType, action, before = {}, after = {}) =
   if (entityType === 'reschedule_requests') return ['reschedule_update', 'تحديث طلب تغيير الموعد', 'تمت مراجعة طلب تغيير الموعد ويمكنك مراجعة النتيجة.', 'schedule', status === 'approved' ? 'success' : 'warning'];
   if (entityType === 'booking_sessions') {
     if (['session_start', 'auto_start'].includes(action)) return ['session_started', 'بدأت جلسة التصوير', 'بدأ احتساب وقت جلسة التصوير ويمكنك متابعة المؤقت الآن.', 'schedule', 'success'];
-    if (['new_package', 'existing_package'].includes(merged.settlement_mode) && Number(merged.target_package_id || 0)) return ['overage_moved', 'تمت تسوية الوقت الإضافي', 'أضيف الوقت الإضافي إلى الباقة التي حددتها الإدارة ويمكنك مراجعة الرصيد الآن.', 'home', 'info'];
-    return ['session_completed', 'اكتملت جلسة التصوير', 'تم حفظ المدة النهائية وتسوية الجلسة في حسابك.', 'history', 'info'];
+    if (!['session_complete', 'session_settle_and_complete'].includes(action)) return null;
+    const outcomes = { original_package: 'تم خصم الوقت من رصيد الباقة.', new_package: 'تمت تسوية الوقت الإضافي على الباقة المحددة.', existing_package: 'تمت تسوية الوقت الإضافي على الباقة المحددة.', waive: 'تم اعتماد الوقت دون رسوم إضافية.' };
+    const outcome = outcomes[merged.settlement_mode] || 'تم حفظ تسوية الجلسة في حسابك.';
+    const moved = ['new_package', 'existing_package'].includes(merged.settlement_mode) && Number(merged.target_package_id || 0);
+    return [moved ? 'overage_moved' : 'session_completed', 'تم إيقاف جلسة التصوير', `تم إيقاف جلسة التصوير. الوقت المصور ${formatDurationMinutes(merged.actual_minutes ?? Number(merged.actual_seconds || 0) / 60)}. ${outcome}`, moved ? 'home' : 'history', 'info'];
   }
   if (entityType === 'payment_proofs') return [`payment_proof_${status}`, status === 'approved' ? 'تم اعتماد إثبات التحويل' : 'تم رفض إثبات التحويل', status === 'approved' ? 'تم اعتماد التحويل وتحديث رصيدك المالي.' : 'لم يتم اعتماد التحويل. راجع الإثبات وأعد المحاولة.', 'finance', status === 'approved' ? 'success' : 'danger'];
   if (entityType === 'payments' && action === 'record_package_payment') return null;
@@ -1098,7 +1207,8 @@ const demoSettleAndComplete = (database, bookingId, body) => {
   if (targetPackage && ['new_package', 'existing_package'].includes(mode)) { const purchasedMinutes = demoPackageMinutes(targetPackage, 'purchased'); const heldMinutes = demoPackageMinutes(targetPackage, 'held'); const consumedMinutes = demoPackageMinutes(targetPackage, 'consumed') + excess; if (consumedMinutes + heldMinutes > purchasedMinutes) throw formationDemoError('رصيد الباقة المستهدفة لم يعد كافيًا.', 'settlement_balance_changed'); Object.assign(targetPackage, { purchased_minutes: purchasedMinutes, consumed_minutes: consumedMinutes, held_minutes: heldMinutes, purchased_quantity: demoSettlementHours(purchasedMinutes), consumed_quantity: demoSettlementHours(consumedMinutes), held_quantity: demoSettlementHours(heldMinutes), version: Number(targetPackage.version || 1) + 1 }); addRow(working, 'package_usage_ledger', { client_package_id: targetPackage.id, booking_id: workBooking.id, movement_type: 'consume', quantity: demoSettlementHours(excess), quantity_minutes: excess, reason: 'تسوية وقت تصوير زائد', event_key: `settlement:${header.id}:target`, created_by: 1 }); }
   const ended = nowText();
   Object.assign(workBooking, { status: 'completed', timer_ended_at: ended, actual_seconds: actual * 60, actual_hours: demoSettlementHours(actual), actual_reels: reels, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), overage_quantity: demoSettlementHours(excess), overage_amount: mode === 'package_overage' ? centsToMoney(dueCents) : 0 }); Object.assign(session, { status: 'completed', ended_at: ended, actual_seconds: actual * 60, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), adjustment_reason: String(body.reason || '').trim(), settlement_version: Number(session.settlement_version || 1) + 1 });
-  const response = { booking_id: workBooking.id, session_id: session.id, settlement_id: header.id, status: 'completed', actual_minutes: actual, covered_minutes: covered, excess_minutes: excess, billable_minutes: billableMinutes, waived_minutes: waived, settlement_mode: mode, target_package_id: targetPackage?.id || null, invoice_id: invoice?.id || null, project_id: project?.id || null, payment_id: payment?.id || null, amount_due: centsToMoney(dueCents), amount_paid: centsToMoney(paidCents), billing_unit: unit }; demoAudit(working, 'session_settle_and_complete', 'booking_sessions', session.id, sourceSession, { ...response, client_id: workBooking.client_id }); header.response = clone(response); writeDatabase(working); return clone(response);
+  const postProductionJob = demoEnsurePostProductionJob(working, workBooking, session);
+  const response = { booking_id: workBooking.id, session_id: session.id, settlement_id: header.id, post_production_job_id: postProductionJob.id, status: 'completed', actual_minutes: actual, covered_minutes: covered, excess_minutes: excess, billable_minutes: billableMinutes, waived_minutes: waived, settlement_mode: mode, target_package_id: targetPackage?.id || null, invoice_id: invoice?.id || null, project_id: project?.id || null, payment_id: payment?.id || null, amount_due: centsToMoney(dueCents), amount_paid: centsToMoney(paidCents), billing_unit: unit }; demoAudit(working, 'session_settle_and_complete', 'booking_sessions', session.id, sourceSession, { ...response, client_id: workBooking.client_id }); header.response = clone(response); writeDatabase(working); return clone(response);
 };
 
 const deleteDemoBooking = (database, bookingId) => {
@@ -1152,46 +1262,76 @@ const demoRequest = async (path, options = {}) => {
   }
 
   if ((match = route.match(/^\/clients\/(\d+)\/credentials$/)) && (options.method || 'GET') === 'GET') {
-    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
+    requireDemoOwner(); const client = scopedDemoClient(database, match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
     const hasPassword = Boolean(client.portal_account_exists);
-    return { account_exists: hasPassword, has_password: hasPassword, access_enabled: hasPassword && client.portal_enabled === true, portal_access: !hasPassword ? 'no_account' : client.portal_enabled === true ? 'enabled' : 'disabled', credential_state: !hasPassword ? 'no_account' : client.must_change_password ? 'change_required' : client.password_status === 'temporary' ? 'temporary' : 'active', must_change_password: Boolean(client.must_change_password), last_login_at: client.portal_last_login_at || null, password_changed_at: client.password_changed_at || null, active_sessions: Number(client.portal_active_sessions || 0), temporary_expires_at: client.temporary_expires_at || null };
+    const reset = demoResetRows(database).filter(item => item.client_id === Number(client.id) && !item.used_at && !item.revoked_at && item.expires_at > Date.now()).sort((a, b) => b.expires_at - a.expires_at)[0];
+    return { account_exists: hasPassword, has_password: hasPassword, access_enabled: hasPassword && client.portal_enabled === true, portal_access: !hasPassword ? 'no_account' : client.portal_enabled === true ? 'enabled' : 'disabled', credential_state: !hasPassword ? 'no_account' : client.must_change_password ? 'change_required' : 'active', must_change_password: Boolean(client.must_change_password), last_login_at: client.portal_last_login_at || null, password_changed_at: client.password_changed_at || null, active_sessions: Number(client.portal_active_sessions || 0), reset_pending: Boolean(reset), reset_expires_at: reset ? new Date(reset.expires_at).toISOString() : null };
   }
   if ((match = route.match(/^\/clients\/(\d+)\/credentials\/password$/)) && options.method === 'POST') {
-    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
-    const nextPassword = String(body.new_password || ''); const confirmation = String(body.confirm_password || ''); const requireChange = Boolean(body.require_change);
+    requireDemoOwner(); const client = scopedDemoClient(database, match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
+    const nextPassword = String(body.password || body.new_password || ''); const confirmation = String(body.confirm_password || '');
     if (nextPassword !== confirmation) throw formationDemoError('تأكيد كلمة المرور غير مطابق.', 'password_confirmation_mismatch');
     if (!validDemoClientPassword(nextPassword)) throw formationDemoError('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.', 'weak_password');
-    const clientId = Number(client.id); const nextHash = await demoSecretHash(nextPassword); const currentHash = client.password_status === 'temporary' ? demoTemporaryVerifiers.get(clientId) : demoPermanentVerifiers.get(clientId);
+    const clientId = Number(client.id); const nextHash = await demoSecretHash(nextPassword); const currentHash = currentDemoVerifier(client);
     if (currentHash === nextHash) throw formationDemoError('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.', 'password_reuse');
-    if ((demoPasswordHistory.get(clientId) || []).includes(nextHash)) throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse');
-    if (currentHash) rememberDemoVerifier(clientId, currentHash);
+    if (demoVerifierHistory(client).includes(nextHash)) throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse');
+    if (currentHash) rememberDemoVerifier(client, currentHash);
     const hadAccount = Boolean(client.portal_account_exists); const accessEnabled = Boolean(hadAccount && client.portal_enabled === true);
-    demoTemporaryVerifiers.delete(clientId); demoPermanentVerifiers.set(clientId, nextHash);
-    Object.assign(client, { portal_account_exists: true, password_status: 'active', must_change_password: requireChange, password_changed_at: nowText(), credential_version: Number(client.credential_version || 0) + 1, temporary_expires_at: null, portal_active_sessions: 0 });
+    setDemoVerifier(client, nextHash);
+    Object.assign(client, { portal_account_exists: true, password_status: 'active', must_change_password: false, password_changed_at: nowText(), credential_version: Number(client.credential_version || 0) + 1, temporary_expires_at: null, portal_active_sessions: 0 });
     if (!hadAccount) client.portal_enabled = false;
+    demoResetRows(database).forEach(item => { if (item.client_id === clientId && !item.used_at) item.revoked_at = Date.now(); });
     demoCredentialSessionVersion = null;
-    demoAudit(database, 'client_password_set', 'users', clientId, null, { client_id: clientId, require_change: requireChange, access_enabled: accessEnabled, sessions_revoked: true }); writeDatabase(database);
-    return { updated: true, has_password: true, access_enabled: accessEnabled, portal_access: accessEnabled ? 'enabled' : 'disabled', must_change_password: requireChange };
+    demoAudit(database, 'client_password_set', 'users', clientId, null, { client_id: clientId, access_enabled: accessEnabled, sessions_revoked: true, reset_tokens_revoked: true }); writeDatabase(database);
+    return { updated: true, has_password: true, access_enabled: accessEnabled, portal_access: accessEnabled ? 'enabled' : 'disabled', must_change_password: false };
+  }
+  if ((match = route.match(/^\/clients\/(\d+)\/credentials\/reset$/)) && options.method === 'POST') {
+    requireDemoOwner(); const client = scopedDemoClient(database, match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found'); if (!client.portal_account_exists) throw formationDemoError('عيّن كلمة مرور للعميل أولًا.', 'client_credential_required');
+    const now = Date.now(); const activeIssueRows = demoResetIssueRows(database).filter(item => Number(item.issued_at) > now - 900000);
+    database.credential_reset_issue_times = activeIssueRows;
+    const principalIssueRows = activeIssueRows.filter(item => Number(item.organization_id) === Number(demoOrganizationId) && Number(item.user_id) === Number(demoUserId));
+    if (principalIssueRows.length >= 5) { const error = formationDemoError('تم الوصول للحد الآمن لإنشاء روابط إعادة التعيين. حاول بعد 15 دقيقة.', 'password_reset_rate_limited'); error.status = 429; throw error; }
+    activeIssueRows.push({ organization_id: demoOrganizationId, user_id: demoUserId, issued_at: now }); const raw = createDemoResetToken(); const tokenHash = await demoSecretHash(raw); const expiresAt = now + 1800000;
+    const rows = demoResetRows(database); rows.forEach(item => { if (item.client_id === Number(client.id) && !item.used_at) item.revoked_at = now; });
+    rows.push({ organization_id: demoOrganizationId, client_id: Number(client.id), digest: tokenHash, expires_at: expiresAt, used_at: null, revoked_at: null, completion_nonce: null, completion_started_at: null });
+    demoAudit(database, 'client_password_reset_issued', 'password_reset_tokens', now, null, { client_id: Number(client.id), expires_at: new Date(expiresAt).toISOString() }); writeDatabase(database);
+    const origin = typeof window !== 'undefined' && typeof window.location?.origin === 'string' ? window.location.origin : 'http://127.0.0.1:4317';
+    return { reset_url: `${origin}/reset-password?demo=1#${raw}`, expires_at: new Date(expiresAt).toISOString() };
+  }
+  if (route === '/auth/password-reset/validate' && options.method === 'POST') {
+    if (!demoCsrfReady) { const error = formationDemoError('انتهت صلاحية حماية الطلب. حدّث الصفحة ثم حاول مرة أخرى.', 'csrf_failed'); error.status = 403; throw error; }
+    const raw = String(body.token || ''); const tokenHash = /^[a-f0-9]{64}$/.test(raw) ? await demoSecretHash(raw) : ''; const item = tokenHash ? demoResetRows(database).find(row => row.digest === tokenHash) : null;
+    if (!item || item.used_at || item.revoked_at || item.expires_at <= Date.now()) throw formationDemoError('هذا الرابط غير صالح أو انتهت مدته.', 'invalid_reset_link');
+    return { valid: true, expires_at: new Date(item.expires_at).toISOString() };
+  }
+  if (route === '/auth/password-reset/complete' && options.method === 'POST') {
+    if (!demoCsrfReady) { const error = formationDemoError('انتهت صلاحية حماية الطلب. حدّث الصفحة ثم حاول مرة أخرى.', 'csrf_failed'); error.status = 403; throw error; }
+    const raw = String(body.token || ''); const tokenHash = /^[a-f0-9]{64}$/.test(raw) ? await demoSecretHash(raw) : ''; let working = readDatabase(); let item = tokenHash ? demoResetRows(working).find(row => row.digest === tokenHash) : null; const now = Date.now();
+    if (!item || item.used_at || item.revoked_at || item.expires_at <= now || item.completion_nonce && Number(item.completion_started_at || 0) > now - 30000) throw formationDemoError('هذا الرابط غير صالح أو انتهت مدته.', 'invalid_reset_link');
+    const next = String(body.password || ''); if (next !== String(body.confirm_password || '')) throw formationDemoError('تأكيد كلمة المرور غير مطابق.', 'password_confirmation_mismatch'); if (!validDemoClientPassword(next)) throw formationDemoError('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.', 'weak_password');
+    const nonce = createDemoResetToken(); item.completion_nonce = nonce; item.completion_started_at = now; writeDatabase(working);
+    const releaseReservation = () => { const latest = readDatabase(); const reserved = demoResetRows(latest).find(row => row.digest === tokenHash); if (reserved?.completion_nonce === nonce && !reserved.used_at) { reserved.completion_nonce = null; reserved.completion_started_at = null; writeDatabase(latest); } };
+    const clientId = Number(item.client_id); const reservedClient = findById(working, 'clients', clientId); const nextHash = await demoSecretHash(next); const currentHash = currentDemoVerifier(reservedClient);
+    if (nextHash === currentHash) { releaseReservation(); throw formationDemoError('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.', 'password_reuse'); } if (demoVerifierHistory(reservedClient).includes(nextHash)) { releaseReservation(); throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse'); }
+    working = readDatabase(); item = demoResetRows(working).find(row => row.digest === tokenHash); if (!item || item.completion_nonce !== nonce || item.used_at || item.revoked_at || item.expires_at <= Date.now()) throw formationDemoError('هذا الرابط غير صالح أو انتهت مدته.', 'invalid_reset_link');
+    const client = findById(working, 'clients', item.client_id); if (currentHash) rememberDemoVerifier(client, currentHash); setDemoVerifier(client, nextHash); item.used_at = Date.now(); item.completion_nonce = null; item.completion_started_at = null; demoResetRows(working).forEach(other => { if (other.digest !== tokenHash && other.client_id === item.client_id && !other.used_at) other.revoked_at = Date.now(); });
+    Object.assign(client, { password_status: 'active', must_change_password: false, temporary_expires_at: null, password_changed_at: nowText(), credential_version: Number(client.credential_version || 0) + 1, portal_active_sessions: 0 }); demoCredentialSessionVersion = null;
+    demoAudit(working, 'client_password_reset_completed', 'users', Number(client.id), null, { client_id: Number(client.id), sessions_revoked: true }); writeDatabase(working); return { updated: true };
   }
   if ((match = route.match(/^\/clients\/(\d+)\/credentials\/temporary$/)) && options.method === 'POST') {
-    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
-    const temporaryPassword = createDemoTemporaryPassword(); const expiresAt = new Date(Date.now() + 86400000).toISOString();
-    const clientId = Number(client.id); const existingPermanent = demoPermanentVerifiers.get(clientId); if (existingPermanent) rememberDemoVerifier(clientId, existingPermanent);
-    demoTemporaryVerifiers.set(clientId, await demoSecretHash(temporaryPassword));
-    const hadAccount = Boolean(client.portal_account_exists);
-    Object.assign(client, { portal_account_exists: true, password_status: 'temporary', must_change_password: true, credential_version: Number(client.credential_version || 0) + 1, temporary_expires_at: expiresAt, portal_active_sessions: 0 });
-    if (!hadAccount) client.portal_enabled = false;
-    demoAudit(database, 'temporary_credential_issued', 'users', Number(client.id), null, { client_id: Number(client.id), expires_at: expiresAt, sessions_revoked: true }); writeDatabase(database);
-    return { temporary_password: temporaryPassword, expires_at: expiresAt, login_identifier: client.phone1 || client.email, portal_access: client.portal_enabled === false ? 'disabled' : 'enabled' };
+    const error = formationDemoError('تم إيقاف هذا المسار. استخدم التغيير المباشر أو رابط إعادة التعيين.', 'credential_issue_retired'); error.status = 410; throw error;
   }
   if ((match = route.match(/^\/clients\/(\d+)\/credentials\/sessions\/revoke$/)) && options.method === 'POST') {
-    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client?.portal_account_exists) throw formationDemoError('حساب دخول العميل غير موجود.', 'client_account_not_found'); const count = Number(client.portal_active_sessions || 0); client.portal_active_sessions = 0; client.credential_version = Number(client.credential_version || 0) + 1; demoAudit(database, 'client_sessions_revoked', 'users', Number(client.id), null, { client_id: Number(client.id), session_count: count }); writeDatabase(database); return { revoked: true, count };
+    requireDemoOwner(); const client = scopedDemoClient(database, match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found'); if (!client.portal_account_exists) throw formationDemoError('حساب دخول العميل غير موجود.', 'client_account_not_found'); const count = Number(client.portal_active_sessions || 0); client.portal_active_sessions = 0; client.credential_version = Number(client.credential_version || 0) + 1; demoAudit(database, 'client_sessions_revoked', 'users', Number(client.id), null, { client_id: Number(client.id), session_count: count }); writeDatabase(database); return { revoked: true, count };
   }
   if ((match = route.match(/^\/clients\/(\d+)\/credentials\/toggle$/)) && options.method === 'POST') {
-    requireDemoOwner(); const client = findById(database, 'clients', match[1]); if (!client?.portal_account_exists) throw formationDemoError('عيّن كلمة مرور أولًا لإنشاء حساب العميل.', 'client_credential_required'); client.portal_enabled = Boolean(body.enabled); client.portal_active_sessions = 0; client.credential_version = Number(client.credential_version || 0) + 1; demoCredentialSessionVersion = null; demoAudit(database, body.enabled ? 'client_portal_enabled' : 'client_portal_disabled', 'users', Number(client.id), null, { client_id: Number(client.id), enabled: Boolean(body.enabled), sessions_revoked: true }); writeDatabase(database); return { enabled: Boolean(body.enabled) };
+    requireDemoOwner(); const client = scopedDemoClient(database, match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found'); if (!client.portal_account_exists) throw formationDemoError('عيّن كلمة مرور أولًا لإنشاء حساب العميل.', 'client_credential_required'); client.portal_enabled = Boolean(body.enabled); client.portal_active_sessions = 0; client.credential_version = Number(client.credential_version || 0) + 1; demoCredentialSessionVersion = null; demoAudit(database, body.enabled ? 'client_portal_enabled' : 'client_portal_disabled', 'users', Number(client.id), null, { client_id: Number(client.id), enabled: Boolean(body.enabled), sessions_revoked: true }); writeDatabase(database); return { enabled: Boolean(body.enabled) };
   }
   if (route === '/auth/password' && options.method === 'PATCH') {
-    if (demoRole !== 'client') throw formationDemoError('غير مصرح.', 'forbidden'); const client = findById(database, 'clients', 1); if (!client?.must_change_password) throw formationDemoError('لا توجد كلمة مرور معلقة للتغيير.', 'password_change_not_required'); if (!validDemoClientPassword(body.password)) throw formationDemoError('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.', 'weak_password'); const clientId = Number(client.id); const nextHash = await demoSecretHash(body.password); const currentHash = client.password_status === 'temporary' ? demoTemporaryVerifiers.get(clientId) : demoPermanentVerifiers.get(clientId); if (nextHash === currentHash) throw formationDemoError('اختر كلمة مرور مختلفة عن كلمة المرور الحالية أو المؤقتة.', 'password_reuse'); if ((demoPasswordHistory.get(clientId) || []).includes(nextHash)) throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse'); if (currentHash) rememberDemoVerifier(clientId, currentHash); demoTemporaryVerifiers.delete(clientId); demoPermanentVerifiers.set(clientId, nextHash); Object.assign(client, { must_change_password: false, password_status: 'active', password_changed_at: nowText(), temporary_expires_at: null, portal_active_sessions: 1, credential_version: Number(client.credential_version || 0) + 1 }); demoCredentialSessionVersion = Number(client.credential_version); demoAudit(database, 'password_changed', 'users', Number(client.id), null, { client_id: Number(client.id), forced: true, sessions_revoked: true }); writeDatabase(database); return { updated: true, session: { active: true }, user: { id: 'local-client', client_id: 'local-client-preview', full_name: `${client.name} (معاينة محلية)`, email: client.email, phone: client.phone1, role: 'client', permissions: ['client_portal'], must_change_password: false, password_status: 'active', credential_version: Number(client.credential_version), credential_managed: true, is_local_preview: true } };
+    if (demoRole !== 'client') throw formationDemoError('غير مصرح.', 'forbidden'); const client = findById(database, 'clients', 1); const forced = Boolean(client?.must_change_password); const next = String(body.password || ''); const confirmation = String(body.confirm_password || '');
+    if (next !== confirmation) throw formationDemoError('تأكيد كلمة المرور غير مطابق.', 'password_confirmation_mismatch'); if (!validDemoClientPassword(next)) throw formationDemoError('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.', 'weak_password');
+    const clientId = Number(client.id); const nextHash = await demoSecretHash(next); const currentHash = currentDemoVerifier(client); if (!forced && await demoSecretHash(String(body.current_password || '')) !== currentHash) throw formationDemoError('كلمة المرور الحالية غير صحيحة.', 'invalid_password'); if (nextHash === currentHash) throw formationDemoError('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.', 'password_reuse'); if (demoVerifierHistory(client).includes(nextHash)) throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse');
+    if (currentHash) rememberDemoVerifier(client, currentHash); setDemoVerifier(client, nextHash); demoResetRows(database).forEach(item => { if (item.client_id === clientId && !item.used_at) item.revoked_at = Date.now(); }); Object.assign(client, { must_change_password: false, password_status: 'active', password_changed_at: nowText(), temporary_expires_at: null, portal_active_sessions: 1, credential_version: Number(client.credential_version || 0) + 1 }); demoCredentialSessionVersion = Number(client.credential_version); demoAudit(database, 'password_changed', 'users', Number(client.id), null, { client_id: Number(client.id), forced, sessions_revoked: true }); writeDatabase(database); return { updated: true, session: { active: true }, user: { id: 'local-client', client_id: 'local-client-preview', full_name: `${client.name} (معاينة محلية)`, email: client.email, phone: client.phone1, role: 'client', permissions: ['client_portal'], must_change_password: false, password_status: 'active', credential_version: Number(client.credential_version), credential_managed: true, is_local_preview: true } };
   }
 
   if ((match = route.match(/^\/owner\/records\/([a-z_]+)\/(\d+)\/impact$/)) && (options.method || 'GET') === 'GET') { const impact = demoOwnerImpact(database, match[1], match[2]); const result = clone(impact); delete result.record; return result; }
@@ -1708,6 +1848,76 @@ const demoRequest = async (path, options = {}) => {
     return { id: row.id, promotion_id: promotion.id, subscribed: true, already_subscribed: !created };
   }
 
+  if (route === '/post-production' && (options.method || 'GET') === 'GET') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض المونتاج.', 'forbidden');
+    const requested = url.searchParams.get('status') || 'editing_in_progress,editing_completed,uploading,upload_completed,ready_for_pickup'; const allowed = requested === 'all' ? null : requested.split(',').filter(status => DEMO_POST_PRODUCTION_STATUSES.includes(status));
+    if (requested !== 'all' && !allowed.length) throw formationDemoError('فلتر حالة المونتاج غير صحيح.', 'invalid_post_production_status_filter');
+    const clientFilter = Number(url.searchParams.get('client_id') || 0); const search = String(url.searchParams.get('search') || '').trim().toLocaleLowerCase('ar');
+    const items = demoPostProductionRows(database, false).filter(item => (!allowed || allowed.includes(item.status)) && (!clientFilter || Number(item.client_id) === clientFilter) && (!search || `${item.client_name} ${item.service} ${item.package_name || ''} ${item.booking_id}`.toLocaleLowerCase('ar').includes(search)));
+    return { items, statuses: clone(DEMO_POST_PRODUCTION_STATUSES), server_now: nowIso() };
+  }
+  if (route === '/client/post-production' && (options.method || 'GET') === 'GET') {
+    if (demoRole !== 'client') throw formationDemoError('هذه الصفحة متاحة للعميل فقط.', 'forbidden');
+    return { items: demoPostProductionRows(database, true), server_now: nowIso() };
+  }
+  if ((match = route.match(/^\/post-production\/(\d+)\/status$/)) && options.method === 'PATCH') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لتحديث المونتاج.', 'forbidden');
+    const working = clone(database); const job = findById(working, 'post_production_jobs', match[1]); const next = String(body.status || ''); const expected = Number(body.expected_version);
+    if (!job) throw formationDemoError('جلسة المونتاج غير موجودة.', 'post_production_not_found');
+    if (!DEMO_POST_PRODUCTION_STATUSES.includes(next) || !Number.isSafeInteger(expected) || expected < 1) throw formationDemoError('حالة المونتاج أو نسخة السجل غير صحيحة.', 'invalid_post_production_update');
+    const currentVersion = Number(job.version);
+    if (job.status === next && [currentVersion, currentVersion - 1].includes(expected)) return { item: demoPostProductionRows(working, false).find(item => Number(item.id) === Number(job.id)), idempotent: true };
+    if (currentVersion !== expected) { const error = formationDemoError('تم تحديث هذه الجلسة من مستخدم آخر. حدّث الصفحة وحاول مرة أخرى.', 'post_production_version_conflict'); error.status = 409; throw error; }
+    if (!demoPostProductionNext(job.status).includes(next)) { const error = formationDemoError('لا يمكن الرجوع أو تجاوز مراحل المونتاج. اختر الخطوة التالية المتاحة.', 'invalid_post_production_transition'); error.status = 409; throw error; }
+    const before = clone(job); Object.assign(job, { status: next, version: expected + 1, status_changed_at: nowText(), updated_at: nowText(), updated_by: Number(demoUserId || 1) });
+    addRow(working, 'post_production_status_history', { post_production_job_id: job.id, from_status: before.status, to_status: next, version: job.version, changed_at: nowText() });
+    demoAudit(working, 'post_production_status_changed', 'post_production_jobs', job.id, before, { ...clone(job), client_id: job.client_id });
+    const notification = Number(job.is_client_visible) === 1 && Number(job.needs_review) === 0 ? demoPostProductionNotification(next) : null;
+    if (notification) { const [type, title, message, actionTab, severity] = notification; demoCreateClientNotification(working, { clientId: job.client_id, type, title, message, entityType: 'post_production_jobs', entityId: job.id, actionTab, severity, sourceEventKey: `post-production:${job.id}:version:${job.version}`, payload: { post_production_job_id: job.id, booking_id: job.booking_id } }); }
+    writeDatabase(working); return { id: job.id, status: job.status, version: job.version, idempotent: false };
+  }
+  if ((match = route.match(/^\/post-production\/(\d+)\/delivery-links$/)) && options.method === 'PUT') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لتحديث روابط التسليم.', 'forbidden');
+    const working = clone(database); const job = findById(working, 'post_production_jobs', match[1]); const expected = Number(body.expected_version); const links = demoValidateDriveLinks(body.links);
+    if (!job) throw formationDemoError('جلسة المونتاج غير موجودة.', 'post_production_not_found');
+    if (!Number.isSafeInteger(expected) || expected < 1) throw formationDemoError('نسخة السجل مطلوبة.', 'invalid_post_production_version');
+    const before = tableRows(working, 'video_delivery_links').filter(item => Number(item.post_production_job_id) === Number(job.id)).sort((a, b) => Number(a.sort_order) - Number(b.sort_order)).map(({ title, link_kind, url, url_hash, sort_order, is_active }) => ({ title, link_kind, url, url_hash, sort_order, is_active }));
+    const currentVersion = Number(job.version); const exactReplay = JSON.stringify(before) === JSON.stringify(links);
+    if (exactReplay && [currentVersion, currentVersion - 1].includes(expected)) return { id: job.id, version: job.version, links: clone(before), idempotent: true };
+    if (currentVersion !== expected) { const error = formationDemoError('تم تحديث الروابط من مستخدم آخر. حدّث الصفحة وحاول ثانية.', 'post_production_version_conflict'); error.status = 409; throw error; }
+    working.video_delivery_links = tableRows(working, 'video_delivery_links').filter(item => Number(item.post_production_job_id) !== Number(job.id)); links.forEach(link => addRow(working, 'video_delivery_links', { ...link, post_production_job_id: job.id }));
+    job.version = expected + 1; job.updated_at = nowText(); demoAudit(working, 'post_production_links_changed', 'post_production_jobs', job.id, { links: before, version: expected }, { links, version: job.version, client_id: job.client_id });
+    writeDatabase(working); return { id: job.id, version: job.version, links: clone(links), idempotent: false };
+  }
+  if ((match = route.match(/^\/post-production\/(\d+)\/publish$/)) && options.method === 'POST') {
+    if (!['owner', 'admin'].includes(demoRole)) throw formationDemoError('نشر السجلات القديمة يحتاج المالك أو الإدارة.', 'forbidden');
+    const working = clone(database); const job = findById(working, 'post_production_jobs', match[1]); const expected = Number(body.expected_version); const status = String(body.status || '');
+    if (!job) throw formationDemoError('جلسة المونتاج غير موجودة.', 'post_production_not_found');
+    if (!DEMO_POST_PRODUCTION_STATUSES.includes(status) || expected !== Number(job.version)) { const error = formationDemoError('تم تحديث السجل أو الحالة غير صحيحة.', 'post_production_version_conflict'); error.status = 409; throw error; }
+    if (!Number(job.needs_review) && Number(job.is_client_visible) === 1 && job.status === status) return { id: job.id, version: job.version, idempotent: true };
+    const before = clone(job); Object.assign(job, { status, version: expected + 1, status_changed_at: nowText(), needs_review: 0, is_client_visible: 1, updated_at: nowText() }); addRow(working, 'post_production_status_history', { post_production_job_id: job.id, from_status: before.status, to_status: status, version: job.version, changed_at: nowText() }); demoAudit(working, 'post_production_legacy_published', 'post_production_jobs', job.id, before, { ...clone(job), client_id: job.client_id }); writeDatabase(working); return { id: job.id, version: job.version, published: true };
+  }
+  if ((match = route.match(/^\/post-production\/(\d+)\/pickup-availability$/)) && (options.method || 'GET') === 'GET') {
+    if (!['owner', 'admin', 'operations', 'client'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض فترة الاستلام.', 'forbidden');
+    const job = findById(database, 'post_production_jobs', match[1]);
+    if (!job || demoRole === 'client' && (Number(job.client_id) !== 1 || Number(job.is_client_visible) !== 1 || Number(job.needs_review) !== 0)) throw formationDemoError('مهمة المونتاج غير موجودة أو غير متاحة.', 'post_production_not_found');
+    const current = clone(database.pickup_availability_by_job?.[String(job.id)] || { revision: 0, expires_at: null, windows: [] }); const expired = current.expires_at && new Date(current.expires_at).getTime() <= Date.now(); return expired ? { revision: Number(current.revision || 0), expires_at: current.expires_at, windows: [], expired: true } : { ...current, expired: false };
+  }
+  if ((match = route.match(/^\/post-production\/(\d+)\/pickup-availability$/)) && options.method === 'PUT') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لتحديث فترة الاستلام.', 'forbidden');
+    const working = clone(database); const job = findById(working, 'post_production_jobs', match[1]); if (!job) throw formationDemoError('مهمة المونتاج غير موجودة أو غير متاحة.', 'post_production_not_found');
+    if (!working.pickup_availability_by_job || typeof working.pickup_availability_by_job !== 'object') working.pickup_availability_by_job = {};
+    const current = working.pickup_availability_by_job[String(job.id)] || { revision: 0, expires_at: null, windows: [] }; const expected = Number(body.expected_revision); const expiry = new Date(String(body.expires_at || '')); const windows = Array.isArray(body.windows) ? body.windows : null;
+    if (!Number.isSafeInteger(expected) || expected < 0) throw formationDemoError('نسخة مواعيد الاستلام مطلوبة.', 'invalid_pickup_revision');
+    if (Number.isNaN(expiry.getTime()) || expiry <= new Date() || expiry.getTime() > Date.now() + 7 * 86400000) throw formationDemoError('انتهاء المواعيد المؤقتة يجب أن يكون خلال الأيام السبعة القادمة.', 'invalid_pickup_expiry');
+    if (!windows || windows.length > 20) throw formationDemoError('أضف حتى 20 فترة استلام مؤقتة.', 'invalid_pickup_windows');
+    const normalized = windows.map(window => { const date = String(window.date || ''); const start = String(window.start_time || ''); const end = String(window.end_time || ''); const label = String(window.label || 'متاحون في الشركة').trim().replace(/\s+/g, ' ').slice(0, 100); if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(start) || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(end) || end <= start || !label || new Date(`${date}T${start}:00+03:00`) <= new Date()) throw formationDemoError('راجع تاريخ ووقت فترة الاستلام.', 'invalid_pickup_window'); return { date, start_time: start, end_time: end, label }; }).sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`));
+    const desired = { expires_at: expiry.toISOString(), windows: normalized }; const currentRevision = Number(current.revision || 0); const exactReplay = String(current.expires_at || '') === desired.expires_at && JSON.stringify(current.windows || []) === JSON.stringify(desired.windows);
+    if (exactReplay && [currentRevision, currentRevision - 1].includes(expected)) return { ...clone(current), expired: false, idempotent: true };
+    if (expected !== currentRevision) { const error = formationDemoError('تم تعديل مواعيد هذه المهمة من مستخدم آخر. حدّث الصفحة.', 'pickup_revision_conflict'); error.status = 409; throw error; }
+    working.pickup_availability_by_job[String(job.id)] = { revision: expected + 1, ...desired }; writeDatabase(working); return { ...clone(working.pickup_availability_by_job[String(job.id)]), expired: false, idempotent: false };
+  }
+
   if (route === '/sync' && (options.method || 'GET') === 'GET') {
     const cursor = Math.max(0, Number(url.searchParams.get('cursor') || 0)); const clientId = demoRole === 'client' ? 1 : null;
     const visible = tableRows(database, 'change_events').filter(event => !clientId || Number(event.client_id) === clientId || event.topic === 'services').sort((a, b) => Number(a.id) - Number(b.id));
@@ -1720,7 +1930,7 @@ const demoRequest = async (path, options = {}) => {
     if (demoRole === 'client' && demoMaterializePackageLifecycleNotifications(database, 1) > 0) writeDatabase(database);
     const status = url.searchParams.get('status') || 'all'; const type = url.searchParams.get('type') || ''; const channel = url.searchParams.get('channel') || ''; const cursor = Number(url.searchParams.get('cursor') || 0); const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit') || 20))); const clientId = demoRole === 'client' ? 1 : null;
     let visible = database.app_notifications.filter(item => !item.dismissed_at && (channel === 'client-actions' ? demoRole === 'owner' && item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId) : clientId ? item.audience === 'client' && Number(item.client_id) === clientId : item.audience === 'staff'));
-    const unreadCount = visible.filter(item => !item.read_at).length; if (status === 'unread') visible = visible.filter(item => !item.read_at); if (type) visible = visible.filter(item => item.type === type); if (cursor) visible = visible.filter(item => Number(item.id) < cursor); visible.sort((a, b) => Number(b.id) - Number(a.id)); const items = visible.slice(0, limit).map(item => { const safe = {}; ['id', 'type', 'title', 'message', 'entity_type', 'entity_id', 'severity', 'action_tab', 'payload', 'read_at', 'created_at'].forEach(key => { if (Object.prototype.hasOwnProperty.call(item, key)) safe[key] = clone(item[key]); }); return safe; });
+    const unreadCount = visible.filter(item => !item.read_at).length; if (status === 'unread') visible = visible.filter(item => !item.read_at); if (type) visible = visible.filter(item => item.type === type); if (cursor) visible = visible.filter(item => Number(item.id) < cursor); visible.sort((a, b) => Number(b.id) - Number(a.id)); const items = visible.slice(0, limit).map(item => { const safe = {}; ['id', 'type', 'title', 'message', 'entity_type', 'entity_id', 'severity', 'action_tab', 'payload', 'read_at', 'created_at'].forEach(key => { if (Object.prototype.hasOwnProperty.call(item, key)) safe[key] = clone(item[key]); }); if (safe.action_tab === 'montage') safe.action_tab = 'videos'; return safe; });
     return { items, unread_count: unreadCount, next_cursor: visible.length > limit ? Number(items.at(-1)?.id || 0) || null : null };
   }
   if ((match = route.match(/^\/app-notifications\/(\d+)\/read$/)) && options.method === 'POST') { const item = findById(database, 'app_notifications', match[1]); const scoped = item && !item.dismissed_at && (demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === 1 : item.audience === 'staff' || item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId)); if (scoped && !item.read_at) { item.read_at = nowText(); addRow(database, 'change_events', { client_id: item.client_id || null, topic: 'notifications', entity_type: 'app_notifications', entity_id: item.id, action: 'read' }); } writeDatabase(database); return { read: true, changed: Boolean(scoped) }; }
@@ -1730,10 +1940,10 @@ const demoRequest = async (path, options = {}) => {
   return { demo: true };
 };
 
-export const activateDemoMode = (role = 'owner', userId = 1) => { demoMode = true; demoRole = role; demoUserId = Number(userId) || 1; readDatabase(); };
-export const deactivateDemoMode = () => { demoMode = false; demoRole = 'owner'; demoUserId = 1; demoCredentialSessionVersion = null; };
+export const activateDemoMode = (role = 'owner', userId = 1, organizationId = 1) => { demoMode = true; demoRole = role; demoUserId = Number(userId) || 1; demoOrganizationId = Number(organizationId) || 1; readDatabase(); };
+export const deactivateDemoMode = () => { demoMode = false; demoRole = 'owner'; demoUserId = 1; demoOrganizationId = 1; demoCsrfReady = false; demoCredentialSessionVersion = null; };
 export const isDemoModeActive = () => demoMode;
-export const resetDemoDatabase = () => { demoTemporaryVerifiers.clear(); demoPermanentVerifiers.clear(); demoPasswordHistory.clear(); demoCredentialSessionVersion = null; const database = createDemoDatabase(); writeDatabase(database); return database; };
+export const resetDemoDatabase = () => { demoCsrfReady = false; demoCredentialSessionVersion = null; const database = createDemoDatabase(); writeDatabase(database); return database; };
 export const isDemoCredentialSessionCurrent = user => {
   if (!user?.credential_managed) return true;
   const client = readDatabase().clients.find(item => Number(item.id) === 1);
@@ -1748,9 +1958,9 @@ export const authenticateDemoClientCredential = async (identifier, password) => 
   const database = readDatabase(); const identity = String(identifier || '').trim().toLowerCase();
   const client = database.clients.find(item => String(item.phone1 || '') === identity || String(item.email || '').toLowerCase() === identity);
   if (!client?.portal_account_exists || client.portal_enabled === false) return null;
-  const clientId=Number(client.id);const supplied=await demoSecretHash(password);const forced=Boolean(client.must_change_password);const temporary=client.password_status==='temporary';
-  if(temporary&&(!client.temporary_expires_at||new Date(client.temporary_expires_at).getTime()<=Date.now()||demoTemporaryVerifiers.get(clientId)!==supplied))return null;
-  if(!temporary&&demoPermanentVerifiers.get(clientId)!==supplied)return null;
+  const supplied=await demoSecretHash(password);const forced=Boolean(client.must_change_password);const temporary=client.password_status==='temporary';const verifier=currentDemoVerifier(client);
+  if(temporary&&(!client.temporary_expires_at||new Date(client.temporary_expires_at).getTime()<=Date.now()||verifier!==supplied))return null;
+  if(!temporary&&verifier!==supplied)return null;
   activateDemoMode('client'); demoCredentialSessionVersion=Number(client.credential_version||0);client.portal_active_sessions=1;client.portal_last_login_at=nowText();writeDatabase(database);
   return { id:'local-client',client_id:'local-client-preview',full_name:`${client.name} (معاينة محلية)`,email:client.email,phone:client.phone1,role:'client',permissions:['client_portal'],must_change_password:forced,password_status:client.password_status||'active',credential_version:Number(client.credential_version||0),credential_managed:true,is_local_preview:true };
 };
@@ -1759,11 +1969,11 @@ const listeners = new Set();
 export const demoClient = {
   from(table) { return new DemoQueryBuilder(table); },
   auth: {
-    async getSession() { return { data: { session: null }, error: null }; },
+    async getSession() { demoCsrfReady = true; return { data: { session: null }, error: null }; },
     async getUser() { return { data: { user: null }, error: null }; },
     onAuthStateChange(callback) { listeners.add(callback); return { data: { subscription: { unsubscribe: () => listeners.delete(callback) } } }; },
     async signOut() { deactivateDemoMode(); return { error: null }; },
-    async updateUser({ password }) { try { const data = await demoRequest('/auth/password', { method: 'PATCH', body: JSON.stringify({ password }) }); const session = { ...(data.session || {}), user: data.user }; listeners.forEach(listener => listener('USER_UPDATED', session)); return { data, error: null }; } catch (error) { return { data: null, error }; } },
+    async updateUser({ password, currentPassword, confirmPassword }) { try { const data = await demoRequest('/auth/password', { method: 'PATCH', body: JSON.stringify({ password, current_password: currentPassword, confirm_password: confirmPassword ?? password }) }); const session = { ...(data.session || {}), user: data.user }; listeners.forEach(listener => listener('USER_UPDATED', session)); return { data, error: null }; } catch (error) { return { data: null, error }; } },
   },
   channel() { return { on() { return this; }, subscribe() { return this; }, unsubscribe() {} }; },
   removeChannel() {},

@@ -1,6 +1,16 @@
 const APP_ORIGIN = self.location.origin;
 const DEFAULT_URL = '/login?source=android-notification';
 
+const normalizeDestination = value => {
+  try {
+    const target = new URL(value || DEFAULT_URL, APP_ORIGIN);
+    if (target.origin === APP_ORIGIN && target.pathname === '/dashboard' && target.searchParams.get('tab') === 'montage') {
+      target.searchParams.set('tab', 'videos');
+    }
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch { return DEFAULT_URL; }
+};
+
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 
@@ -16,7 +26,7 @@ self.addEventListener('push', event => {
   const notification = payload.notification || {};
   const title = notification.title || data.title || 'MT Agency';
   const body = notification.body || data.body || 'لديك تحديث جديد في حسابك.';
-  const destination = data.url || notification.click_action || DEFAULT_URL;
+  const destination = normalizeDestination(data.url || notification.click_action || DEFAULT_URL);
   const options = {
     body,
     icon: '/app-icon.svg',
@@ -32,7 +42,7 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || DEFAULT_URL, APP_ORIGIN).href;
+  const target = new URL(normalizeDestination(event.notification.data?.url || DEFAULT_URL), APP_ORIGIN).href;
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windows) {

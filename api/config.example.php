@@ -19,6 +19,9 @@ return [
         'max_sessions_per_user' => 5,
         // Keep customer documents outside public_html.
         'upload_dir' => dirname(__DIR__, 2) . '/private_uploads/payment-proofs',
+        // Short-lived pickup availability JSON. This directory must already
+        // exist, be writable by PHP, and remain outside public_html.
+        'private_runtime_dir' => dirname(__DIR__, 2) . '/private_runtime/pickup-availability',
         'max_upload_bytes' => 5 * 1024 * 1024,
     ],
     'whatsapp' => [

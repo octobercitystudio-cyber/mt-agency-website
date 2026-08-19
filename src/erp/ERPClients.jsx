@@ -9,7 +9,7 @@ import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
 import { ClientDirectory, ClientProfileDrawer } from './ERPClientCRM';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
-import { effectivePackageStatus, formatEGP, formatPaymentMethod, formatTime12, normalizeTime, packageFinancialSummary } from '../lib/businessFormat';
+import { effectivePackageStatus, formatDurationMinutes, formatEGP, formatPaymentMethod, formatTime12, normalizeTime, packageFinancialSummary } from '../lib/businessFormat';
 import './ERPClients.css';
 import OwnerActionDialog from './OwnerActionDialog';
 
@@ -943,16 +943,7 @@ const ERPClients = () => {
                               {(row.start_time && row.start_time !== '' && row.start_time !== '00:00') ? `${formatTime12(row.start_time)} - ${formatTime12(row.end_time, '?')}` : '-'}
                             </td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                              {row.actual_hours > 0 ? (
-                                (() => {
-                                  const h = Math.floor(row.actual_hours);
-                                  const m = Math.round((row.actual_hours - h) * 60);
-                                  if (h > 0 && m > 0) return `${h} ساعة و ${m} دقيقة`;
-                                  if (h > 0) return `${h} ساعة`;
-                                  if (m > 0) return `${m} دقيقة`;
-                                  return '-';
-                                })()
-                              ) : '-'}
+                              {row.actual_hours > 0 ? formatDurationMinutes(Number(row.actual_hours) * 60) : '-'}
                             </td>
                             <td style={{ padding: '15px', borderBottom: '1px solid var(--erp-border)', textAlign: 'center', fontWeight: 'bold' }}>
                               {(() => {

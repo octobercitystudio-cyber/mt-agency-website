@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, LoaderCircle, LockKeyhole, UserRound } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import './UnifiedLogin.css';
 
 const STAFF_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
+const CLIENT_TABS = ['home', 'schedule', 'finance', 'offers', 'videos'];
+const safeClientDestination = search => {
+  const requested = new URLSearchParams(search).get('returnTo');
+  if (!requested) return '/dashboard';
+  try {
+    const url = new URL(requested, window.location.origin); const rawTab = url.searchParams.get('tab') || 'home'; const tab = rawTab === 'montage' ? 'videos' : rawTab;
+    if (url.origin !== window.location.origin || url.pathname !== '/dashboard' || !CLIENT_TABS.includes(tab)) return '/dashboard';
+    if (rawTab === 'montage') url.searchParams.set('tab', 'videos');
+    return `${url.pathname}${url.search}`;
+  } catch { return '/dashboard'; }
+};
 
 const loginErrorMessage = loginError => {
   if (loginError?.code === 'validation_error') return 'أدخل رقم الهاتف أو البريد الإلكتروني وكلمة المرور.';
@@ -22,15 +33,18 @@ const UnifiedLogin = () => {
   const [error, setError] = useState('');
   const { loginErp, isAuthReady, currentUser } = useData();
   const navigate = useNavigate();
+  const location = useLocation();
+  const clientDestination = safeClientDestination(location.search);
 
   useEffect(() => {
     if (!isAuthReady || !currentUser?.role) return;
     if (currentUser.role === 'client') {
-      navigate(currentUser.must_change_password ? '/change-password' : '/dashboard', { replace: true });
+      const defaultClientDestination = currentUser.must_change_password ? '/change-password' : '/dashboard';
+      navigate(currentUser.must_change_password ? defaultClientDestination : clientDestination, { replace: true });
     } else if (STAFF_ROLES.includes(currentUser.role)) {
       navigate('/erp', { replace: true });
     }
-  }, [currentUser, isAuthReady, navigate]);
+  }, [clientDestination, currentUser, isAuthReady, navigate]);
 
   const handleLogin = async event => {
     event.preventDefault();
@@ -45,7 +59,7 @@ const UnifiedLogin = () => {
     try {
       const user = await loginErp(identifier.trim(), password);
       if (user?.role === 'client') {
-        navigate(user.must_change_password ? '/change-password' : '/dashboard', { replace: true });
+        navigate(user.must_change_password ? '/change-password' : clientDestination, { replace: true });
         return;
       }
       if (user && STAFF_ROLES.includes(user.role)) {
@@ -77,7 +91,7 @@ const UnifiedLogin = () => {
     setError('');
     const user = await loginErp('local-client', 'local-preview');
     if (user) {
-      navigate('/dashboard');
+      navigate(clientDestination);
       return;
     }
     setError('تعذر فتح معاينة العميل المحلية.');

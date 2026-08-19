@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Users, CalendarDays, DollarSign, LogOut, Home, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, Inbox, Package, FolderKanban, Fingerprint, FlaskConical, RotateCcw, CheckCircle2, AlertCircle, Landmark, TrendingUp } from 'lucide-react';
+import { Users, CalendarDays, DollarSign, LogOut, Home, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, Inbox, Package, FolderKanban, Fingerprint, FlaskConical, RotateCcw, CheckCircle2, AlertCircle, Landmark, TrendingUp, Clapperboard } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
 import { dataClient } from '../dataClient';
@@ -34,6 +34,7 @@ const ERPLayout = () => {
   const canOpenRequests = ['owner', 'admin', 'operations', 'finance'].includes(role);
   const canOpenPackages = ['owner', 'admin', 'operations', 'finance'].includes(role);
   const canOpenProjects = ['owner', 'admin', 'operations', 'staff'].includes(role);
+  const canOpenPostProduction = ['owner', 'admin', 'operations'].includes(role);
   const canSeeOperationsRequests = ['owner', 'admin', 'operations'].includes(role);
   const canSeeFinanceRequests = ['owner', 'admin', 'finance'].includes(role);
 
@@ -150,6 +151,11 @@ const ERPLayout = () => {
               {canOpenProjects && <li className="erp-nav-item">
                 <NavLink to="/erp/projects" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
                   <FolderKanban size={20} /> المشروعات والمحتوى
+                </NavLink>
+              </li>}
+              {canOpenPostProduction && <li className="erp-nav-item">
+                <NavLink to="/erp/post-production" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <Clapperboard size={20} /> المونتاج والتسليم
                 </NavLink>
               </li>}
               <li className="erp-nav-item">

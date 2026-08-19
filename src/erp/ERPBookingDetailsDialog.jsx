@@ -1,5 +1,5 @@
 import { CalendarClock, PlayCircle, Trash2, X } from 'lucide-react';
-import { formatBookingDate, formatTime12 } from '../lib/businessFormat';
+import { formatBookingDate, formatDurationMinutes, formatTime12 } from '../lib/businessFormat';
 import useModalDialog from '../hooks/useModalDialog';
 import './ERPBookingDetailsDialog.css';
 
@@ -14,7 +14,7 @@ export default function ERPBookingDetailsDialog({ booking, isAdmin, busy, error,
       <div className="booking-details-body">
         <span className="booking-details-status" style={{ background: status.color }}>{status.label}</span>
         <dl className="booking-details-schedule"><div><dt>التاريخ</dt><dd>{formatBookingDate(booking.date)}</dd></div><div><dt>التوقيت</dt><dd>{formatTime12(booking.start_time)} — {formatTime12(booking.end_time)}</dd></div></dl>
-        <dl className="booking-details-metrics"><div><dt>الساعات</dt><dd>{booking.actual_hours || 0}</dd></div><div><dt>الريلز</dt><dd>{booking.actual_reels || 0}</dd></div><div><dt>الدفعة</dt><dd>{booking.payment || 0} ج.م</dd></div></dl>
+        <dl className="booking-details-metrics"><div><dt>مدة التصوير</dt><dd>{formatDurationMinutes(Number(booking.actual_seconds || 0) > 0 ? Number(booking.actual_seconds) / 60 : Number(booking.actual_hours || 0) * 60)}</dd></div><div><dt>الريلز</dt><dd>{booking.actual_reels || 0}</dd></div><div><dt>الدفعة</dt><dd>{booking.payment || 0} ج.م</dd></div></dl>
         {booking.notes && <div className="booking-details-note"><small>ملاحظات</small><p>{booking.notes}</p></div>}
         <div className="booking-details-actions">
           {isConfirmed && <button type="button" className="start" disabled={busy === `start-${booking.id}`} onClick={onStart}><PlayCircle />{busy === `start-${booking.id}` ? 'جارٍ التشغيل…' : 'بدء جلسة التصوير'}</button>}

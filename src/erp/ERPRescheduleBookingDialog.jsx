@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CalendarClock, CheckCircle2, X } from 'lucide-react';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import { dataClient } from '../dataClient';
-import { calculateDurationMinutes, formatBookingDate, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
+import { calculateDurationMinutes, formatBookingDate, formatDurationMinutes, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
 import useModalDialog from '../hooks/useModalDialog';
 import './ERPRescheduleBookingDialog.css';
 
@@ -39,7 +39,7 @@ export default function ERPRescheduleBookingDialog({ isOpen, booking, proposal, 
     if (date.getDay() === 5) return 'يوم الجمعة إجازة رسمية للشركة. اختر يومًا آخر.';
     const duration = calculateDurationMinutes(draft.start_time, draft.end_time);
     if (!isValidBusinessBooking(draft.start_time, draft.end_time, minimumMinutes) || duration % incrementMinutes !== 0) {
-      return `الموعد يجب أن يكون من 12:00 م إلى 12:00 ص، بحد أدنى ${minimumMinutes} دقيقة وبزيادات ${incrementMinutes} دقيقة.`;
+      return `الموعد يجب أن يكون من 12:00 م إلى 12:00 ص، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)}.`;
     }
     return '';
   }, [draft, incrementMinutes, minimumMinutes]);

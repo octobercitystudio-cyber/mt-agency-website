@@ -125,7 +125,7 @@ function validateBookingSchedule(
     $minimum=max(15,$minimumMinutes);$increment=max(15,$incrementMinutes);
     $minutes=bookingDurationMinutes($start,$end);
     if(!$dateValue||$dateValue->format('Y-m-d')!==$date||$dateValue->format('N')==='5'||$minutes<$minimum||$minutes%$increment!==0||!validBusinessBooking($start,$end,$minimum)){
-        fail('الموعد لا يطابق أيام وساعات العمل وحدود الحجز المحددة.',422,'invalid_booking_time');
+        fail('الموعد يجب أن يكون في أيام وساعات العمل، بحد أدنى '.arabicDurationMinutes($minimum).' وبزيادات '.arabicDurationMinutes($increment).'.',422,'invalid_booking_time');
     }
     if($package){
         $starts=substr((string)($package['starts_at']??''),0,10);$expires=substr((string)($package['expires_at']??''),0,10);
@@ -242,18 +242,6 @@ function validClientPassword(string $password): bool {
     $length = preg_match_all('/./us', $password, $characters);
     return $length !== false && $length >= 6 && $length <= 128
         && preg_match('/[\x00-\x1F\x7F]/', $password) !== 1;
-}
-
-function temporaryPassword(): string {
-    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-    $password = 'Aa7!';
-    for ($i = 0; $i < 16; $i++) $password .= $alphabet[random_int(0, strlen($alphabet) - 1)];
-    $characters = str_split($password);
-    for ($i = count($characters) - 1; $i > 0; $i--) {
-        $j = random_int(0, $i);
-        [$characters[$i], $characters[$j]] = [$characters[$j], $characters[$i]];
-    }
-    return implode('', $characters);
 }
 
 function credentialSafeUser(array $row): array {
@@ -421,6 +409,7 @@ function setSessionCookie(array $config, string $token, int $days): void {
 function changeTopic(string $entityType): string {
     return match ($entityType) {
         'bookings', 'booking_sessions', 'reschedule_requests', 'session_settlements' => 'bookings',
+        'post_production_jobs', 'post_production_status_history', 'video_delivery_links' => 'post_production',
         'client_packages', 'package_usage_ledger', 'session_settlement_allocations' => 'client_packages',
         'projects', 'project_items', 'project_milestones', 'project_tasks', 'content_items' => 'projects',
         'payments', 'payment_proofs', 'payment_allocations', 'invoices', 'finance' => 'finance',
@@ -519,8 +508,8 @@ function firebaseAccessToken(array $config): array {
 }
 
 function sendFirebasePush(array $config,string $token,array $notification): void {
-    $auth=firebaseAccessToken($config);$title=mb_substr(trim((string)($notification['title']??'MT Agency')),0,180);$body=mb_substr(trim((string)($notification['message']??'لديك تحديث جديد.')),0,500);$notificationId=(string)(int)($notification['id']??0);$tab=trim((string)($notification['action_tab']??''));$clientAudience=(string)($notification['audience']??'')==='client';
-    $staffRoutes=['requests'=>'/erp/requests','bookings'=>'/erp/bookings','packages'=>'/erp/packages','clients'=>'/erp/clients','finance'=>'/erp/finance','projects'=>'/erp/projects','offers'=>'/erp/offers'];$url=$clientAudience?('/dashboard'.($tab!==''?'?tab='.rawurlencode($tab):'')):($staffRoutes[$tab]??'/erp');
+    $auth=firebaseAccessToken($config);$title=mb_substr(trim((string)($notification['title']??'MT Agency')),0,180);$body=mb_substr(trim((string)($notification['message']??'لديك تحديث جديد.')),0,500);$notificationId=(string)(int)($notification['id']??0);$tab=trim((string)($notification['action_tab']??''));if($tab==='montage')$tab='videos';$clientAudience=(string)($notification['audience']??'')==='client';
+    $staffRoutes=['requests'=>'/erp/requests','bookings'=>'/erp/bookings','packages'=>'/erp/packages','clients'=>'/erp/clients','finance'=>'/erp/finance','projects'=>'/erp/projects','offers'=>'/erp/offers','post-production'=>'/erp/post-production'];$url=$clientAudience?('/dashboard'.($tab!==''?'?tab='.rawurlencode($tab):'')):($staffRoutes[$tab]??'/erp');$payload=is_array($notification['payload']??null)?$notification['payload']:json_decode((string)($notification['payload_json']??''),true);$jobId=is_array($payload)?filter_var($payload['post_production_job_id']??null,FILTER_VALIDATE_INT):false;if($clientAudience&&in_array($tab,['montage','videos'],true)&&$jobId!==false&&$jobId>0)$url.=($tab!==''?'&':'?').'job='.(int)$jobId;
     $message=['message'=>['token'=>$token,'notification'=>['title'=>$title,'body'=>$body],'data'=>['title'=>$title,'body'=>$body,'url'=>$url,'notification_id'=>$notificationId],'webpush'=>['headers'=>['Urgency'=>'high'],'fcm_options'=>['link'=>'https://multitaskagency.com'.$url]]]];
     $endpoint='https://fcm.googleapis.com/v1/projects/'.rawurlencode($auth['project_id']).'/messages:send';$curl=curl_init($endpoint);curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>20,CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$auth['token'],'Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode($message,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);$raw=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_HTTP_CODE);$error=curl_error($curl);curl_close($curl);
     if($status<200||$status>=300){$detail=is_string($raw)?mb_substr($raw,0,500):$error;throw new RuntimeException('firebase_send_failed:'.$status.':'.$detail,$status);}
@@ -640,8 +629,8 @@ function bookingSessionRows(PDO $pdo, array $user): array {
 function appNotification(PDO $pdo, int $organizationId, ?int $clientId, string $audience, string $type, string $title, string $message, string $entityType, int $entityId, string $dedupeKey, string $severity='info', ?string $actionTab=null, array $payload=[], ?int $recipientUserId=null): bool {
     $ownTransaction=!$pdo->inTransaction();if($ownTransaction)$pdo->beginTransaction();
     try{
-    $allowedTabs=['home','schedule','projects','finance','offers','history','requests','bookings','packages','clients'];$actionTab=in_array($actionTab,$allowedTabs,true)?$actionTab:null;
-    $safePayload=[];foreach(['booking_id','package_id','project_id','invoice_id','offer_id'] as $key)if(isset($payload[$key])&&filter_var($payload[$key],FILTER_VALIDATE_INT)!==false)$safePayload[$key]=(int)$payload[$key];
+    if($actionTab==='montage')$actionTab='videos';$allowedTabs=['home','schedule','projects','finance','offers','history','videos','requests','bookings','packages','clients','post-production'];$actionTab=in_array($actionTab,$allowedTabs,true)?$actionTab:null;
+    $safePayload=[];foreach(['booking_id','package_id','project_id','invoice_id','offer_id','post_production_job_id'] as $key)if(isset($payload[$key])&&filter_var($payload[$key],FILTER_VALIDATE_INT)!==false)$safePayload[$key]=(int)$payload[$key];
     $stmt=$pdo->prepare('INSERT IGNORE INTO app_notifications (organization_id,client_id,recipient_user_id,audience,type,title,message,entity_type,entity_id,dedupe_key,severity,action_tab,payload_json,source_event_key) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     $stmt->execute([$organizationId,$clientId,$recipientUserId,$audience,$type,$title,$message,$entityType,$entityId,$dedupeKey,$severity,$actionTab,$safePayload?json_encode($safePayload,JSON_UNESCAPED_UNICODE):null,$dedupeKey]);
     if($stmt->rowCount()!==1){if($ownTransaction)$pdo->commit();return false;}
@@ -737,6 +726,23 @@ function trustedNotificationClientId(PDO $pdo, int $organizationId, string $enti
     return null;
 }
 
+function arabicDurationMinutes(mixed $totalMinutes): string {
+    $value=max(0,(int)round((float)$totalMinutes));$hours=intdiv($value,60);$minutes=$value%60;
+    $hourLabel=$hours===1?'ساعة واحدة':($hours===2?'ساعتان':$hours.' ساعات');
+    $minuteLabel=$minutes===1?'دقيقة واحدة':($minutes===2?'دقيقتان':$minutes.' دقيقة');
+    if($hours===0)return $minuteLabel;if($minutes===0)return $hourLabel;return $hourLabel.' و'.$minuteLabel;
+}
+
+function completedSessionOutcome(array $data): string {
+    return match((string)($data['settlement_mode']??'')){
+        'original_package'=>'تم خصم الوقت من رصيد الباقة.',
+        'new_package','existing_package'=>'تمت تسوية الوقت الإضافي على الباقة المحددة.',
+        'package_overage','custom_invoice','custom_project'=>'تم تسجيل تسوية الوقت الإضافي والمستحقات.',
+        'waive'=>'تم اعتماد الوقت دون رسوم إضافية.',
+        default=>'تم حفظ تسوية الجلسة في حسابك.',
+    };
+}
+
 function clientNotificationTemplate(string $entityType, string $action, mixed $before, mixed $after): ?array {
     $before=is_array($before)?$before:[];$after=is_array($after)?$after:[];$merged=$after+$before;
     if(in_array($action,['reorder','queue_whatsapp_summary','delete_appointment'],true))return null;
@@ -775,8 +781,8 @@ function clientNotificationTemplate(string $entityType, string $action, mixed $b
     if($entityType==='reschedule_requests')return ['reschedule_update','تحديث طلب تغيير الموعد',$status==='approved'?'تم اعتماد الموعد البديل المقترح.':'تمت مراجعة طلب تغيير الموعد ويمكنك مراجعة النتيجة.','schedule',$status==='approved'?'success':'warning'];
     if($entityType==='booking_sessions'){
         if($action==='session_start'||$action==='auto_start')return ['session_started','بدأت جلسة التصوير','بدأ احتساب وقت جلسة التصوير ويمكنك متابعة المؤقت الآن.','schedule','success'];
-        if(in_array($action,['session_complete','session_settle_and_complete'],true)&&in_array((string)($merged['settlement_mode']??''),['new_package','existing_package'],true)&&!empty($merged['target_package_id']))return ['overage_moved','تمت تسوية الوقت الإضافي','أضيف الوقت الإضافي إلى الباقة التي حددتها الإدارة ويمكنك مراجعة الرصيد الآن.','home','info'];
-        return ['session_completed','اكتملت جلسة التصوير','تم حفظ المدة النهائية وتسوية الجلسة في حسابك.','history','info'];
+        if(in_array($action,['session_complete','session_settle_and_complete'],true)){$duration=arabicDurationMinutes($merged['actual_minutes']??(((int)($merged['actual_seconds']??0))/60));$moved=in_array((string)($merged['settlement_mode']??''),['new_package','existing_package'],true)&&!empty($merged['target_package_id']);return [$moved?'overage_moved':'session_completed','تم إيقاف جلسة التصوير','تم إيقاف جلسة التصوير. الوقت المصور '.$duration.'. '.completedSessionOutcome($merged),$moved?'home':'history','info'];}
+        return null;
     }
     if($entityType==='payment_proofs')return ['payment_proof_'.$status,$status==='approved'?'تم اعتماد إثبات التحويل':'تم رفض إثبات التحويل',$status==='approved'?'تم اعتماد التحويل وتحديث رصيدك المالي.':'لم يتم اعتماد التحويل. راجع الإثبات وأعد المحاولة.','finance',$status==='approved'?'success':'danger'];
     if($entityType==='payments'&&$action==='record_package_payment')return null;
@@ -922,11 +928,11 @@ function completeBookingSession(PDO $pdo, array $user, int $bookingId, array $pa
         if($session['status']==='completed'){$pdo->commit();return ['booking'=>$booking,'session'=>$session,'already_completed'=>true];}
         if($session['status']!=='active'){$pdo->rollBack();fail('حالة الجلسة لا تسمح بإنهائها.',409,'invalid_session_state');}
         $elapsedSeconds=max(0,cairoNow()->getTimestamp()-strtotime((string)$session['started_at']));
-        $rawMinutes=$payload['actual_minutes']??null;$actualMinutes=filter_var($rawMinutes,FILTER_VALIDATE_INT);if($actualMinutes===false||$actualMinutes<1){$pdo->rollBack();fail('حدد مدة تصوير صحيحة بالدقائق، دقيقة واحدة على الأقل.',422,'invalid_actual_duration');}$actualSeconds=$actualMinutes*60;$unit=(string)($booking['billing_unit']??'hour');
+        $rawMinutes=$payload['actual_minutes']??null;$actualMinutes=filter_var($rawMinutes,FILTER_VALIDATE_INT);if($actualMinutes===false||$actualMinutes<1){$pdo->rollBack();fail('حدد مدة تصوير صحيحة، بحد أدنى '.arabicDurationMinutes(1).'.',422,'invalid_actual_duration');}$actualSeconds=$actualMinutes*60;$unit=(string)($booking['billing_unit']??'hour');
         if($unit==='reel'){$rawReels=$payload['actual_reels']??null;$billable=filter_var($rawReels,FILTER_VALIDATE_INT);if($billable===false||$billable<1){$pdo->rollBack();fail('أدخل عدد الريلز التي تم تصويرها كرقم صحيح أكبر من صفر.',422,'invalid_actual_reels');}$billable=(float)$billable;}
         else{$billable=round($actualMinutes/60,4);}
         $held=!empty($booking['client_package_id'])?bookingHeldQuantity($pdo,$bookingId,(int)$booking['client_package_id']):0.0;$included=0.0;$overage=0.0;$beforeConsumed=(float)($booking['consumed_quantity']??0);
-        if(!empty($booking['client_package_id'])){if($held<=0.0001){$pdo->rollBack();fail('لا يوجد رصيد محجوز صالح لهذا الموعد.',409,'missing_package_hold');}if($billable>$held+0.0001){$pdo->rollBack();$available=$unit==='hour'?(int)floor(($held*60)+0.0001).' دقيقة':rtrim(rtrim(number_format($held,4,'.',''),'0'),'.').' ريلز';fail('القيمة المدخلة أكبر من الرصيد المحجوز. الحد الأقصى المتاح '.$available.'.',422,'duration_exceeds_held');}}
+        if(!empty($booking['client_package_id'])){if($held<=0.0001){$pdo->rollBack();fail('لا يوجد رصيد محجوز صالح لهذا الموعد.',409,'missing_package_hold');}if($billable>$held+0.0001){$pdo->rollBack();$available=$unit==='hour'?arabicDurationMinutes((int)floor(($held*60)+0.0001)):rtrim(rtrim(number_format($held,4,'.',''),'0'),'.').' ريلز';fail('القيمة المدخلة أكبر من الرصيد المحجوز. الحد الأقصى المتاح '.$available.'.',422,'duration_exceeds_held');}}
         elseif($unit!=='reel'&&!empty($booking['requested_quantity'])&&$billable>(float)$booking['requested_quantity']+0.0001){$pdo->rollBack();fail('المدة المدخلة أكبر من مدة الحجز.',422,'duration_exceeds_booking');}
         $overageAmount=0.0;if(!empty($booking['client_package_id'])){$included=$billable;$packageStmt=$pdo->prepare('SELECT * FROM client_packages WHERE id=? AND organization_id=? FOR UPDATE');$packageStmt->execute([$booking['client_package_id'],$user['organization_id']]);$lockedPackage=$packageStmt->fetch();if(!$lockedPackage)fail('الباقة المرتبطة بالجلسة غير موجودة.',404,'package_not_found');mutateLockedPackageQuantities($pdo,$lockedPackage,0,-$held,$included);insertPackageUsage($pdo,$lockedPackage,$bookingId,'consume',$included,'إنهاء جلسة التصوير','booking:'.$bookingId.':complete:consume',$user['id']);if($held>$included+0.0001)insertPackageUsage($pdo,$lockedPackage,$bookingId,'release',$held-$included,'إعادة الرصيد غير المستخدم بعد إنهاء الجلسة','booking:'.$bookingId.':complete:release',$user['id']);}
         $ended=cairoNow()->format('Y-m-d H:i:s');$actualHours=round($actualMinutes/60,4);$actualReels=$unit==='reel'?$billable:(float)($booking['actual_reels']??0);
@@ -1347,7 +1353,7 @@ requireCsrf($config, $path, $method);
 $user = sessionUser($pdo, $config);
 
 if ($user && !empty($user['must_change_password']) && !in_array($path, ['/auth/session','/auth/password','/auth/logout','/health'], true)) {
-    fail('يجب تغيير كلمة المرور المؤقتة قبل متابعة استخدام الحساب.', 403, 'password_change_required');
+    fail('يلزم تحديث كلمة المرور قبل متابعة استخدام الحساب.', 403, 'password_change_required');
 }
 
 function remainingPackageCalendarDays(?string $expiresAt, ?string $today=null): int {
@@ -1541,8 +1547,8 @@ if ($path === '/auth/login' && $method === 'POST') {
 }
 
 if ($path === '/auth/session' && $method === 'GET') {
-    if (!$user) respond(['session' => null, 'user' => null]);
     if (empty($_COOKIE[csrfCookieName($config)])) setCsrfCookie($config);
+    if (!$user) respond(['session' => null, 'user' => null]);
     respond(['session' => ['active' => true], 'user' => $user]);
 }
 
@@ -1569,7 +1575,7 @@ if ($path === '/cron/push-queue' && $method === 'POST') {
     $workerKey=(string)($config['push']['worker_key']??'');$provided=(string)($_SERVER['HTTP_X_WORKER_KEY']??'');if($workerKey===''||$provided===''||!hash_equals($workerKey,$provided))fail('غير مصرح بتشغيل عامل إشعارات التطبيق.',401,'invalid_worker_key');$push=pushConfiguration($config);if(!$push['enabled'])fail('إشعارات التطبيق غير مفعلة.',503,'push_not_configured');if(!schemaTableExists($pdo,'app_push_jobs')||!schemaTableExists($pdo,'app_push_subscriptions'))fail('تحديث قاعدة بيانات الإشعارات مطلوب.',503,'push_migration_required');
     $materialized=0;foreach($pdo->query('SELECT id FROM organizations')->fetchAll(PDO::FETCH_COLUMN) as $organizationId)$materialized+=materializePackageLifecycleNotifications($pdo,(int)$organizationId);
     $pdo->exec("UPDATE app_push_jobs SET status='pending' WHERE status='processing' AND available_at<=NOW() AND attempts<5");$pdo->beginTransaction();$stmt=$pdo->query("SELECT * FROM app_push_jobs WHERE status='pending' AND available_at<=NOW() AND attempts<5 ORDER BY id LIMIT 20 FOR UPDATE");$jobs=$stmt->fetchAll();if($jobs){$ids=array_map('intval',array_column($jobs,'id'));$marks=implode(',',array_fill(0,count($ids),'?'));$pdo->prepare("UPDATE app_push_jobs SET status='processing',available_at=DATE_ADD(NOW(),INTERVAL 10 MINUTE) WHERE id IN ($marks)")->execute($ids);}$pdo->commit();$sent=0;$failed=0;$devices=0;
-    foreach($jobs as $job){try{$notificationStmt=$pdo->prepare('SELECT id,organization_id,client_id,recipient_user_id,audience,title,message,action_tab FROM app_notifications WHERE id=? AND organization_id=? AND dismissed_at IS NULL');$notificationStmt->execute([$job['notification_id'],$job['organization_id']]);$notification=$notificationStmt->fetch();if(!$notification){$pdo->prepare("UPDATE app_push_jobs SET status='sent',attempts=attempts+1,sent_at=NOW(),last_error=NULL WHERE id=?")->execute([$job['id']]);$sent++;continue;}
+    foreach($jobs as $job){try{$notificationStmt=$pdo->prepare('SELECT id,organization_id,client_id,recipient_user_id,audience,title,message,action_tab,payload_json FROM app_notifications WHERE id=? AND organization_id=? AND dismissed_at IS NULL');$notificationStmt->execute([$job['notification_id'],$job['organization_id']]);$notification=$notificationStmt->fetch();if(!$notification){$pdo->prepare("UPDATE app_push_jobs SET status='sent',attempts=attempts+1,sent_at=NOW(),last_error=NULL WHERE id=?")->execute([$job['id']]);$sent++;continue;}
             $where=['organization_id=?','is_active=1'];$params=[(int)$job['organization_id']];if((string)$notification['audience']==='client'){$where[]='client_id=?';$params[]=(int)$notification['client_id'];}elseif(!empty($notification['recipient_user_id'])){$where[]='user_id=?';$params[]=(int)$notification['recipient_user_id'];}else{$where[]='user_id IS NOT NULL';}$subscriptions=$pdo->prepare('SELECT id,token FROM app_push_subscriptions WHERE '.implode(' AND ',$where));$subscriptions->execute($params);
             foreach($subscriptions->fetchAll() as $subscription){try{sendFirebasePush($config,(string)$subscription['token'],$notification);$devices++;}catch(RuntimeException $sendError){if(in_array($sendError->getCode(),[400,404],true)){$pdo->prepare('UPDATE app_push_subscriptions SET is_active=0 WHERE id=?')->execute([$subscription['id']]);continue;}throw $sendError;}}
             $pdo->prepare("UPDATE app_push_jobs SET status='sent',attempts=attempts+1,sent_at=NOW(),last_error=NULL WHERE id=? AND status='processing'")->execute([$job['id']]);$sent++;
@@ -1592,6 +1598,8 @@ if ($path === '/auth/password' && $method === 'PATCH') {
     $payload = body();
     $current = (string)($payload['current_password'] ?? '');
     $next = (string)($payload['password'] ?? '');
+    $confirmation = (string)($payload['confirm_password'] ?? '');
+    if(!hash_equals($next,$confirmation))fail('تأكيد كلمة المرور غير مطابق.',422,'password_confirmation_mismatch');
     $pdo->beginTransaction();
     try {
         $stmt=$pdo->prepare('SELECT * FROM users WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$user['id'],$user['organization_id']]);$account=$stmt->fetch();
@@ -1600,9 +1608,9 @@ if ($path === '/auth/password' && $method === 'PATCH') {
         if(!($clientPassword?validClientPassword($next):validPassword($next))){$pdo->rollBack();fail($clientPassword?'كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.':'كلمة المرور الجديدة يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.',422,'weak_password');}
         $forced=!empty($account['must_change_password']);
         if(!$forced&&!password_verify($current,(string)$account['password_hash'])){$pdo->rollBack();fail('كلمة المرور الحالية غير صحيحة.',422,'invalid_password');}
-        if(password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية أو المؤقتة.',422,'password_reuse');}
+        if(password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.',422,'password_reuse');}
         if(passwordWasUsed($pdo,(int)$account['organization_id'],(int)$account['id'],$next)){$pdo->rollBack();fail('لا يمكن إعادة استخدام كلمة مرور سابقة.',422,'password_history_reuse');}
-        retainPasswordHash($pdo,$account,$forced?'temporary_consumed':'password_changed');
+        retainPasswordHash($pdo,$account,$forced?'required_update':'password_changed');
         $version=(int)$account['credential_version']+1;
         $pdo->prepare("UPDATE users SET password_hash=?,password_changed_at=NOW(),password_status='active',must_change_password=0,temporary_expires_at=NULL,credential_version=? WHERE id=?")->execute([password_hash($next,PASSWORD_DEFAULT),$version,$account['id']]);
         $pdo->prepare('DELETE FROM api_sessions WHERE user_id=?')->execute([$account['id']]);
@@ -1684,7 +1692,10 @@ function insertPackageUsage(PDO $pdo, array $package, ?int $bookingId, string $m
     $stmt->execute([(int)$package['id'],$bookingId,$movement,$ledgerQuantity,$minutes,$reason,$eventKey,$userId]);
 }
 
+require_once __DIR__ . '/post_production.php';
 require_once __DIR__ . '/session_settlement.php';
+
+handlePostProductionRoutes($pdo, $config, $user, $path, $method);
 
 function ownerRecordDefinition(string $entity): array {
     $definitions=[
@@ -1773,7 +1784,7 @@ if (preg_match('#^/bookings/(\d+)/session/start$#',$path,$m) && $method === 'POS
 }
 
 if (preg_match('#^/bookings/(\d+)/session/settlement-preview$#',$path,$m) && $method === 'POST') {
-    $user=requireUser($user);requireRole($user,['owner','admin','operations']);$payload=body();$minutes=filter_var($payload['actual_minutes']??null,FILTER_VALIDATE_INT);if($minutes===false||$minutes<1)fail('حدد مدة تصوير صحيحة بالدقائق.',422,'invalid_actual_duration');$preview=studioSettlementPreview($pdo,$user,(int)$m[1],(int)$minutes);unset($preview['booking'],$preview['session']);respond($preview);
+    $user=requireUser($user);requireRole($user,['owner','admin','operations']);$payload=body();$minutes=filter_var($payload['actual_minutes']??null,FILTER_VALIDATE_INT);if($minutes===false||$minutes<1)fail('حدد مدة تصوير صحيحة، بحد أدنى '.arabicDurationMinutes(1).'.',422,'invalid_actual_duration');$preview=studioSettlementPreview($pdo,$user,(int)$m[1],(int)$minutes);unset($preview['booking'],$preview['session']);respond($preview);
 }
 
 if (preg_match('#^/bookings/(\d+)/session/complete$#',$path,$m) && $method === 'POST') {
@@ -1784,7 +1795,7 @@ if ($path === '/app-notifications' && $method === 'GET') {
     $user=requireUser($user);$status=(string)($_GET['status']??'all');$type=trim((string)($_GET['type']??''));$channel=trim((string)($_GET['channel']??''));$cursor=max(0,(int)($_GET['cursor']??0));$limit=max(1,min(50,(int)($_GET['limit']??20)));if(!in_array($status,['all','unread'],true))fail('مرشح الإشعارات غير صحيح.',422,'invalid_notification_filter');
     if($user['role']==='client')materializePackageLifecycleNotifications($pdo,(int)$user['organization_id'],(int)$user['client_id']);
     $where=['organization_id=?','dismissed_at IS NULL'];$params=[(int)$user['organization_id']];if($channel==='client-actions'){requireRole($user,['owner']);$where[]="audience='owner'";$where[]='recipient_user_id=?';$params[]=(int)$user['id'];}elseif($user['role']==='client'){$where[]="audience='client'";$where[]='client_id=?';$params[]=(int)$user['client_id'];}else{$where[]="(audience='staff' OR recipient_user_id=?)";$params[]=(int)$user['id'];}if($status==='unread')$where[]='read_at IS NULL';if($type!==''){$where[]='type=?';$params[]=$type;}if($cursor>0){$where[]='id<?';$params[]=$cursor;}
-    $safeColumns='id,type,title,message,entity_type,entity_id,severity,action_tab,payload_json,read_at,created_at';$stmt=$pdo->prepare("SELECT $safeColumns FROM app_notifications WHERE ".implode(' AND ',$where).' ORDER BY id DESC LIMIT '.($limit+1));$stmt->execute($params);$rows=$stmt->fetchAll();$hasMore=count($rows)>$limit;if($hasMore)array_pop($rows);foreach($rows as &$row){$row['id']=(int)$row['id'];$row['entity_id']=$row['entity_id']?(int)$row['entity_id']:null;$row['payload']=$row['payload_json']?json_decode((string)$row['payload_json'],true):new stdClass();unset($row['payload_json']);}unset($row);
+    $safeColumns='id,type,title,message,entity_type,entity_id,severity,action_tab,payload_json,read_at,created_at';$stmt=$pdo->prepare("SELECT $safeColumns FROM app_notifications WHERE ".implode(' AND ',$where).' ORDER BY id DESC LIMIT '.($limit+1));$stmt->execute($params);$rows=$stmt->fetchAll();$hasMore=count($rows)>$limit;if($hasMore)array_pop($rows);foreach($rows as &$row){$row['id']=(int)$row['id'];$row['entity_id']=$row['entity_id']?(int)$row['entity_id']:null;if((string)($row['action_tab']??'')==='montage')$row['action_tab']='videos';$row['payload']=$row['payload_json']?json_decode((string)$row['payload_json'],true):new stdClass();unset($row['payload_json']);}unset($row);
     $countSql='SELECT COUNT(*) FROM app_notifications WHERE organization_id=? AND dismissed_at IS NULL AND read_at IS NULL';$countParams=[(int)$user['organization_id']];if($channel==='client-actions'){$countSql.=" AND audience='owner' AND recipient_user_id=?";$countParams[]=(int)$user['id'];}elseif($user['role']==='client'){$countSql.=" AND audience='client' AND client_id=?";$countParams[]=(int)$user['client_id'];}else{$countSql.=" AND (audience='staff' OR recipient_user_id=?)";$countParams[]=(int)$user['id'];}$countStmt=$pdo->prepare($countSql);$countStmt->execute($countParams);respond(['items'=>$rows,'unread_count'=>(int)$countStmt->fetchColumn(),'next_cursor'=>$hasMore&&$rows?(int)end($rows)['id']:null]);
 }
 
@@ -2130,7 +2141,7 @@ if ($path === '/users' && $method === 'POST') {
     if (!in_array($role, ['owner','admin','operations','finance','staff','client'], true)) fail('الدور غير صالح.', 422);
     $password = (string)($payload['password'] ?? '');
     if (!validPassword($password)) fail('كلمة المرور يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 422, 'weak_password');
-    if ($role === 'client') fail('أنشئ حساب العميل من قسم الدخول والأمان باستخدام كلمة مرور مؤقتة.', 422, 'use_client_credential_flow');
+    if ($role === 'client') fail('أنشئ حساب العميل من قسم الدخول والأمان المخصص له.', 422, 'use_client_credential_flow');
     if (!empty($payload['client_id'])) fail('استخدم قسم الدخول والأمان لإنشاء حساب مرتبط بعميل.', 422, 'use_client_credential_flow');
     $stmt = $pdo->prepare('INSERT INTO users (organization_id, client_id, full_name, email, phone, password_hash, role, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([$user['organization_id'], null, trim((string)$payload['full_name']), $payload['email'] ?: null, isset($payload['phone']) ? normalizePhone((string)$payload['phone']) : null, password_hash($password, PASSWORD_DEFAULT), $role, json_encode($payload['permissions'] ?? [], JSON_UNESCAPED_UNICODE)]);
@@ -2499,39 +2510,57 @@ if (preg_match('#^/clients/(\d+)/credentials$#',$path,$m)&&$method==='GET') {
     $user=requireUser($user);requireRole($user,['owner']);$clientId=(int)$m[1];
     $client=$pdo->prepare('SELECT id FROM clients WHERE id=? AND organization_id=? LIMIT 1');$client->execute([$clientId,$user['organization_id']]);if(!$client->fetchColumn())fail('العميل غير موجود.',404,'client_not_found');
     $stmt=$pdo->prepare("SELECT u.id,u.is_active,u.password_hash,u.password_status,u.must_change_password,u.last_login_at,u.password_changed_at,u.temporary_expires_at,u.credential_version,(SELECT COUNT(*) FROM api_sessions s WHERE s.user_id=u.id AND s.expires_at>NOW() AND s.credential_version=u.credential_version) active_sessions FROM users u WHERE u.client_id=? AND u.organization_id=? AND u.role='client' LIMIT 1");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();
-    if(!$account)respond(['account_exists'=>false,'has_password'=>false,'access_enabled'=>false,'portal_access'=>'no_account','credential_state'=>'no_account','must_change_password'=>false,'active_sessions'=>0]);
-    $hasPassword=trim((string)$account['password_hash'])!=='';$credentialState=!empty($account['must_change_password'])?'change_required':((string)$account['password_status']==='temporary'?'temporary':'active');
-    respond(['account_exists'=>true,'has_password'=>$hasPassword,'access_enabled'=>!empty($account['is_active']),'portal_access'=>!empty($account['is_active'])?'enabled':'disabled','credential_state'=>$credentialState,'must_change_password'=>(bool)$account['must_change_password'],'last_login_at'=>$account['last_login_at'],'password_changed_at'=>$account['password_changed_at'],'active_sessions'=>(int)$account['active_sessions'],'temporary_expires_at'=>$account['temporary_expires_at']]);
+    if(!$account)respond(['account_exists'=>false,'has_password'=>false,'access_enabled'=>false,'portal_access'=>'no_account','credential_state'=>'no_account','must_change_password'=>false,'active_sessions'=>0,'reset_pending'=>false,'reset_expires_at'=>null]);
+    $hasPassword=trim((string)$account['password_hash'])!=='';$credentialState=!empty($account['must_change_password'])?'change_required':'active';
+    $reset=$pdo->prepare("SELECT expires_at FROM password_reset_tokens WHERE organization_id=? AND user_id=? AND purpose='client_password_reset' AND used_at IS NULL AND revoked_at IS NULL AND expires_at>NOW() ORDER BY id DESC LIMIT 1");$reset->execute([$user['organization_id'],$account['id']]);$resetExpires=$reset->fetchColumn()?:null;
+    respond(['account_exists'=>true,'has_password'=>$hasPassword,'access_enabled'=>!empty($account['is_active']),'portal_access'=>!empty($account['is_active'])?'enabled':'disabled','credential_state'=>$credentialState,'must_change_password'=>(bool)$account['must_change_password'],'last_login_at'=>$account['last_login_at'],'password_changed_at'=>$account['password_changed_at'],'active_sessions'=>(int)$account['active_sessions'],'reset_pending'=>$resetExpires!==null,'reset_expires_at'=>$resetExpires]);
 }
 
 if (preg_match('#^/clients/(\d+)/credentials/password$#',$path,$m)&&$method==='POST') {
-    $user=requireUser($user);requireRole($user,['owner']);$clientId=(int)$m[1];$payload=body();$next=(string)($payload['new_password']??'');$confirmation=(string)($payload['confirm_password']??'');$requireChange=!empty($payload['require_change']);
+    $user=requireUser($user);requireRole($user,['owner']);$clientId=(int)$m[1];$payload=body();$next=(string)($payload['password']??'');$confirmation=(string)($payload['confirm_password']??'');
     if(!hash_equals($next,$confirmation))fail('تأكيد كلمة المرور غير مطابق.',422,'password_confirmation_mismatch');
     if(!validClientPassword($next))fail('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.',422,'weak_password');
     $limit=$pdo->prepare("SELECT COUNT(*) FROM audit_logs WHERE organization_id=? AND user_id=? AND action='client_password_set' AND created_at>DATE_SUB(NOW(),INTERVAL 15 MINUTE)");$limit->execute([$user['organization_id'],$user['id']]);if((int)$limit->fetchColumn()>=10)fail('تم الوصول للحد الآمن لتغيير كلمات المرور. حاول بعد 15 دقيقة.',429,'credential_change_rate_limited');
     $pdo->beginTransaction();
     try{$client=$pdo->prepare('SELECT id,name,email,phone1 FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$client->execute([$clientId,$user['organization_id']]);$clientRow=$client->fetch();if(!$clientRow){$pdo->rollBack();fail('العميل غير موجود.',404,'client_not_found');}$clientPhone=normalizePhone((string)$clientRow['phone1'])?:trim((string)$clientRow['phone1']);
         $stmt=$pdo->prepare("SELECT * FROM users WHERE client_id=? AND organization_id=? AND role='client' FOR UPDATE");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();$accessEnabled=$account?!empty($account['is_active']):false;
-        if($account){if(password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.',422,'password_reuse');}if(passwordWasUsed($pdo,(int)$account['organization_id'],(int)$account['id'],$next)){$pdo->rollBack();fail('لا يمكن إعادة استخدام كلمة مرور سابقة.',422,'password_history_reuse');}retainPasswordHash($pdo,$account,'owner_password_set');$accountId=(int)$account['id'];$version=(int)$account['credential_version']+1;$pdo->prepare("UPDATE users SET full_name=?,email=?,phone=?,password_hash=?,password_changed_at=NOW(),password_status='active',must_change_password=?,temporary_expires_at=NULL,credential_version=? WHERE id=?")->execute([$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($next,PASSWORD_DEFAULT),$requireChange?1:0,$version,$accountId]);}
-        else{$pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,password_changed_at) VALUES (?,?,?,?,?,?,'client',0,'active',?,1,NOW())")->execute([$user['organization_id'],$clientId,$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($next,PASSWORD_DEFAULT),$requireChange?1:0]);$accountId=(int)$pdo->lastInsertId();}
-        $pdo->prepare('DELETE FROM api_sessions WHERE user_id=? AND user_id<>?')->execute([$accountId,$user['id']]);$pdo->prepare('UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND used_at IS NULL')->execute([$accountId]);
-        audit($pdo,$user,'client_password_set','users',$accountId,null,['client_id'=>$clientId,'require_change'=>$requireChange,'access_enabled'=>$accessEnabled,'sessions_revoked'=>true]);$pdo->commit();respond(['updated'=>true,'has_password'=>true,'access_enabled'=>$accessEnabled,'portal_access'=>$accessEnabled?'enabled':'disabled','must_change_password'=>$requireChange]);
+        if($account){$hasCurrentHash=trim((string)$account['password_hash'])!=='';if($hasCurrentHash&&password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.',422,'password_reuse');}if($hasCurrentHash&&passwordWasUsed($pdo,(int)$account['organization_id'],(int)$account['id'],$next)){$pdo->rollBack();fail('لا يمكن إعادة استخدام كلمة مرور سابقة.',422,'password_history_reuse');}if($hasCurrentHash)retainPasswordHash($pdo,$account,'owner_password_set');$accountId=(int)$account['id'];$version=(int)$account['credential_version']+1;$pdo->prepare("UPDATE users SET full_name=?,email=?,phone=?,password_hash=?,password_changed_at=NOW(),password_status='active',must_change_password=0,temporary_expires_at=NULL,credential_version=? WHERE id=?")->execute([$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($next,PASSWORD_DEFAULT),$version,$accountId]);}
+        else{$pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,password_changed_at) VALUES (?,?,?,?,?,?,'client',0,'active',0,1,NOW())")->execute([$user['organization_id'],$clientId,$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($next,PASSWORD_DEFAULT)]);$accountId=(int)$pdo->lastInsertId();}
+        $pdo->prepare('DELETE FROM api_sessions WHERE user_id=?')->execute([$accountId]);$pdo->prepare('UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND used_at IS NULL')->execute([$accountId]);
+        audit($pdo,$user,'client_password_set','users',$accountId,null,['client_id'=>$clientId,'access_enabled'=>$accessEnabled,'sessions_revoked'=>true,'reset_tokens_revoked'=>true]);$pdo->commit();respond(['updated'=>true,'has_password'=>true,'access_enabled'=>$accessEnabled,'portal_access'=>$accessEnabled?'enabled':'disabled','must_change_password'=>false]);
+    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
+}
+
+if (preg_match('#^/clients/(\d+)/credentials/reset$#',$path,$m)&&$method==='POST') {
+    $user=requireUser($user);requireRole($user,['owner']);$clientId=(int)$m[1];
+    $limit=$pdo->prepare("SELECT COUNT(*) FROM audit_logs WHERE organization_id=? AND user_id=? AND action='client_password_reset_issued' AND created_at>DATE_SUB(NOW(),INTERVAL 15 MINUTE)");$limit->execute([$user['organization_id'],$user['id']]);if((int)$limit->fetchColumn()>=5)fail('تم الوصول للحد الآمن لإنشاء روابط إعادة التعيين. حاول بعد 15 دقيقة.',429,'password_reset_rate_limited');
+    $pdo->beginTransaction();
+    try{$stmt=$pdo->prepare("SELECT u.id,u.organization_id,u.client_id,u.password_hash FROM users u JOIN clients c ON c.id=u.client_id AND c.organization_id=u.organization_id WHERE c.id=? AND c.organization_id=? AND u.role='client' FOR UPDATE");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();if(!$account||trim((string)$account['password_hash'])===''){$pdo->rollBack();fail('عيّن كلمة مرور للعميل أولًا.',409,'client_credential_required');}
+        $accountId=(int)$account['id'];$pdo->prepare("UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND purpose='client_password_reset' AND used_at IS NULL AND revoked_at IS NULL")->execute([$accountId]);
+        $raw=bin2hex(random_bytes(32));$hash=hash('sha256',$raw);$expires=(new DateTimeImmutable('+30 minutes'))->format('Y-m-d H:i:s');$pdo->prepare("INSERT INTO password_reset_tokens (organization_id,user_id,token_hash,purpose,expires_at,created_by) VALUES (?,?,?,'client_password_reset',?,?)")->execute([$user['organization_id'],$accountId,$hash,$expires,$user['id']]);
+        audit($pdo,$user,'client_password_reset_issued','password_reset_tokens',(int)$pdo->lastInsertId(),null,['client_id'=>$clientId,'user_id'=>$accountId,'expires_at'=>$expires]);
+        $pdo->commit();$base=rtrim((string)($config['app']['public_url']??$config['app']['allowed_origin']??''),'/');if($base==='')$base='https://multitaskagency.com';respond(['reset_url'=>$base.'/reset-password#'.$raw,'expires_at'=>$expires],201);
+    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
+}
+
+if ($path==='/auth/password-reset/validate'&&$method==='POST') {
+    $payload=body();$raw=(string)($payload['token']??'');if(!preg_match('/^[a-f0-9]{64}$/D',$raw))fail('هذا الرابط غير صالح أو انتهت مدته.',400,'invalid_reset_link');
+    $stmt=$pdo->prepare("SELECT prt.expires_at FROM password_reset_tokens prt JOIN users u ON u.id=prt.user_id AND u.organization_id=prt.organization_id WHERE prt.token_hash=? AND prt.purpose='client_password_reset' AND prt.used_at IS NULL AND prt.revoked_at IS NULL AND prt.expires_at>NOW() LIMIT 1");$stmt->execute([hash('sha256',$raw)]);$expires=$stmt->fetchColumn();if(!$expires)fail('هذا الرابط غير صالح أو انتهت مدته.',400,'invalid_reset_link');respond(['valid'=>true,'expires_at'=>$expires]);
+}
+
+if ($path==='/auth/password-reset/complete'&&$method==='POST') {
+    $payload=body();$raw=(string)($payload['token']??'');$next=(string)($payload['password']??'');$confirmation=(string)($payload['confirm_password']??'');
+    if(!preg_match('/^[a-f0-9]{64}$/D',$raw))fail('هذا الرابط غير صالح أو انتهت مدته.',400,'invalid_reset_link');if(!hash_equals($next,$confirmation))fail('تأكيد كلمة المرور غير مطابق.',422,'password_confirmation_mismatch');if(!validClientPassword($next))fail('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.',422,'weak_password');
+    $pdo->beginTransaction();
+    try{$stmt=$pdo->prepare("SELECT prt.id reset_token_id,prt.organization_id reset_organization_id,prt.user_id reset_user_id,prt.expires_at reset_expires_at,prt.used_at reset_used_at,prt.revoked_at reset_revoked_at,u.* FROM password_reset_tokens prt JOIN users u ON u.id=prt.user_id AND u.organization_id=prt.organization_id WHERE prt.token_hash=? AND prt.purpose='client_password_reset' LIMIT 1 FOR UPDATE");$stmt->execute([hash('sha256',$raw)]);$account=$stmt->fetch();$invalid=!$account||$account['reset_used_at']!==null||$account['reset_revoked_at']!==null||strtotime((string)$account['reset_expires_at'])<=time();if($invalid){$pdo->rollBack();fail('هذا الرابط غير صالح أو انتهت مدته.',400,'invalid_reset_link');}
+        if(password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.',422,'password_reuse');}if(passwordWasUsed($pdo,(int)$account['organization_id'],(int)$account['id'],$next)){$pdo->rollBack();fail('لا يمكن إعادة استخدام كلمة مرور سابقة.',422,'password_history_reuse');}
+        retainPasswordHash($pdo,$account,'password_reset');$version=(int)$account['credential_version']+1;$pdo->prepare("UPDATE users SET password_hash=?,password_changed_at=NOW(),password_status='active',must_change_password=0,temporary_expires_at=NULL,credential_version=? WHERE id=?")->execute([password_hash($next,PASSWORD_DEFAULT),$version,$account['id']]);$pdo->prepare('UPDATE password_reset_tokens SET used_at=NOW() WHERE id=? AND used_at IS NULL')->execute([$account['reset_token_id']]);$pdo->prepare("UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND id<>? AND purpose='client_password_reset' AND used_at IS NULL")->execute([$account['id'],$account['reset_token_id']]);$pdo->prepare('DELETE FROM api_sessions WHERE user_id=?')->execute([$account['id']]);
+        audit($pdo,$account,'client_password_reset_completed','users',(int)$account['id'],null,['client_id'=>$account['client_id']?(int)$account['client_id']:null,'sessions_revoked'=>true]);$pdo->prepare('INSERT INTO auth_security_events (organization_id,user_id,event_type,ip_hash,user_agent_hash) VALUES (?,?,?,?,?)')->execute([$account['organization_id'],$account['id'],'password_reset_completed',requestIpHash(),requestUserAgentHash()]);$pdo->commit();respond(['updated'=>true]);
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
 if (preg_match('#^/clients/(\d+)/credentials/temporary$#',$path,$m)&&$method==='POST') {
-    $user=requireUser($user);requireRole($user,['owner']);$clientId=(int)$m[1];
-    $limit=$pdo->prepare("SELECT COUNT(*) FROM audit_logs WHERE organization_id=? AND user_id=? AND action='temporary_credential_issued' AND created_at>DATE_SUB(NOW(),INTERVAL 15 MINUTE)");$limit->execute([$user['organization_id'],$user['id']]);if((int)$limit->fetchColumn()>=5)fail('تم الوصول للحد الآمن لإنشاء بيانات الدخول. حاول بعد 15 دقيقة.',429,'credential_issue_rate_limited');
-    $temporary=temporaryPassword();$expires=(new DateTimeImmutable('+24 hours'))->format('Y-m-d H:i:s');$pdo->beginTransaction();
-    try{$client=$pdo->prepare('SELECT id,name,email,phone1 FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$client->execute([$clientId,$user['organization_id']]);$clientRow=$client->fetch();if(!$clientRow){$pdo->rollBack();fail('العميل غير موجود.',404,'client_not_found');}$clientPhone=normalizePhone((string)$clientRow['phone1'])?:trim((string)$clientRow['phone1']);
-        $stmt=$pdo->prepare("SELECT * FROM users WHERE client_id=? AND organization_id=? AND role='client' FOR UPDATE");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();
-        $portalEnabled=$account?!empty($account['is_active']):false;
-        if($account){$accountId=(int)$account['id'];$version=(int)$account['credential_version']+1;retainPasswordHash($pdo,$account,'temporary_issued');$pdo->prepare("UPDATE users SET full_name=?,email=?,phone=?,password_hash=?,password_status='temporary',must_change_password=1,credential_version=?,temporary_expires_at=? WHERE id=?")->execute([$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($temporary,PASSWORD_DEFAULT),$version,$expires,$accountId]);}
-        else{$pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,temporary_expires_at) VALUES (?,?,?,?,?,?,'client',0,'temporary',1,1,?)")->execute([$user['organization_id'],$clientId,$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($temporary,PASSWORD_DEFAULT),$expires]);$accountId=(int)$pdo->lastInsertId();}
-        $pdo->prepare('DELETE FROM api_sessions WHERE user_id=?')->execute([$accountId]);$pdo->prepare('UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND used_at IS NULL')->execute([$accountId]);
-        audit($pdo,$user,'temporary_credential_issued','users',$accountId,null,['client_id'=>$clientId,'expires_at'=>$expires,'sessions_revoked'=>true]);$pdo->commit();
-        respond(['temporary_password'=>$temporary,'expires_at'=>$expires,'login_identifier'=>$clientRow['phone1']?:$clientRow['email'],'portal_access'=>$portalEnabled?'enabled':'disabled'],201);
-    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
+    fail('تم إيقاف هذا المسار. استخدم التغيير المباشر أو رابط إعادة التعيين.',410,'credential_issue_retired');
 }
 
 if (preg_match('#^/clients/(\d+)/credentials/sessions/revoke$#',$path,$m)&&$method==='POST') {
@@ -2546,7 +2575,7 @@ if (preg_match('#^/clients/(\d+)/credentials/toggle$#',$path,$m)&&$method==='POS
 
 if (preg_match('#^/clients/(\d+)/access$#', $path, $m) && $method === 'POST') {
     $user=requireUser($user);requireRole($user,['owner']);
-    fail('تم إيقاف مسار تعيين كلمات المرور اليدوي. استخدم إنشاء كلمة مرور مؤقتة الآمن.',410,'insecure_credential_route_retired');
+    fail('تم إيقاف هذا المسار. استخدم قسم الدخول والأمان المخصص.',410,'insecure_credential_route_retired');
 }
 
 if (preg_match('#^/reschedule-requests/(\d+)/decision$#',$path,$m)&&$method==='POST'){

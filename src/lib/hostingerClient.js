@@ -1,4 +1,4 @@
-const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+const API_BASE = (import.meta.env?.VITE_API_URL || '/api').replace(/\/$/, '');
 
 const readCookie = (name) => document.cookie
   .split('; ')
@@ -166,11 +166,11 @@ const auth = {
     }
   },
 
-  async updateUser({ password, currentPassword }) {
+  async updateUser({ password, currentPassword, confirmPassword }) {
     try {
       const data = await apiRequest('/auth/password', {
         method: 'PATCH',
-        body: JSON.stringify({ password, current_password: currentPassword }),
+        body: JSON.stringify({ password, current_password: currentPassword, confirm_password: confirmPassword ?? password }),
       });
       if (data.user) {
         cachedUser = data.user;

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Radio } from 'lucide-react';
-import { elapsedSessionSeconds } from '../erp/studioSessionDuration';
-import { formatElapsedHoursMinutes } from './clientStudioSessions';
+import { elapsedSessionSeconds, formatElapsedTime } from '../erp/studioSessionDuration';
 
 export default function ClientAppointmentLiveStatus({ session, serverOffset = 0, compact = false }) {
   const [now, setNow] = useState(0);
@@ -15,8 +14,7 @@ export default function ClientAppointmentLiveStatus({ session, serverOffset = 0,
 
   if (!session) return null;
   const elapsed = elapsedSessionSeconds(session, now, serverOffset);
-  const display = formatElapsedHoursMinutes(elapsed);
-  const [hours, minutes] = display.split(':');
+  const [hours, minutes, seconds] = formatElapsedTime(elapsed).split(':');
 
   return <section className={`client-appointment-live${compact ? ' client-appointment-live--compact' : ''}`} aria-label="حالة جلسة التصوير الحالية">
     <div className="client-appointment-live__status" role="status" aria-live="polite">
@@ -24,10 +22,17 @@ export default function ClientAppointmentLiveStatus({ session, serverOffset = 0,
       <Radio aria-hidden="true" />
       <strong>جاري التصوير</strong>
     </div>
-    <time className="client-appointment-live__timer" dateTime={`PT${Math.floor(elapsed / 3600)}H${Math.floor((elapsed % 3600) / 60)}M`} aria-label={`الوقت المحتسب ${Number(hours)} ساعة و${Number(minutes)} دقيقة`}>
+    <time
+      className="client-appointment-live__timer"
+      dateTime={`PT${Math.floor(elapsed / 3600)}H${Math.floor((elapsed % 3600) / 60)}M${elapsed % 60}S`}
+      role="timer"
+      aria-label={`الوقت المحتسب ${Number(hours)} ساعة و${Number(minutes)} دقيقة و${Number(seconds)} ثانية`}
+    >
       <span><b>{hours}</b><small>ساعة</small></span>
       <i aria-hidden="true">:</i>
       <span><b>{minutes}</b><small>دقيقة</small></span>
+      <i aria-hidden="true">:</i>
+      <span><b>{seconds}</b><small>ثانية</small></span>
     </time>
     <p>يُحدّث تلقائيًا</p>
   </section>;

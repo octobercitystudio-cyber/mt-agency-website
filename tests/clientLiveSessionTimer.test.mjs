@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { elapsedSessionSeconds } from '../src/erp/studioSessionDuration.js';
+import { elapsedSessionSeconds, formatElapsedTime } from '../src/erp/studioSessionDuration.js';
 import {
   clientSessionMap,
   earliestClientSession,
@@ -55,7 +55,7 @@ test('earliest active session is deterministic and promotes a past booking as cu
   assert.equal(promoted[1].id, 400);
 });
 
-test('server offset and ISO start self-correct elapsed hours and minutes without negatives', () => {
+test('server offset and ISO start self-correct elapsed hours, minutes, and seconds without negatives', () => {
   const receivedAt = Date.parse('2026-08-09T10:00:30Z');
   const offset = sessionServerOffset('2026-08-09T10:02:30Z', receivedAt);
   assert.equal(offset, 120000);
@@ -64,6 +64,7 @@ test('server offset and ISO start self-correct elapsed hours and minutes without
   assert.equal(formatElapsedHoursMinutes(150), '00:02');
   assert.equal(formatElapsedHoursMinutes(elapsedSessionSeconds(session, Date.parse('2026-08-09T09:00:00Z'), 0)), '00:00');
   assert.equal(formatElapsedHoursMinutes(3661), '01:01');
+  assert.equal(formatElapsedTime(3661), '01:01:01');
 });
 
 test('demo client sees only their active session and no internal or financial fields', async () => {
@@ -99,6 +100,26 @@ test('client hook keeps last active state on failure and API uses authenticated 
   assert.match(dashboard, /sessionByBookingId\.get\(Number\(booking\.id\)\)/);
   assert.match(component, /elapsedSessionSeconds/);
   assert.doesNotMatch(component, /button|input|onClick|onChange/);
+});
+
+test('shared client timer renders HH:MM:SS accessibly and stays intact on small phones', async () => {
+  const [component, overview, dashboard, styles] = await Promise.all([
+    load('src/pages/ClientAppointmentLiveStatus.jsx'),
+    load('src/pages/ClientDashboardOverview.jsx'),
+    load('src/pages/ClientDashboard.jsx'),
+    load('src/pages/ClientDashboard.css'),
+  ]);
+  const timeElement = component.slice(component.indexOf('<time'), component.indexOf('</time>'));
+  assert.match(component, /formatElapsedTime\(elapsed\)\.split\(':'\)/);
+  assert.match(timeElement, /role="timer"/);
+  assert.match(timeElement, /dateTime=\{`PT\$\{Math\.floor\(elapsed \/ 3600\)\}H\$\{Math\.floor\(\(elapsed % 3600\) \/ 60\)\}M\$\{elapsed % 60\}S`\}/);
+  assert.match(timeElement, /<small>ساعة<\/small>[\s\S]*<small>دقيقة<\/small>[\s\S]*<small>ثانية<\/small>/);
+  assert.match(timeElement, /و\$\{Number\(seconds\)\} ثانية/);
+  assert.doesNotMatch(timeElement, /aria-live=/);
+  assert.equal((overview.match(/<ClientAppointmentLiveStatus/g) || []).length, 1);
+  assert.equal((dashboard.match(/<ClientAppointmentLiveStatus/g) || []).length, 1);
+  assert.match(styles, /client-appointment-live__timer\{[^}]*white-space:nowrap/);
+  assert.match(styles, /@media\(max-width:360px\)[\s\S]*client-appointment-live__timer\{[^}]*grid-column:1/);
 });
 
 test('client home leads with the next appointment and transforms that appointment card in place', async () => {

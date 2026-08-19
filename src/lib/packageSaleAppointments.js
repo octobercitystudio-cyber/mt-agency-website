@@ -1,3 +1,5 @@
+import { formatDurationMinutes } from './businessFormat.js';
+
 const timeMinutes = value => {
   const match = String(value || '').match(/^(\d{2}):(\d{2})/);
   if (!match) return -1;
@@ -66,7 +68,7 @@ export const validatePackageAppointment = (candidate, { unit = 'hour', minimumMi
   const duration = appointmentDurationMinutes(candidate);
   if (!(Number(candidate?.resource_id) > 0)) errors.resource_id = 'اختر الاستديو أو المورد.';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(candidate?.date || ''))) errors.date = 'حدد تاريخ الموعد.';
-  if (timeMinutes(candidate?.start_time) < 720 || timeMinutes(candidate?.end_time) > 1440 || duration < minimumMinutes || duration % incrementMinutes !== 0) errors.time = `المدة تبدأ من 12 ظهرًا، وحدها الأدنى ${minimumMinutes} دقيقة.`;
+  if (timeMinutes(candidate?.start_time) < 720 || timeMinutes(candidate?.end_time) > 1440 || duration < minimumMinutes || duration % incrementMinutes !== 0) errors.time = `الموعد من 12:00 م إلى 12:00 ص، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)}.`;
   if (candidate?.date && ((startsAt && candidate.date < startsAt) || (expiresAt && candidate.date > expiresAt) || (shootingDate && candidate.date !== shootingDate))) errors.date = 'الموعد خارج فترة صلاحية الباقة.';
   if (!errors.date && !errors.time && appointmentStartIsPast(candidate, nowKey)) errors.past = 'لا يمكن إضافة موعد في وقت ماضٍ.';
   if (unit === 'reel' && (!Number.isSafeInteger(Number(candidate?.requested_quantity)) || Number(candidate.requested_quantity) < 1)) errors.requested_quantity = 'عدد الريلز يجب أن يكون رقمًا صحيحًا موجبًا.';

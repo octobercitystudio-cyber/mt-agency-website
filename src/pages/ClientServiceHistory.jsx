@@ -4,7 +4,7 @@ import {
   Clock3, FolderCheck, History, LoaderCircle, PackageCheck, Search, WalletCards,
 } from 'lucide-react';
 import { dataClient } from '../dataClient';
-import { formatBookingDate, formatEGP, formatPackageQuantity, formatTime12 } from '../lib/businessFormat';
+import { formatBookingDate, formatDurationMinutes, formatEGP, formatPackageQuantity, formatTime12 } from '../lib/businessFormat';
 import { isUnfulfilledServiceHistoryType, serviceHistoryEmptyMode } from '../lib/clientServiceHistory';
 import './ClientServiceHistory.css';
 
@@ -25,13 +25,6 @@ const dateKey = (monthsBack) => {
   date.setHours(12, 0, 0, 0);
   date.setMonth(date.getMonth() - monthsBack);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-};
-const durationLabel = minutes => {
-  const value = Math.max(0, Math.round(Number(minutes || 0)));
-  const hours = Math.floor(value / 60);
-  const rest = value % 60;
-  if (!hours) return `${rest.toLocaleString('ar-EG-u-nu-latn')} دقيقة`;
-  return `${hours.toLocaleString('ar-EG-u-nu-latn')} ساعة${rest ? ` و${rest.toLocaleString('ar-EG-u-nu-latn')} دقيقة` : ''}`;
 };
 const monthLabel = value => {
   const date = new Date(`${String(value || '').slice(0, 10)}T12:00:00`);
@@ -132,7 +125,7 @@ function HistoryEntry({ item }) {
 
 function EntrySummary({ item }) {
   const details = item.details || {};
-  if (item.type === 'studio_session') return <div className="client-history-entry__summary"><span><Clock3 />المدة الفعلية <b>{durationLabel(details.actual_minutes)}</b></span><span><PackageCheck />المخصوم <b>{formatPackageQuantity(details.deducted_quantity, details.billing_unit)}</b></span></div>;
+  if (item.type === 'studio_session') return <div className="client-history-entry__summary"><span><Clock3 />المدة الفعلية <b>{formatDurationMinutes(details.actual_minutes)}</b></span><span><PackageCheck />المخصوم <b>{formatPackageQuantity(details.deducted_quantity, details.billing_unit)}</b></span></div>;
   if (item.type === 'ended_package') return <div className="client-history-entry__summary"><span><PackageCheck />المستخدم <b>{formatPackageQuantity(details.used_quantity, details.billing_unit)}</b></span><span><WalletCards />المتبقي المالي <b>{formatEGP(details.due_amount)}</b></span></div>;
   if (item.type === 'completed_project') return <div className="client-history-entry__summary"><span><FolderCheck />نوع الخدمة <b>{PROJECT_TYPES[details.service_type] || details.service_type || 'خدمة مخصصة'}</b></span><span><CheckCircle2 />المراحل المكتملة <b>{Number(details.completed_milestones?.length || 0).toLocaleString('ar-EG-u-nu-latn')}</b></span></div>;
   return <div className="client-history-entry__summary"><span><Ban />الحالة <b>لم يتم التنفيذ</b></span>{details.start_time && <span><Clock3 />الوقت <b>{formatTime12(details.start_time)} – {formatTime12(details.end_time)}</b></span>}</div>;
@@ -140,7 +133,7 @@ function EntrySummary({ item }) {
 
 function EntryDetails({ item }) {
   const details = item.details || {};
-  if (item.type === 'studio_session') return <div className="client-history-details"><Detail label="الباقة" value={details.package_name || 'جلسة مستقلة'} /><Detail label="وقت الموعد" value={`${formatTime12(details.start_time)} – ${formatTime12(details.end_time)}`} /><Detail label="الوقت الفعلي" value={durationLabel(details.actual_minutes)} /><Detail label="الوقت الزائد" value={durationLabel(details.excess_minutes)} /><Detail label="نتيجة التسوية" value={details.settlement_outcome} wide />{Number(details.amount_due) > 0 && <Detail label="المبلغ المستحق عن الزيادة" value={formatEGP(details.amount_due)} />}</div>;
+  if (item.type === 'studio_session') return <div className="client-history-details"><Detail label="الباقة" value={details.package_name || 'جلسة مستقلة'} /><Detail label="وقت الموعد" value={`${formatTime12(details.start_time)} – ${formatTime12(details.end_time)}`} /><Detail label="الوقت الفعلي" value={formatDurationMinutes(details.actual_minutes)} /><Detail label="الوقت الزائد" value={formatDurationMinutes(details.excess_minutes)} /><Detail label="نتيجة التسوية" value={details.settlement_outcome} wide />{Number(details.amount_due) > 0 && <Detail label="المبلغ المستحق عن الزيادة" value={formatEGP(details.amount_due)} />}</div>;
   if (item.type === 'ended_package') return <div className="client-history-details"><Detail label="فترة الصلاحية" value={`${formatBookingDate(details.starts_at)} – ${formatBookingDate(details.expires_at)}`} wide /><Detail label="إجمالي الباقة" value={formatPackageQuantity(details.total_quantity, details.billing_unit)} /><Detail label="المستخدم" value={formatPackageQuantity(details.used_quantity, details.billing_unit)} /><Detail label="الرصيد النهائي" value={formatPackageQuantity(details.final_remaining, details.billing_unit)} /><Detail label="إجمالي السعر" value={formatEGP(details.total_price)} /><Detail label="المدفوع" value={formatEGP(details.paid_amount)} /><Detail label="المتبقي" value={formatEGP(details.due_amount)} /></div>;
   if (item.type === 'completed_project') return <div className="client-history-details"><Detail label="قيمة الاتفاق" value={formatEGP(details.agreement_amount)} /><Detail label="المدفوع" value={formatEGP(details.paid_amount)} /><Detail label="المتبقي" value={formatEGP(details.due_amount)} />{details.completed_milestones?.length > 0 && <div className="client-history-details__list"><strong>المراحل التي اكتملت</strong><ul>{details.completed_milestones.map((row, index) => <li key={`${row.title}-${index}`}><CheckCircle2 /> <span>{row.title}{row.client_note && <small>{row.client_note}</small>}</span></li>)}</ul></div>}{details.completed_items?.length > 0 && <div className="client-history-details__list"><strong>ما تم تسليمه</strong><ul>{details.completed_items.map((row, index) => <li key={`${row.description}-${index}`}><FolderCheck /> <span>{row.description}<small>{Number(row.quantity).toLocaleString('ar-EG-u-nu-latn')} {row.unit}</small></span></li>)}</ul></div>}</div>;
   return <div className="client-history-details"><Detail label="النوع" value={TYPE_META[item.type]?.label || 'طلب لم يتم'} /><Detail label="التاريخ" value={formatBookingDate(item.date)} />{details.package_name && <Detail label="الباقة" value={details.package_name} />}</div>;

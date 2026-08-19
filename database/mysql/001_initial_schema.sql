@@ -415,3 +415,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 INSERT INTO resources (id, organization_id, name, type)
 VALUES (1, 1, 'الاستديو الرئيسي', 'studio')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- The post-production tables depend on booking_sessions, which is introduced
+-- by migration 009. Fresh installations must continue through migration 031:
+-- database/mysql/031_post_production_and_video_deliveries.sql

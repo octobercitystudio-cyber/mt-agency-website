@@ -24,7 +24,7 @@ const getPublicDataClient = () => {
   return publicDataClientPromise;
 };
 
-const isPublicSurface = () => !/^\/(?:login|change-password|dashboard|erp(?:\/|$)|adminmt(?:\/|$))/.test(window.location.pathname);
+const isPublicSurface = () => !/^\/(?:login|change-password|reset-password|dashboard|erp(?:\/|$)|adminmt(?:\/|$))/.test(window.location.pathname);
 
 const restoreLocalPreviewSession = () => {
   if (!import.meta.env.DEV) return null;
@@ -68,15 +68,9 @@ const defaultData = {
     { id: 'podcast', nameAr: 'بودكاست', nameEn: 'Podcast' },
     { id: 'web', nameAr: 'برمجة ويب', nameEn: 'Web' }
   ],
-  portfolio: [
-    { id: 1, embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ', title: 'إعلان تجاري', titleEn: 'Commercial Ad', category: 'video' },
-    { id: 2, imageUrl: 'https://images.unsplash.com/photo-1600132806370-bf17e65e942f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'هوية بصرية', titleEn: 'Visual Identity', category: 'design' },
-    { id: 3, embedUrl: 'https://www.youtube.com/embed/jNQXAC9IVRw', title: 'حملة سوشيال ميديا', titleEn: 'Social Media Campaign', category: 'reels' },
-    { id: 4, imageUrl: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'حلقة بودكاست', titleEn: 'Podcast Episode', category: 'podcast' },
-    { id: 5, embedUrl: 'https://www.youtube.com/embed/9bZkp7q19f0', title: 'تغطية فعالية', titleEn: 'Event Coverage', category: 'video' },
-    { id: 6, imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: 'موقع إلكتروني', titleEn: 'Website', category: 'design' },
-    { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: '/qpshoes_mockup.webp', title: 'متجر قصر الملكة', titleEn: 'QP Shoes Store', category: 'web' }
-  ],
+  // Portfolio entries are business-owned content. Never fall back to third-party
+  // sample media when the remote website configuration is missing.
+  portfolio: [],
   contact: {
     address: "مدينة 6 أكتوبر، الجيزة، مصر",
     addressEn: "6th of October City, Giza, Egypt",

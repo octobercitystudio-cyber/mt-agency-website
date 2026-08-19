@@ -126,7 +126,8 @@ test('client navigation exposes offers directly while Home keeps simple shortcut
   const navigation = dashboard.slice(dashboard.indexOf("['home', Home"), dashboard.indexOf('].map(([key, Icon, label])'));
   assert.doesNotMatch(navigation, /'history'|'projects'/);
   assert.match(overview, /onNavigate\('offers'\)/);
-  assert.match(css, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)!important/);
+  assert.match(css, /grid-template-columns:repeat\(5,minmax\(0,1fr\)\)!important/);
+  assert.match(css, /@media\(max-width:800px\)[\s\S]*\.client-nav-security\{display:none\}[\s\S]*\.client-nav-more\{display:flex\}/);
   assert.match(view, /سجل الخدمات/);
   assert.match(view, /كل ما تم تنفيذه أو تسليمه لك في مكان واحد/);
   assert.match(view, /<details><summary>عرض التفاصيل<\/summary>/);

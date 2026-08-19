@@ -7,7 +7,10 @@ import './ClientNotifications.css';
 
 const safeItems = value => Array.isArray(value) ? value.filter(item => item && Number(item.id) > 0 && item.title && item.message) : [];
 const cacheKey = clientId => `mt_client_notifications_cache:${clientId}`;
-const destinationFor = item => item.action_tab || ({ offers: 'offers', invoices: 'finance', payments: 'finance', payment_proofs: 'finance', bookings: 'schedule', booking_sessions: 'history', projects: 'projects', client_packages: 'home' }[item.entity_type] || 'home');
+const destinationFor = item => {
+  const destination = item.action_tab || ({ offers: 'offers', invoices: 'finance', payments: 'finance', payment_proofs: 'finance', bookings: 'schedule', booking_sessions: 'history', projects: 'projects', client_packages: 'home' }[item.entity_type] || 'home');
+  return destination === 'montage' ? 'videos' : destination;
+};
 const iconFor = item => {
   if (item.entity_type === 'client_packages') return Package;
   if (['bookings', 'booking_sessions', 'reschedule_requests'].includes(item.entity_type)) return CalendarClock;

@@ -1,3 +1,5 @@
+import { formatDurationMinutes } from '../lib/businessFormat.js';
+
 export const roundedElapsedMinutes = elapsedSeconds => {
   const seconds = Number(elapsedSeconds);
   if (!Number.isFinite(seconds) || seconds <= 0) return 0;
@@ -60,11 +62,4 @@ export const sessionMaximumMinutes = session => {
   return Number.isFinite(scheduled) && scheduled > 0 ? Math.floor(scheduled) : null;
 };
 
-export const durationLabel = totalMinutes => {
-  const value = Math.max(0, Number(totalMinutes) || 0);
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  if (!hours) return `${minutes} دقيقة`;
-  if (!minutes) return `${hours} ساعة`;
-  return `${hours} ساعة و${minutes} دقيقة`;
-};
+export const durationLabel = totalMinutes => formatDurationMinutes(totalMinutes);

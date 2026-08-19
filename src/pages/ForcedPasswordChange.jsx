@@ -15,7 +15,7 @@ export default function ForcedPasswordChange() {
     if (!isValidClientPassword(password)) return setState({ busy: false, error: 'استخدم 6 خانات على الأقل لكلمة المرور.' });
     if (password !== confirmation) return setState({ busy: false, error: 'تأكيد كلمة المرور غير مطابق.' });
     setState({ busy: true, error: '' });
-    const { error } = await dataClient.auth.updateUser({ password });
+    const { error } = await dataClient.auth.updateUser({ password, confirmPassword: confirmation });
     if (error) return setState({ busy: false, error: error.message || 'تعذر تغيير كلمة المرور.' });
     navigate('/dashboard', { replace: true });
   };
@@ -23,8 +23,8 @@ export default function ForcedPasswordChange() {
     <section className="forced-password__card" aria-labelledby="forced-password-title">
       <span className="forced-password__mark"><ShieldCheck aria-hidden="true" /></span>
       <p className="forced-password__eyebrow">خطوة أمان مطلوبة</p>
-      <h1 id="forced-password-title">اختر كلمة مرور جديدة</h1>
-      <p className="forced-password__intro">تم الدخول ببيانات مؤقتة. لحماية حسابك، أنشئ كلمة مرور خاصة بك قبل فتح لوحة العميل.</p>
+      <h1 id="forced-password-title">يلزم تحديث كلمة المرور قبل المتابعة</h1>
+      <p className="forced-password__intro">أنشئ كلمة مرور خاصة بك لحماية الحساب، ثم افتح لوحة العميل.</p>
       <form onSubmit={submit}>
         <label>كلمة المرور الجديدة<div className="forced-password__field"><KeyRound aria-hidden="true"/><input type="password" autoComplete="new-password" minLength={CLIENT_PASSWORD_MIN_LENGTH} maxLength={CLIENT_PASSWORD_MAX_LENGTH} value={password} onChange={event => setPassword(event.target.value)} required autoFocus /></div></label>
         <ul className="forced-password__rules" aria-label="شروط كلمة المرور"><li className={isValidClientPassword(password) ? 'is-valid' : ''}>{CLIENT_PASSWORD_HINT}</li></ul>

@@ -132,18 +132,30 @@ export const effectivePackageStatus = (pkg, todayKey = cairoDateKey()) => (
   pkg?.status === 'active' && pkg?.expires_at && String(pkg.expires_at).slice(0, 10) < todayKey ? 'expired' : pkg?.status
 );
 
+export const formatDurationMinutes = (totalMinutes, { compact = false } = {}) => {
+  const parsed = Number(totalMinutes);
+  const value = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  if (compact) {
+    if (!hours) return `${numberFormatter.format(minutes)} د`;
+    if (!minutes) return `${numberFormatter.format(hours)} س`;
+    return `${numberFormatter.format(hours)} س ${numberFormatter.format(minutes)} د`;
+  }
+  const hourLabel = hours === 1 ? 'ساعة واحدة' : hours === 2 ? 'ساعتان' : `${numberFormatter.format(hours)} ساعات`;
+  const minuteLabel = minutes === 1 ? 'دقيقة واحدة' : minutes === 2 ? 'دقيقتان' : `${numberFormatter.format(minutes)} دقيقة`;
+  if (!hours) return minuteLabel;
+  if (!minutes) return hourLabel;
+  return `${hourLabel} و${minuteLabel}`;
+};
+
 export const formatPackageQuantity = (value, billingUnit = 'hour') => {
   const quantity = Math.max(0, Number(value || 0));
   if (billingUnit !== 'hour') {
     const unit = billingUnit === 'reel' ? 'ريل' : billingUnit === 'day' ? 'يوم' : billingUnit === 'month' ? 'شهر' : 'وحدة';
     return `${numberFormatter.format(quantity)} ${unit}`;
   }
-  const minutes = Math.round(quantity * 60);
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (!remainder) return `${numberFormatter.format(hours)} س`;
-  if (!hours) return `${numberFormatter.format(remainder)} د`;
-  return `${numberFormatter.format(hours)} س ${numberFormatter.format(remainder)} د`;
+  return formatDurationMinutes(quantity * 60, { compact: true });
 };
 
 export const normalizeTime = (value, { endOfDay = false } = {}) => {

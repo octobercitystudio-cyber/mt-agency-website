@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dataClient } from '../dataClient';
 import {
   CalendarDays, CheckCircle2, CircleDollarSign, Clock3, Home,
-  LogOut, Megaphone, RefreshCw, RotateCcw, Send, Sparkles, X, XCircle
+  Film, KeyRound, LogOut, Megaphone, Menu, RefreshCw, RotateCcw, Send, Sparkles, X, XCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import ClientDashboardOverview from './ClientDashboardOverview';
@@ -21,7 +21,7 @@ import {
   formatClientPoints,
   formatEGP,
   formatTime12,
-  calculateDurationMinutes,
+  calculateDurationMinutes, formatDurationMinutes,
   effectivePackageStatus,
   isValidBusinessBooking,
   normalizeTime,
@@ -34,6 +34,8 @@ import ClientAppointmentLiveStatus from './ClientAppointmentLiveStatus';
 import ClientNotifications from './ClientNotifications';
 import ClientOfferTickets, { ClientOfferDetails, ClientPublicPromotions } from './ClientOfferTickets';
 import { adaptClientOfferList, clientOfferServerOffset, normalizeClientOffer } from '../lib/clientOfferAdapter';
+import ClientPostProduction from './ClientPostProduction';
+import ClientSecuritySettings from './ClientSecuritySettings';
 
 const STATUS_META = {
   pending: { label: 'بانتظار التأكيد', tone: 'waiting' },
@@ -49,6 +51,7 @@ const STATUS_META = {
 
 const initialBooking = { client_package_id: '', date: '', start_time: '12:00', end_time: '13:00', notes: '' };
 const initialReschedule = { booking: null, date: '', start_time: '12:00', end_time: '13:00', reason: '' };
+const CLIENT_TABS = ['home', 'schedule', 'finance', 'offers', 'videos', 'security'];
 const previewDate = (days = 0) => {
   const date = new Date();
   date.setHours(12, 0, 0, 0);
@@ -108,10 +111,20 @@ const StatusBadge = ({ status }) => {
 const timeLabel = (value) => formatTime12(value, '--:--');
 export default function ClientDashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, logout } = useData();
   const clientId = currentUser?.client_id;
   const isLocalPreview = import.meta.env.DEV && currentUser?.role === 'client' && currentUser?.is_local_preview;
-  const [activeTab, setActiveTab] = useState('home');
+  const requestedTab = searchParams.get('tab') || 'home';
+  const normalizedRequestedTab = requestedTab === 'montage' ? 'videos' : requestedTab;
+  const activeTab = CLIENT_TABS.includes(normalizedRequestedTab) ? normalizedRequestedTab : 'home';
+  const highlightedPostProductionJobId = Math.max(0, Number(searchParams.get('job') || 0));
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    if (requestedTab !== 'montage') return;
+    const normalized = new URLSearchParams(searchParams); normalized.set('tab', 'videos');
+    setSearchParams(normalized, { replace: true });
+  }, [requestedTab, searchParams, setSearchParams]);
   const [client, setClient] = useState(null);
   const [packages, setPackages] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -274,7 +287,7 @@ export default function ClientDashboard() {
     const increment = Math.max(15, Number(service?.booking_increment_minutes || 15));
     const duration = calculateDurationMinutes(bookingForm.start_time, bookingForm.end_time);
     if (!isValidBusinessBooking(bookingForm.start_time, bookingForm.end_time, minimum) || duration % increment !== 0) {
-      return showNotice('error', `راجع الوقت: أقل حجز ${minimum} دقيقة، والزيادة كل ${increment} دقيقة، ${BUSINESS_HOURS_LABEL}.`);
+      return showNotice('error', `راجع الوقت: أقل حجز ${formatDurationMinutes(minimum)}، والزيادة كل ${formatDurationMinutes(increment)}، ${BUSINESS_HOURS_LABEL}.`);
     }
     setBookingBusy(true);
     const { error } = await dataClient.request('/bookings/request', {
@@ -301,7 +314,7 @@ export default function ClientDashboard() {
     const increment = Math.max(15, Number(service?.booking_increment_minutes || 15));
     const duration = calculateDurationMinutes(reschedule.start_time, reschedule.end_time);
     if (!isValidBusinessBooking(reschedule.start_time, reschedule.end_time, minimum) || duration % increment !== 0) {
-      showNotice('error', `الموعد البديل يجب أن يكون ${BUSINESS_HOURS_LABEL}، بحد أدنى ${minimum} دقيقة وبزيادات ${increment} دقيقة.`);
+      showNotice('error', `الموعد البديل يجب أن يكون ${BUSINESS_HOURS_LABEL}، بحد أدنى ${formatDurationMinutes(minimum)} وبزيادات ${formatDurationMinutes(increment)}.`);
       return;
     }
     setActionBusy(`reschedule-${reschedule.booking.id}`);
@@ -369,7 +382,7 @@ export default function ClientDashboard() {
       ? Number(suggestedOutstanding)
       : calculatedOutstanding;
     setProofForm(previous => ({ ...previous, target: `${type}:${id}`, amount: outstanding > 0 ? String(outstanding) : '' }));
-    setActiveTab('finance');
+    navigateClient('finance');
   };
 
   const subscribePromotion = async promotionId => {
@@ -381,9 +394,14 @@ export default function ClientDashboard() {
     showNotice('success', 'تم إرسال طلب الاشتراك للإدارة');
   };
 
-  const navigateClient = tab => {
-    const next = ['home', 'schedule', 'finance', 'offers'].includes(tab) ? tab : tab === 'projects' || tab === 'history' ? 'home' : 'home';
-    setActiveTab(next);
+  const navigateClient = (tab, payload = {}) => {
+    const requested = tab === 'montage' ? 'videos' : tab;
+    const next = CLIENT_TABS.includes(requested) ? requested : 'home';
+    const params = new URLSearchParams(searchParams);
+    if (next === 'home') params.delete('tab'); else params.set('tab', next);
+    const jobId = Number(payload.post_production_job_id || 0);
+    if (jobId > 0 && next === 'videos') params.set('job', String(jobId)); else params.delete('job');
+    setSearchParams(params, { replace: false }); setMoreOpen(false);
   };
 
   const viewClientOffer = async (event, offer) => {
@@ -452,7 +470,11 @@ export default function ClientDashboard() {
             ['home', Home, 'الرئيسية'], ['schedule', CalendarDays, 'المواعيد'],
             ['finance', CircleDollarSign, 'المالية'], ['offers', Megaphone, 'العروض'],
           ].map(([key, Icon, label]) => <button key={key} aria-label={label} title={label} className={activeTab === key ? 'active' : ''} onClick={() => navigateClient(key)}><Icon size={19}/><span className="client-nav-label">{label}</span></button>)}
+          <button type="button" aria-label="الفيديوهات" title="الفيديوهات" className={`client-nav-secondary${activeTab === 'videos' ? ' active' : ''}`} onClick={() => navigateClient('videos')}><Film size={19}/><span className="client-nav-label">الفيديوهات</span></button>
+          <button type="button" aria-label="الأمان" title="الأمان" className={`client-nav-security${activeTab === 'security' ? ' active' : ''}`} onClick={() => navigateClient('security')}><KeyRound size={19}/><span className="client-nav-label">الأمان</span></button>
+          <button type="button" className={`client-nav-more${moreOpen || ['videos', 'security'].includes(activeTab) ? ' active' : ''}`} aria-label="المزيد من صفحات حسابك" aria-expanded={moreOpen} onClick={() => setMoreOpen(open => !open)}><Menu size={19}/><span className="client-nav-label">المزيد</span></button>
         </nav>
+        {moreOpen && <div className="client-nav-more-menu" role="menu" aria-label="صفحات إضافية"><button type="button" role="menuitem" className={activeTab === 'videos' ? 'active' : ''} onClick={() => navigateClient('videos')}><Film/> تسليمات الفيديوهات</button><button type="button" role="menuitem" className={activeTab === 'security' ? 'active' : ''} onClick={() => navigateClient('security')}><KeyRound/> الأمان</button></div>}
         <button className="client-logout" onClick={handleLogout}><LogOut size={18}/> تسجيل الخروج</button>
       </aside>
 
@@ -476,13 +498,13 @@ export default function ClientDashboard() {
           onNavigate={navigateClient}
           onBookPackage={packageId => {
             setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) }));
-            setActiveTab('schedule');
+            navigateClient('schedule');
           }}
         />}
 
         {activeTab === 'schedule' && <section className="client-view client-appointments-page">
           <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div><button type="button" className="client-primary" onClick={() => setBookingOpen(true)}><CalendarDays/> حجز موعد</button></header>
-          {upcomingBookings[0] ? <section className="client-next-appointment"><div><span>الموعد القادم</span><strong>{format(new Date(`${upcomingBookings[0].date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</strong><p>{timeLabel(upcomingBookings[0].start_time)} – {timeLabel(upcomingBookings[0].end_time)} · {calculateDurationMinutes(upcomingBookings[0].start_time, upcomingBookings[0].end_time)} دقيقة</p></div><StatusBadge status={upcomingBookings[0].status}/></section> : <div className="client-empty client-empty--compact"><CalendarDays/><p>لا يوجد موعد قادم.</p></div>}
+          {upcomingBookings[0] ? <section className="client-next-appointment"><div><span>الموعد القادم</span><strong>{format(new Date(`${upcomingBookings[0].date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</strong><p>{timeLabel(upcomingBookings[0].start_time)} – {timeLabel(upcomingBookings[0].end_time)} · {formatDurationMinutes(calculateDurationMinutes(upcomingBookings[0].start_time, upcomingBookings[0].end_time))}</p></div><StatusBadge status={upcomingBookings[0].status}/></section> : <div className="client-empty client-empty--compact"><CalendarDays/><p>لا يوجد موعد قادم.</p></div>}
           <section className="client-appointment-cards" aria-labelledby="all-client-bookings"><div className="client-section-head"><div><span>الأحدث أولًا</span><h2 id="all-client-bookings">كل مواعيدك</h2></div></div>{orderedBookings.map(booking => <BookingRow key={booking.id} booking={booking} session={sessionByBookingId.get(Number(booking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>)}{!orderedBookings.length && <div className="client-empty"><CalendarDays/><h3>لم تطلب أي حجز بعد</h3></div>}</section>
         </section>}
 
@@ -492,7 +514,7 @@ export default function ClientDashboard() {
           projects={projects.filter(project => ['planning', 'active', 'on_hold'].includes(project.status))}
           onBookPackage={packageId => {
             setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) }));
-            setActiveTab('schedule'); setBookingOpen(true);
+            navigateClient('schedule'); setBookingOpen(true);
           }}
         />}
 
@@ -506,9 +528,11 @@ export default function ClientDashboard() {
         </section>}
 
         {activeTab === 'finance' && <ClientFinanceView activePackages={activePackages} financialPackages={packages} invoices={invoices} payments={payments} proofs={proofs} projects={projects} offers={offers} proofForm={proofForm} proofBusy={proofBusy} onProofFormChange={updates => setProofForm(previous => ({ ...previous, ...updates }))} onSubmitProof={uploadProof} onSelectTarget={selectPaymentTarget} />}
+        {activeTab === 'videos' && <ClientPostProduction highlightJobId={highlightedPostProductionJobId} />}
+        {activeTab === 'security' && <ClientSecuritySettings />}
       </main>
 
-      {bookingOpen && <div className="client-modal" onMouseDown={event => { if (event.target === event.currentTarget) setBookingOpen(false); }}><section className="client-modal-card client-booking-request-dialog" role="dialog" aria-modal="true" aria-labelledby="client-booking-request-title"><button className="client-modal-close" type="button" onClick={() => setBookingOpen(false)} aria-label="إغلاق"><X/></button><span className="client-eyebrow"><CalendarDays size={16}/> حجز جديد</span><h2 id="client-booking-request-title">اختر موعد التصوير</h2><p>حدد الباقة واليوم والوقت من وإلى، ثم أرسل الطلب.</p><form onSubmit={submitBooking}><label>الباقة<select required value={bookingForm.client_package_id} onChange={event => setBookingForm({ ...bookingForm, client_package_id: event.target.value })}><option value="">اختر الباقة</option>{activePackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}</select></label><label>اليوم والتاريخ<input required type="date" min={format(new Date(), 'yyyy-MM-dd')} value={bookingForm.date} onChange={event => setBookingForm({ ...bookingForm, date: event.target.value })}/></label><div className="client-time-fields"><label>الوقت من<BusinessTimeSelect required min="12:00" max="23:00" value={bookingForm.start_time} onChange={event => setBookingForm({ ...bookingForm, start_time: event.target.value })}/></label><label>الوقت إلى<BusinessTimeSelect required min="13:00" max="24:00" value={bookingForm.end_time} onChange={event => setBookingForm({ ...bookingForm, end_time: event.target.value })}/></label></div><p className="client-policy"><Clock3/> مواعيد العمل {BUSINESS_HOURS_LABEL}. تظهر الدقائق كل 15 دقيقة.</p><label>ملاحظات اختيارية<textarea rows="3" value={bookingForm.notes} onChange={event => setBookingForm({ ...bookingForm, notes: event.target.value })}/></label><button className="client-primary" disabled={bookingBusy || !activePackages.length}>{bookingBusy ? <RefreshCw className="client-spin"/> : <Send/>}{bookingBusy ? 'جارٍ الإرسال...' : 'إرسال الطلب'}</button>{!activePackages.length && <small className="client-field-error">يلزم وجود باقة فعالة لإرسال طلب حجز.</small>}</form></section></div>}
+      {bookingOpen && <div className="client-modal" onMouseDown={event => { if (event.target === event.currentTarget) setBookingOpen(false); }}><section className="client-modal-card client-booking-request-dialog" role="dialog" aria-modal="true" aria-labelledby="client-booking-request-title"><button className="client-modal-close" type="button" onClick={() => setBookingOpen(false)} aria-label="إغلاق"><X/></button><span className="client-eyebrow"><CalendarDays size={16}/> حجز جديد</span><h2 id="client-booking-request-title">اختر موعد التصوير</h2><p>حدد الباقة واليوم والوقت من وإلى، ثم أرسل الطلب.</p><form onSubmit={submitBooking}><label>الباقة<select required value={bookingForm.client_package_id} onChange={event => setBookingForm({ ...bookingForm, client_package_id: event.target.value })}><option value="">اختر الباقة</option>{activePackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}</select></label><label>اليوم والتاريخ<input required type="date" min={format(new Date(), 'yyyy-MM-dd')} value={bookingForm.date} onChange={event => setBookingForm({ ...bookingForm, date: event.target.value })}/></label><div className="client-time-fields"><label>الوقت من<BusinessTimeSelect required min="12:00" max="23:00" value={bookingForm.start_time} onChange={event => setBookingForm({ ...bookingForm, start_time: event.target.value })}/></label><label>الوقت إلى<BusinessTimeSelect required min="13:00" max="24:00" value={bookingForm.end_time} onChange={event => setBookingForm({ ...bookingForm, end_time: event.target.value })}/></label></div><p className="client-policy"><Clock3/> اكتب الوقت يدويًا بصيغة HH:MM. مواعيد العمل {BUSINESS_HOURS_LABEL}.</p><label>ملاحظات اختيارية<textarea rows="3" value={bookingForm.notes} onChange={event => setBookingForm({ ...bookingForm, notes: event.target.value })}/></label><button className="client-primary" disabled={bookingBusy || !activePackages.length}>{bookingBusy ? <RefreshCw className="client-spin"/> : <Send/>}{bookingBusy ? 'جارٍ الإرسال...' : 'إرسال الطلب'}</button>{!activePackages.length && <small className="client-field-error">يلزم وجود باقة فعالة لإرسال طلب حجز.</small>}</form></section></div>}
 
       {offerDetail && <div className="client-modal client-offer-modal" onMouseDown={event => { if (event.target === event.currentTarget) closeOfferDetail(); }}><section ref={offerDialogRef} className="client-modal-card client-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="client-offer-title"><button className="client-modal-close" onClick={closeOfferDetail} aria-label="إغلاق تفاصيل العرض"><X/></button>{offerDetailBusy ? <div className="client-empty"><RefreshCw className="client-spin"/><h3>جارٍ تحميل العرض</h3></div> : <ClientOfferDetails offer={offerDetail} serverOffset={offerServerOffset} busy={acceptBusy} confirm={acceptConfirm} onConfirm={() => setAcceptConfirm(true)} onCancelConfirm={() => setAcceptConfirm(false)} onAccept={acceptOffer}/>}</section></div>}
 
@@ -522,5 +546,5 @@ function BookingRow({ booking, session, serverOffset, busy, onAlternativeDecisio
   const canChange = !isLive && ['confirmed', 'alternative_proposed'].includes(booking.status);
   const canCancel = !isLive && ['pending', 'confirmed', 'alternative_proposed'].includes(booking.status);
   const settlement=booking.settlement;const outcome={none:'ضمن رصيد الباقة',new_package:'تمت إضافته إلى باقة جديدة',existing_package:'تم نقله إلى باقة أخرى',package_overage:'تم احتسابه كوقت إضافي',custom_invoice:'تم إصدار فاتورة منفصلة',custom_project:'تم إدراجه كخدمة مستقلة',waive:'تمت تسويته دون رسوم'}[settlement?.settlement_mode];
-  return <article className={`client-booking-row${isLive ? ' client-booking-row--live' : ''}`} data-booking-id={booking.id}><div className="client-booking-date"><span>{format(new Date(`${booking.date}T12:00`), 'EEEE', { locale: ar })}</span><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${booking.date}T12:00`), 'MMM yyyy', { locale: ar })}</small></div><div className="client-booking-info">{isLive ? <span className="client-status client-status--live">جاري التصوير</span> : <StatusBadge status={booking.status}/>}<h3>{booking.service}</h3><p><CalendarDays size={15}/>{format(new Date(`${booking.date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</p><p><Clock3 size={15}/>{timeLabel(booking.start_time)} – {timeLabel(booking.end_time)} · {calculateDurationMinutes(booking.start_time, booking.end_time)} دقيقة</p>{session&&<ClientAppointmentLiveStatus session={session} serverOffset={serverOffset} compact />}{settlement&&<div className="client-session-settlement"><strong>الوقت الفعلي {settlement.actual_minutes} دقيقة</strong><span>مغطى {settlement.covered_minutes} دقيقة{Number(settlement.excess_minutes)>0?` · زائد ${settlement.excess_minutes} دقيقة`:''}</span><small>{settlement.client_note||outcome}</small>{Number(settlement.amount_due)>0&&<b>المستحق {formatEGP(settlement.amount_due)}</b>}</div>}</div>{(canChange || canCancel) && <div className="client-booking-actions">{booking.status === 'alternative_proposed' && <><button disabled={Boolean(busy)} onClick={() => onAlternativeDecision('accept')}><CheckCircle2/> قبول الموعد</button><button className="danger" disabled={Boolean(busy)} onClick={() => onAlternativeDecision('reject')}><RotateCcw/> موعد آخر</button></>}{booking.status !== 'alternative_proposed' && canChange && <button disabled={Boolean(busy)} onClick={onReschedule}><RotateCcw/> تغيير الموعد</button>}{canCancel && <button className="danger" disabled={Boolean(busy)} onClick={onCancel}><XCircle/> {busy === `cancel-${booking.id}` ? 'جارٍ...' : 'إلغاء'}</button>}</div>}</article>;
+  return <article className={`client-booking-row${isLive ? ' client-booking-row--live' : ''}`} data-booking-id={booking.id}><div className="client-booking-date"><span>{format(new Date(`${booking.date}T12:00`), 'EEEE', { locale: ar })}</span><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${booking.date}T12:00`), 'MMM yyyy', { locale: ar })}</small></div><div className="client-booking-info">{isLive ? <span className="client-status client-status--live">جاري التصوير</span> : <StatusBadge status={booking.status}/>}<h3>{booking.service}</h3><p><CalendarDays size={15}/>{format(new Date(`${booking.date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</p><p><Clock3 size={15}/>{timeLabel(booking.start_time)} – {timeLabel(booking.end_time)} · {formatDurationMinutes(calculateDurationMinutes(booking.start_time, booking.end_time))}</p>{session&&<ClientAppointmentLiveStatus session={session} serverOffset={serverOffset} compact />}{settlement&&<div className="client-session-settlement"><strong>الوقت الفعلي {formatDurationMinutes(settlement.actual_minutes)}</strong><span>مغطى {formatDurationMinutes(settlement.covered_minutes)}{Number(settlement.excess_minutes)>0?` · زائد ${formatDurationMinutes(settlement.excess_minutes)}`:''}</span><small>{settlement.client_note||outcome}</small>{Number(settlement.amount_due)>0&&<b>المستحق {formatEGP(settlement.amount_due)}</b>}</div>}</div>{(canChange || canCancel) && <div className="client-booking-actions">{booking.status === 'alternative_proposed' && <><button disabled={Boolean(busy)} onClick={() => onAlternativeDecision('accept')}><CheckCircle2/> قبول الموعد</button><button className="danger" disabled={Boolean(busy)} onClick={() => onAlternativeDecision('reject')}><RotateCcw/> موعد آخر</button></>}{booking.status !== 'alternative_proposed' && canChange && <button disabled={Boolean(busy)} onClick={onReschedule}><RotateCcw/> تغيير الموعد</button>}{canCancel && <button className="danger" disabled={Boolean(busy)} onClick={onCancel}><XCircle/> {busy === `cancel-${booking.id}` ? 'جارٍ...' : 'إلغاء'}</button>}</div>}</article>;
 }

@@ -12,6 +12,7 @@ const PrivateSurface = ({ children }) => <><Helmet><meta name="robots" content="
 
 const UnifiedLogin = lazy(() => import('./pages/UnifiedLogin'));
 const ForcedPasswordChange = lazy(() => import('./pages/ForcedPasswordChange'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const ClientDashboard = lazy(() => import('./pages/ClientDashboard'));
 const ERPLayout = lazy(() => import('./erp/ERPLayout'));
 const ERPDashboard = lazy(() => import('./erp/ERPDashboard'));
@@ -51,6 +52,7 @@ const ERPRequests = lazy(() => import('./erp/ERPRequests'));
 const ERPPackages = lazy(() => import('./erp/ERPPackages'));
 const ERPProjects = lazy(() => import('./erp/ERPProjects'));
 const ERPAttendance = lazy(() => import('./erp/ERPAttendance'));
+const ERPPostProduction = lazy(() => import('./erp/ERPPostProduction'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -67,7 +69,8 @@ const ErpProtectedRoute = ({ children }) => {
 
 const ClientProtectedRoute = ({ children }) => {
   const { currentUser } = useData();
-  if (currentUser?.role !== 'client') return <Navigate to="/login" replace />;
+  const location = useLocation();
+  if (currentUser?.role !== 'client') return <Navigate to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`} replace />;
   if (currentUser.must_change_password) return <Navigate to="/change-password" replace />;
   return children;
 };
@@ -135,6 +138,7 @@ function App() {
             </Route>
             <Route path="/login" element={<PrivateSurface><UnifiedLogin /></PrivateSurface>} />
             <Route path="/change-password" element={<PrivateSurface><ForcedPasswordRoute><ForcedPasswordChange /></ForcedPasswordRoute></PrivateSurface>} />
+            <Route path="/reset-password" element={<PrivateSurface><ResetPassword /></PrivateSurface>} />
             <Route path="/dashboard" element={<PrivateSurface><ClientProtectedRoute><ClientDashboard /></ClientProtectedRoute></PrivateSurface>} />
             <Route path="/adminmt/login" element={<PrivateSurface><AdminLogin /></PrivateSurface>} />
             <Route 
@@ -152,6 +156,7 @@ function App() {
               <Route path="requests" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPRequests /></RoleProtectedRoute>} />
               <Route path="packages" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPPackages /></RoleProtectedRoute>} />
               <Route path="projects" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'staff']}><ERPProjects /></RoleProtectedRoute>} />
+              <Route path="post-production" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations']}><ERPPostProduction /></RoleProtectedRoute>} />
               <Route path="finance" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPFinance /></RoleProtectedRoute>} />
               <Route path="formation-fund" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPFormationFund /></RoleProtectedRoute>} />
               <Route path="social-profits" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPSocialProfits /></RoleProtectedRoute>} />
