@@ -1365,18 +1365,7 @@ function remainingPackageCalendarDays(?string $expiresAt, ?string $today=null): 
 
 if ($path === '/health' && $method === 'GET') {
     $pdo->query('SELECT 1');
-    // One-release bridge for migration 032. This only retires the legacy
-    // expiry flag; password hashes, access status, user IDs, and sessions stay
-    // unchanged. Remove after production reports the normalized row count.
-    $normalizedLegacyCredentials = 0;
-    if (
-        schemaColumnExists($pdo, 'users', 'password_status')
-        && schemaColumnExists($pdo, 'users', 'temporary_expires_at')
-        && schemaColumnExists($pdo, 'users', 'role')
-    ) {
-        $normalizedLegacyCredentials = $pdo->exec("UPDATE users SET password_status='active', temporary_expires_at=NULL WHERE role='client' AND password_status='temporary'");
-    }
-    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'credential_legacy_normalized' => $normalizedLegacyCredentials]);
+    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives')]);
 }
 
 if ($path === '/push/config' && $method === 'GET') {
