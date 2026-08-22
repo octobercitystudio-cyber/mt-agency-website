@@ -40,9 +40,11 @@ const firebaseMessaging = async configuration => {
 };
 
 const foregroundNotification = async payload => {
+  const data = payload?.data || {};
+  const syncTopics = String(data.sync_topics || 'notifications').split(',').map(topic => topic.trim()).filter(Boolean);
+  window.dispatchEvent(new CustomEvent('mtPushChange', { detail: { topics: [...new Set(syncTopics)], source: 'firebase' } }));
   if (Notification.permission !== 'granted') return;
   const registration = await navigator.serviceWorker.ready;
-  const data = payload?.data || {};
   const notification = payload?.notification || {};
   await registration.showNotification(notification.title || data.title || 'MT Agency', {
     body: notification.body || data.body || 'لديك تحديث جديد في حسابك.',

@@ -46,7 +46,9 @@ const ERPClients = () => {
   const [currentClient, setCurrentClient] = useState(emptyClient);
   const [financeAction, setFinanceAction] = useState('pay_debt');
   const [financeAmount, setFinanceAmount] = useState('');
-  const [financeMethod, setFinanceMethod] = useState('كاش');
+  const [financeMethod, setFinanceMethod] = useState('cash');
+  const [financeError, setFinanceError] = useState('');
+  const [financeBusy, setFinanceBusy] = useState(false);
   
   const [sortBy, setSortBy] = useState('active');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -179,31 +181,15 @@ const ERPClients = () => {
 
   const handleFinanceSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedClient) return;
-
-    const { data: cfg } = await dataClient.from('app_config').select('key, value');
-    let pSpent = 100, pEarn = 1;
-    cfg?.forEach(c => {
-      if (c.key === 'points_egp_spent') pSpent = Number(c.value) || 100;
-      if (c.key === 'points_earned') pEarn = Number(c.value) || 1;
-    });
-    
-    const pointsToAdd = Math.floor((financeAmount / pSpent) * pEarn);
-    const newPoints = (selectedClient.points || 0) + pointsToAdd;
-    const today = new Date().toISOString().split('T')[0];
-
-    if (financeAction === 'pay_debt') {
-      const newDebt = Math.max(0, (selectedClient.debt || 0) - financeAmount);
-      await dataClient.from('clients').update({ debt: newDebt, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
-      await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({ entry_kind: 'income', category: 'legacy_client_debt', client_id: selectedClient.id, amount: financeAmount, method: financeMethod, detail: `سداد مديونية من العميل ${selectedClient.name}`, date: today, entity: 'الشركة' }) });
-    } else {
-      const newCredit = (selectedClient.credit || 0) + financeAmount;
-      await dataClient.from('clients').update({ credit: newCredit, points: newPoints, points_updated_at: today }).eq('id', selectedClient.id);
-      await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({ entry_kind: 'income', category: 'client_credit', client_id: selectedClient.id, amount: financeAmount, method: financeMethod, detail: `إيداع رصيد للعميل ${selectedClient.name}`, date: today, entity: 'الشركة' }) });
-    }
+    if (!selectedClient || sessionUser?.role !== 'owner') return;
+    setFinanceBusy(true); setFinanceError('');
+    const idempotencyKey = `client-balance-${selectedClient.id}-${globalThis.crypto?.randomUUID?.() || Date.now()}`;
+    const { error: requestError } = await dataClient.request(`/owner/clients/${selectedClient.id}/balance-adjustment`, { method: 'POST', body: JSON.stringify({ action: financeAction === 'deposit' ? 'add_credit' : 'pay_debt', amount: financeAmount, method: financeMethod, idempotency_key: idempotencyKey }) });
+    setFinanceBusy(false);
+    if (requestError) { setFinanceError(requestError.message || 'تعذر حفظ حركة العميل والخزنة.'); return; }
     setIsFinanceModalOpen(false);
     setFinanceAmount(0);
-    fetchClients();
+    await fetchClients(true);
   };
 
   const startSession = async (clientId, packageId) => {
@@ -638,12 +624,12 @@ const ERPClients = () => {
                   <button onClick={() => navigate('/erp/bookings')} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <CalendarPlus size={20} /> <span style={{ fontSize: '0.8rem' }}>حجز جديد</span>
                   </button>
-                  <button onClick={() => { setFinanceAction('deposit'); setIsFinanceModalOpen(true); }} style={{ background: '#0dcaf0', color: 'var(--erp-text-main)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
+                  {sessionUser?.role === 'owner' && <><button onClick={() => { setFinanceError(''); setFinanceAction('deposit'); setIsFinanceModalOpen(true); }} style={{ background: '#0dcaf0', color: 'var(--erp-text-main)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <Wallet size={20} /> <span style={{ fontSize: '0.8rem' }}>إيداع رصيد</span>
                   </button>
-                  <button onClick={() => { setFinanceAction('pay_debt'); setIsFinanceModalOpen(true); }} style={{ background: '#ffc107', color: 'var(--erp-text-main)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
+                  <button onClick={() => { setFinanceError(''); setFinanceAction('pay_debt'); setIsFinanceModalOpen(true); }} style={{ background: '#ffc107', color: 'var(--erp-text-main)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <DollarSign size={20} /> <span style={{ fontSize: '0.8rem' }}>سداد مديونية</span>
-                  </button>
+                  </button></>}
                   <button onClick={openWhatsApp} style={{ background: '#198754', color: 'var(--erp-surface)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <MessageCircle size={20} /> <span style={{ fontSize: '0.8rem' }}>إرسال تقرير</span>
                   </button>
@@ -793,17 +779,19 @@ const ERPClients = () => {
               <form onSubmit={handleFinanceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ textAlign: 'right' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>المبلغ (ج.م)</label>
-                  <input type="number" value={financeAmount} onChange={e => setFinanceAmount(Number(e.target.value))} required min="1" style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: financeAction === 'deposit' ? 'rgba(13, 202, 240, 0.15)' : 'rgba(25, 135, 84, 0.15)', color: financeAction === 'deposit' ? '#0dcaf0' : '#198754', fontSize: '2rem', textAlign: 'center', fontWeight: 'bold' }} />
+                  <input type="number" value={financeAmount} onChange={e => setFinanceAmount(e.target.value)} required min="0.01" max={financeAction === 'pay_debt' ? Number(selectedClient.debt || 0) : undefined} step="0.01" style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: financeAction === 'deposit' ? 'rgba(13, 202, 240, 0.15)' : 'rgba(25, 135, 84, 0.15)', color: financeAction === 'deposit' ? '#0dcaf0' : '#198754', fontSize: '2rem', textAlign: 'center', fontWeight: 'bold' }} />
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>طريقة السداد / الخزينة</label>
                   <select value={financeMethod} onChange={e => setFinanceMethod(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '1rem', border: 'none', background: 'var(--erp-bg)', fontWeight: 'bold' }}>
-                    <option value="كاش">كاش</option>
-                    <option value="فودافون كاش">فودافون كاش</option>
-                    <option value="انستاباي">إنستاباي</option>
+                    <option value="cash">كاش</option>
+                    <option value="bank_transfer">تحويل بنكي</option>
+                    <option value="vodafone_cash">فودافون كاش</option>
+                    <option value="instapay">إنستاباي</option>
                   </select>
                 </div>
-                <button type="submit" style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: financeAction === 'deposit' ? '#0dcaf0' : '#ffc107', color: 'var(--erp-text-main)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '10px', boxShadow: '0 .5rem 1rem rgba(0,0,0,.15)' }}>تأكيد العملية</button>
+                {financeError && <p role="alert" style={{ margin: 0, color: '#b4232f', fontWeight: 800 }}>{financeError}</p>}
+                <button type="submit" disabled={financeBusy} style={{ width: '100%', padding: '15px', borderRadius: '1rem', border: 'none', background: financeAction === 'deposit' ? '#0dcaf0' : '#ffc107', color: 'var(--erp-text-main)', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '10px', boxShadow: '0 .5rem 1rem rgba(0,0,0,.15)' }}>{financeBusy ? 'جارٍ حفظ رصيد العميل والخزنة…' : 'تأكيد العملية الذرية'}</button>
               </form>
             </div>
           </div>

@@ -20,11 +20,12 @@ const browserGlobals = () => {
 };
 
 test('appointment helper separates studio duration from reel usage and catches overlaps', () => {
-  const first = { resource_id: 1, date: '2026-08-20', start_time: '12:00', end_time: '13:30', requested_quantity: 2 };
-  const second = { resource_id: 1, date: '2026-08-20', start_time: '13:00', end_time: '14:00', requested_quantity: 3 };
+  const bookingDate = futureBookableDate();
+  const first = { resource_id: 1, date: bookingDate, start_time: '12:00', end_time: '13:30', requested_quantity: 2 };
+  const second = { resource_id: 1, date: bookingDate, start_time: '13:00', end_time: '14:00', requested_quantity: 3 };
   assert.deepEqual(packageAppointmentUsage([first], 'hour', 4), { selected: 1.5, remaining: 2.5, exceeded: false });
   assert.deepEqual(packageAppointmentUsage([first, second], 'reel', 4), { selected: 5, remaining: 0, exceeded: true });
-  assert.equal(validatePackageAppointment(second, { unit: 'reel', startsAt: '2026-08-10', expiresAt: '2026-09-10', appointments: [first] }).conflict.length > 0, true);
+  assert.equal(validatePackageAppointment(second, { unit: 'reel', startsAt: shiftPackageCalendarDate(bookingDate, -10), expiresAt: shiftPackageCalendarDate(bookingDate, 10), appointments: [first] }).conflict.length > 0, true);
   assert.equal(validatePackageAppointment({ ...first, date: '2026-08-21' }, { shootingDate: '2026-08-20' }).date.length > 0, true);
 });
 

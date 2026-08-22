@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StopCircle } from 'lucide-react';
+import { ArrowUpCircle, StopCircle } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
 import ERPStopSessionDialog from './ERPStopSessionDialog';
+import PackageUpgradeDialog from './PackageUpgradeDialog';
 import { canRoleCompleteStudioSession } from './studioSessionPermissions';
 import { elapsedSessionSeconds, formatElapsedTime } from './studioSessionDuration';
 
@@ -11,7 +12,9 @@ export default function ERPSessionTimer({ role }) {
   const [serverOffset, setServerOffset] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [selected, setSelected] = useState(null);
+  const [upgradePackageId, setUpgradePackageId] = useState(null);
   const stopButtonRef = useRef(null);
+  const upgradeButtonRef = useRef(null);
 
   const loadSessions = useCallback(async () => {
     if (typeof dataClient.request !== 'function') return;
@@ -54,8 +57,10 @@ export default function ERPSessionTimer({ role }) {
       </div>
       <time dir="ltr">{formatElapsedTime(elapsed)}</time>
       {sessions.length > 1 && <span className="erp-live-session__count">+{sessions.length - 1}</span>}
-      {canComplete && <button ref={stopButtonRef} type="button" onClick={() => setSelected(active)}><StopCircle /> إيقاف التصوير</button>}
+      {role === 'owner' && active.client_package_id && <button ref={upgradeButtonRef} className="erp-live-session__upgrade" type="button" onClick={() => setUpgradePackageId(active.client_package_id)}><ArrowUpCircle /> ترقية الباقة</button>}
+      {canComplete && <button ref={stopButtonRef} className="erp-live-session__stop" type="button" onClick={() => setSelected(active)}><StopCircle /> إيقاف التصوير</button>}
     </aside>
     {canComplete && <ERPStopSessionDialog role={role} session={selected} serverOffset={serverOffset} returnFocusRef={stopButtonRef} onClose={() => setSelected(null)} onCompleted={loadSessions} />}
+    {role === 'owner' && upgradePackageId && <PackageUpgradeDialog packageId={upgradePackageId} sessionActive returnFocusRef={upgradeButtonRef} onClose={() => setUpgradePackageId(null)} onCompleted={async () => { await loadSessions(); window.dispatchEvent(new CustomEvent('erpDataChanged', { detail: { topics: ['client_packages', 'clients'] } })); }} />}
   </>;
 }

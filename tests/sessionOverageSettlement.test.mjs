@@ -76,14 +76,14 @@ test('fresh eligibility and sale-confirm-reschedule-cancel-edit-preview keep exa
 
 test('hourly overage is exact to piastres, does not overdraw package, and is idempotent', async () => {
   const preview = await startAndPreview(271);
-  const first = await complete(preview, 'overage-piastre-001', { mode: 'package_overage', hourly_rate: 100 });
+  const first = await complete(preview, 'overage-piastre-001', { mode: 'package_overage', hourly_rate: '100.00' });
   assert.equal(first.error, null); assert.equal(first.data.excess_minutes, 1); assert.equal(Number(first.data.amount_due), 1.67);
   const after = database(); const pkg = after.client_packages.find(row => row.id === 201);
   assert.equal(pkg.consumed_quantity, 10); assert.equal(Number(pkg.overage_amount), 1.67);
   assert.equal(after.finance.filter(row => row.correlation_id?.includes('overage-piastre')).length, 0, 'receivable is not collected income');
-  const replay = await complete(preview, 'overage-piastre-001', { mode: 'package_overage', hourly_rate: 100 });
+  const replay = await complete(preview, 'overage-piastre-001', { mode: 'package_overage', hourly_rate: '100.00' });
   assert.equal(replay.error, null); assert.equal(replay.data.idempotent_replay, true); assert.equal(database().session_settlements.length, 1);
-  const mismatch = await complete(preview, 'overage-piastre-001', { mode: 'package_overage', hourly_rate: 101 });
+  const mismatch = await complete(preview, 'overage-piastre-001', { mode: 'package_overage', hourly_rate: '101.00' });
   assert.equal(mismatch.error?.code, 'idempotency_payload_mismatch');
 });
 
@@ -94,6 +94,29 @@ test('new package consumes only excess and records income only for initial paid 
   assert.equal(target.purchased_quantity, 1); assert.equal(target.consumed_quantity, 0.5); assert.equal(Number(target.paid_amount), 200.1);
   const invoice = db.invoices.find(row => row.id === result.data.invoice_id); assert.equal(Number(invoice.total), 1200); assert.equal(Number(invoice.paid_amount), 200.1);
   const incomes = db.finance.filter(row => row.source_type === 'payment' && row.source_id === result.data.payment_id); assert.equal(incomes.length, 1); assert.equal(Number(incomes[0].amount), 200.1);
+});
+
+test('settlement money inputs reject exponent, excess precision, whitespace and overflow without mutation', async () => {
+  const cases = [
+    { mode: 'new_package', service_id: 101, name: 'رقم JSON مرفوض', purchased_minutes: 60, validity_days: 30, total_price: 1000, initial_paid: '0.00' },
+    { mode: 'new_package', service_id: 101, name: 'دفعة JSON مرفوضة', purchased_minutes: 60, validity_days: 30, total_price: '1000.00', initial_paid: 0 },
+    { mode: 'new_package', service_id: 101, name: 'صيغة غير صالحة', purchased_minutes: 60, validity_days: 30, total_price: '1e3', initial_paid: '0' },
+    { mode: 'new_package', service_id: 101, name: 'صيغة غير صالحة', purchased_minutes: 60, validity_days: 30, total_price: '1000', initial_paid: '1.999' },
+    { mode: 'package_overage', hourly_rate: ' 1400.00' },
+    { mode: 'package_overage', hourly_rate: 1400 },
+    { mode: 'package_overage', hourly_rate: '90071992547409.92' },
+    { mode: 'custom_invoice', description: 'قيمة غير صالحة', amount: '1e3' },
+    { mode: 'custom_invoice', description: 'رقم JSON مرفوض', amount: 1000 },
+    { mode: 'custom_project', name: 'قيمة غير صالحة', description: 'اختبار', amount: '1.999' },
+  ];
+  for (let index = 0; index < cases.length; index += 1) {
+    resetDemoDatabase(); const preview = await startAndPreview(); const before = JSON.stringify(database());
+    const result = await complete(preview, `strict-settlement-money-${index}`, cases[index]);
+    assert.equal(result.error?.status, 422, JSON.stringify(cases[index])); assert.equal(result.error?.code, 'invalid_money_format'); assert.equal(JSON.stringify(database()), before);
+  }
+  resetDemoDatabase(); const preview = await startAndPreview();
+  const exact = await complete(preview, 'strict-settlement-cent-001', { mode: 'new_package', service_id: 101, name: 'قيمة قرش دقيقة', purchased_minutes: 60, validity_days: 30, total_price: '10.01', initial_paid: '0.01' });
+  assert.equal(exact.error, null); const target = database().client_packages.find(row => Number(row.id) === Number(exact.data.target_package_id)); assert.equal(target.total_price, '10.01'); assert.equal(target.paid_amount, '0.01');
 });
 
 test('existing package, custom invoice, custom project and waiver create one allocation each', async t => {
@@ -112,13 +135,13 @@ test('roles and stale preview leave session and ledgers unchanged', async () => 
   const operations = await complete(preview, 'ops-001', { mode: 'waive', internal_reason: 'غير مسموح' }); assert.equal(operations.error?.code, 'settlement_owner_required');
   let after = database(); assert.equal(after.booking_sessions.find(row => row.booking_id === 301).status, 'active'); assert.equal(after.package_usage_ledger.length, before.package_usage_ledger.length);
   activateDemoMode('owner'); after.client_packages.find(row => row.id === 201).consumed_minutes += 15; writeDatabase(after);
-  const stale = await complete(preview, 'stale-001', { mode: 'package_overage', hourly_rate: 1400 }); assert.equal(stale.error?.code, 'stale_settlement_preview'); assert.equal(database().booking_sessions.find(row => row.booking_id === 301).status, 'active');
+  const stale = await complete(preview, 'stale-001', { mode: 'package_overage', hourly_rate: '1400.00' }); assert.equal(stale.error?.code, 'stale_settlement_preview'); assert.equal(database().booking_sessions.find(row => row.booking_id === 301).status, 'active');
   activateDemoMode('finance'); const denied = await demoClient.request('/bookings/301/session/complete', { method: 'POST', body: JSON.stringify({ actual_minutes: 300 }) }); assert.equal(denied.error?.code, 'forbidden');
 });
 
 test('direct completion requests require both preview guards and reject stale values without mutation', async () => {
   const preview = await startAndPreview();
-  const validBase = { actual_minutes: preview.actual_minutes, idempotency_key: 'direct-guard-001', settlement: { mode: 'package_overage', hourly_rate: 1400 } };
+  const validBase = { actual_minutes: preview.actual_minutes, idempotency_key: 'direct-guard-001', settlement: { mode: 'package_overage', hourly_rate: '1400.00' } };
   const cases = [
     [{ ...validBase, expected_session_version: preview.session_version }, 'settlement_preview_required'],
     [{ ...validBase, preview_hash: preview.preview_hash }, 'settlement_preview_required'],
@@ -136,7 +159,7 @@ test('integer minutes remain authoritative at 1/59/60/61 minute and piastre boun
   for (const excess of [1, 59, 60, 61]) {
     resetDemoDatabase();
     const preview = await startAndPreview(270 + excess);
-    const result = await complete(preview, `boundary-${excess}`, { mode: 'package_overage', hourly_rate: 100 });
+    const result = await complete(preview, `boundary-${excess}`, { mode: 'package_overage', hourly_rate: '100.00' });
     assert.equal(result.error, null); assert.equal(result.data.excess_minutes, excess);
     assert.equal(Number(result.data.amount_due), Math.round((10000 * excess) / 60) / 100);
     const pkg = database().client_packages.find(row => row.id === 201);
@@ -170,9 +193,9 @@ test('repeated one-minute allocations derive original and target hour snapshots 
 
 test('package, invoice and project faults rollback byte-for-byte and leave the session active', async () => {
   const scenarios = [
-    ['package', { mode: 'new_package', service_id: 101, name: 'باقة اختبار رجوع', purchased_minutes: 60, validity_days: 30, total_price: 0, initial_paid: 0 }],
-    ['invoice', { mode: 'custom_invoice', description: 'فاتورة اختبار رجوع', amount: 250 }],
-    ['project', { mode: 'custom_project', name: 'مشروع اختبار رجوع', description: 'تفاصيل', amount: 300 }],
+    ['package', { mode: 'new_package', service_id: 101, name: 'باقة اختبار رجوع', purchased_minutes: 60, validity_days: 30, total_price: '0.00', initial_paid: '0.00' }],
+    ['invoice', { mode: 'custom_invoice', description: 'فاتورة اختبار رجوع', amount: '250.00' }],
+    ['project', { mode: 'custom_project', name: 'مشروع اختبار رجوع', description: 'تفاصيل', amount: '300.00' }],
   ];
   for (const [point, settlement] of scenarios) {
     resetDemoDatabase(); const preview = await startAndPreview(); const before = JSON.stringify(database());
@@ -184,7 +207,7 @@ test('package, invoice and project faults rollback byte-for-byte and leave the s
 
 test('admin template terms and changed target validity are revalidated without writes', async () => {
   const preview = await startAndPreview(); activateDemoMode('admin'); const beforeAdmin = JSON.stringify(database());
-  const admin = await complete(preview, 'admin-custom-template', { mode: 'new_package', service_id: 101, name: 'شروط معدلة', purchased_minutes: 60, validity_days: 90, total_price: 12000, initial_paid: 0 });
+  const admin = await complete(preview, 'admin-custom-template', { mode: 'new_package', service_id: 101, name: 'شروط معدلة', purchased_minutes: 60, validity_days: 90, total_price: '12000.00', initial_paid: '0.00' });
   assert.equal(admin.error?.code, 'custom_package_terms_forbidden'); assert.equal(JSON.stringify(database()), beforeAdmin);
   activateDemoMode('owner'); resetDemoDatabase(); let db = database(); const source = db.client_packages.find(row => row.id === 201);
   db.client_packages.push({ id: 299, client_id: 1, service_id: 101, name: 'باقة ستنتهي', billing_unit: 'hour', purchased_quantity: 2, consumed_quantity: 0, held_quantity: 0, total_price: 0, paid_amount: 0, overage_amount: 0, starts_at: source.starts_at, expires_at: source.expires_at, status: 'active' }); writeDatabase(db);

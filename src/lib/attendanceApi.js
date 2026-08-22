@@ -15,6 +15,7 @@ export const attendanceApi = {
   policies: (userId) => request(`/attendance/policies${userId ? `?user_id=${userId}` : ''}`),
   savePolicy: (policy) => request('/attendance/policies', { method: 'PUT', body: JSON.stringify(policy) }),
   correctRecord: (id, values) => request(`/attendance/records/${id}`, { method: 'PATCH', body: JSON.stringify(values) }),
+  saveManualRecord: (values) => request('/attendance/records/manual', { method: 'PUT', body: JSON.stringify(values) }),
   addAdjustment: (values) => request('/attendance/adjustments', { method: 'POST', body: JSON.stringify(values) }),
   correctAdjustment: (id, values) => request(`/attendance/adjustments/${id}/correct`, { method: 'POST', body: JSON.stringify(values) }),
   employeeAccounts: (month) => request(`/attendance/employee-accounts?month=${encodeURIComponent(month)}`),

@@ -34,23 +34,41 @@ const poll = async () => {
       if (!data.has_more || pages >= 20) break;
     } while (subscribers.size);
     if (allTopics.size) notifySubscribers([...allTopics], { ...latestPayload, events: allEvents, cursor: sharedCursor });
-    schedule(document.hidden ? 30000 : 5000);
+    schedule(document.hidden ? 15000 : 1500);
   } catch {
-    schedule(document.hidden ? 45000 : 15000);
+    schedule(document.hidden ? 30000 : 6000);
   } finally {
     polling = false;
   }
 };
 
 const onVisibility = () => { if (!document.hidden) schedule(250); };
+const onActive = () => schedule(100);
+const onPushChange = event => {
+  const topics = Array.isArray(event.detail?.topics) ? event.detail.topics.filter(Boolean) : ['notifications'];
+  if (topics.length) notifySubscribers([...new Set(topics)], { source: event.detail?.source || 'push', events: [], cursor: sharedCursor });
+  schedule(25);
+};
 const ensureTransport = () => {
-  if (!visibilityAttached) { document.addEventListener('visibilitychange', onVisibility); visibilityAttached = true; }
+  if (!visibilityAttached) {
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onActive);
+    window.addEventListener('online', onActive);
+    window.addEventListener('mtPushChange', onPushChange);
+    visibilityAttached = true;
+  }
   if (!polling && timer === null) poll();
 };
 const stopTransportIfIdle = () => {
   if (subscribers.size) return;
   window.clearTimeout(timer); timer = null;
-  if (visibilityAttached) { document.removeEventListener('visibilitychange', onVisibility); visibilityAttached = false; }
+  if (visibilityAttached) {
+    document.removeEventListener('visibilitychange', onVisibility);
+    window.removeEventListener('focus', onActive);
+    window.removeEventListener('online', onActive);
+    window.removeEventListener('mtPushChange', onPushChange);
+    visibilityAttached = false;
+  }
 };
 
 export default function useChangeSync(onChange, enabled = true) {

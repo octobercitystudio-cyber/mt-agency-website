@@ -1,3 +1,5 @@
+import { sharedReadRequestScheduler } from './readRequestScheduler.js';
+
 const API_BASE = (import.meta.env?.VITE_API_URL || '/api').replace(/\/$/, '');
 
 const readCookie = (name) => document.cookie
@@ -11,9 +13,14 @@ const csrfToken = () => decodeURIComponent(
 
 const toError = (payload, fallback = 'تعذر الاتصال بالخادم.') => {
   const source = payload?.error || payload;
-  const error = new Error(source?.message || fallback);
+  const requestId = String(source?.request_id || '').trim();
+  const baseMessage = source?.message || fallback;
+  const error = new Error(requestId && source?.code === 'server_error'
+    ? `${baseMessage} رقم المتابعة: ${requestId}`
+    : baseMessage);
   error.code = source?.code || 'api_error';
   error.status = source?.status;
+  error.requestId = requestId;
   return error;
 };
 
@@ -25,20 +32,30 @@ const apiRequest = async (path, options = {}) => {
     const token = csrfToken();
     if (token) headers['X-CSRF-Token'] = token;
   }
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-    ...options,
-    method,
-    headers,
-  });
+  const perform = async () => {
+    const response = await fetch(`${API_BASE}${path}`, {
+      credentials: 'include',
+      ...options,
+      method,
+      headers,
+    });
 
-  const payload = await response.json().catch(() => null);
-  if (!response.ok || payload?.error) {
-    const error = toError(payload);
-    error.status = response.status;
-    throw error;
-  }
-  return payload?.data;
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.error) {
+      const error = toError(payload);
+      error.status = response.status;
+      error.requestId = payload?.error?.request_id || response.headers?.get?.('X-Request-Id') || '';
+      throw error;
+    }
+    return payload?.data;
+  };
+
+  // Shared hosting limits concurrent database connections. Queueing safe reads
+  // prevents initial dashboard bursts from exhausting that limit; only reads
+  // get one automatic retry, so mutations are never duplicated.
+  return ['GET', 'HEAD'].includes(method)
+    ? sharedReadRequestScheduler.run(perform)
+    : perform();
 };
 
 class QueryBuilder {

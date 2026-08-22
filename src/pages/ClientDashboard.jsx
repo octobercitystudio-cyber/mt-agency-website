@@ -155,11 +155,13 @@ export default function ClientDashboard() {
   const [acceptConfirm, setAcceptConfirm] = useState(false);
   const offerDialogRef = useRef(null);
   const offerTriggerRef = useRef(null);
+  const clientDataRequestRef = useRef(0);
 
   const fetchClientData = useCallback(async (background = false) => {
     if (!clientId) return;
+    const requestToken = ++clientDataRequestRef.current;
     if (!background) setLoading(true);
-    if (!background) setLoadError('');
+    setLoadError('');
     if (isLocalPreview) {
       const preview = createLocalClientPreview();
       const previewClientId = 1;
@@ -176,6 +178,7 @@ export default function ClientDashboard() {
         dataClient.request('/client/projects', { method: 'GET' }),
         dataClient.from('session_settlements').select('*').eq('client_id', previewClientId).order('created_at', { ascending: false }),
       ]);
+      if (requestToken !== clientDataRequestRef.current) return;
       const availableServices = servicesResult.data || preview.services;
       const studioServiceIds = new Set(availableServices.filter(isStudioPackageService).map(service => Number(service.id)));
       setClient(clientResult.data || preview.client);
@@ -190,6 +193,7 @@ export default function ClientDashboard() {
       setPublicPromotions(promotionsResult.data?.items || preview.promotions);
       setInvoices(invoicesResult.data || preview.invoices);
       setProjects(projectsResult.data?.projects || preview.projects);
+      setLoadError('');
       setLoading(false);
       return;
     }
@@ -206,6 +210,7 @@ export default function ClientDashboard() {
       dataClient.request('/client/projects', { method: 'GET' }),
       dataClient.from('session_settlements').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
     ]);
+    if (requestToken !== clientDataRequestRef.current) return;
     const error = [clientResult, packagesResult, bookingsResult, paymentsResult, proofsResult, servicesResult, offersResult, invoicesResult, projectsResult, settlementsResult].find(result => result.error)?.error;
     if (error) {
       setLoadError(error.message || 'تعذر تحميل بيانات حسابك. حاول مرة أخرى.');
@@ -224,8 +229,9 @@ export default function ClientDashboard() {
       setPublicPromotions(promotionsResult.data?.items || []);
       setInvoices(invoicesResult.data || []);
       setProjects(projectsResult.data?.projects || []);
+      setLoadError('');
     }
-    if (!background) setLoading(false);
+    setLoading(false);
   }, [clientId, isLocalPreview]);
 
   const { sessions: activeSessions, byBookingId: sessionByBookingId, serverOffset: sessionServerOffset } = useClientStudioSessions({

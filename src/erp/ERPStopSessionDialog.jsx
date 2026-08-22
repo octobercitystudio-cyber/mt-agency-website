@@ -4,6 +4,7 @@ import {
   HandHeart, PackagePlus, ReceiptText, Save, Square, WalletCards, X,
 } from 'lucide-react';
 import { formatBookingDate, formatTime12 } from '../lib/businessFormat';
+import { parseStrictMoney, strictMoneyError } from '../lib/strictMoney';
 import useModalDialog from '../hooks/useModalDialog';
 import {
   durationInputToMinutes, durationLabel, elapsedSessionSeconds, roundedElapsedMinutes,
@@ -57,6 +58,12 @@ function SettlementChoice({ value, selected, onChange, icon: Icon, title, descri
   </label>;
 }
 
+function SettlementMoneyInput({ id, label, value, onChange, readOnly = false, allowEmpty = false }) {
+  const error = allowEmpty && value === '' ? '' : strictMoneyError(value, label);
+  const errorId = `${id}-error`;
+  return <label><span>{label}</span><input id={id} type="text" inputMode="decimal" autoComplete="off" value={value} readOnly={readOnly} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} onChange={event => onChange(event.target.value)} />{error && <small id={errorId} className="session-money-field-error">{error}</small>}</label>;
+}
+
 function StopSessionDialogContent({ session, role = 'owner', serverOffset, returnFocusRef, onClose, onCompleted }) {
   const [initialElapsed] = useState(() => roundedElapsedMinutes(elapsedSessionSeconds(session, Date.now(), serverOffset)));
   const [hours, setHours] = useState(() => String(Math.floor(initialElapsed / 60)));
@@ -99,7 +106,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
         if (!active) return;
         setPreview(result);
         const suggested = result.default_mode || (result.eligible_packages?.length ? 'existing_package' : result.overage_rate ? 'package_overage' : 'custom_invoice');
-        if (result.excess_minutes > 0) setFamily(current => current || (suggested === 'new_package' ? 'new_package' : 'other'));
+        if (result.excess_minutes > 0) setFamily(current => current || (suggested === 'new_package' ? 'new_package' : suggested === 'package_overage' ? 'package_overage' : 'advanced'));
         if (suggested !== 'new_package') setOtherMode(current => current || suggested);
         if (result.eligible_packages?.[0]) setExistingPackageId(current => current || String(result.eligible_packages[0].id));
         setNewPackage(current => ({ ...current, purchased_minutes: String(Math.max(60, result.excess_minutes || 0)), service_id: current.service_id || String(result.package_templates?.[0]?.id || '') }));
@@ -112,9 +119,9 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
 
   const destinationLabel = family === 'waive' ? 'وقت تم التغاضي عنه'
     : family === 'new_package' ? 'مخصص لباقة جديدة'
-      : otherMode === 'existing_package' ? 'منقول لباقة أخرى'
+      : family === 'advanced' && otherMode === 'existing_package' ? 'منقول لباقة أخرى'
         : 'وقت إضافي مستحق';
-  const destinationTone = family === 'waive' ? 'waive' : family === 'new_package' || otherMode === 'existing_package' ? 'transfer' : 'excess';
+  const destinationTone = family === 'waive' ? 'waive' : family === 'new_package' || (family === 'advanced' && otherMode === 'existing_package') ? 'transfer' : 'excess';
 
   const validateDuration = () => {
     const totalMinutes = durationInputToMinutes(hours, minutes);
@@ -128,6 +135,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   const selectedSettlement = () => {
     if (!hasExcess) return null;
     if (family === 'new_package') return { mode: 'new_package', ...newPackage, purchased_minutes: Number(newPackage.purchased_minutes), validity_days: Number(newPackage.validity_days), total_price: newPackage.total_price, initial_paid: newPackage.initial_paid };
+    if (family === 'package_overage') return { mode: 'package_overage', hourly_rate: custom.hourly_rate || preview?.overage_rate };
     if (family === 'waive') return { mode: 'waive', internal_reason: waiverReason.trim(), client_note: clientNote.trim() };
     if (otherMode === 'existing_package') { const target = preview?.eligible_packages?.find(item => String(item.id) === String(existingPackageId)); return { mode: 'existing_package', target_package_id: Number(existingPackageId), target_package_version: Number(target?.version || 1) }; }
     if (otherMode === 'package_overage') return { mode: 'package_overage', hourly_rate: custom.hourly_rate || preview?.overage_rate };
@@ -142,12 +150,15 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
     if (settlement.mode === 'new_package') {
       if (!settlement.service_id || !settlement.name.trim()) throw new Error('اختر نموذج الباقة واكتب اسم الباقة الجديدة.');
       if (!Number.isSafeInteger(settlement.purchased_minutes) || settlement.purchased_minutes < preview.excess_minutes) throw new Error('رصيد الباقة الجديدة يجب أن يغطي الوقت الزائد كاملًا.');
-      if (Number(settlement.initial_paid) < 0 || Number(settlement.total_price) < Number(settlement.initial_paid)) throw new Error('سعر الباقة أو المدفوع المبدئي غير صحيح.');
+      const total = parseStrictMoney(settlement.total_price); const paid = parseStrictMoney(settlement.initial_paid);
+      if (!total.valid) throw new Error(strictMoneyError(settlement.total_price, 'إجمالي سعر الباقة'));
+      if (!paid.valid) throw new Error(strictMoneyError(settlement.initial_paid, 'المدفوع الآن'));
+      if (paid.cents > total.cents) throw new Error('المدفوع الآن لا يجوز أن يتجاوز إجمالي سعر الباقة.');
     }
     if (settlement.mode === 'existing_package' && !settlement.target_package_id) throw new Error('اختر الباقة الأخرى التي ستتحمل الوقت الزائد.');
-    if (settlement.mode === 'package_overage' && Number(settlement.hourly_rate) <= 0) throw new Error('لا يوجد سعر ساعة إضافية صالح.');
-    if (settlement.mode === 'custom_invoice' && Number(settlement.amount || 0) <= 0 && Number(settlement.hourly_rate || 0) <= 0) throw new Error('أدخل مبلغ الفاتورة أو سعر الساعة.');
-    if (settlement.mode === 'custom_project' && (!settlement.name || Number(settlement.amount) <= 0)) throw new Error('اكتب اسم المشروع وتكلفته.');
+    if (settlement.mode === 'package_overage') { const rate = parseStrictMoney(settlement.hourly_rate); if (!rate.valid) throw new Error(strictMoneyError(settlement.hourly_rate, 'سعر الساعة الإضافية')); if (rate.cents <= 0) throw new Error('لا يوجد سعر ساعة إضافية صالح.'); }
+    if (settlement.mode === 'custom_invoice') { const amount = settlement.amount === '' ? null : parseStrictMoney(settlement.amount); const rate = settlement.hourly_rate === '' ? null : parseStrictMoney(settlement.hourly_rate); if (amount && !amount.valid) throw new Error(strictMoneyError(settlement.amount, 'مبلغ الفاتورة')); if (rate && !rate.valid) throw new Error(strictMoneyError(settlement.hourly_rate, 'سعر الساعة')); if ((!amount || amount.cents <= 0) && (!rate || rate.cents <= 0)) throw new Error('أدخل مبلغ الفاتورة أو سعر الساعة.'); }
+    if (settlement.mode === 'custom_project') { const amount = parseStrictMoney(settlement.amount); if (!amount.valid) throw new Error(strictMoneyError(settlement.amount, 'تكلفة المشروع')); if (!settlement.name || amount.cents <= 0) throw new Error('اكتب اسم المشروع وتكلفته.'); }
     if (settlement.mode === 'waive' && settlement.internal_reason.length < 5) throw new Error('اكتب سببًا داخليًا واضحًا للتغاضي عن الوقت الزائد.');
   };
 
@@ -174,21 +185,29 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   };
 
   const packageAfter = Math.max(0, Number(newPackage.purchased_minutes || 0) - Number(preview?.excess_minutes || 0));
-  const overageAmount = Number(((Number(preview?.excess_minutes || 0) / 60) * Number(custom.hourly_rate || preview?.overage_rate || 0)).toFixed(2));
+  const newPackageTotal = parseStrictMoney(newPackage.total_price);
+  const newPackagePaid = parseStrictMoney(newPackage.initial_paid);
+  const effectiveRate = custom.hourly_rate || String(preview?.overage_rate ?? '');
+  const overageRate = parseStrictMoney(effectiveRate);
+  const overageAmountCents = overageRate.valid ? Math.round((overageRate.cents * Number(preview?.excess_minutes || 0)) / 60) : null;
+  const overageAmount = overageAmountCents === null ? null : overageAmountCents / 100;
   const selectedTargetPackage = preview?.eligible_packages?.find(item => String(item.id) === String(existingPackageId));
   const releasedMinutes = Math.max(0, Number(preview?.held_for_booking_minutes || 0) - Math.min(Number(preview?.held_for_booking_minutes || 0), Number(preview?.covered_minutes || 0)));
   const sourceBeforeMinutes = Number(preview?.held_for_booking_minutes || 0) + Number(preview?.free_unheld_original_minutes || 0);
-  const customAmount = Number(custom.amount || 0) > 0 ? Number(Number(custom.amount).toFixed(2)) : Number(((Number(preview?.excess_minutes || 0) / 60) * Number(custom.hourly_rate || 0)).toFixed(2));
+  const directCustomAmount = custom.amount === '' ? null : parseStrictMoney(custom.amount);
+  const fallbackCustomRate = custom.hourly_rate === '' ? null : parseStrictMoney(custom.hourly_rate);
+  const customAmountCents = directCustomAmount ? (directCustomAmount.valid ? directCustomAmount.cents : null) : fallbackCustomRate?.valid ? Math.round((fallbackCustomRate.cents * Number(preview?.excess_minutes || 0)) / 60) : 0;
+  const customAmount = customAmountCents === null ? null : customAmountCents / 100;
   const finalPreviewLines = [
     `الباقة الأصلية «${session.package_name || session.service || 'الباقة الحالية'}»: متاح قبل الإنهاء ${durationLabel(sourceBeforeMinutes)}، سيُستهلك ${durationLabel(preview?.covered_minutes || 0)}، ويصبح المتاح ${durationLabel(Math.max(0, sourceBeforeMinutes - Number(preview?.covered_minutes || 0)))}.`,
     releasedMinutes > 0 ? `سيُعاد ${durationLabel(releasedMinutes)} من حجز هذا الموعد غير المستخدم إلى الرصيد الحر.` : 'لن يوجد وقت محجوز غير مستخدم لإعادته.',
   ];
-  if (family === 'new_package') finalPreviewLines.push(`إنشاء باقة «${newPackage.name || 'الباقة الجديدة'}» برصيد ${durationLabel(Number(newPackage.purchased_minutes || 0))}؛ يُخصص منها ${durationLabel(preview?.excess_minutes || 0)} ويتبقى ${durationLabel(packageAfter)}.`, `إجمالي الباقة ${moneyLabel(newPackage.total_price || 0)}؛ المدفوع الآن ${moneyLabel(newPackage.initial_paid || 0)}؛ المتبقي ${moneyLabel(Math.max(0, Number(newPackage.total_price || 0) - Number(newPackage.initial_paid || 0)))}. ستُنشأ فاتورة الباقة، ويُسجل إيراد فقط بقيمة المدفوع.`);
+  if (family === 'new_package') finalPreviewLines.push(`إنشاء باقة «${newPackage.name || 'الباقة الجديدة'}» برصيد ${durationLabel(Number(newPackage.purchased_minutes || 0))}؛ يُخصص منها ${durationLabel(preview?.excess_minutes || 0)} ويتبقى ${durationLabel(packageAfter)}.`, newPackageTotal.valid && newPackagePaid.valid ? `إجمالي الباقة ${moneyLabel(newPackageTotal.cents / 100)}؛ المدفوع الآن ${moneyLabel(newPackagePaid.cents / 100)}؛ المتبقي ${moneyLabel(Math.max(0, newPackageTotal.cents - newPackagePaid.cents) / 100)}. ستُنشأ فاتورة الباقة، ويُسجل إيراد فقط بقيمة المدفوع.` : 'صحح قيم السعر والمدفوع لتظهر المعاينة المالية المطابقة للحفظ.');
   else if (otherMode === 'existing_package') finalPreviewLines.push(`نقل الوقت الزائد إلى باقة «${selectedTargetPackage?.name || 'الباقة المختارة'}»: المتاح قبل ${durationLabel(selectedTargetPackage?.free_minutes || 0)}، المستهلك الآن ${durationLabel(preview?.excess_minutes || 0)}، والمتاح بعدها ${durationLabel(selectedTargetPackage?.remaining_after_minutes || 0)}.`, 'لا فاتورة ولا مديونية جديدة لهذه التسوية.');
-  else if (otherMode === 'package_overage') finalPreviewLines.push(`احتساب ${durationLabel(preview?.excess_minutes || 0)} بسعر ${moneyLabel(custom.hourly_rate || preview?.overage_rate || 0)} للساعة.`, `المستحق ${moneyLabel(overageAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(overageAmount)} على الباقة الأصلية دون خصم رصيد إضافي.`);
-  else if (otherMode === 'custom_project') finalPreviewLines.push(`إنشاء مشروع «${custom.project_name || 'خدمة وقت تصوير إضافي'}» ووصفه «${custom.description || 'وقت تصوير إضافي'}»، مرتبط بهذه الجلسة.`, `قيمة المشروع والفاتورة ${moneyLabel(customAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(customAmount)}. لن تُسجل إيرادات قبل اعتماد الدفع.`);
+  else if (family === 'package_overage' || otherMode === 'package_overage') finalPreviewLines.push(overageRate.valid ? `احتساب ${durationLabel(preview?.excess_minutes || 0)} بسعر ${moneyLabel(overageRate.cents / 100)} للساعة.` : 'صحح سعر الساعة لتظهر معاينة المستحق.', overageAmount !== null ? `المستحق ${moneyLabel(overageAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(overageAmount)} على الباقة الأصلية دون خصم رصيد إضافي.` : 'لن يعتمد النظام قيمة لا تطابق صيغة القروش المعتمدة.');
+  else if (otherMode === 'custom_project') finalPreviewLines.push(`إنشاء مشروع «${custom.project_name || 'خدمة وقت تصوير إضافي'}» ووصفه «${custom.description || 'وقت تصوير إضافي'}»، مرتبط بهذه الجلسة.`, customAmount !== null ? `قيمة المشروع والفاتورة ${moneyLabel(customAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(customAmount)}. لن تُسجل إيرادات قبل اعتماد الدفع.` : 'صحح تكلفة المشروع لتظهر المعاينة المالية المطابقة للحفظ.');
   else if (family === 'waive') finalPreviewLines.push(`التغاضي عن ${durationLabel(preview?.excess_minutes || 0)} بالكامل دون خصم أو فاتورة أو مديونية. ستظهر للعميل ملاحظة التسوية الآمنة فقط.`);
-  else finalPreviewLines.push(`إنشاء فاتورة «${custom.description || 'وقت تصوير إضافي'}» بقيمة ${moneyLabel(customAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(customAmount)}. لا يُسجل إيراد حتى اعتماد الدفع.`);
+  else finalPreviewLines.push(customAmount !== null ? `إنشاء فاتورة «${custom.description || 'وقت تصوير إضافي'}» بقيمة ${moneyLabel(customAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(customAmount)}. لا يُسجل إيراد حتى اعتماد الدفع.` : 'صحح مبلغ الفاتورة لتظهر المعاينة المالية المطابقة للحفظ.');
   const chooseTemplate = serviceId => {
     const template = preview?.package_templates?.find(item => String(item.id) === String(serviceId));
     setNewPackage(current => template ? { ...current, service_id: String(template.id), name: template.name, purchased_minutes: String(Math.max(Number(template.total_minutes || 0), Number(preview.excess_minutes || 0))), validity_days: String(template.validity_days || 90), total_price: String(template.price || 0) } : { ...current, service_id: '' });
@@ -217,10 +236,9 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
         {step === 2 && preview && <>
           <SummaryCards preview={preview} /><CoverageBar preview={preview} destinationLabel={destinationLabel} destinationTone={destinationTone} />
           {isOperations ? <div className="session-operations-handoff"><AlertTriangle /><div><strong>يلزم اعتماد المالك</strong><p>أرسل المدة للمالك للتسوية. ستظل جلسة التصوير نشطة ولن يتم خصم أو إنشاء أي فاتورة.</p></div></div> : <>
-            <fieldset className="session-settlement-choices"><legend>طريقة التسوية</legend>
-              <SettlementChoice value="new_package" selected={family === 'new_package'} onChange={setFamily} icon={PackagePlus} title="فتح باقة جديدة" description="إنشاء باقة للعميل واستهلاك الوقت الزائد منها الآن" />
-              <SettlementChoice value="other" selected={family === 'other'} onChange={setFamily} icon={ArrowLeftRight} title="احتساب بنظام آخر" description="باقة أخرى، سعر إضافي، فاتورة أو مشروع مخصص" />
-              <SettlementChoice value="waive" selected={family === 'waive'} onChange={setFamily} icon={HandHeart} title="التغاضي عن الوقت الزائد" description="بدون خصم أو مديونية، مع توثيق السبب" disabled={!isOwner} />
+            <fieldset className="session-settlement-choices session-settlement-choices--primary"><legend>اختر كيفية حساب الوقت الزائد</legend>
+              <SettlementChoice value="new_package" selected={family === 'new_package'} onChange={setFamily} icon={PackagePlus} title="فتح باقة جديدة وتحميل الوقت عليها" description="إنشاء باقة مستقلة واستهلاك الزيادة من رصيدها الآن" />
+              <SettlementChoice value="package_overage" selected={family === 'package_overage'} onChange={setFamily} icon={WalletCards} title="احتسابه بسعر الباقة الحالية" description={overageRate.valid && overageRate.cents > 0 ? `يضاف ${moneyLabel(overageAmount)} مستحقًا بسعر ${moneyLabel(overageRate.cents / 100)} للساعة` : 'سعر الساعة يحتاج تصحيحًا قبل الاعتماد'} disabled={!overageRate.valid || overageRate.cents <= 0} />
             </fieldset>
 
             {family === 'new_package' && <section className="session-settlement-panel"><h3><PackagePlus /> تفاصيل الباقة الجديدة</h3><div className="session-settlement-grid">
@@ -228,21 +246,28 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
               <label><span>اسم الباقة</span><input value={newPackage.name} onChange={event => setNewPackage({ ...newPackage, name: event.target.value })} /></label>
               <label><span>الرصيد بالدقائق</span><input type="number" min={preview.excess_minutes} step="15" value={newPackage.purchased_minutes} readOnly={!isOwner} onChange={event => setNewPackage({ ...newPackage, purchased_minutes: event.target.value })} /></label>
               <label><span>الصلاحية بالأيام</span><input type="number" min="1" value={newPackage.validity_days} readOnly={!isOwner} onChange={event => setNewPackage({ ...newPackage, validity_days: event.target.value })} /></label>
-              <label><span>إجمالي السعر</span><input type="number" min="0" step="0.01" value={newPackage.total_price} readOnly={!isOwner} onChange={event => setNewPackage({ ...newPackage, total_price: event.target.value })} /></label>
-              <label><span>المدفوع الآن</span><input type="number" min="0" step="0.01" value={newPackage.initial_paid} onChange={event => setNewPackage({ ...newPackage, initial_paid: event.target.value })} /></label>
+              <SettlementMoneyInput id="session-new-package-total" label="إجمالي السعر" value={newPackage.total_price} readOnly={!isOwner} onChange={value => setNewPackage({ ...newPackage, total_price: value })} />
+              <SettlementMoneyInput id="session-new-package-paid" label="المدفوع الآن" value={newPackage.initial_paid} onChange={value => setNewPackage({ ...newPackage, initial_paid: value })} />
               <label><span>طريقة الدفع</span><select value={newPackage.payment_method} onChange={event => setNewPackage({ ...newPackage, payment_method: event.target.value })}><option value="cash">نقدي</option><option value="bank_transfer">تحويل بنكي</option><option value="vodafone_cash">فودافون كاش</option><option value="instapay">إنستاباي</option></select></label>
             </div><label className="session-settlement-note"><span>ملاحظات</span><textarea rows="2" value={newPackage.notes} onChange={event => setNewPackage({ ...newPackage, notes: event.target.value })} /></label><p className="session-settlement-result">سيُخصم {durationLabel(preview.excess_minutes)} الآن، ويتبقى في الباقة الجديدة {durationLabel(packageAfter)}.</p></section>}
 
-            {family === 'other' && <section className="session-settlement-panel"><h3><WalletCards /> اختر النظام البديل</h3><div className="session-other-modes">
+            {family === 'package_overage' && <section className="session-settlement-panel session-settlement-panel--overage"><h3><WalletCards /> سعر الوقت الإضافي</h3><div className="session-settlement-grid"><SettlementMoneyInput id="session-overage-rate" label="سعر الساعة الحالي" value={effectiveRate} readOnly={!isOwner} onChange={value => setCustom({ ...custom, hourly_rate: value })} /><p className="session-settlement-result">الوقت الزائد {durationLabel(preview.excess_minutes)} · المبلغ المستحق {overageAmount === null ? '—' : moneyLabel(overageAmount)}</p></div></section>}
+
+            <details className="session-advanced-settlement" open={family === 'advanced' || family === 'waive'}><summary>خيارات تسوية متقدمة</summary><div className="session-settlement-choices">
+              <SettlementChoice value="advanced" selected={family === 'advanced'} onChange={setFamily} icon={ArrowLeftRight} title="احتساب بنظام آخر: باقة أو فاتورة/مشروع مخصص" description="للحالات التشغيلية الاستثنائية" />
+              <SettlementChoice value="waive" selected={family === 'waive'} onChange={setFamily} icon={HandHeart} title="التغاضي عن الوقت الزائد" description="بدون خصم أو مديونية، مع توثيق السبب" disabled={!isOwner} />
+            </div></details>
+
+            {family === 'advanced' && <section className="session-settlement-panel"><h3><WalletCards /> اختر النظام البديل</h3><div className="session-other-modes">
               {preview.eligible_packages?.length > 0 && <label><input type="radio" name="other-mode" checked={otherMode === 'existing_package'} onChange={() => setOtherMode('existing_package')} /><span>باقة أخرى للعميل</span></label>}
               {Number(preview.overage_rate) > 0 && <label><input type="radio" name="other-mode" checked={otherMode === 'package_overage'} onChange={() => setOtherMode('package_overage')} /><span>سعر الساعة الإضافية</span></label>}
               {isOwner && <label><input type="radio" name="other-mode" checked={otherMode === 'custom_invoice'} onChange={() => setOtherMode('custom_invoice')} /><span>فاتورة مخصصة</span></label>}
               {isOwner && <label><input type="radio" name="other-mode" checked={otherMode === 'custom_project'} onChange={() => setOtherMode('custom_project')} /><span>مشروع/خدمة مخصصة</span></label>}
             </div>
               {otherMode === 'existing_package' && <label className="session-settlement-note"><span>الباقة المستهدفة</span><select value={existingPackageId} onChange={event => setExistingPackageId(event.target.value)}>{preview.eligible_packages?.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name} — متاح {durationLabel(pkg.free_minutes)}</option>)}</select></label>}
-              {otherMode === 'package_overage' && <div className="session-settlement-grid"><label><span>سعر الساعة</span><input type="number" min="0.01" step="0.01" value={custom.hourly_rate || preview.overage_rate || ''} readOnly={!isOwner} onChange={event => setCustom({ ...custom, hourly_rate: event.target.value })} /></label><p className="session-settlement-result">المبلغ المستحق: {moneyLabel(overageAmount)}</p></div>}
-              {otherMode === 'custom_invoice' && <div className="session-settlement-grid"><label><span>وصف الفاتورة</span><input value={custom.description} onChange={event => setCustom({ ...custom, description: event.target.value })} /></label><label><span>المبلغ الإجمالي</span><input type="number" min="0.01" step="0.01" value={custom.amount} onChange={event => setCustom({ ...custom, amount: event.target.value })} /></label></div>}
-              {otherMode === 'custom_project' && <div className="session-settlement-grid"><label><span>اسم المشروع</span><input value={custom.project_name} onChange={event => setCustom({ ...custom, project_name: event.target.value })} /></label><label><span>التكلفة</span><input type="number" min="0.01" step="0.01" value={custom.amount} onChange={event => setCustom({ ...custom, amount: event.target.value })} /></label><label className="wide"><span>الوصف</span><input value={custom.description} onChange={event => setCustom({ ...custom, description: event.target.value })} /></label></div>}
+              {otherMode === 'package_overage' && <div className="session-settlement-grid"><SettlementMoneyInput id="session-advanced-overage-rate" label="سعر الساعة" value={effectiveRate} readOnly={!isOwner} onChange={value => setCustom({ ...custom, hourly_rate: value })} /><p className="session-settlement-result">المبلغ المستحق: {overageAmount === null ? '—' : moneyLabel(overageAmount)}</p></div>}
+              {otherMode === 'custom_invoice' && <div className="session-settlement-grid"><label><span>وصف الفاتورة</span><input value={custom.description} onChange={event => setCustom({ ...custom, description: event.target.value })} /></label><SettlementMoneyInput id="session-custom-invoice-amount" label="المبلغ الإجمالي" value={custom.amount} allowEmpty onChange={value => setCustom({ ...custom, amount: value })} /></div>}
+              {otherMode === 'custom_project' && <div className="session-settlement-grid"><label><span>اسم المشروع</span><input value={custom.project_name} onChange={event => setCustom({ ...custom, project_name: event.target.value })} /></label><SettlementMoneyInput id="session-custom-project-amount" label="التكلفة" value={custom.amount} allowEmpty onChange={value => setCustom({ ...custom, amount: value })} /><label className="wide"><span>الوصف</span><input value={custom.description} onChange={event => setCustom({ ...custom, description: event.target.value })} /></label></div>}
             </section>}
 
             {family === 'waive' && <section className="session-settlement-panel session-settlement-panel--waive"><h3><HandHeart /> توثيق التغاضي</h3><label className="session-settlement-note"><span>السبب الداخلي <b>مطلوب</b></span><textarea rows="3" value={waiverReason} onChange={event => setWaiverReason(event.target.value)} placeholder="لن يظهر هذا السبب للعميل" /></label><label className="session-settlement-note"><span>ملاحظة للعميل <small>(اختيارية)</small></span><textarea rows="2" value={clientNote} onChange={event => setClientNote(event.target.value)} placeholder="مثال: تمت تسوية الوقت الإضافي دون رسوم" /></label></section>}
