@@ -112,33 +112,36 @@ test('demo employee finance is exact, idempotent, role scoped, linked and month 
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   storage.clear(); resetDemoDatabase(); activateDemoMode('owner');
   const now = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); const month = now.slice(0, 7);
-  const initial = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data; const ashraf = initial.accounts.find(account => account.user.id === 1);
-  assert.equal(ashraf.totals.out_of_pocket, '900.00');
-  assert.equal(ashraf.net_due_to_employee, '900.00');
+  const initial = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data; const karim = initial.accounts.find(account => account.user.id === 3);
+  assert.equal(karim.totals.out_of_pocket, '900.00');
+  assert.equal(karim.net_due_to_employee, '900.00');
+  assert.deepEqual(initial.accounts.map(account => account.user.id).sort(), [3, 4]);
 
-  const movement = { employee_user_id: 1, kind: 'advance_out', amount: '10.01', method: 'cash', detail: 'سلفة اختبار دقيقة', date: now, idempotency_key: 'employee-test-0001' };
+  const movement = { employee_user_id: 3, kind: 'advance_out', amount: '10.01', method: 'cash', detail: 'سلفة اختبار دقيقة', date: now, idempotency_key: 'employee-test-0001' };
   const first = await demoClient.request('/attendance/employee-accounts/movements', { method: 'POST', body: JSON.stringify(movement) });
   const replay = await demoClient.request('/attendance/employee-accounts/movements', { method: 'POST', body: JSON.stringify(movement) });
   assert.equal(first.error, null); assert.equal(replay.data.id, first.data.id); assert.equal(replay.data.idempotent, true);
-  const current = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 1);
+  const current = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 3);
   assert.equal(current.totals.advance_out, '10.01'); assert.equal(current.net_due_to_employee, '889.99');
   assert.equal(current.selected_month.transactions.find(entry => entry.finance_id === first.data.id)?.amount, '10.01');
   const ledger = (await demoClient.request('/finance/entries', { method: 'GET' })).data.find(entry => entry.id === first.data.id);
-  assert.equal(ledger.employee_user_id, 1); assert.equal(ledger.employee_name, 'أشرف محمد');
-  const oldMonth = (await demoClient.request('/attendance/employee-accounts?month=2000-01')).data.accounts.find(account => account.user.id === 1);
+  assert.equal(ledger.employee_user_id, 3); assert.equal(ledger.employee_name, 'كريم حسن');
+  const oldMonth = (await demoClient.request('/attendance/employee-accounts?month=2000-01')).data.accounts.find(account => account.user.id === 3);
   assert.equal(oldMonth.net_due_to_employee, '889.99'); assert.equal(oldMonth.selected_month.movement_count, 0);
 
   await demoClient.request(`/finance/${first.data.id}/void`, { method: 'POST', body: '{}' });
-  const afterVoid = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 1);
+  const afterVoid = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 3);
   assert.equal(afterVoid.net_due_to_employee, '900.00');
   const expense = (await demoClient.request('/attendance/employee-accounts/movements', { method: 'POST', body: JSON.stringify({ ...movement, kind: 'out_of_pocket', amount: '1.23', detail: 'مصروف قابل للتصحيح', idempotency_key: 'employee-test-correct' }) })).data;
   await demoClient.request(`/finance/${expense.id}/correct`, { method: 'POST', body: JSON.stringify({ amount: '2.34', entry_kind: 'expense', method: 'cash', detail: 'مصروف مصحح', date: now, reason: 'تصحيح قيمة المصروف' }) });
-  const afterCorrection = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 1);
+  const afterCorrection = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 3);
   assert.equal(afterCorrection.net_due_to_employee, '902.34');
 
   const beforeFailure = (await demoClient.request('/finance/entries')).data.length;
   const failed = await demoClient.request('/attendance/employee-accounts/movements', { method: 'POST', body: JSON.stringify({ ...movement, idempotency_key: 'employee-test-fail', __test_fail_after_insert: true }) });
   assert.equal(failed.error.code, 'demo_fault_injected'); assert.equal((await demoClient.request('/finance/entries')).data.length, beforeFailure);
+  const ownerMovement = await demoClient.request('/attendance/employee-accounts/movements', { method: 'POST', body: JSON.stringify({ ...movement, employee_user_id: 1, idempotency_key: 'employee-owner-denied' }) });
+  assert.equal(ownerMovement.error.code, 'invalid_employee_user');
 
   for (const role of ['operations', 'finance', 'staff', 'client']) { activateDemoMode(role); const denied = await demoClient.request(`/attendance/employee-accounts?month=${month}`); assert.equal(denied.error.code, 'forbidden'); }
   activateDemoMode('admin'); const adminRead = await demoClient.request(`/attendance/employee-accounts?month=${month}`); assert.equal(adminRead.error, null);
@@ -148,9 +151,9 @@ test('demo employee finance is exact, idempotent, role scoped, linked and month 
 test('attendance salary adjustments stay outside employee finance balances', async () => {
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   storage.clear(); resetDemoDatabase(); activateDemoMode('owner'); const month = new Date().toISOString().slice(0, 7);
-  const before = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 1).net_due_to_employee;
-  await demoClient.request('/attendance/adjustments', { method: 'POST', body: JSON.stringify({ user_id: 1, month, amount: 100, reason: 'خصم راتب منفصل للاختبار' }) });
-  const after = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 1).net_due_to_employee;
+  const before = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 3).net_due_to_employee;
+  await demoClient.request('/attendance/adjustments', { method: 'POST', body: JSON.stringify({ user_id: 3, month, amount: 100, reason: 'خصم راتب منفصل للاختبار' }) });
+  const after = (await demoClient.request(`/attendance/employee-accounts?month=${month}`)).data.accounts.find(account => account.user.id === 3).net_due_to_employee;
   assert.equal(after, before); deactivateDemoMode();
 });
 

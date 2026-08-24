@@ -1172,8 +1172,22 @@ function validMonth(string $month): string {
     return $month;
 }
 
+function attendanceRawLateMinutes(string $workDate, string $scheduledStart, ?string $checkInAt): int {
+    if (!$checkInAt) return 0;
+    $zone = new DateTimeZone('Africa/Cairo');
+    $start = new DateTimeImmutable($workDate.' '.$scheduledStart, $zone);
+    $checkIn = new DateTimeImmutable($checkInAt, $zone);
+    return max(0, (int)floor(($checkIn->getTimestamp() - $start->getTimestamp()) / 60));
+}
+
+function attendanceLateCharge(int $rawLateMinutes, int $graceMinutes = 15): array {
+    if ($rawLateMinutes <= $graceMinutes) return ['units'=>0, 'billable_minutes'=>0, 'amount_cents'=>0];
+    $units = (int)ceil($rawLateMinutes / 30);
+    return ['units'=>$units, 'billable_minutes'=>$units * 30, 'amount_cents'=>$units * 1000];
+}
+
 function attendancePolicy(PDO $pdo, array $user, bool $create = true): ?array {
-    if ($user['role'] === 'client') return null;
+    if (in_array($user['role'], ['client','owner'], true)) return null;
     $stmt = $pdo->prepare('SELECT * FROM attendance_policies WHERE organization_id=? AND user_id=? LIMIT 1');
     $stmt->execute([$user['organization_id'], $user['id']]);
     $policy = $stmt->fetch();
@@ -1187,33 +1201,37 @@ function attendancePolicy(PDO $pdo, array $user, bool $create = true): ?array {
 }
 
 function attendanceCheckIn(PDO $pdo, array $user): ?array {
-    if ($user['role'] === 'client') return null;
+    if (in_array($user['role'], ['client','owner'], true)) return null;
     $policy = attendancePolicy($pdo, $user, true);
-    if (!$policy || !(int)$policy['track_attendance']) return ['tracked'=>false, 'policy'=>$policy];
+    if (!$policy) return ['tracked'=>false, 'policy'=>$policy];
     $now = cairoNow(); $date = $now->format('Y-m-d');
     if ($date < $policy['effective_from'] || ($policy['effective_to'] && $date > $policy['effective_to'])) return ['tracked'=>false, 'policy'=>$policy];
     $weekdays = json_decode((string)$policy['working_weekdays'], true) ?: [];
     $scheduled = in_array((int)$now->format('w'), array_map('intval', $weekdays), true);
-    $start = new DateTimeImmutable($date . ' ' . $policy['scheduled_start'], new DateTimeZone('Africa/Cairo'));
-    $late = $scheduled ? max(0, (int)floor(($now->getTimestamp() - $start->getTimestamp()) / 60) - (int)$policy['grace_minutes']) : 0;
+    $scheduledStart = '12:00';
+    $graceMinutes = 15;
+    $stamp = $now->format('Y-m-d H:i:s');
+    $rawLate = $scheduled ? attendanceRawLateMinutes($date, $scheduledStart, $stamp) : 0;
+    $lateCharge = attendanceLateCharge($rawLate, $graceMinutes);
+    $late = $lateCharge['units'] > 0 ? $rawLate : 0;
     $snapshot = json_encode([
-        'scheduled_start'=>$policy['scheduled_start'], 'scheduled_end'=>$policy['scheduled_end'],
-        'working_weekdays'=>$weekdays, 'grace_minutes'=>(int)$policy['grace_minutes'],
+        'scheduled_start'=>$scheduledStart, 'scheduled_end'=>$policy['scheduled_end'],
+        'working_weekdays'=>$weekdays, 'grace_minutes'=>$graceMinutes,
         'monthly_salary'=>(float)$policy['monthly_salary'], 'expected_working_days'=>(int)$policy['expected_working_days'],
         'absence_multiplier'=>(float)$policy['absence_multiplier'], 'late_multiplier'=>(float)$policy['late_multiplier'],
         'early_leave_deduction_enabled'=>(bool)$policy['early_leave_deduction_enabled'],
+        'late_rounding_minutes'=>30, 'late_unit_amount'=>10,
     ], JSON_UNESCAPED_UNICODE);
     $status = $scheduled ? ($late > 0 ? 'late' : 'present') : 'day_off';
     $stmt = $pdo->prepare("INSERT IGNORE INTO attendance_records (organization_id,user_id,policy_id,work_date,scheduled_start,scheduled_end,grace_minutes,policy_snapshot,check_in_at,last_activity_at,source,status,late_minutes) VALUES (?,?,?,?,?,?,?,?,?,?,'login',?,?)");
-    $stamp = $now->format('Y-m-d H:i:s');
-    $stmt->execute([$user['organization_id'],$user['id'],$policy['id'],$date,$policy['scheduled_start'],$policy['scheduled_end'],$policy['grace_minutes'],$snapshot,$stamp,$stamp,$status,$late]);
+    $stmt->execute([$user['organization_id'],$user['id'],$policy['id'],$date,$scheduledStart,$policy['scheduled_end'],$graceMinutes,$snapshot,$stamp,$stamp,$status,$late]);
     $pdo->prepare('UPDATE attendance_records SET last_activity_at=? WHERE organization_id=? AND user_id=? AND work_date=?')->execute([$stamp,$user['organization_id'],$user['id'],$date]);
     $stmt=$pdo->prepare('SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date=?');$stmt->execute([$user['organization_id'],$user['id'],$date]);
     return ['tracked'=>true, 'record'=>$stmt->fetch(), 'policy'=>$policy];
 }
 
 function attendanceCheckOut(PDO $pdo, array $user): ?array {
-    if ($user['role'] === 'client') return null;
+    if (in_array($user['role'], ['client','owner'], true)) return null;
     $now=cairoNow();$date=$now->format('Y-m-d');
     $yesterday=$now->modify('-1 day')->format('Y-m-d');
     $stmt=$pdo->prepare('SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date IN (?,?) AND check_in_at IS NOT NULL ORDER BY work_date DESC LIMIT 1');$stmt->execute([$user['organization_id'],$user['id'],$date,$yesterday]);$record=$stmt->fetch();
@@ -1231,25 +1249,25 @@ function attendanceSummary(PDO $pdo, array $viewer, string $month, ?int $request
     $owner = $viewer['role'] === 'owner';
     $targetId = $owner ? $requestedUserId : (int)$viewer['id'];
     $params=[$viewer['organization_id']];
-    $where="u.organization_id=? AND u.is_active=1 AND u.role<>'client'";
+    $where="u.organization_id=? AND u.is_active=1 AND u.role NOT IN ('client','owner')";
     if($targetId){$where.=' AND u.id=?';$params[]=$targetId;}
     $stmt=$pdo->prepare("SELECT u.id AS employee_id,u.full_name,u.role,p.* FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE $where ORDER BY u.full_name");$stmt->execute($params);$people=$stmt->fetchAll();
     $monthStart=new DateTimeImmutable($month.'-01',new DateTimeZone('Africa/Cairo'));$monthEnd=$monthStart->modify('last day of this month');$today=cairoNow()->setTime(0,0);$yesterday=$today->modify('-1 day');$absenceCutoff=$monthEnd<$yesterday?$monthEnd:$yesterday;
     $items=[];
     foreach($people as $person){
-        $uid=(int)$person['employee_id'];$r=$pdo->prepare("SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date LIKE ? ORDER BY work_date");$r->execute([$viewer['organization_id'],$uid,$month.'-%']);$records=$r->fetchAll();$byDate=[];$late=0;$early=0;
+        $uid=(int)$person['employee_id'];$r=$pdo->prepare("SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date LIKE ? ORDER BY work_date");$r->execute([$viewer['organization_id'],$uid,$month.'-%']);$records=$r->fetchAll();$byDate=[];$late=0;$lateUnits=0;$lateDeductionCents=0;$early=0;
         $presentRecords=0;$explicitAbsent=0;
         foreach($records as $row){
-            $byDate[$row['work_date']]=true;$late+=(int)$row['late_minutes'];$early+=(int)$row['early_leave_minutes'];
+            $byDate[$row['work_date']]=true;$rawLate=attendanceRawLateMinutes((string)$row['work_date'],'12:00',$row['check_in_at']?:null);if(!$row['check_in_at'])$rawLate=(int)$row['late_minutes'];$charge=attendanceLateCharge($rawLate,15);$late+=$charge['units']>0?$rawLate:0;$lateUnits+=$charge['units'];$lateDeductionCents+=$charge['amount_cents'];$early+=(int)$row['early_leave_minutes'];
             if((string)$row['status']==='absent')$explicitAbsent++;
             elseif(!in_array((string)$row['status'],['authorized_leave','day_off'],true))$presentRecords++;
         }
-        $track=(int)($person['track_attendance']??($person['role']==='owner'?0:1));$weekdays=json_decode((string)($person['working_weekdays']??'[0,1,2,3,4]'),true)?:[0,1,2,3,4];$absent=0;
+        $track=(int)($person['track_attendance']??1);$weekdays=json_decode((string)($person['working_weekdays']??'[0,1,2,3,4]'),true)?:[0,1,2,3,4];$absent=0;
         $absent=$explicitAbsent;if($track && $absenceCutoff >= $monthStart){for($day=$monthStart;$day<=$absenceCutoff;$day=$day->modify('+1 day')){if(in_array((int)$day->format('w'),array_map('intval',$weekdays),true)&&empty($byDate[$day->format('Y-m-d')]))$absent++;}}
-        $salary=(float)($person['monthly_salary']??0);$expected=max(1,(int)($person['expected_working_days']??26));$startMin=businessTimeMinutes((string)($person['scheduled_start']??'12:00'));$endMin=businessTimeMinutes((string)($person['scheduled_end']??'24:00'),true);$scheduledMinutes=max(1,$endMin-$startMin);$daily=$salary/$expected;$minute=$daily/$scheduledMinutes;
-        $lateDeduction=$late*$minute*(float)($person['late_multiplier']??1);$earlyDeduction=(int)($person['early_leave_deduction_enabled']??0)?$early*$minute:0;$absenceDeduction=$absent*$daily*(float)($person['absence_multiplier']??1);
+        $salary=(float)($person['monthly_salary']??0);$expected=max(1,(int)($person['expected_working_days']??26));$startMin=businessTimeMinutes('12:00');$endMin=businessTimeMinutes((string)($person['scheduled_end']??'24:00'),true);$scheduledMinutes=max(1,$endMin-$startMin);$daily=$salary/$expected;$minute=$daily/$scheduledMinutes;
+        $lateDeduction=packageMoney($lateDeductionCents);$earlyDeduction=(int)($person['early_leave_deduction_enabled']??0)?$early*$minute:0;$absenceDeduction=$absent*$daily*(float)($person['absence_multiplier']??1);
         $a=$pdo->prepare('SELECT COALESCE(SUM(amount),0) total FROM attendance_adjustments WHERE organization_id=? AND user_id=? AND adjustment_month=? AND voided_at IS NULL');$a->execute([$viewer['organization_id'],$uid,$month]);$manual=(float)$a->fetchColumn();$deduction=max(0,$lateDeduction+$earlyDeduction+$absenceDeduction+$manual);
-        $items[]=['user_id'=>$uid,'full_name'=>$person['full_name'],'role'=>$person['role'],'track_attendance'=>(bool)$track,'present_days'=>$presentRecords,'late_minutes'=>$late,'early_leave_minutes'=>$early,'absent_days'=>$absent,'monthly_salary'=>round($salary,2),'daily_rate'=>round($daily,4),'minute_rate'=>round($minute,6),'late_deduction'=>round($lateDeduction,2),'early_leave_deduction'=>round($earlyDeduction,2),'absence_deduction'=>round($absenceDeduction,2),'manual_adjustment'=>round($manual,2),'total_deduction'=>round($deduction,2),'estimated_net'=>round(max(0,$salary-$deduction),2)];
+        $items[]=['user_id'=>$uid,'full_name'=>$person['full_name'],'role'=>$person['role'],'track_attendance'=>(bool)$track,'present_days'=>$presentRecords,'late_minutes'=>$late,'late_billable_half_hours'=>$lateUnits,'late_billable_minutes'=>$lateUnits*30,'early_leave_minutes'=>$early,'absent_days'=>$absent,'monthly_salary'=>round($salary,2),'daily_rate'=>round($daily,4),'minute_rate'=>round($minute,6),'late_deduction'=>round($lateDeduction,2),'early_leave_deduction'=>round($earlyDeduction,2),'absence_deduction'=>round($absenceDeduction,2),'manual_adjustment'=>round($manual,2),'total_deduction'=>round($deduction,2),'estimated_net'=>round(max(0,$salary-$deduction),2)];
     }
     return ['month'=>$month,'items'=>$items];
 }
@@ -1983,7 +2001,7 @@ function employeeFinanceSchemaStatus(PDO $pdo): array {
 function employeeFinanceAccountSnapshot(PDO $pdo,int $organizationId,string $month): array {
     $schema=employeeFinanceSchemaStatus($pdo);
     if(!$schema['ready'])return ['month'=>$month,'accounts'=>[],'unlinked_legacy_count'=>0,'schema_ready'=>false,'migration_required'=>'027_employee_finance_accounts.sql'];
-    $users=$pdo->prepare("SELECT id,full_name,role FROM users WHERE organization_id=? AND is_active=1 AND role<>'client' AND TRIM(SUBSTRING_INDEX(full_name,' ',1)) IN ('اشرف','أشرف','مروة') ORDER BY full_name,id");
+    $users=$pdo->prepare("SELECT id,full_name,role FROM users WHERE organization_id=? AND is_active=1 AND role NOT IN ('client','owner') ORDER BY full_name,id");
     $users->execute([$organizationId]);$accounts=[];
     $rows=$pdo->prepare("SELECT id,employee_user_id,entry_kind,category,amount,method,detail,date,source_type,source_id FROM finance WHERE organization_id=? AND employee_user_id IS NOT NULL AND voided_at IS NULL AND (entry_kind IS NULL OR entry_kind<>'reversal') ORDER BY date DESC,id DESC");
     $rows->execute([$organizationId]);$byUser=[];foreach($rows->fetchAll() as $row)$byUser[(int)$row['employee_user_id']][]=$row;
@@ -2040,7 +2058,7 @@ if ($path === '/attendance/employee-accounts' && $method === 'GET') {
 
 if ($path === '/attendance/employee-accounts/movements' && $method === 'POST') {
     $user=requireUser($user);requireRole($user,['owner','admin']);$payload=body();$organizationId=(int)$user['organization_id'];if(!employeeFinanceSchemaStatus($pdo)['ready'])fail('تحديث قاعدة بيانات حسابات الموظفين رقم 027 مطلوب قبل تسجيل المعاملة.',503,'employee_finance_migration_required');$employeeUserId=(int)($payload['employee_user_id']??0);$semanticKind=(string)($payload['kind']??'');$kinds=['out_of_pocket'=>['expense','مصروف','employee_out_of_pocket'],'advance_out'=>['advance_out','سحب سلفة','employee_advance'],'advance_in'=>['advance_in','سداد سلفة','employee_advance_repayment'],'settlement_out'=>['settlement_out','سداد مستحقات','employee_settlement']];if(!isset($kinds[$semanticKind]))fail('نوع معاملة الموظف غير صحيح.',422,'invalid_employee_finance_kind');$amountCents=packageMoneyCents($payload['amount']??0);if($amountCents<=0)fail('أدخل مبلغًا أكبر من صفر وبدقة قرشين.',422,'invalid_employee_finance_amount');$date=trim((string)($payload['date']??''));if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))fail('تاريخ المعاملة غير صحيح.',422,'invalid_employee_finance_date');$method=mb_substr(trim((string)($payload['method']??'')),0,64);$detail=mb_substr(trim((string)($payload['detail']??'')),0,255);if($method===''||$detail==='')fail('طريقة الدفع والبيان مطلوبان.',422,'employee_finance_fields_required');$idempotencyKey=trim((string)($payload['idempotency_key']??''));if(!preg_match('/^[A-Za-z0-9:_-]{12,120}$/',$idempotencyKey))fail('مفتاح حفظ المعاملة غير صحيح.',422,'invalid_idempotency_key');$correlation='employee-finance:'.$idempotencyKey;[$entryKind,$type,$category]=$kinds[$semanticKind];
-    $pdo->beginTransaction();try{$employeeStmt=$pdo->prepare("SELECT id,full_name,role FROM users WHERE id=? AND organization_id=? AND is_active=1 AND role<>'client' FOR UPDATE");$employeeStmt->execute([$employeeUserId,$organizationId]);$employee=$employeeStmt->fetch();if(!$employee)fail('حساب الموظف غير موجود أو غير نشط.',422,'invalid_employee_user');$existingStmt=$pdo->prepare('SELECT * FROM finance WHERE organization_id=? AND correlation_id=? FOR UPDATE');$existingStmt->execute([$organizationId,$correlation]);if($existing=$existingStmt->fetch()){$same=(int)$existing['employee_user_id']===$employeeUserId&&(string)$existing['entry_kind']===$entryKind&&packageMoneyCents($existing['amount'])===$amountCents&&(string)$existing['method']===$method&&(string)$existing['detail']===$detail&&(string)$existing['date']===$date;if(!$same)fail('تم استخدام مفتاح الحفظ نفسه لمعاملة مختلفة.',409,'idempotency_mismatch');$pdo->commit();respond(['id'=>(int)$existing['id'],'idempotent'=>true,'account'=>employeeFinanceAccountSnapshot($pdo,$organizationId,substr($date,0,7))]);}
+    $pdo->beginTransaction();try{$employeeStmt=$pdo->prepare("SELECT id,full_name,role FROM users WHERE id=? AND organization_id=? AND is_active=1 AND role NOT IN ('client','owner') FOR UPDATE");$employeeStmt->execute([$employeeUserId,$organizationId]);$employee=$employeeStmt->fetch();if(!$employee)fail('حساب الموظف غير موجود أو غير نشط.',422,'invalid_employee_user');$existingStmt=$pdo->prepare('SELECT * FROM finance WHERE organization_id=? AND correlation_id=? FOR UPDATE');$existingStmt->execute([$organizationId,$correlation]);if($existing=$existingStmt->fetch()){$same=(int)$existing['employee_user_id']===$employeeUserId&&(string)$existing['entry_kind']===$entryKind&&packageMoneyCents($existing['amount'])===$amountCents&&(string)$existing['method']===$method&&(string)$existing['detail']===$detail&&(string)$existing['date']===$date;if(!$same)fail('تم استخدام مفتاح الحفظ نفسه لمعاملة مختلفة.',409,'idempotency_mismatch');$pdo->commit();respond(['id'=>(int)$existing['id'],'idempotent'=>true,'account'=>employeeFinanceAccountSnapshot($pdo,$organizationId,substr($date,0,7))]);}
         $insert=$pdo->prepare("INSERT INTO finance (organization_id,employee_user_id,type,entry_kind,category,amount,method,detail,date,entity,source_type,source_id,correlation_id,is_system,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,'employee_account',?,?,0,?)");$insert->execute([$organizationId,$employeeUserId,$type,$entryKind,$category,packageMoney($amountCents),$method,$detail,$date,$employee['full_name'],$employeeUserId,$correlation,$user['id']]);$id=(int)$pdo->lastInsertId();audit($pdo,$user,'create_employee_finance','finance',$id,null,['employee_user_id'=>$employeeUserId,'kind'=>$semanticKind,'amount'=>packageMoney($amountCents),'date'=>$date,'correlation_id'=>$correlation]);$pdo->commit();respond(['id'=>$id,'idempotent'=>false,'account'=>employeeFinanceAccountSnapshot($pdo,$organizationId,substr($date,0,7))],201);
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
@@ -2051,7 +2069,7 @@ if ($path === '/finance/manual' && $method === 'POST') {
     if($clientId){$lookup=$pdo->prepare("SELECT id FROM clients WHERE id=? AND organization_id=? AND status<>'archived'");$lookup->execute([$clientId,$user['organization_id']]);if(!$lookup->fetch())fail('العميل المحدد غير موجود.',422,'invalid_finance_client');}
     if($sourceType==='client_package'){$lookup=$pdo->prepare('SELECT id,client_id FROM client_packages WHERE id=? AND organization_id=?');$lookup->execute([$sourceId,$user['organization_id']]);$package=$lookup->fetch();if(!$package||!$clientId||(int)$package['client_id']!==$clientId)fail('الباقة المحددة لا تخص العميل.',422,'invalid_finance_package');}
     if($sourceType==='service'){$lookup=$pdo->prepare('SELECT id FROM services WHERE id=? AND organization_id=? AND is_active=1');$lookup->execute([$sourceId,$user['organization_id']]);if(!$lookup->fetch())fail('الخدمة المحددة غير موجودة.',422,'invalid_finance_service');}
-    $date=(string)($payload['date']??date('Y-m-d'));if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))fail('تاريخ الحركة غير صحيح.',422,'invalid_finance_date');$method=trim((string)($payload['method']??''));if($method==='')fail('طريقة الدفع مطلوبة.',422,'missing_payment_method');$detail=trim((string)($payload['detail']??''));if($detail==='')fail('بيان الحركة مطلوب.',422,'missing_finance_detail');$entity=$kind==='income'?'الشركة':trim((string)($payload['entity']??'الشركة'));if($employeeUserId){if($kind!=='expense')fail('ربط الموظف متاح للمصروف المدفوع من جيبه فقط.',422,'invalid_employee_finance_kind');$employee=$pdo->prepare("SELECT id,full_name FROM users WHERE id=? AND organization_id=? AND is_active=1 AND role<>'client'");$employee->execute([$employeeUserId,$user['organization_id']]);$employeeRow=$employee->fetch();if(!$employeeRow)fail('حساب الموظف المحدد غير موجود.',422,'invalid_employee_user');$entity=$employeeRow['full_name'];$category='employee_out_of_pocket';}
+    $date=(string)($payload['date']??date('Y-m-d'));if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))fail('تاريخ الحركة غير صحيح.',422,'invalid_finance_date');$method=trim((string)($payload['method']??''));if($method==='')fail('طريقة الدفع مطلوبة.',422,'missing_payment_method');$detail=trim((string)($payload['detail']??''));if($detail==='')fail('بيان الحركة مطلوب.',422,'missing_finance_detail');$entity=$kind==='income'?'الشركة':trim((string)($payload['entity']??'الشركة'));if($employeeUserId){if($kind!=='expense')fail('ربط الموظف متاح للمصروف المدفوع من جيبه فقط.',422,'invalid_employee_finance_kind');$employee=$pdo->prepare("SELECT id,full_name FROM users WHERE id=? AND organization_id=? AND is_active=1 AND role NOT IN ('client','owner')");$employee->execute([$employeeUserId,$user['organization_id']]);$employeeRow=$employee->fetch();if(!$employeeRow)fail('حساب الموظف المحدد غير موجود.',422,'invalid_employee_user');$entity=$employeeRow['full_name'];$category='employee_out_of_pocket';}
     $pdo->beginTransaction();try{$type=match($kind){'income'=>'إيراد','advance_in'=>'سداد سلفة','advance_out'=>'سحب سلفة','settlement_out'=>'سداد مستحقات',default=>'مصروف'};
         $hasEmployeeColumn=schemaColumnExists($pdo,'finance','employee_user_id');
         if($employeeUserId&&!$hasEmployeeColumn)fail('ربط مصروف الموظف يحتاج تشغيل ترحيل قاعدة البيانات 027 أولًا.',503,'employee_finance_migration_required');
@@ -2102,8 +2120,8 @@ if ($path === '/cron/booking-tick' && $method === 'POST') {
 
 if ($path === '/attendance/today' && $method === 'GET') {
     $user=requireUser($user);if($user['role']==='client')fail('الحضور غير متاح لحسابات العملاء.',403,'forbidden');
-    $date=cairoNow()->format('Y-m-d');$selfStmt=$pdo->prepare('SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date=? LIMIT 1');$selfStmt->execute([$user['organization_id'],$user['id'],$date]);$self=$selfStmt->fetch()?:null;$team=[];
-    if($user['role']==='owner'){$stmt=$pdo->prepare("SELECT u.id user_id,u.full_name,u.role,COALESCE(p.track_attendance,IF(u.role='owner',0,1)) track_attendance,r.id record_id,r.check_in_at,r.check_out_at,r.status,r.late_minutes,r.early_leave_minutes FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id LEFT JOIN attendance_records r ON r.organization_id=u.organization_id AND r.user_id=u.id AND r.work_date=? WHERE u.organization_id=? AND u.is_active=1 AND u.role<>'client' ORDER BY u.full_name");$stmt->execute([$date,$user['organization_id']]);$team=$stmt->fetchAll();}
+    $date=cairoNow()->format('Y-m-d');$self=null;$team=[];if($user['role']!=='owner'){$selfStmt=$pdo->prepare('SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date=? LIMIT 1');$selfStmt->execute([$user['organization_id'],$user['id'],$date]);$self=$selfStmt->fetch()?:null;}
+    if($user['role']==='owner'){$stmt=$pdo->prepare("SELECT u.id user_id,u.full_name,u.role,COALESCE(p.track_attendance,1) track_attendance,r.id record_id,r.check_in_at,r.check_out_at,r.status,r.late_minutes,r.early_leave_minutes FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id LEFT JOIN attendance_records r ON r.organization_id=u.organization_id AND r.user_id=u.id AND r.work_date=? WHERE u.organization_id=? AND u.is_active=1 AND u.role NOT IN ('client','owner') ORDER BY u.full_name");$stmt->execute([$date,$user['organization_id']]);$team=$stmt->fetchAll();}
     respond(['work_date'=>$date,'self'=>$self,'team'=>$team]);
 }
 
@@ -2126,22 +2144,22 @@ if ($path === '/attendance/summary' && $method === 'GET') {
 
 if ($path === '/attendance/records' && $method === 'GET') {
     $user=requireUser($user);if($user['role']==='client')fail('الحضور غير متاح لحسابات العملاء.',403,'forbidden');$month=validMonth((string)($_GET['month']??cairoNow()->format('Y-m')));$target=isset($_GET['user_id'])?(int)$_GET['user_id']:(int)$user['id'];if($user['role']!=='owner'&&$target!==(int)$user['id'])fail('يمكنك عرض سجل حضورك فقط.',403,'forbidden');
-    $stmt=$pdo->prepare("SELECT r.*,u.full_name,u.role FROM attendance_records r JOIN users u ON u.id=r.user_id WHERE r.organization_id=? AND r.user_id=? AND r.work_date LIKE ? ORDER BY r.work_date DESC");$stmt->execute([$user['organization_id'],$target,$month.'-%']);$records=$stmt->fetchAll();
+    $stmt=$pdo->prepare("SELECT r.*,u.full_name,u.role FROM attendance_records r JOIN users u ON u.id=r.user_id WHERE r.organization_id=? AND r.user_id=? AND r.work_date LIKE ? AND u.role NOT IN ('client','owner') ORDER BY r.work_date DESC");$stmt->execute([$user['organization_id'],$target,$month.'-%']);$records=$stmt->fetchAll();
     $a=$pdo->prepare('SELECT a.*,c.full_name created_by_name FROM attendance_adjustments a JOIN users c ON c.id=a.created_by WHERE a.organization_id=? AND a.user_id=? AND a.adjustment_month=? ORDER BY a.created_at DESC');$a->execute([$user['organization_id'],$target,$month]);respond(['month'=>$month,'records'=>$records,'adjustments'=>$a->fetchAll()]);
 }
 
 if ($path === '/attendance/policies' && $method === 'GET') {
     $user=requireUser($user);if($user['role']==='client')fail('الحضور غير متاح لحسابات العملاء.',403,'forbidden');$target=isset($_GET['user_id'])?(int)$_GET['user_id']:(int)$user['id'];if($user['role']!=='owner'&&$target!==(int)$user['id'])fail('يمكنك عرض سياسة حضورك فقط.',403,'forbidden');
-    if($user['role']==='owner'&&!isset($_GET['user_id'])){$stmt=$pdo->prepare("SELECT u.id user_id,u.full_name,u.role,u.is_active,p.* FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.organization_id=? AND u.role<>'client' ORDER BY u.full_name");$stmt->execute([$user['organization_id']]);respond($stmt->fetchAll());}
-    $stmt=$pdo->prepare("SELECT u.id user_id,u.full_name,u.role,u.is_active,p.* FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.organization_id=? AND u.id=? AND u.role<>'client' LIMIT 1");$stmt->execute([$user['organization_id'],$target]);$policy=$stmt->fetch();if(!$policy)fail('الموظف غير موجود.',404);respond($policy);
+    if($user['role']==='owner'&&!isset($_GET['user_id'])){$stmt=$pdo->prepare("SELECT u.id user_id,u.full_name,u.role,u.is_active,p.* FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.organization_id=? AND u.role NOT IN ('client','owner') ORDER BY u.full_name");$stmt->execute([$user['organization_id']]);respond($stmt->fetchAll());}
+    $stmt=$pdo->prepare("SELECT u.id user_id,u.full_name,u.role,u.is_active,p.* FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.organization_id=? AND u.id=? AND u.role NOT IN ('client','owner') LIMIT 1");$stmt->execute([$user['organization_id'],$target]);$policy=$stmt->fetch();if(!$policy)fail('الموظف غير موجود.',404);respond($policy);
 }
 
 if ($path === '/attendance/policies' && $method === 'PUT') {
-    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$target=(int)($payload['user_id']??0);$stmt=$pdo->prepare("SELECT id,role FROM users WHERE id=? AND organization_id=? AND role<>'client' LIMIT 1");$stmt->execute([$target,$user['organization_id']]);$employee=$stmt->fetch();if(!$employee)fail('الموظف غير موجود أو حساب عميل.',404);
-    $start=normalizeBusinessTime($payload['scheduled_start']??'12:00');$end=normalizeBusinessTime($payload['scheduled_end']??'24:00',true);if($start===''||$end===''||businessTimeMinutes($end,true)<=businessTimeMinutes($start))fail('ساعات العمل غير صحيحة.',422,'invalid_schedule');$weekdays=array_values(array_unique(array_map('intval',$payload['working_weekdays']??[0,1,2,3,4])));foreach($weekdays as $day)if($day<0||$day>6)fail('أيام العمل غير صحيحة.',422);
+    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$target=(int)($payload['user_id']??0);$stmt=$pdo->prepare("SELECT id,role FROM users WHERE id=? AND organization_id=? AND role NOT IN ('client','owner') LIMIT 1");$stmt->execute([$target,$user['organization_id']]);$employee=$stmt->fetch();if(!$employee)fail('الموظف غير موجود أو حساب مالك/عميل.',404);
+    $start='12:00';$end=normalizeBusinessTime($payload['scheduled_end']??'24:00',true);if($end===''||businessTimeMinutes($end,true)<=businessTimeMinutes($start))fail('ساعة نهاية العمل يجب أن تكون بعد 12 ظهرًا.',422,'invalid_schedule');$weekdays=array_values(array_unique(array_map('intval',$payload['working_weekdays']??[0,1,2,3,4])));foreach($weekdays as $day)if($day<0||$day>6)fail('أيام العمل غير صحيحة.',422);
     $beforeStmt=$pdo->prepare('SELECT * FROM attendance_policies WHERE organization_id=? AND user_id=?');$beforeStmt->execute([$user['organization_id'],$target]);$before=$beforeStmt->fetch()?:null;
     $sql="INSERT INTO attendance_policies (organization_id,user_id,track_attendance,scheduled_start,scheduled_end,working_weekdays,grace_minutes,monthly_salary,expected_working_days,absence_multiplier,late_multiplier,early_leave_deduction_enabled,effective_from,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE track_attendance=VALUES(track_attendance),scheduled_start=VALUES(scheduled_start),scheduled_end=VALUES(scheduled_end),working_weekdays=VALUES(working_weekdays),grace_minutes=VALUES(grace_minutes),monthly_salary=VALUES(monthly_salary),expected_working_days=VALUES(expected_working_days),absence_multiplier=VALUES(absence_multiplier),late_multiplier=VALUES(late_multiplier),early_leave_deduction_enabled=VALUES(early_leave_deduction_enabled),effective_from=VALUES(effective_from)";
-    $values=[$user['organization_id'],$target,!empty($payload['track_attendance'])?1:0,$start,$end,json_encode($weekdays),(int)($payload['grace_minutes']??15),max(0,(float)($payload['monthly_salary']??0)),max(1,(int)($payload['expected_working_days']??26)),max(0,(float)($payload['absence_multiplier']??1)),max(0,(float)($payload['late_multiplier']??1)),!empty($payload['early_leave_deduction_enabled'])?1:0,(string)($payload['effective_from']??cairoNow()->format('Y-m-d')),$user['id']];$pdo->prepare($sql)->execute($values);audit($pdo,$user,'update','attendance_policy',$target,$before,$payload);respond(['updated'=>true]);
+    $values=[$user['organization_id'],$target,1,$start,$end,json_encode($weekdays),15,max(0,(float)($payload['monthly_salary']??0)),max(1,(int)($payload['expected_working_days']??26)),max(0,(float)($payload['absence_multiplier']??1)),1,!empty($payload['early_leave_deduction_enabled'])?1:0,(string)($payload['effective_from']??cairoNow()->format('Y-m-d')),$user['id']];$pdo->prepare($sql)->execute($values);audit($pdo,$user,'update','attendance_policy',$target,$before,array_merge($payload,['track_attendance'=>1,'scheduled_start'=>'12:00','grace_minutes'=>15,'late_multiplier'=>1]));respond(['updated'=>true]);
 }
 
 if (preg_match('#^/attendance/records/(\d+)$#',$path,$m)&&$method==='PATCH') {
@@ -2152,7 +2170,7 @@ if (preg_match('#^/attendance/records/(\d+)$#',$path,$m)&&$method==='PATCH') {
     $updates=[];$params=[];foreach(['check_in_at','check_out_at','notes'] as $field)if(array_key_exists($field,$payload)){$updates[]="$field=?";$params[]=$payload[$field]?:null;}if(!$updates)fail('لا توجد بيانات لتعديلها.',422);$updates[]='corrected_by=?';$params[]=$user['id'];$updates[]='correction_reason=?';$params[]=$reason;$params[]=$id;$params[]=$user['organization_id'];$pdo->prepare('UPDATE attendance_records SET '.implode(',',$updates).' WHERE id=? AND organization_id=?')->execute($params);
     $stmt=$pdo->prepare('SELECT * FROM attendance_records WHERE id=?');$stmt->execute([$id]);$after=$stmt->fetch();
     $late=0;$early=0;$status='open';$zone=new DateTimeZone('Africa/Cairo');
-    if($after['check_in_at']){$start=new DateTimeImmutable($after['work_date'].' '.$after['scheduled_start'],$zone);$checkIn=new DateTimeImmutable($after['check_in_at'],$zone);$late=max(0,(int)floor(($checkIn->getTimestamp()-$start->getTimestamp())/60)-(int)$after['grace_minutes']);$status=$late>0?'late':'present';}
+    if($after['check_in_at']){$rawLate=attendanceRawLateMinutes($after['work_date'],$after['scheduled_start'],$after['check_in_at']);$lateCharge=attendanceLateCharge($rawLate,(int)$after['grace_minutes']);$late=$lateCharge['units']>0?$rawLate:0;$status=$late>0?'late':'present';}
     if($after['check_out_at']){$end=new DateTimeImmutable($after['work_date'].' '.$after['scheduled_end'],$zone);$checkOut=new DateTimeImmutable($after['check_out_at'],$zone);$early=max(0,(int)floor(($end->getTimestamp()-$checkOut->getTimestamp())/60));if($late===0&&$early>0)$status='early_leave';}
     $pdo->prepare('UPDATE attendance_records SET late_minutes=?,early_leave_minutes=?,status=? WHERE id=?')->execute([$late,$early,$status,$id]);$stmt->execute([$id]);$after=$stmt->fetch();audit($pdo,$user,'correct','attendance_records',$id,$before,$after);respond($after);
 }
@@ -2164,10 +2182,10 @@ if ($path === '/attendance/records/manual' && $method === 'PUT') {
     $normalizeStamp=function(mixed $value)use($workDate):?string{$stamp=trim((string)($value??''));if($stamp==='')return null;$stamp=str_replace('T',' ',$stamp);if(!preg_match('/^\d{4}-\d{2}-\d{2} ([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/',$stamp)||substr($stamp,0,10)!==$workDate)fail('وقت الحضور أو الانصراف يجب أن يكون داخل اليوم المحدد.',422,'invalid_attendance_time');return strlen($stamp)===16?$stamp.':00':$stamp;};
     $checkIn=$normalizeStamp($payload['check_in_at']??null);$checkOut=$normalizeStamp($payload['check_out_at']??null);if(in_array($status,['absent','authorized_leave'],true)){$checkIn=null;$checkOut=null;}elseif(!$checkIn||!$checkOut)fail('وقت الدخول والانصراف مطلوبان عند تسجيل يوم حضور يدوي.',422,'manual_attendance_times_required');if($checkIn&&$checkOut&&$checkOut<$checkIn)fail('وقت الانصراف لا يمكن أن يسبق وقت الدخول.',422,'invalid_attendance_range');
     $pdo->beginTransaction();try{
-        $employeeStmt=$pdo->prepare("SELECT u.id,u.full_name,u.role,p.id policy_id,p.track_attendance,p.scheduled_start,p.scheduled_end,p.working_weekdays,p.grace_minutes,p.monthly_salary,p.expected_working_days,p.absence_multiplier,p.late_multiplier,p.early_leave_deduction_enabled FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.id=? AND u.organization_id=? AND u.role<>'client' FOR UPDATE");$employeeStmt->execute([$target,$organizationId]);$employee=$employeeStmt->fetch();if(!$employee)fail('الموظف غير موجود.',404,'attendance_employee_not_found');
+        $employeeStmt=$pdo->prepare("SELECT u.id,u.full_name,u.role,p.id policy_id,p.track_attendance,p.scheduled_start,p.scheduled_end,p.working_weekdays,p.grace_minutes,p.monthly_salary,p.expected_working_days,p.absence_multiplier,p.late_multiplier,p.early_leave_deduction_enabled FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.id=? AND u.organization_id=? AND u.role NOT IN ('client','owner') FOR UPDATE");$employeeStmt->execute([$target,$organizationId]);$employee=$employeeStmt->fetch();if(!$employee)fail('الموظف غير موجود.',404,'attendance_employee_not_found');
         $beforeStmt=$pdo->prepare('SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date=? FOR UPDATE');$beforeStmt->execute([$organizationId,$target,$workDate]);$before=$beforeStmt->fetch()?:null;
-        $scheduledStart=normalizeBusinessTime((string)($employee['scheduled_start']??'12:00'))?:'12:00';$scheduledEnd=normalizeBusinessTime((string)($employee['scheduled_end']??'24:00'),true)?:'24:00';$grace=max(0,(int)($employee['grace_minutes']??15));$snapshot=json_encode(['scheduled_start'=>$scheduledStart,'scheduled_end'=>$scheduledEnd,'working_weekdays'=>json_decode((string)($employee['working_weekdays']??'[0,1,2,3,4]'),true)?:[0,1,2,3,4],'grace_minutes'=>$grace,'monthly_salary'=>(float)($employee['monthly_salary']??0),'expected_working_days'=>(int)($employee['expected_working_days']??26),'absence_multiplier'=>(float)($employee['absence_multiplier']??1),'late_multiplier'=>(float)($employee['late_multiplier']??1),'early_leave_deduction_enabled'=>(bool)($employee['early_leave_deduction_enabled']??0)],JSON_UNESCAPED_UNICODE);
-        $late=0;$early=0;$zone=new DateTimeZone('Africa/Cairo');if($checkIn){$startDate=new DateTimeImmutable($workDate.' '.$scheduledStart,$zone);$inDate=new DateTimeImmutable($checkIn,$zone);$late=max(0,(int)floor(($inDate->getTimestamp()-$startDate->getTimestamp())/60)-$grace);}if($checkOut){$endDate=new DateTimeImmutable($workDate.' '.$scheduledEnd,$zone);$outDate=new DateTimeImmutable($checkOut,$zone);$early=max(0,(int)floor(($endDate->getTimestamp()-$outDate->getTimestamp())/60));}
+        $scheduledStart='12:00';$scheduledEnd=normalizeBusinessTime((string)($employee['scheduled_end']??'24:00'),true)?:'24:00';$grace=15;$snapshot=json_encode(['scheduled_start'=>$scheduledStart,'scheduled_end'=>$scheduledEnd,'working_weekdays'=>json_decode((string)($employee['working_weekdays']??'[0,1,2,3,4]'),true)?:[0,1,2,3,4],'grace_minutes'=>$grace,'late_rounding_minutes'=>30,'late_unit_amount'=>10,'monthly_salary'=>(float)($employee['monthly_salary']??0),'expected_working_days'=>(int)($employee['expected_working_days']??26),'absence_multiplier'=>(float)($employee['absence_multiplier']??1),'late_multiplier'=>1,'early_leave_deduction_enabled'=>(bool)($employee['early_leave_deduction_enabled']??0)],JSON_UNESCAPED_UNICODE);
+        $late=0;$early=0;$zone=new DateTimeZone('Africa/Cairo');if($checkIn){$rawLate=attendanceRawLateMinutes($workDate,$scheduledStart,$checkIn);$lateCharge=attendanceLateCharge($rawLate,$grace);$late=$lateCharge['units']>0?$rawLate:0;}if($checkOut){$endDate=new DateTimeImmutable($workDate.' '.$scheduledEnd,$zone);$outDate=new DateTimeImmutable($checkOut,$zone);$early=max(0,(int)floor(($endDate->getTimestamp()-$outDate->getTimestamp())/60));}
         $notes=trim((string)($payload['notes']??''));
         if($before){$pdo->prepare("UPDATE attendance_records SET policy_id=?,scheduled_start=?,scheduled_end=?,grace_minutes=?,policy_snapshot=?,check_in_at=?,check_out_at=?,last_activity_at=?,source='owner_manual',status=?,late_minutes=?,early_leave_minutes=?,notes=?,corrected_by=?,correction_reason=? WHERE id=? AND organization_id=?")->execute([$employee['policy_id']?:null,$scheduledStart,$scheduledEnd,$grace,$snapshot,$checkIn,$checkOut,$checkOut?:$checkIn,$status,$late,$early,$notes?:null,$user['id'],$reason,$before['id'],$organizationId]);$id=(int)$before['id'];}
         else{$pdo->prepare("INSERT INTO attendance_records (organization_id,user_id,policy_id,work_date,scheduled_start,scheduled_end,grace_minutes,policy_snapshot,check_in_at,check_out_at,last_activity_at,source,status,late_minutes,early_leave_minutes,notes,corrected_by,correction_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,'owner_manual',?,?,?,?,?,?)")->execute([$organizationId,$target,$employee['policy_id']?:null,$workDate,$scheduledStart,$scheduledEnd,$grace,$snapshot,$checkIn,$checkOut,$checkOut?:$checkIn,$status,$late,$early,$notes?:null,$user['id'],$reason]);$id=(int)$pdo->lastInsertId();}
@@ -2176,7 +2194,7 @@ if ($path === '/attendance/records/manual' && $method === 'PUT') {
 }
 
 if ($path === '/attendance/adjustments' && $method === 'POST') {
-    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$target=(int)($payload['user_id']??0);$month=validMonth((string)($payload['month']??''));$reason=trim((string)($payload['reason']??''));$amount=(float)($payload['amount']??0);if($target<=0||mb_strlen($reason)<5||$amount==0.0)fail('الموظف والمبلغ وسبب واضح مطلوبون.',422,'validation_error');$stmt=$pdo->prepare("SELECT id FROM users WHERE id=? AND organization_id=? AND role<>'client'");$stmt->execute([$target,$user['organization_id']]);if(!$stmt->fetch())fail('الموظف غير موجود.',404);
+    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$target=(int)($payload['user_id']??0);$month=validMonth((string)($payload['month']??''));$reason=trim((string)($payload['reason']??''));$amount=(float)($payload['amount']??0);if($target<=0||mb_strlen($reason)<5||$amount==0.0)fail('الموظف والمبلغ وسبب واضح مطلوبون.',422,'validation_error');$stmt=$pdo->prepare("SELECT id FROM users WHERE id=? AND organization_id=? AND role NOT IN ('client','owner')");$stmt->execute([$target,$user['organization_id']]);if(!$stmt->fetch())fail('الموظف غير موجود.',404);
     $stmt=$pdo->prepare('INSERT INTO attendance_adjustments (organization_id,user_id,attendance_record_id,adjustment_month,adjustment_type,amount,minutes,reason,created_by) VALUES (?,?,?,?,?,?,?,?,?)');$stmt->execute([$user['organization_id'],$target,$payload['attendance_record_id']??null,$month,$amount>0?'deduction':'credit',$amount,(int)($payload['minutes']??0),$reason,$user['id']]);$id=(int)$pdo->lastInsertId();audit($pdo,$user,'create','attendance_adjustments',$id,null,['user_id'=>$target,'month'=>$month,'amount'=>$amount,'reason'=>$reason]);respond(['id'=>$id],201);
 }
 

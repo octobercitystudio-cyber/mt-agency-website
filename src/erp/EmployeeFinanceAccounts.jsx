@@ -11,6 +11,7 @@ const actionOptions = [
 ];
 
 const kindLabels = { out_of_pocket: 'دفع من جيبه', advance_out: 'منح سلفة', advance_in: 'سداد سلفة', settlement_out: 'سداد مستحقات' };
+const roleLabels = { admin: 'مدير', operations: 'تشغيل', finance: 'مالية', staff: 'موظف' };
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const requestKey = () => `ui_${Date.now()}_${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`;
 
@@ -77,14 +78,15 @@ export default function EmployeeFinanceAccounts({ month, canManage }) {
 
   useEffect(() => { const timer = window.setTimeout(load, 0); return () => window.clearTimeout(timer); }, [load]);
   if (!canManage) return null;
+  const employeeAccounts = state.accounts.filter(account => !['owner', 'client'].includes(account.user?.role));
 
   return <section className="employee-finance-section" aria-labelledby="employee-finance-title">
-    <header className="employee-finance-heading"><div><span>تسوية الموظفين</span><h2 id="employee-finance-title">حسابات أشرف ومروة</h2><p>كل مصروف شخصي أو سلفة أو سداد هنا يظهر بالقيد نفسه ورقمه في صفحة الحسابات.</p></div><WalletCards aria-hidden="true" /></header>
+    <header className="employee-finance-heading"><div><span>تسوية الموظفين</span><h2 id="employee-finance-title">حسابات الموظفين</h2><p>كل مصروف دفعه الموظف، أو سلفة حصل عليها، أو سداد يظهر بالقيد نفسه ورقمه في الحسابات.</p></div><WalletCards aria-hidden="true" /></header>
     <div className="employee-finance-live" aria-live="polite">{notice}</div>
-    {state.loading ? <div className="employee-finance-state"><LoaderCircle className="spin" /> جارٍ تحميل الحسابات…</div> : state.error ? <div className="employee-finance-state error"><p>{state.error}</p><button onClick={load}>إعادة المحاولة</button></div> : state.migrationRequired ? <div className="employee-finance-state migration"><TriangleAlert /><div><strong>حسابات الموظفين تحتاج تحديث قاعدة البيانات رقم 027.</strong><p>الحضور والرواتب والخزنة يعملون بصورة طبيعية، ولن تُسجّل معاملة موظف قبل اكتمال الربط الآمن.</p></div></div> : state.accounts.length === 0 ? <div className="employee-finance-state"><UserRound /><p>لا توجد حسابات مطابقة لأشرف أو مروة في هذه المؤسسة.</p></div> : <div className="employee-finance-accounts">{state.accounts.map(account => {
+    {state.loading ? <div className="employee-finance-state"><LoaderCircle className="spin" /> جارٍ تحميل الحسابات…</div> : state.error ? <div className="employee-finance-state error"><p>{state.error}</p><button onClick={load}>إعادة المحاولة</button></div> : state.migrationRequired ? <div className="employee-finance-state migration"><TriangleAlert /><div><strong>حسابات الموظفين تحتاج تحديث قاعدة البيانات رقم 027.</strong><p>الحضور والرواتب والخزنة يعملون بصورة طبيعية، ولن تُسجّل معاملة موظف قبل اكتمال الربط الآمن.</p></div></div> : employeeAccounts.length === 0 ? <div className="employee-finance-state"><UserRound /><p>لا توجد حسابات موظفين نشطة في هذه المؤسسة. المالك والعملاء غير مدرجين هنا.</p></div> : <div className="employee-finance-accounts">{employeeAccounts.map(account => {
       const transactions = account.selected_month?.transactions || []; const isOpen = Boolean(expanded[account.user.id]);
       return <article className="employee-finance-account" key={account.user.id}>
-        <header><div className="employee-finance-person"><span><UserRound /></span><div><strong>{account.user.full_name}</strong><small>{account.user.role === 'owner' ? 'مالك' : 'مدير'}</small></div></div><AccountStatus value={account.net_due_to_employee} /></header>
+        <header><div className="employee-finance-person"><span><UserRound /></span><div><strong>{account.user.full_name}</strong><small>{roleLabels[account.user.role] || 'موظف'}</small></div></div><AccountStatus value={account.net_due_to_employee} /></header>
         <dl className="employee-finance-breakdown"><div><dt>دفع من جيبه</dt><dd className="positive">{formatEGP(account.totals.out_of_pocket)}</dd></div><div><dt>سلف حصل عليها</dt><dd className="negative">{formatEGP(account.totals.advance_out)}</dd></div><div><dt>سدد من السلف</dt><dd>{formatEGP(account.totals.advance_in)}</dd></div><div><dt>سداد مستحقات</dt><dd>{formatEGP(account.totals.settlement_out)}</dd></div></dl>
         {Number(account.opening_adjustment || 0) !== 0 && <p className="employee-finance-opening"><CircleDollarSign /> رصيد افتتاحي قديم للعرض فقط: <strong>{formatEGP(account.opening_adjustment)}</strong> — لا يغيّر رصيد أي خزينة.</p>}
         <div className="employee-finance-month"><span>حركة {month}</span><strong>{account.selected_month.movement_count} معاملة · صافي {formatEGP(account.selected_month.signed_amount)}</strong></div>
@@ -93,7 +95,7 @@ export default function EmployeeFinanceAccounts({ month, canManage }) {
         {isOpen && <div className="employee-finance-ledger">{transactions.length === 0 ? <p>لا توجد معاملات لهذا الموظف في الشهر المحدد. الرصيد بالأعلى هو رصيد كل الفترات.</p> : transactions.map(entry => <article key={entry.finance_id} id={`employee-finance-entry-${entry.finance_id}`}><div><strong>{kindLabels[entry.kind]}</strong><span>{entry.detail}</span><small>{entry.date} · {formatPaymentMethod(entry.method)} · قيد الحسابات #{entry.finance_id}</small></div><b className={Number(entry.signed_amount) >= 0 ? 'positive' : 'negative'}>{Number(entry.signed_amount) >= 0 ? '+' : '−'}{formatEGP(Math.abs(Number(entry.amount)))}</b><a href={`/erp/finance?employee_user_id=${account.user.id}&finance_entry_id=${entry.finance_id}`} aria-label={`عرض القيد رقم ${entry.finance_id} في الحسابات`}><ExternalLink /></a></article>)}</div>}
       </article>;
     })}</div>}
-    {state.unlinked > 0 && <p className="employee-finance-unlinked">يوجد {state.unlinked} قيد قديم باسم أشرف أو مروة لم يُربط تلقائيًا لأن هوية الموظف غير مؤكدة. سيظل ظاهرًا في الحسابات دون إضافته إلى الرصيد هنا.</p>}
+    {state.unlinked > 0 && <p className="employee-finance-unlinked">يوجد {state.unlinked} قيد قديم باسم شخص لم يُربط تلقائيًا لأن هوية الموظف غير مؤكدة. سيظل ظاهرًا في الحسابات دون إضافته إلى الرصيد هنا.</p>}
     {movement && <MovementDialog account={movement.account} kind={movement.kind} onClose={() => setMovement(null)} onSaved={() => { setNotice('تم حفظ المعاملة وظهرت في الحضور والحسابات بالرقم نفسه.'); load(); }} />}
   </section>;
 }
