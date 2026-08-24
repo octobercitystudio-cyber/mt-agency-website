@@ -14,7 +14,9 @@ const ROLE_DETAILS = {
   operations: { label: 'تشغيل وحجوزات', note: 'الحجوزات والعملاء دون الحسابات المالية الحساسة.' },
   finance: { label: 'مالية', note: 'المدفوعات والتقارير المالية.' },
   staff: { label: 'موظف محدود', note: 'وصول محدود حسب مهام الموظف.' },
+  client: { label: 'عميل', note: 'دخول داشبورد العميل فقط دون أي صلاحيات إدارية.' },
 };
+const SYSTEM_ROLES = Object.entries(ROLE_DETAILS).filter(([value]) => value !== 'client');
 
 const formatServicePrice = value => {
   const price = Number(value);
@@ -475,7 +477,7 @@ const ERPSettings = () => {
 
       {isOwner ? <div className="setting-section">
         <div className="section-title">
-          <div><span><i className="fas fa-users-cog text-primary me-2"></i> إدارة حسابات النظام</span><small className="d-block text-muted mt-1" style={{fontSize: '.72rem'}}>الحسابات والصلاحيات محفوظة بأمان على الخادم ولا تُعرض كلمات المرور.</small></div>
+          <div><span><i className="fas fa-users-cog text-primary me-2"></i> الأدوار وحسابات الدخول</span><small className="d-block text-muted mt-1" style={{fontSize: '.72rem'}}>حسابات العملاء منفصلة عن المالك والموظفين، ولا يمكن منح العميل صلاحيات الإدارة من هذه الصفحة.</small></div>
           <button className="btn btn-dark rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addUserModal" onClick={() => setUserState({ busy: false, type: '', message: '' })}>
             <i className="fas fa-user-plus me-1"></i> مستخدم جديد
           </button>
@@ -488,9 +490,9 @@ const ERPSettings = () => {
                 <tr key={u.id}>
                   <td className="py-3 fw-bold text-dark">{u.full_name}</td>
                   <td className="py-3"><div className="font-monospace text-muted" dir="ltr">{u.email || u.phone || '—'}</div>{u.email && u.phone && <small className="text-muted" dir="ltr">{u.phone}</small>}</td>
-                  <td className="py-3"><select className="form-select form-select-sm mx-auto fw-bold" style={{maxWidth:'175px'}} value={u.role} disabled={userState.busy || Number(u.id) === Number(currentUser.id)} onChange={e => updateSystemUser(u.id, { role: e.target.value })}>{Object.entries(ROLE_DETAILS).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select><small className="text-muted d-block mt-1" style={{fontSize:'.64rem'}}>{ROLE_DETAILS[u.role]?.note}</small></td>
+                  <td className="py-3">{u.role === 'client' || Boolean(u.client_id) ? <span className="badge rounded-pill px-3 bg-info text-dark">عميل</span> : <select className="form-select form-select-sm mx-auto fw-bold" style={{maxWidth:'175px'}} value={u.role} disabled={userState.busy || Number(u.id) === Number(currentUser.id)} onChange={e => updateSystemUser(u.id, { role: e.target.value })}>{SYSTEM_ROLES.map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}</select>}<small className="text-muted d-block mt-1" style={{fontSize:'.64rem'}}>{ROLE_DETAILS[u.role]?.note || ROLE_DETAILS.client.note}</small></td>
                   <td className="py-3"><span className={`badge rounded-pill px-3 ${Number(u.is_active) ? 'bg-success' : 'bg-secondary'}`}>{Number(u.is_active) ? 'نشط' : 'موقوف'}</span>{Number(u.id) === Number(currentUser.id) && <small className="d-block text-muted mt-1">حسابك الحالي</small>}</td>
-                  <td className="py-3"><OwnerRecordActions user={currentUser} entity="users" record={u} label={u.full_name} onEdit={() => openUserEditor(u)} onChanged={fetchData} compact /></td>
+                  <td className="py-3">{u.role === 'client' || Boolean(u.client_id) ? <small className="text-muted">يُدار من ملف العميل</small> : <OwnerRecordActions user={currentUser} entity="users" record={u} label={u.full_name} onEdit={() => openUserEditor(u)} onChanged={fetchData} compact />}</td>
                 </tr>
               ))}
             </tbody>

@@ -252,10 +252,18 @@ function credentialSafeUser(array $row): array {
     return [
         'id'=>(int)$row['id'],
         'client_id'=>isset($row['client_id']) && $row['client_id'] !== null ? (int)$row['client_id'] : null,
-        'full_name'=>$row['full_name'], 'email'=>$row['email'], 'phone'=>$row['phone'], 'role'=>$row['role'],
+        'full_name'=>$row['full_name'], 'email'=>$row['email'], 'phone'=>$row['phone'], 'role'=>authorizationRole($row),
         'must_change_password'=>(bool)($row['must_change_password'] ?? false),
         'password_status'=>(string)($row['password_status'] ?? 'active'),
     ];
+}
+
+function authorizationRole(array $row): string {
+    // A client link is the authoritative boundary. Even if legacy/corrupt data
+    // contains a privileged role, that account must never enter the ERP.
+    return array_key_exists('client_id', $row) && $row['client_id'] !== null
+        ? 'client'
+        : (string)($row['role'] ?? 'client');
 }
 
 function passwordWasUsed(PDO $pdo, int $organizationId, int $userId, string $candidate): bool {
@@ -385,6 +393,7 @@ function sessionUser(PDO $pdo, array $config): ?array {
         clearAuthCookies($config);
         return null;
     }
+    $user['role'] = authorizationRole($user);
     $pdo->prepare('UPDATE api_sessions SET last_used_at = NOW() WHERE token_hash = ? AND last_used_at < DATE_SUB(NOW(), INTERVAL 2 MINUTE)')->execute([$tokenHash]);
     $user['permissions'] = $user['permissions'] ? json_decode($user['permissions'], true) : [];
     $user['must_change_password'] = (bool)$user['must_change_password'];
@@ -1538,6 +1547,7 @@ if ($path === '/auth/login' && $method === 'POST') {
     $stmt = $pdo->prepare("SELECT * FROM users WHERE (LOWER(email) = LOWER(?)$phoneSql) ORDER BY is_active DESC, id DESC LIMIT 1");
     $stmt->execute($params);
     $found = $stmt->fetch();
+    if ($found) $found['role'] = authorizationRole($found);
     $temporaryExpired = $found && ($found['password_status'] ?? '') === 'temporary'
         && !empty($found['temporary_expires_at']) && strtotime((string)$found['temporary_expires_at']) <= time();
     if (!$found || $temporaryExpired || !password_verify($password, $found['password_hash'])) {
