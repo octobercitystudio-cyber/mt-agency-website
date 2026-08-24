@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BanknoteArrowUp, ChevronDown, ChevronUp, CircleDollarSign, ExternalLink, HandCoins, LoaderCircle, ReceiptText, RotateCcw, UserRound, WalletCards, X } from 'lucide-react';
+import { BanknoteArrowUp, ChevronDown, ChevronUp, CircleDollarSign, ExternalLink, HandCoins, LoaderCircle, ReceiptText, RotateCcw, TriangleAlert, UserRound, WalletCards, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import { formatEGP, formatPaymentMethod } from '../lib/businessFormat';
 
@@ -65,14 +65,14 @@ function MovementDialog({ account, kind, onClose, onSaved }) {
 }
 
 export default function EmployeeFinanceAccounts({ month, canManage }) {
-  const [state, setState] = useState({ loading: true, error: '', accounts: [], unlinked: 0 });
+  const [state, setState] = useState({ loading: true, error: '', migrationRequired: false, accounts: [], unlinked: 0 });
   const [expanded, setExpanded] = useState({}); const [movement, setMovement] = useState(null); const [notice, setNotice] = useState('');
   const load = useCallback(async () => {
     if (!canManage) return;
     setState(old => ({ ...old, loading: true, error: '' }));
     const result = await dataClient.request(`/attendance/employee-accounts?month=${encodeURIComponent(month)}`, { method: 'GET' });
-    if (result.error) setState({ loading: false, error: result.error.message || 'تعذر تحميل حسابات الموظفين.', accounts: [], unlinked: 0 });
-    else setState({ loading: false, error: '', accounts: result.data?.accounts || [], unlinked: Number(result.data?.unlinked_legacy_count || 0) });
+    if (result.error) setState({ loading: false, error: result.error.message || 'تعذر تحميل حسابات الموظفين.', migrationRequired: false, accounts: [], unlinked: 0 });
+    else setState({ loading: false, error: '', migrationRequired: result.data?.schema_ready === false, accounts: result.data?.accounts || [], unlinked: Number(result.data?.unlinked_legacy_count || 0) });
   }, [canManage, month]);
 
   useEffect(() => { const timer = window.setTimeout(load, 0); return () => window.clearTimeout(timer); }, [load]);
@@ -81,7 +81,7 @@ export default function EmployeeFinanceAccounts({ month, canManage }) {
   return <section className="employee-finance-section" aria-labelledby="employee-finance-title">
     <header className="employee-finance-heading"><div><span>تسوية الموظفين</span><h2 id="employee-finance-title">حسابات أشرف ومروة</h2><p>كل مصروف شخصي أو سلفة أو سداد هنا يظهر بالقيد نفسه ورقمه في صفحة الحسابات.</p></div><WalletCards aria-hidden="true" /></header>
     <div className="employee-finance-live" aria-live="polite">{notice}</div>
-    {state.loading ? <div className="employee-finance-state"><LoaderCircle className="spin" /> جارٍ تحميل الحسابات…</div> : state.error ? <div className="employee-finance-state error"><p>{state.error}</p><button onClick={load}>إعادة المحاولة</button></div> : state.accounts.length === 0 ? <div className="employee-finance-state"><UserRound /><p>لا توجد حسابات مطابقة لأشرف أو مروة في هذه المؤسسة.</p></div> : <div className="employee-finance-accounts">{state.accounts.map(account => {
+    {state.loading ? <div className="employee-finance-state"><LoaderCircle className="spin" /> جارٍ تحميل الحسابات…</div> : state.error ? <div className="employee-finance-state error"><p>{state.error}</p><button onClick={load}>إعادة المحاولة</button></div> : state.migrationRequired ? <div className="employee-finance-state migration"><TriangleAlert /><div><strong>حسابات الموظفين تحتاج تحديث قاعدة البيانات رقم 027.</strong><p>الحضور والرواتب والخزنة يعملون بصورة طبيعية، ولن تُسجّل معاملة موظف قبل اكتمال الربط الآمن.</p></div></div> : state.accounts.length === 0 ? <div className="employee-finance-state"><UserRound /><p>لا توجد حسابات مطابقة لأشرف أو مروة في هذه المؤسسة.</p></div> : <div className="employee-finance-accounts">{state.accounts.map(account => {
       const transactions = account.selected_month?.transactions || []; const isOpen = Boolean(expanded[account.user.id]);
       return <article className="employee-finance-account" key={account.user.id}>
         <header><div className="employee-finance-person"><span><UserRound /></span><div><strong>{account.user.full_name}</strong><small>{account.user.role === 'owner' ? 'مالك' : 'مدير'}</small></div></div><AccountStatus value={account.net_due_to_employee} /></header>

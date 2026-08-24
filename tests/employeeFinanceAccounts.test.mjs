@@ -161,3 +161,17 @@ test('ordinary manual finance remains writable before Hostinger migration 027', 
   assert.match(api, /INSERT INTO finance \(organization_id,client_id,type,entry_kind,category,amount,method,detail,date,entity,source_type,source_id,is_system,created_by\)/);
   assert.match(api, /if\(\$hasEmployeeColumn\).*?else\{.*?INSERT INTO finance/s);
 });
+
+test('missing employee finance migration cannot take down finance or attendance pages', async () => {
+  const [api, finance, employeeAccounts] = await Promise.all([load('api/index.php'), load('src/erp/ERPFinance.jsx'), load('src/erp/EmployeeFinanceAccounts.jsx')]);
+  assert.match(api, /function employeeFinanceSchemaStatus\(PDO \$pdo\): array/);
+  assert.match(api, /'schema_ready'=>false,'migration_required'=>'027_employee_finance_accounts\.sql'/);
+  assert.match(api, /if\(!employeeFinanceSchemaStatus\(\$pdo\)\['ready'\]\)fail\([^;]+employee_finance_migration_required/);
+  assert.match(api, /in_array\('voided_at',\$financeColumns,true\)/);
+  assert.match(api, /in_array\('entry_kind',\$financeColumns,true\)/);
+  assert.match(finance, /const fetchError = \[financeResult, configResult, clientsResult, packagesResult, servicesResult\]/);
+  assert.doesNotMatch(finance, /const fetchError = \[[^\]]*employeeAccountsResult/);
+  assert.match(finance, /employeeAccountsResult\.data\?\.schema_ready === false/);
+  assert.match(employeeAccounts, /state\.migrationRequired/);
+  assert.match(employeeAccounts, /حسابات الموظفين تحتاج تحديث قاعدة البيانات رقم 027/);
+});

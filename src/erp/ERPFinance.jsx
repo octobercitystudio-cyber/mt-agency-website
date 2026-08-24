@@ -23,6 +23,7 @@ const ERPFinance = () => {
   const [packages, setPackages] = useState([]);
   const [services, setServices] = useState([]);
   const [employeeAccounts, setEmployeeAccounts] = useState([]);
+  const [employeeAccountsWarning, setEmployeeAccountsWarning] = useState('');
   const [loading, setLoading] = useState(!globalFinanceCache);
   const [loadError, setLoadError] = useState('');
   
@@ -73,7 +74,7 @@ const ERPFinance = () => {
     ]);
     const fData = financeResult.data;
     const cData = configResult.data;
-    const fetchError = [financeResult, configResult, clientsResult, packagesResult, servicesResult, employeeAccountsResult].find(result => result.error)?.error;
+    const fetchError = [financeResult, configResult, clientsResult, packagesResult, servicesResult].find(result => result.error)?.error;
     if (fetchError) setLoadError(fetchError.message || 'تعذر تحميل دفتر الحسابات.');
     
     if (fData) {
@@ -90,6 +91,7 @@ const ERPFinance = () => {
     setPackages(packagesResult.data || []);
     setServices(servicesResult.data || []);
     setEmployeeAccounts(employeeAccountsResult.data?.accounts || []);
+    setEmployeeAccountsWarning(employeeAccountsResult.error?.message || (employeeAccountsResult.data?.schema_ready === false ? 'حسابات الموظفين تحتاج تحديث قاعدة البيانات رقم 027. باقي عمليات الخزنة تعمل بصورة طبيعية.' : ''));
     
     setLoading(false);
   }, []);
@@ -516,6 +518,7 @@ const ERPFinance = () => {
                       <option value="company">من خزينة الشركة</option>
                       {employeeAccounts.map(account => <option key={account.user.id} value={account.user.id}>{account.user.full_name} (من ماله الخاص)</option>)}
                     </select>
+                    {employeeAccountsWarning && <p className="finance-employee-warning" role="status"><AlertCircle />{employeeAccountsWarning}</p>}
                   </div>
                 )}
                 <div className="col-12 mt-3">
