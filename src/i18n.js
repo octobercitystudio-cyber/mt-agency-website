@@ -1,5 +1,8 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { publicLocaleFromPath } from './lib/publicRoutes';
+
+const initialLanguage = typeof window === 'undefined' ? 'ar' : publicLocaleFromPath(window.location.pathname);
 
 // English Translations
 const resources = {
@@ -26,7 +29,7 @@ const resources = {
       about: {
         title1: "About",
         title2: "Us",
-        p1: "Since 2011, <strong>MT Agency</strong> has been a pioneer in the digital content industry. We are your partners in crafting impact and success. With over 15 years of visual production experience, we specialize in transforming visions into tangible digital realities that touch audiences and achieve goals.",
+        p1: "Since 2011, <strong>Multi Task Agency</strong> has been a pioneer in the digital content industry. We are your partners in crafting impact and success. With over 15 years of visual production experience, we specialize in transforming visions into tangible digital realities that touch audiences and achieve goals.",
         p2: "We offer a comprehensive suite of services that includes professional photography, visual production, event coverage, world-class podcast production, and innovative AI solutions, in addition to web design and comprehensive digital presence management.",
         p3: "Our mission is to be the driving force behind every great content, with a futuristic vision that keeps pace with the latest technologies and the highest quality standards.",
         stats: {
@@ -37,7 +40,7 @@ const resources = {
       },
       experience: {
         title: "Years of Visual Production Experience",
-        description: "Since 2011, MT Agency has been a pioneer in the digital content industry."
+        description: "Since 2011, Multi Task Agency has been a pioneer in the digital content industry."
       },
       services: {
         title1: "Our",
@@ -148,7 +151,7 @@ const resources = {
       about: {
         title1: "من",
         title2: "نحن",
-        p1: "منذ عام 2011، وتعتبر <strong>MT Agency</strong> رائدة في صناعة المحتوى الرقمي. نحن شركاؤك في صناعة التأثير والنجاح، وعلى مدار أكثر من 15 عاماً من الخبرة في الإنتاج المرئي، تخصصنا في تحويل الرؤى والأفكار إلى واقع رقمي ملموس يلامس الجمهور ويحقق الأهداف.",
+        p1: "منذ عام 2011، وتعتبر <strong>Multi Task Agency</strong> رائدة في صناعة المحتوى الرقمي. نحن شركاؤك في صناعة التأثير والنجاح، وعلى مدار أكثر من 15 عاماً من الخبرة في الإنتاج المرئي، تخصصنا في تحويل الرؤى والأفكار إلى واقع رقمي ملموس يلامس الجمهور ويحقق الأهداف.",
         p2: "نقدم مجموعة متكاملة من الخدمات التي تشمل التصوير الاحترافي، الإنتاج المرئي، تغطية الفعاليات، إنتاج البودكاست بمعايير عالمية، وحلول الذكاء الاصطناعي المبتكرة، بالإضافة إلى تصميم المواقع وإدارة التواجد الرقمي بشكل شامل.",
         p3: "مهمتنا هي أن نكون القوة الدافعة خلف كل محتوى عظيم، برؤية مستقبلية تواكب أحدث التقنيات وأعلى معايير الجودة.",
         stats: {
@@ -159,7 +162,7 @@ const resources = {
       },
       experience: {
         title: "عاماً من الخبرة في الإنتاج المرئي",
-        description: "منذ عام 2011، وتعتبر MT Agency رائدة في صناعة المحتوى الرقمي."
+        description: "منذ عام 2011، وتعتبر Multi Task Agency رائدة في صناعة المحتوى الرقمي."
       },
       services: {
         title1: "خدماتنا",
@@ -252,7 +255,7 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: "ar", // Default language is Arabic
+    lng: initialLanguage,
     fallbackLng: "en",
     interpolation: {
       escapeValue: false // React already safes from xss

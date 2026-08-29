@@ -16,6 +16,10 @@ RewriteRule ^ https://multitaskagency.com%{REQUEST_URI} [R=301,L]
   Header always set X-Permitted-Cross-Domain-Policies "none"
   Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self'; frame-src https://www.youtube.com https://youtube.com https://maps.google.com https://www.google.com; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
 
+  <FilesMatch "\.(?:html|xml)$">
+    Header always set Cache-Control "no-cache, must-revalidate, max-age=0"
+  </FilesMatch>
+
   SetEnvIf Request_URI "^/(?:erp|adminmt|dashboard|login)(?:/|$)" MT_PRIVATE_PAGE
   Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0" env=MT_PRIVATE_PAGE
   Header always set Pragma "no-cache" env=MT_PRIVATE_PAGE
@@ -28,6 +32,19 @@ RewriteRule ^api(/|$) - [L,NC]
 
 # Keep automated SSL certificate validation available to the hosting layer.
 RewriteRule ^\.well-known/acme-challenge/ - [L,NC]
+
+# Move the existing public URLs to explicit Arabic URLs while preserving their
+# accumulated search value and query strings.
+RewriteRule ^services/?$ /ar/services/ [R=301,L,NE]
+RewriteRule ^services/(.+?)/?$ /ar/services/$1/ [R=301,L,NE]
+RewriteRule ^(about|portfolio|studios|contact)/?$ /ar/$1/ [R=301,L,NE]
+
+# Public localized pages use one canonical trailing-slash form. Asset requests
+# keep their filenames unchanged.
+RewriteCond %{REQUEST_URI} ^/(?:ar|en)(?:/.*)?$ [NC]
+RewriteCond %{REQUEST_URI} !/$
+RewriteCond %{REQUEST_URI} !\.[A-Za-z0-9]{1,8}$
+RewriteRule ^(.+)$ /$1/ [R=301,L,NE]
 
 # Hostinger Git deployment checks out the repository at the web root.
 # Deny source, migrations, tests, internal docs, and workflow files.
@@ -52,5 +69,11 @@ RewriteCond %{DOCUMENT_ROOT}/$1 -f [OR]
 RewriteCond %{DOCUMENT_ROOT}/$1 -d
 RewriteRule ^(.+)$ - [F,L]
 
-# React Router fallback.
-RewriteRule ^ dist/index.html [L]
+# The root is the crawlable Arabic default. Private application routes keep an
+# empty SPA shell so public prerendered content never flashes inside the ERP.
+RewriteRule ^$ dist/index.html [L]
+RewriteRule ^(?:login|change-password|reset-password|dashboard|erp|adminmt)(?:/|$) dist/app.html [L,NC]
+
+# Unknown public routes are real 404 responses instead of SPA soft-404 pages.
+ErrorDocument 404 /dist/404.html
+RewriteRule ^ - [R=404,L]

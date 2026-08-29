@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 import { Link } from 'react-router-dom';
+import { localizePublicPath } from '../lib/publicRoutes';
 import './Portfolio.css';
 
 const Portfolio = () => {
@@ -99,12 +100,12 @@ const Portfolio = () => {
               <div className="portfolio-media">
                 {item.projectUrl ? (
                   <a href={item.projectUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', width: '100%', height: '100%' }}>
-                    <img src={item.imageUrl} alt={`${isEnglish ? item.titleEn : item.title} ${isEnglish ? '- MT Agency Portfolio' : '- معرض أعمال إم تي إيجنسي'}`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={item.imageUrl} alt={`${isEnglish ? item.titleEn : item.title} ${isEnglish ? '- Multi Task Agency Portfolio' : '- معرض أعمال Multi Task Agency'}`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </a>
                 ) : item.embedUrl ? (
                   <LiteYouTube url={item.embedUrl} title={isEnglish ? item.titleEn : item.title} />
                 ) : (
-                  <img src={item.imageUrl} alt={`${isEnglish ? item.titleEn : item.title} ${isEnglish ? '- MT Agency Portfolio' : '- معرض أعمال إم تي إيجنسي'}`} loading="lazy" />
+                  <img src={item.imageUrl} alt={`${isEnglish ? item.titleEn : item.title} ${isEnglish ? '- Multi Task Agency Portfolio' : '- معرض أعمال Multi Task Agency'}`} loading="lazy" />
                 )}
                 <div className="portfolio-overlay" style={{pointerEvents: 'none'}}>
                   {item.projectUrl ? (
@@ -121,7 +122,7 @@ const Portfolio = () => {
             </div>
           ))}
         </div>
-        <Link className="public-preview-link" to="/portfolio">{isEnglish ? 'View the complete portfolio' : 'شاهد معرض الأعمال الكامل'}</Link>
+        <Link className="public-preview-link" to={localizePublicPath('/portfolio', isEnglish ? 'en' : 'ar')}>{isEnglish ? 'View the complete portfolio' : 'شاهد معرض الأعمال الكامل'}</Link>
       </div>
     </section>
   );

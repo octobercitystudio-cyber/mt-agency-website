@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../store/DataContext';
 import { X, Gift } from 'lucide-react';
+import { companyPhoneWhatsApp } from '../lib/companyContact';
 import './PromoModal.css';
 
 const PromoModal = () => {
@@ -23,7 +24,7 @@ const PromoModal = () => {
     setIsVisible(false);
   };
 
-  const waNumber = (siteData.contact?.phone2 || siteData.contact?.phone || '').replace(/\D/g, '');
+  const waNumber = companyPhoneWhatsApp(siteData.contact?.phone2 || siteData.contact?.phone);
   const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent('مرحباً، أريد الاستفسار عن العروض المتاحة على الموقع')}`;
 
   if (!isVisible || activeOffers.length === 0) return null;

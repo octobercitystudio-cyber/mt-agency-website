@@ -4,6 +4,7 @@ import { ChevronDown, Menu, User, X } from 'lucide-react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import { publicServiceCatalog, publicServiceGroups } from '../data/publicServiceCatalog';
+import { alternatePublicPath, localizePublicPath, stripPublicLocale } from '../lib/publicRoutes';
 import './Header.css';
 
 export default function Header() {
@@ -68,24 +69,25 @@ export default function Header() {
   }, [isMenuOpen]);
 
   const closeNavigation = () => { setServicesOpen(false); setIsMenuOpen(false); };
-  const toggleLanguage = () => { i18n.changeLanguage(isEnglish ? 'ar' : 'en'); setServicesOpen(false); };
+  const publicPath = value => localizePublicPath(value, isEnglish ? 'en' : 'ar');
+  const alternateLanguagePath = alternatePublicPath(location, isEnglish ? 'ar' : 'en');
   const navLinks = [
-    { label: t('header.home'), to: '/' }, { label: t('header.about'), to: '/about' },
-    { label: t('header.portfolio'), to: '/portfolio' }, { label: t('header.studio'), to: '/studios' }, { label: t('header.contact'), to: '/contact' },
+    { label: t('header.home'), to: publicPath('/') }, { label: t('header.about'), to: publicPath('/about') },
+    { label: t('header.portfolio'), to: publicPath('/portfolio') }, { label: t('header.studio'), to: publicPath('/studios') }, { label: t('header.contact'), to: publicPath('/contact') },
   ];
 
   return <header className="top-bar" ref={headerRef}>
-    <div className="top-bar-right"><Link to="/" className="logo-link" onClick={closeNavigation}><img src="/logo.webp" alt="MT Agency" className="header-logo" width="50" height="50"/><span className="logo-fallback" aria-hidden="true">MT</span></Link><button className="lang-btn" onClick={toggleLanguage} aria-label={isEnglish ? 'التبديل للعربية' : 'Switch to English'}>{isEnglish ? 'AR' : 'EN'}</button><button ref={menuTriggerRef} className="mobile-menu-btn" onClick={() => setIsMenuOpen(open => !open)} aria-expanded={isMenuOpen} aria-controls="public-mobile-navigation" aria-label={isMenuOpen ? (isEnglish ? 'Close menu' : 'إغلاق القائمة') : (isEnglish ? 'Open menu' : 'فتح القائمة')}>{isMenuOpen ? <X/> : <Menu/>}</button></div>
+    <div className="top-bar-right"><Link to={publicPath('/')} className="logo-link" onClick={closeNavigation}><img src="/logo.webp" alt="Multi Task Agency" className="header-logo" width="50" height="50"/><span className="logo-fallback" aria-hidden="true">MT</span></Link><Link className="lang-btn" to={alternateLanguagePath} onClick={closeNavigation} aria-label={isEnglish ? 'التبديل للعربية' : 'Switch to English'}>{isEnglish ? 'AR' : 'EN'}</Link><button ref={menuTriggerRef} className="mobile-menu-btn" onClick={() => setIsMenuOpen(open => !open)} aria-expanded={isMenuOpen} aria-controls="public-mobile-navigation" aria-label={isMenuOpen ? (isEnglish ? 'Close menu' : 'إغلاق القائمة') : (isEnglish ? 'Open menu' : 'فتح القائمة')}>{isMenuOpen ? <X/> : <Menu/>}</button></div>
     <button type="button" tabIndex={isMenuOpen ? 0 : -1} aria-hidden={!isMenuOpen} className={`mobile-menu-backdrop ${isMenuOpen ? 'open' : ''}`} onClick={() => setIsMenuOpen(false)} />
     <div id="public-mobile-navigation" className={`mobile-nav-wrapper ${isMenuOpen ? 'open' : ''}`} inert={drawerClosed} aria-hidden={drawerClosed}>
       <button ref={closeMenuRef} tabIndex={isMenuOpen ? 0 : -1} className="close-menu-btn" onClick={() => setIsMenuOpen(false)} aria-label={isEnglish ? 'Close menu' : 'إغلاق القائمة'}><X/></button>
       <div className="top-bar-center"><nav className="header-nav" aria-label={isEnglish ? 'Main navigation' : 'التنقل الرئيسي'}><ul className="nav-list">
-        {navLinks.slice(0, 2).map(link => <li key={link.to}><NavLink to={link.to} end={link.to === '/'} className="nav-link" tabIndex={drawerTabIndex} onClick={closeNavigation}>{link.label}</NavLink></li>)}
+        {navLinks.slice(0, 2).map(link => <li key={link.to}><NavLink to={link.to} end={stripPublicLocale(link.to) === '/'} className="nav-link" tabIndex={drawerTabIndex} onClick={closeNavigation}>{link.label}</NavLink></li>)}
         <li className="services-menu" ref={servicesRef}>
-          <button ref={servicesTriggerRef} type="button" className={`nav-link services-menu__trigger${location.pathname.startsWith('/services') ? ' active' : ''}`} tabIndex={drawerTabIndex} aria-expanded={servicesOpen} aria-controls="services-mega-menu" onClick={() => setServicesOpen(open => !open)}>{t('header.services')}<ChevronDown aria-hidden="true"/></button>
+          <button ref={servicesTriggerRef} type="button" className={`nav-link services-menu__trigger${stripPublicLocale(location.pathname).startsWith('/services') ? ' active' : ''}`} tabIndex={drawerTabIndex} aria-expanded={servicesOpen} aria-controls="services-mega-menu" onClick={() => setServicesOpen(open => !open)}>{t('header.services')}<ChevronDown aria-hidden="true"/></button>
           <div id="services-mega-menu" className={`services-mega-menu${servicesOpen ? ' open' : ''}`}>
-            <div className="services-mega-menu__head"><span>{isEnglish ? 'Capabilities' : 'قدرات متكاملة'}</span><Link to="/services" tabIndex={servicesTabIndex} onClick={closeNavigation}>{isEnglish ? 'View all services' : 'عرض كل الخدمات'}</Link></div>
-            <div className="services-mega-menu__groups">{publicServiceGroups.map(group => <section key={group.id}><h2>{isEnglish ? group.en : group.ar}</h2>{publicServiceCatalog.filter(service => service.group === group.id).map(service => <NavLink key={service.slug} to={`/services/${service.slug}`} tabIndex={servicesTabIndex} onClick={closeNavigation}>{(isEnglish ? service.en : service.ar).navLabel}</NavLink>)}</section>)}</div>
+            <div className="services-mega-menu__head"><span>{isEnglish ? 'Capabilities' : 'قدرات متكاملة'}</span><Link to={publicPath('/services')} tabIndex={servicesTabIndex} onClick={closeNavigation}>{isEnglish ? 'View all services' : 'عرض كل الخدمات'}</Link></div>
+            <div className="services-mega-menu__groups">{publicServiceGroups.map(group => <section key={group.id}><h2>{isEnglish ? group.en : group.ar}</h2>{publicServiceCatalog.filter(service => service.group === group.id).map(service => <NavLink key={service.slug} to={publicPath(`/services/${service.slug}`)} tabIndex={servicesTabIndex} onClick={closeNavigation}>{(isEnglish ? service.en : service.ar).navLabel}</NavLink>)}</section>)}</div>
           </div>
         </li>
         {navLinks.slice(2).map(link => <li key={link.to}><NavLink to={link.to} className="nav-link" tabIndex={drawerTabIndex} onClick={closeNavigation}>{link.label}</NavLink></li>)}

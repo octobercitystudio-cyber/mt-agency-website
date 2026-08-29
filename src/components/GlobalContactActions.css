@@ -10,6 +10,11 @@
   isolation: isolate;
 }
 
+html[dir="ltr"] .global-contact-actions {
+  left: auto;
+  right: max(18px, env(safe-area-inset-right, 0px));
+}
+
 /* The login surface owns z-index 1000; lift only here, below notification prompts (1040). */
 body:has(.unified-login-container) .global-contact-actions {
   z-index: 1010;
@@ -74,6 +79,12 @@ body:has(.erp-live-session) .global-contact-actions--erp {
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
+html[dir="ltr"] .global-contact-actions__button::after {
+  right: calc(100% + 10px);
+  left: auto;
+  transform: translate(4px, -50%);
+}
+
 .global-contact-actions__button:hover {
   color: #fff;
   filter: brightness(1.05);
@@ -83,6 +94,11 @@ body:has(.erp-live-session) .global-contact-actions--erp {
 .global-contact-actions__button:hover::after,
 .global-contact-actions__button:focus-visible::after {
   opacity: 1;
+  transform: translate(0, -50%);
+}
+
+html[dir="ltr"] .global-contact-actions__button:hover::after,
+html[dir="ltr"] .global-contact-actions__button:focus-visible::after {
   transform: translate(0, -50%);
 }
 
@@ -102,6 +118,11 @@ body:has(.erp-live-session) .global-contact-actions--erp {
   .global-contact-actions {
     left: max(12px, env(safe-area-inset-left, 0px));
     bottom: max(26px, calc(env(safe-area-inset-bottom, 0px) + 18px));
+  }
+
+  html[dir="ltr"] .global-contact-actions {
+    left: auto;
+    right: max(12px, env(safe-area-inset-right, 0px));
   }
 
   .global-contact-actions--client {

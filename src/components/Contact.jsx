@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 import { Link } from 'react-router-dom';
+import { companyPhoneTel, normalizeCompanyPhone } from '../lib/companyContact';
+import { localizePublicPath } from '../lib/publicRoutes';
 import './Contact.css';
 
 const Contact = () => {
@@ -10,6 +12,8 @@ const Contact = () => {
   
   const contactData = siteData.contact;
   const receivingEmail = siteData.formSettings?.receivingEmail || contactData.email || 'info@multitaskagency.com';
+  const primaryPhone = normalizeCompanyPhone(contactData.phone);
+  const secondaryPhone = normalizeCompanyPhone(contactData.phone2);
 
   return (
       <section id="contact" className="contact-section">
@@ -23,7 +27,7 @@ const Contact = () => {
             <p className="contact-desc">
               {t('contact.description')}
             </p>
-            <Link className="public-preview-link" to="/contact">{isEnglish ? 'Open the full contact page' : 'افتح صفحة التواصل الكاملة'}</Link>
+            <Link className="public-preview-link" to={localizePublicPath('/contact', isEnglish ? 'en' : 'ar')}>{isEnglish ? 'Open the full contact page' : 'افتح صفحة التواصل الكاملة'}</Link>
             
             <div className="contact-details-row">
               <div className="contact-item">
@@ -33,9 +37,9 @@ const Contact = () => {
               <div className="contact-item">
                 <span className="icon">📞</span>
                 <div style={{display: 'flex', flexDirection: 'column'}}>
-                  <p dir="ltr">{contactData.phone}</p>
-                  {contactData.phone2 && (
-                    <p dir="ltr">{contactData.phone2}</p>
+                  {primaryPhone && <a href={`tel:${companyPhoneTel(contactData.phone)}`} aria-label={`${isEnglish ? 'Call' : 'اتصل على'} ${primaryPhone}`}><p dir="ltr">{primaryPhone}</p></a>}
+                  {secondaryPhone && (
+                    <a href={`tel:${companyPhoneTel(contactData.phone2)}`} aria-label={`${isEnglish ? 'Call' : 'اتصل على'} ${secondaryPhone}`}><p dir="ltr">{secondaryPhone}</p></a>
                   )}
                 </div>
               </div>
@@ -84,7 +88,7 @@ const Contact = () => {
                 allowFullScreen="" 
                 loading="lazy" 
                 referrerPolicy="no-referrer-when-downgrade"
-                title="MT Agency Location"
+                title="Multi Task Agency Location"
               ></iframe>
             </div>
             

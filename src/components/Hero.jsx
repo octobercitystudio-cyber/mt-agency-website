@@ -39,7 +39,7 @@ const Hero = () => {
               <source media="(max-width: 520px)" srcSet={activeSlide.tiny} />
               <img
                 src={activeSlide.small}
-                alt={`${activeSlide.alt} - MT Agency`}
+                alt={`${activeSlide.alt} - Multi Task Agency`}
                 className="hero-slider-img active"
                 width="800"
                 height="800"

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 import { Link } from 'react-router-dom';
+import { localizePublicPath } from '../lib/publicRoutes';
 import { getStudioFallback, STUDIO_CATEGORIES } from '../data/studioGalleries';
 import './StudioShowcase.css';
 
@@ -39,8 +40,8 @@ const StudioShowcase = () => {
             const imageUrl = img.url || fallbackUrl;
             const studioName = tabs.find((tab) => tab.id === activeTab);
             const defaultAlt = isEnglish
-              ? `${studioName?.nameEn || 'MT Agency Studio'} - image ${index + 1}`
-              : `${studioName?.nameAr || 'استديو MT Agency'} - صورة ${index + 1}`;
+              ? `${studioName?.nameEn || 'Multi Task Agency Studio'} - image ${index + 1}`
+              : `${studioName?.nameAr || 'استديو Multi Task Agency'} - صورة ${index + 1}`;
 
             return (
               <div
@@ -72,7 +73,7 @@ const StudioShowcase = () => {
             );
           })}
         </div>
-        <Link className="public-preview-link" to="/studios">{isEnglish ? 'Explore all studio locations' : 'استكشف كل الاستديوهات'}</Link>
+        <Link className="public-preview-link" to={localizePublicPath('/studios', isEnglish ? 'en' : 'ar')}>{isEnglish ? 'Explore all studio locations' : 'استكشف كل الاستديوهات'}</Link>
       </div>
     </section>
   );

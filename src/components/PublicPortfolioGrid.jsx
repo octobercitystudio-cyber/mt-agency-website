@@ -29,10 +29,10 @@ export default function PublicPortfolioGrid({ items, categories = [], isEnglish,
   </div>;
   return <div className="public-work-grid">
     {items.map((item, index) => {
-      const title = (isEnglish ? item.titleEn : item.title) || item.title || item.titleEn || (isEnglish ? 'MT Agency project' : 'مشروع من MT Agency');
+      const title = (isEnglish ? item.titleEn : item.title) || item.title || item.titleEn || (isEnglish ? 'Multi Task Agency project' : 'مشروع من Multi Task Agency');
       const category = categories.find(entry => entry.id === item.category);
       const categoryLabel = category?.[isEnglish ? 'nameEn' : 'nameAr'] || item.category;
-      const alt = (isEnglish ? item.altEn : item.alt) || `${title} — ${isEnglish ? 'MT Agency portfolio' : 'من أعمال MT Agency'}`;
+      const alt = (isEnglish ? item.altEn : item.alt) || `${title} — ${isEnglish ? 'Multi Task Agency portfolio' : 'من أعمال Multi Task Agency'}`;
       return <article className="public-work-item" key={item.id || `${item.category}-${index}`}>
         <div className="public-work-media">
           {item.embedUrl ? <LiteYouTube url={item.embedUrl} title={alt} /> : item.projectUrl ? <a href={item.projectUrl} target="_blank" rel="noopener noreferrer" aria-label={`${title} — ${isEnglish ? 'open project' : 'فتح المشروع'}`}><img src={item.imageUrl} alt={alt} loading="lazy" decoding="async" /><ExternalLink aria-hidden="true" /></a> : item.imageUrl ? <img src={item.imageUrl} alt={alt} loading="lazy" decoding="async" /> : null}

@@ -182,3 +182,7 @@ a.detail-text:hover {
     min-height: 300px;
   }
 }
+
+.contact-item a {
+  color: inherit;
+}

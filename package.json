@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-public-seo.mjs",
+    "seo:indexnow": "node scripts/submit-indexnow.mjs",
     "android:update": "cd android-twa && bubblewrap update --skipVersionUpgrade --manifest=twa-manifest.json",
     "android:build": "cd android-twa && bubblewrap build --manifest=twa-manifest.json",
     "lint": "eslint .",

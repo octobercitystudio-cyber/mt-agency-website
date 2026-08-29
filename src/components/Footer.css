@@ -80,6 +80,14 @@ html[lang="en"] .footer-links a:hover {
   color: #999;
 }
 
+.footer-contact-item a {
+  color: inherit;
+}
+
+.footer-contact-item a:hover {
+  color: var(--color-neon-purple);
+}
+
 .footer-contact-icon {
   color: var(--color-vibrant-purple);
   font-size: 1.2rem;
@@ -99,6 +107,20 @@ html[lang="en"] .footer-links a:hover {
 }
 
 @media (max-width: 768px) {
+  html[dir="rtl"] .app-container .footer-section .container {
+    width: calc(100% - 88px);
+    max-width: none;
+    margin-right: 16px;
+    margin-left: 72px;
+  }
+
+  html[lang="en"][dir="ltr"] .app-container .footer-section .container {
+    width: calc(100% - 88px);
+    max-width: none;
+    margin-right: 72px;
+    margin-left: 16px;
+  }
+
   .footer-grid {
     grid-template-columns: 1fr;
     text-align: center;

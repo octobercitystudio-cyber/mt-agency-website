@@ -7,6 +7,7 @@ const actionSource = await readFile(new URL('../src/components/GlobalContactActi
 const actionStyles = await readFile(new URL('../src/components/GlobalContactActions.css', import.meta.url), 'utf8');
 const contactSource = await readFile(new URL('../src/components/Contact.jsx', import.meta.url), 'utf8');
 const contactStyles = await readFile(new URL('../src/components/Contact.css', import.meta.url), 'utf8');
+const footerStyles = await readFile(new URL('../src/components/Footer.css', import.meta.url), 'utf8');
 
 test('the reusable contact dock is mounted globally before application routes', () => {
   assert.match(appSource, /import GlobalContactActions from ['"]\.\/components\/GlobalContactActions['"]/);
@@ -17,12 +18,14 @@ test('the reusable contact dock is mounted globally before application routes', 
 });
 
 test('WhatsApp and direct-call actions use the exact company number and accessible Arabic labels', () => {
-  assert.match(actionSource, /https:\/\/wa\.me\/201114466646/);
-  assert.match(actionSource, /tel:\$\{CONTACT_NUMBER\}/);
-  assert.match(actionSource, /const CONTACT_NUMBER = ['"]\+201114466646['"]/);
-  assert.match(actionSource, /aria-label="خيارات التواصل السريع"/);
+  assert.match(actionSource, /companyPhoneWhatsApp\('01114466646'\)/);
+  assert.match(actionSource, /tel:\$\{companyPhoneTel\(CONTACT_NUMBER\)\}/);
+  assert.match(actionSource, /const CONTACT_NUMBER = normalizeCompanyPhone\('01114466646'\)/);
+  assert.match(actionSource, /aria-label=\{isEnglish \? 'Quick contact options' : 'خيارات التواصل السريع'\}/);
   assert.match(actionSource, /تواصل معنا عبر واتساب/);
   assert.match(actionSource, /اتصل بنا على الرقم/);
+  assert.match(actionSource, /Contact us on WhatsApp at/);
+  assert.match(actionSource, /Call us at/);
   assert.match(actionSource, /target="_blank"/);
   assert.match(actionSource, /rel="noopener noreferrer"/);
   assert.doesNotMatch(actionSource, /MessageCircle/);
@@ -43,8 +46,12 @@ test('the dock remains tappable, focus-visible, modal-safe, and clear of mobile 
   assert.match(actionStyles, /z-index:\s*90/);
   assert.match(actionStyles, /:focus-visible/);
   assert.match(actionStyles, /env\(safe-area-inset-bottom/);
+  assert.match(actionStyles, /html\[dir="ltr"\] \.global-contact-actions\s*\{[\s\S]*?left:\s*auto;[\s\S]*?right:\s*max\(18px/);
+  assert.match(actionStyles, /html\[dir="ltr"\] \.global-contact-actions__button::after/);
   assert.match(actionStyles, /\.global-contact-actions--client[\s\S]*?bottom:\s*calc\(88px/);
   assert.match(actionStyles, /\.global-contact-actions--erp\s*\{\s*bottom:\s*calc\(88px/);
+  assert.match(footerStyles, /html\[dir="rtl"\] \.app-container \.footer-section \.container\s*\{[\s\S]*?margin-left:\s*72px/);
+  assert.match(footerStyles, /html\[lang="en"\]\[dir="ltr"\] \.app-container \.footer-section \.container\s*\{[\s\S]*?margin-right:\s*72px/);
 });
 
 test('ERP timer clearance is conditional and dashboard labels never cover working cards', () => {

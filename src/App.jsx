@@ -138,6 +138,16 @@ function App() {
               <Route path="contact" element={<ContactPage />} />
               <Route path="*" element={<PublicNotFound />} />
             </Route>
+            {['ar', 'en'].map(locale => <Route key={locale} path={locale} element={<PublicLayout />}>
+              <Route index element={<HomePage />} />
+              <Route path="services" element={<ServicesIndexPage />} />
+              <Route path="services/:slug" element={<ServiceDetailPage />} />
+              <Route path="about" element={<AboutPage />} />
+              <Route path="portfolio" element={<PortfolioPage />} />
+              <Route path="studios" element={<StudiosPage />} />
+              <Route path="contact" element={<ContactPage />} />
+              <Route path="*" element={<PublicNotFound />} />
+            </Route>)}
             <Route path="/login" element={<PrivateSurface><UnifiedLogin /></PrivateSurface>} />
             <Route path="/change-password" element={<PrivateSurface><ForcedPasswordRoute><ForcedPasswordChange /></ForcedPasswordRoute></PrivateSurface>} />
             <Route path="/reset-password" element={<PrivateSurface><ResetPassword /></PrivateSurface>} />

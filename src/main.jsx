@@ -9,6 +9,23 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 console.log("Cache buster: ", Date.now());
 
+// Public build pages contain crawlable SEO tags before JavaScript runs. Once
+// React starts, remove only those build-time tags so Helmet becomes the single
+// live source and rendered crawlers never see duplicate metadata or JSON-LD.
+if (document.documentElement.hasAttribute('data-public-prerender')) {
+  document.head.querySelectorAll([
+    'title',
+    'meta[name="description"]',
+    'meta[name="author"]',
+    'meta[name="robots"]',
+    'meta[property^="og:"]',
+    'meta[name^="twitter:"]',
+    'link[rel="canonical"]',
+    'link[rel="alternate"]',
+    'script[type="application/ld+json"]',
+  ].join(',')).forEach(element => element.remove());
+}
+
 // A user may keep the ERP open while a new build is deployed. If a lazy route
 // still points at an old hashed file, refresh once so Vite can load the current
 // asset map instead of leaving the requested page blank.
