@@ -24,7 +24,7 @@ const attachVerifiedServiceLinks = item => ({
 });
 
 export const VERIFIED_PORTFOLIO = [
-  { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: '/portfolio-previews/qpshoes-homepage.png', title: 'متجر قصر الملكة', titleEn: 'QP Shoes Store', category: 'web' },
+  { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: '/portfolio-previews/qpshoes-homepage-20260829.png', title: 'متجر قصر الملكة', titleEn: 'QP Shoes Store', category: 'web' },
   { id: 1787999000001, projectUrl: 'https://www.afc-cpa.com/', imageUrl: '/portfolio-previews/afc-cpa-homepage.png', title: 'AFC – العشماوي للاستشارات المالية', titleEn: 'AFC Financial Consulting', category: 'web' },
   { id: 1787999000002, projectUrl: 'https://www.almajdwoods.com/', imageUrl: '/portfolio-previews/almajdwoods-homepage.png', title: 'شركة المجد لتوريد الأخشاب', titleEn: 'Al Majd Wood Supply', category: 'web' },
   { id: 1781455895641, title: 'مركز الدقي اسكان للأشعة', titleEn: '', category: 'video', imageUrl: '', embedUrl: 'https://youtu.be/ZquGZGYxAHk' },
