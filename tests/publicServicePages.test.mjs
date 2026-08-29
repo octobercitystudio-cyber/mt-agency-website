@@ -118,6 +118,7 @@ test('public pages preserve mobile containment, 44px controls and reduced motion
   const [pagesCss, headerCss, pages, portfolio, admin] = await Promise.all(['src/pages/PublicPages.css', 'src/components/Header.css', 'src/pages/PublicPages.jsx', 'src/components/PublicPortfolioGrid.jsx', 'src/admin/AdminPortfolio.jsx'].map(load));
   for (const width of ['900', '600', '340']) assert.ok(pagesCss.includes(`@media(max-width:${width}px)`));
   assert.match(pagesCss, /min-height:48px/); assert.match(pagesCss, /@media\(prefers-reduced-motion:reduce\)/); assert.match(pagesCss, /overflow:clip/); assert.match(headerCss, /min-height:44px/);
+  assert.match(pagesCss, /\.public-work-media>a>img\{[^}]*width:100%;height:100%;display:block;object-fit:contain;object-position:center/s);
   assert.match(pages, /id="main-content"/); assert.match(pages, /<h1>/); assert.match(portfolio, /loading="lazy"/); assert.match(portfolio, /img\.youtube\.com/); assert.match(portfolio, /alt=\{alt\}/);
   assert.match(admin, /serviceSlugs/); assert.match(admin, /publicServiceCatalog\.map/); assert.match(admin, /type="checkbox"/);
 });
