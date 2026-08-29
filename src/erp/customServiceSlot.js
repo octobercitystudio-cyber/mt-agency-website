@@ -1,4 +1,5 @@
 import { getBookingAvailability } from './bookingAvailability';
+import { formatTime12 } from '../lib/businessFormat';
 
 const isFriday = date => Boolean(date) && new Date(`${date}T12:00:00`).getDay() === 5;
 const minutes = value => {
@@ -14,7 +15,7 @@ export function customSlotValidation(slot, bookings = []) {
   const result = getBookingAvailability(slot, bookings);
   if (!result.available) {
     const conflict = result.conflicts[0];
-    return { ...result, message: `الموعد متعارض مع ${conflict?.client_name || 'عميل آخر'} من ${String(conflict?.start_time || '').slice(0, 5)} إلى ${String(conflict?.end_time || '').slice(0, 5)}.` };
+    return { ...result, message: `الموعد متعارض مع ${conflict?.client_name || 'عميل آخر'} من ${formatTime12(conflict?.start_time)} إلى ${formatTime12(conflict?.end_time)}.` };
   }
   return { ...result, message: 'الموعد متاح وسيُرسل كطلب بانتظار التأكيد.' };
 }

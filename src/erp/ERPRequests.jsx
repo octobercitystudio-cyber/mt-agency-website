@@ -243,6 +243,8 @@ export default function ERPRequests() {
           slotMinTime="12:00:00"
           slotMaxTime="24:00:00"
           slotDuration="00:15:00"
+          eventTimeFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
+          slotLabelFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
           allDaySlot={false}
           height="auto"
           nowIndicator

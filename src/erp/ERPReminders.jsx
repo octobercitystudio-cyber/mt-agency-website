@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { dataClient } from '../dataClient';
 import { format, addMonths } from 'date-fns';
 import { ListTodo } from 'lucide-react';
+import BusinessDateTimeInput from '../components/BusinessDateTimeInput';
 import ERPPageHero from './ERPPageHero';
 import { formatDateTime12, formatEGP } from '../lib/businessFormat';
 import { useData } from '../store/DataContext';
@@ -316,7 +317,7 @@ const ERPReminders = () => {
               </div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">تاريخ ووقت استحقاق المهمة الفعلي</label>
-                <input type="datetime-local" className="form-control bg-white border border-primary-subtle py-2 fw-bold text-primary" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} required />
+                <BusinessDateTimeInput inputClassName="form-control bg-white border border-primary-subtle py-2 fw-bold text-primary" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} required />
               </div>
               <div className="form-check form-switch bg-warning-subtle p-3 rounded-4 border border-warning border-opacity-25 mt-3 d-flex align-items-center justify-content-end gap-3 flex-row-reverse">
                 <input className="form-check-input mt-0" type="checkbox" style={{transform: 'scale(1.5)', cursor: 'pointer', margin: 0}} checked={formData.is_recurring} onChange={e => setFormData({...formData, is_recurring: e.target.checked})} />
@@ -368,7 +369,7 @@ const ERPReminders = () => {
               </div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">تاريخ ووقت الاستحقاق</label>
-                <input type="datetime-local" className="form-control bg-white border-0 py-2 fw-bold text-primary" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} required />
+                <BusinessDateTimeInput inputClassName="form-control bg-white border-0 py-2 fw-bold text-primary" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} required />
               </div>
               <div className="form-check form-switch bg-warning-subtle p-3 rounded-4 border border-warning border-opacity-25 mt-3 d-flex align-items-center justify-content-end flex-row-reverse gap-3">
                 <input className="form-check-input mt-0" type="checkbox" style={{transform: 'scale(1.5)', cursor: 'pointer', margin: 0}} checked={formData.is_recurring} onChange={e => setFormData({...formData, is_recurring: e.target.checked})} />

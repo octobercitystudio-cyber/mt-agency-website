@@ -1,7 +1,7 @@
 import { getProjectStageTemplate } from './projectStageTemplates.js';
 import { allocateFormationExpense, summarizeFormationFund, toCents } from './formationFundMath.js';
 import { socialAmountToCents, socialCentsToAmount, summarizeSocialProfits } from './socialProfitMath.js';
-import { cairoDateKey, centsToMoney, formatDurationMinutes, moneyToCents, packageFinancialSummary, packageQuantitySummary, remainingCalendarDays } from './businessFormat.js';
+import { cairoDateKey, centsToMoney, formatDurationMinutes, formatTime12, moneyToCents, packageFinancialSummary, packageQuantitySummary, remainingCalendarDays } from './businessFormat.js';
 import { getBookingAvailability } from '../erp/bookingAvailability.js';
 import { buildDemoClientServiceHistory } from './clientServiceHistory.js';
 import { cairoDateTimeToIso, cairoDateTimeToEpoch } from './promotionTime.js';
@@ -877,8 +877,8 @@ const demoMaterializePackageLifecycleNotifications = (database, clientId = null)
 const demoBookingNotificationMoment = booking => {
   const service = String(booking?.service || 'جلسة التصوير').trim() || 'جلسة التصوير';
   const date = String(booking?.date || booking?.proposed_date || '').slice(0, 10);
-  const start = String(booking?.start_time || booking?.proposed_start_time || '').slice(0, 5);
-  const end = String(booking?.end_time || booking?.proposed_end_time || '').slice(0, 5);
+  const start = formatTime12(booking?.start_time || booking?.proposed_start_time, '');
+  const end = formatTime12(booking?.end_time || booking?.proposed_end_time, '');
   return [service, date ? `يوم ${date}` : '', start && end ? `من ${start} إلى ${end}` : ''].filter(Boolean).join(' — ');
 };
 

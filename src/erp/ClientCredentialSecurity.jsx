@@ -3,10 +3,11 @@ import { Check, Copy, Eye, EyeOff, KeyRound, Link, LogOut, Power, ShieldCheck, X
 import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
 import { CLIENT_PASSWORD_HINT, CLIENT_PASSWORD_MAX_LENGTH, CLIENT_PASSWORD_MIN_LENGTH, isValidClientPassword } from '../lib/clientPasswordPolicy';
+import { formatDateTime12 } from '../lib/businessFormat';
 import './ClientCredentialSecurity.css';
 
 const emptyPasswordForm = () => ({ new_password: '', confirm_password: '' });
-const showDate = value => value ? new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(String(value).replace(' ', 'T'))) : '—';
+const showDate = value => formatDateTime12(value);
 
 export default function ClientCredentialSecurity({ clientId }) {
   const [meta, setMeta] = useState(null);

@@ -170,6 +170,30 @@ export const normalizeTime = (value, { endOfDay = false } = {}) => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
+export const time24To12Parts = (value, { defaultPeriod = 'pm' } = {}) => {
+  const normalized = normalizeTime(value);
+  const fallbackPeriod = defaultPeriod === 'am' ? 'am' : 'pm';
+  if (!normalized) return { value: '', period: fallbackPeriod, endOfDay: false };
+  const [rawHours, minutes] = normalized.split(':').map(Number);
+  const hours = rawHours === 24 ? 0 : rawHours;
+  return {
+    value: `${hours % 12 || 12}:${String(minutes).padStart(2, '0')}`,
+    period: hours < 12 ? 'am' : 'pm',
+    endOfDay: rawHours === 24,
+  };
+};
+
+export const time12To24 = (value, period = 'pm', { endOfDay = false } = {}) => {
+  const match = String(value || '').trim().match(/^(0?[1-9]|1[0-2]):([0-5]\d)$/);
+  if (!match) return '';
+  const hour12 = Number(match[1]);
+  const minutes = Number(match[2]);
+  const normalizedPeriod = period === 'am' ? 'am' : 'pm';
+  if (endOfDay && normalizedPeriod === 'am' && hour12 === 12 && minutes === 0) return '24:00';
+  const hours = normalizedPeriod === 'am' ? hour12 % 12 : (hour12 % 12) + 12;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
 export const timeToMinutes = (value, { endOfDay = false } = {}) => {
   const normalized = normalizeTime(value, { endOfDay });
   if (!normalized) return Number.NaN;
@@ -197,13 +221,9 @@ export const isValidBusinessBooking = (start, end, minimumMinutes = 60) => {
 };
 
 export const formatTime12 = (value, fallback = '—') => {
-  const normalized = normalizeTime(value);
-  if (!normalized) return fallback;
-  const [rawHours, minutes] = normalized.split(':').map(Number);
-  const hours = rawHours === 24 ? 0 : rawHours;
-  const displayHours = hours % 12 || 12;
-  const period = hours < 12 ? 'ص' : 'م';
-  return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`;
+  const parts = time24To12Parts(value);
+  if (!parts.value) return fallback;
+  return `${parts.value} ${parts.period === 'am' ? 'ص' : 'م'}`;
 };
 
 export const formatDateTime12 = (value, fallback = '—') => {

@@ -28,7 +28,7 @@ const timeLabel = value => {
   const diffMinutes = Math.round((date.getTime() - Date.now()) / 60000); const relative = new Intl.RelativeTimeFormat('ar-EG', { numeric: 'auto' });
   if (Math.abs(diffMinutes) < 60) return relative.format(diffMinutes, 'minute');
   const diffHours = Math.round(diffMinutes / 60); if (Math.abs(diffHours) < 24) return relative.format(diffHours, 'hour');
-  return new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(date);
+  return new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }).format(date);
 };
 
 export default function ClientNotifications({ clientId, onNavigate }) {

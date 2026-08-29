@@ -1,0 +1,10 @@
+.business-time-control{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;gap:6px;width:100%;min-width:0;direction:ltr}
+.business-time-period{display:inline-flex;overflow:hidden;border:1px solid color-mix(in srgb,currentColor 22%,transparent);border-radius:9px;background:color-mix(in srgb,currentColor 4%,transparent)}
+.business-time-period button{min-width:36px;min-height:44px;padding:0 9px;border:0;border-inline-start:1px solid color-mix(in srgb,currentColor 13%,transparent);background:transparent;color:inherit;font:inherit;font-weight:900;cursor:pointer}
+.business-time-period button:first-child{border-inline-start:0}
+.business-time-period button.active{background:#6d28d9;color:#fff}
+.business-time-period button:focus-visible{outline:3px solid rgba(109,40,217,.25);outline-offset:-3px}
+.business-time-input[aria-invalid="true"]{border-color:#b43d4b!important;background:#fff7f8!important}
+.business-time-error{display:block;color:#9e3040;font-size:.66rem;line-height:1.6;text-align:right;letter-spacing:0;margin-top:4px}
+.business-datetime-control{display:grid;grid-template-columns:minmax(132px,.9fr) minmax(190px,1.1fr);gap:8px;width:100%;min-width:0}
+@media(max-width:520px){.business-datetime-control{grid-template-columns:1fr}.business-time-period button{min-width:34px;padding:0 7px}}

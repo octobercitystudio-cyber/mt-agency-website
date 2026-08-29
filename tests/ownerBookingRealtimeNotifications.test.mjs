@@ -49,9 +49,9 @@ test('owner create, reschedule, and delete produce precise client notifications 
   const creation = items.find(item => item.type === 'booking_created');
   const reschedule = items.find(item => item.type === 'booking_rescheduled');
   const deletion = items.find(item => item.type === 'booking_deleted');
-  assert.match(creation.message, /جلسة متابعة فورية.*2026-12-20.*20:00.*21:00/);
-  assert.match(reschedule.message, /2026-12-21.*21:00.*22:15/);
-  assert.match(deletion.message, /2026-12-21.*21:00.*22:15/);
+  assert.match(creation.message, /جلسة متابعة فورية.*2026-12-20.*8:00 م.*9:00 م/);
+  assert.match(reschedule.message, /2026-12-21.*9:00 م.*10:15 م/);
+  assert.match(deletion.message, /2026-12-21.*9:00 م.*10:15 م/);
   for (const item of items) {
     assert.equal(item.action_tab, 'schedule');
     assert.equal(Number(item.payload?.booking_id), Number(created.data.id));
@@ -72,7 +72,7 @@ test('an appointment created with a custom service also reaches the client immed
   assert.equal(created.error, null);
   const items = (await clientInbox()).filter(item => item.type === 'booking_created' && Number(item.entity_id) === Number(created.data.booking_id));
   assert.equal(items.length, 1);
-  assert.match(items[0].message, /جلسة مشروع مخصص.*2026-12-16.*20:00.*21:15/);
+  assert.match(items[0].message, /جلسة مشروع مخصص.*2026-12-16.*8:00 م.*9:15 م/);
   assert.equal(Number(items[0].payload?.booking_id), Number(created.data.booking_id));
 });
 

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Bell, CalendarClock, CheckCheck, CircleDollarSign, FileCheck2, Inbox, RefreshCw, Trash2, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
+import { formatDateTime12 } from '../lib/businessFormat';
 import { captureNotificationOpen, markNotificationsReadThrough, notificationBoundary, reconcileNotificationOpen, resolveNotificationOpenBoundary, unreadNotifications } from '../lib/notificationReadBoundary';
 import './OwnerNotifications.css';
 
@@ -17,10 +18,7 @@ const dateBucket = value => {
   const delta = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(date.getFullYear(), date.getMonth(), date.getDate())) / 86400000);
   return delta <= 0 ? 'اليوم' : delta === 1 ? 'أمس' : 'الأقدم';
 };
-const timeLabel = value => {
-  const date = new Date(value); if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(date);
-};
+const timeLabel = value => formatDateTime12(value, '');
 
 export default function OwnerNotifications({ userId, onNavigate }) {
   const bellRef = useRef(null);

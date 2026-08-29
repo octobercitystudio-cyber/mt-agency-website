@@ -7,7 +7,7 @@ import {
 import { dataClient, dataProvider } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { attendanceApi } from '../lib/attendanceApi';
-import { formatBookingDate, formatBookingStatus, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
+import { formatBookingDate, formatBookingStatus, formatDateTime12, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
 import ERPPageHero from './ERPPageHero';
 import ERPAddBookingModal from './ERPAddBookingModal';
 import ERPClientModal from './ERPClientModal';
@@ -192,7 +192,7 @@ const ERPDashboard = () => {
         identityClassName="ops-commandbar__identity"
         eyebrow="مركز عمليات MT Agency"
         title={`أهلًا، ${currentUser?.full_name || 'مستخدم النظام'}`}
-        description={<>{roleLabels[currentUser?.role] || currentUser?.role} · {new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long' }).format(clock)} · <bdi>{new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }).format(clock)}</bdi></>}
+        description={<>{roleLabels[currentUser?.role] || currentUser?.role} · {new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long' }).format(clock)} · <bdi>{new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', hour: 'numeric', minute: '2-digit', hour12: true }).format(clock)}</bdi></>}
         actions={<>
           <button type="button" data-variant="primary" className="ops-action ops-action--primary" onClick={openBookingCreate}><Plus size={17} /> حجز جديد</button>
           <button type="button" className="ops-action" onClick={() => setCreateAction('client')}><UserPlus size={17} /> عميل جديد</button>
@@ -262,7 +262,7 @@ const ERPDashboard = () => {
 
         <article className="ops-panel ops-deliveries">
           <div className="ops-panel__heading"><div><span className="ops-kicker">القادم</span><h2>مهام وتسليمات</h2></div><Link to="/erp/reminders">كل المهام <ArrowLeft size={16} /></Link></div>
-          {state.loading ? <div className="ops-skeleton ops-skeleton--list" /> : state.tasks.length === 0 ? <div className="ops-empty ops-empty--compact"><Check size={27} /><h3>لا توجد مهام قريبة</h3><p>أضف مهمة أو موعد تسليم ليظهر هنا.</p></div> : <div className="delivery-list">{state.tasks.map((task) => <Link to="/erp/reminders" key={task.id}><time>{task.due_date ? new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(task.due_date)) : 'دون موعد'}</time><div><strong>{task.title}</strong><small>{task.type || 'مهمة تشغيل'}</small></div><ArrowLeft size={15} /></Link>)}</div>}
+          {state.loading ? <div className="ops-skeleton ops-skeleton--list" /> : state.tasks.length === 0 ? <div className="ops-empty ops-empty--compact"><Check size={27} /><h3>لا توجد مهام قريبة</h3><p>أضف مهمة أو موعد تسليم ليظهر هنا.</p></div> : <div className="delivery-list">{state.tasks.map((task) => <Link to="/erp/reminders" key={task.id}><time>{formatDateTime12(task.due_date, 'دون موعد')}</time><div><strong>{task.title}</strong><small>{task.type || 'مهمة تشغيل'}</small></div><ArrowLeft size={15} /></Link>)}</div>}
         </article>
       </section>
 

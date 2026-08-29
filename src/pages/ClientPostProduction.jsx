@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Check, Clock3, Clapperboard, CloudUpload, ExternalLink, Film, FolderOpen, MapPin, RefreshCw, Video } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
-import { formatBookingDate, formatTime12 } from '../lib/businessFormat';
+import { formatBookingDate, formatDateTime12, formatTime12 } from '../lib/businessFormat';
 import { postProductionDuration, postProductionMeta, postProductionSessionLabel } from '../lib/postProduction';
 import './ClientPostProduction.css';
 
@@ -14,10 +14,7 @@ const pickupDate = value => {
   const date = new Date(`${value}T12:00:00`);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
 };
-const dateTimeLabel = value => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }).format(date);
-};
+const dateTimeLabel = value => formatDateTime12(value, '');
 const activeDeliveryLinks = (job, effectiveNow) => (job.delivery_links || []).filter(link => {
   const availableUntil = new Date(link.available_until || '').getTime();
   return Number(link.is_active) === 1 && (!Number.isFinite(availableUntil) || availableUntil > effectiveNow);

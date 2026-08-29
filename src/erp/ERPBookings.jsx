@@ -633,6 +633,8 @@ const ERPBookings = () => {
               slotMaxTime="24:00:00"
               allDaySlot={false}
               slotDuration="00:15:00"
+              eventTimeFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
+              slotLabelFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
               eventContent={(arg) => (
                 <div style={{ overflow: 'hidden', lineHeight: 1.35, color: arg.event.extendedProps.text_color }}>
                   <div style={{ fontSize: '.72rem', fontWeight: 900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{arg.event.title}</div>
