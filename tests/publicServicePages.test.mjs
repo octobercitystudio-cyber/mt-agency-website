@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { getPublicService, getServicePortfolio, portfolioMatchesService, publicServiceCatalog, publicServiceSlugs } from '../src/data/publicServiceCatalog.js';
+import { VERIFIED_PORTFOLIO, withVerifiedPortfolioServiceLinks } from '../src/data/verifiedPortfolio.js';
 
 const root = new URL('../', import.meta.url);
 const load = path => readFile(new URL(path, root), 'utf8');
@@ -31,12 +32,36 @@ test('portfolio linkage honors explicit assignments and keeps legacy fallbacks s
   assert.equal(portfolioMatchesService({ category: 'reels', title: 'Shorts' }, 'reels-production'), true);
   assert.equal(portfolioMatchesService({ category: 'reels', title: 'Shorts' }, 'social-media-management'), true);
   assert.equal(portfolioMatchesService({ category: 'podcast', title: 'Episode' }, 'podcast-production'), true);
-  assert.equal(portfolioMatchesService({ category: 'web', title: 'Portal' }, 'software-development'), true);
+  assert.equal(portfolioMatchesService({ category: 'web', title: 'Company website' }, 'web-design-development'), true);
+  assert.equal(portfolioMatchesService({ category: 'web', title: 'Client Portal' }, 'software-development'), true);
   assert.equal(portfolioMatchesService({ category: 'design', title: 'Identity' }, 'creative-design-branding'), true);
   assert.equal(portfolioMatchesService({ category: 'video', title: 'إعلان تجاري' }, 'commercial-video-production'), true);
+  assert.equal(portfolioMatchesService({ category: 'video', title: 'فيديو عام' }, 'commercial-video-production'), true, 'legacy commercial videos without keywords remain visible');
   assert.equal(portfolioMatchesService({ category: 'video', title: 'إعلان تجاري' }, 'event-coverage'), false);
   assert.equal(portfolioMatchesService({ category: 'video', title: 'فيديو عام' }, 'studio-content-production'), false, 'generic video is not copied into every service');
+  assert.equal(portfolioMatchesService({ category: 'تغطية فعاليات', title: 'Sanofi' }, 'event-coverage'), true);
+  assert.equal(portfolioMatchesService({ category: 'محتوى تعليمي', title: 'محتوى على سمارت بورد' }, 'studio-content-production'), true);
   assert.deepEqual(getServicePortfolio([explicit, { id: 2, category: 'podcast' }], 'ai-video-production'), [explicit]);
+});
+
+test('all verified legacy work is linked to the correct public service pages', () => {
+  const expectedCounts = {
+    'studio-content-production': 9,
+    'reels-production': 6,
+    'commercial-video-production': 9,
+    'podcast-production': 4,
+    'event-coverage': 10,
+    'social-media-management': 6,
+    'web-design-development': 3,
+    'software-development': 0,
+  };
+  for (const [slug, count] of Object.entries(expectedCounts)) {
+    assert.equal(getServicePortfolio(VERIFIED_PORTFOLIO, slug).length, count, slug);
+  }
+
+  const legacyRemoteItems = VERIFIED_PORTFOLIO.map(({ serviceSlugs, ...item }) => item);
+  const hydrated = withVerifiedPortfolioServiceLinks(legacyRemoteItems);
+  assert.deepEqual(hydrated.map(item => item.serviceSlugs), VERIFIED_PORTFOLIO.map(item => item.serviceSlugs));
 });
 
 test('public routes use one persistent shell and preserve private route boundaries', async () => {

@@ -226,26 +226,34 @@ export const getPublicService = slug => publicServiceCatalog.find(service => ser
 
 const normalizedSlugs = item => Array.isArray(item?.serviceSlugs) ? item.serviceSlugs.filter(Boolean) : [];
 const titleText = item => `${item?.title || ''} ${item?.titleEn || ''}`.toLowerCase();
+const normalizedCategory = item => String(item?.category || '').trim().toLowerCase();
+const categoryIn = (category, values) => values.includes(category);
 
 export const portfolioMatchesService = (item, serviceOrSlug) => {
   const slug = typeof serviceOrSlug === 'string' ? serviceOrSlug : serviceOrSlug?.slug;
   if (!slug) return false;
   const explicit = normalizedSlugs(item);
   if (explicit.length) return explicit.includes(slug);
-  const category = String(item?.category || '').toLowerCase();
+  const category = normalizedCategory(item);
   if (category === 'reels') return ['reels-production', 'social-media-management'].includes(slug);
   if (category === 'podcast') return slug === 'podcast-production';
-  if (category === 'web') return ['web-design-development', 'software-development'].includes(slug);
+  if (categoryIn(category, ['تغطية فعاليات', 'event', 'events', 'event_coverage', 'event-coverage'])) return slug === 'event-coverage';
+  if (categoryIn(category, ['محتوى تعليمي', 'educational', 'educational-content', 'studio', 'course'])) return slug === 'studio-content-production';
   if (category === 'design') return ['creative-design-branding', 'social-media-management'].includes(slug);
+  if (category === 'web') {
+    const softwareEvidence = ['تطبيق', 'نظام', 'بوابة', 'برنامج', 'erp', 'crm', 'portal', 'dashboard', 'software', 'mobile app', 'web app'];
+    const isSoftware = softwareEvidence.some(token => titleText(item).includes(token));
+    return slug === (isSoftware ? 'software-development' : 'web-design-development');
+  }
   if (category !== 'video') return false;
   const title = titleText(item);
   const evidence = {
-    'commercial-video-production': ['إعلان', 'تجاري', 'commercial', 'advert', 'brand', 'منتج', 'product'],
     'event-coverage': ['فعالية', 'إيفنت', 'مؤتمر', 'event', 'conference', 'افتتاح'],
     'studio-content-production': ['استديو', 'studio', 'كورس', 'course', 'تعليمي', 'educational', 'محتوى'],
     'ai-video-production': ['ذكاء اصطناعي', 'ai ', 'artificial', 'avatar', 'أفاتار'],
   };
-  return (evidence[slug] || []).some(token => title.includes(token));
+  const specializedService = Object.entries(evidence).find(([, tokens]) => tokens.some(token => title.includes(token)))?.[0];
+  return slug === (specializedService || 'commercial-video-production');
 };
 
 export const getServicePortfolio = (items, serviceOrSlug) => (Array.isArray(items) ? items : []).filter(item => portfolioMatchesService(item, serviceOrSlug));

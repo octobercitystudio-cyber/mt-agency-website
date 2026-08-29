@@ -9,6 +9,20 @@ export const VERIFIED_PORTFOLIO_CATEGORIES = [
   { id: 'محتوى تعليمي', nameAr: 'محتوى تعليمي', nameEn: 'Educational content' },
 ];
 
+const VERIFIED_SERVICE_SLUGS_BY_CATEGORY = {
+  web: ['web-design-development'],
+  video: ['commercial-video-production'],
+  reels: ['reels-production', 'social-media-management'],
+  podcast: ['podcast-production'],
+  'تغطية فعاليات': ['event-coverage'],
+  'محتوى تعليمي': ['studio-content-production'],
+};
+
+const attachVerifiedServiceLinks = item => ({
+  ...item,
+  serviceSlugs: [...(VERIFIED_SERVICE_SLUGS_BY_CATEGORY[item.category] || [])],
+});
+
 export const VERIFIED_PORTFOLIO = [
   { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: '/portfolio-previews/qpshoes-homepage.png', title: 'متجر قصر الملكة', titleEn: 'QP Shoes Store', category: 'web' },
   { id: 1787999000001, projectUrl: 'https://www.afc-cpa.com/', imageUrl: '/portfolio-previews/afc-cpa-homepage.png', title: 'AFC – العشماوي للاستشارات المالية', titleEn: 'AFC Financial Consulting', category: 'web' },
@@ -51,4 +65,15 @@ export const VERIFIED_PORTFOLIO = [
   { id: 1781465419294, title: 'برومو معلم', titleEn: '', category: 'محتوى تعليمي', imageUrl: '', embedUrl: 'https://youtu.be/Ae495tTA0BQ' },
   { id: 1781465444294, title: 'برومو معلم', titleEn: '', category: 'محتوى تعليمي', imageUrl: '', embedUrl: 'https://youtu.be/aLCv2Yu21iA' },
   { id: 1781465555999, title: 'برومو معلم', titleEn: '', category: 'محتوى تعليمي', imageUrl: '', embedUrl: 'https://youtu.be/Cb7AicGgdyc' },
-];
+].map(attachVerifiedServiceLinks);
+
+const verifiedPortfolioById = new Map(VERIFIED_PORTFOLIO.map(item => [String(item.id), item]));
+const verifiedPortfolioByUrl = new Map(VERIFIED_PORTFOLIO.flatMap(item => [item.projectUrl, item.embedUrl].filter(Boolean).map(url => [url, item])));
+
+export const withVerifiedPortfolioServiceLinks = items => (Array.isArray(items) ? items : []).map(item => {
+  if (Array.isArray(item?.serviceSlugs) && item.serviceSlugs.length) return item;
+  const verified = verifiedPortfolioById.get(String(item?.id))
+    || verifiedPortfolioByUrl.get(item?.projectUrl)
+    || verifiedPortfolioByUrl.get(item?.embedUrl);
+  return verified?.serviceSlugs?.length ? { ...item, serviceSlugs: [...verified.serviceSlugs] } : item;
+});

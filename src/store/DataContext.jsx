@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../data/studioGalleries';
-import { VERIFIED_PORTFOLIO, VERIFIED_PORTFOLIO_CATEGORIES } from '../data/verifiedPortfolio';
+import { VERIFIED_PORTFOLIO, VERIFIED_PORTFOLIO_CATEGORIES, withVerifiedPortfolioServiceLinks } from '../data/verifiedPortfolio';
 import './DataContext.css';
 import { unregisterPushNotifications } from '../lib/pushNotifications';
 
@@ -131,6 +131,7 @@ defaultData.studio = STUDIO_GALLERIES;
 
 const withOfficialContactEmail = (data) => ({
   ...data,
+  portfolio: withVerifiedPortfolioServiceLinks(data?.portfolio || VERIFIED_PORTFOLIO),
   studioCategories: data?.studioCategories || STUDIO_CATEGORIES,
   studio: {
     ...STUDIO_GALLERIES,
