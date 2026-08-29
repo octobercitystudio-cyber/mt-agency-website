@@ -11,8 +11,8 @@ export const VERIFIED_PORTFOLIO_CATEGORIES = [
 
 export const VERIFIED_PORTFOLIO = [
   { id: 7, projectUrl: 'https://qpshoes.shop/', imageUrl: '/qpshoes_mockup.webp', title: 'متجر قصر الملكة', titleEn: 'QP Shoes Store', category: 'web' },
-  { id: 1787999000001, projectUrl: 'https://www.afc-cpa.com/', imageUrl: '/portfolio/afc-cpa-homepage.jpg', title: 'AFC – العشماوي للاستشارات المالية', titleEn: 'AFC Financial Consulting', category: 'web' },
-  { id: 1787999000002, projectUrl: 'https://www.almajdwoods.com/', imageUrl: '/portfolio/almajdwoods-homepage.jpg', title: 'شركة المجد لتوريد الأخشاب', titleEn: 'Al Majd Wood Supply', category: 'web' },
+  { id: 1787999000001, projectUrl: 'https://www.afc-cpa.com/', imageUrl: '/portfolio-previews/afc-cpa-homepage.jpg', title: 'AFC – العشماوي للاستشارات المالية', titleEn: 'AFC Financial Consulting', category: 'web' },
+  { id: 1787999000002, projectUrl: 'https://www.almajdwoods.com/', imageUrl: '/portfolio-previews/almajdwoods-homepage.jpg', title: 'شركة المجد لتوريد الأخشاب', titleEn: 'Al Majd Wood Supply', category: 'web' },
   { id: 1781455895641, title: 'مركز الدقي اسكان للأشعة', titleEn: '', category: 'video', imageUrl: '', embedUrl: 'https://youtu.be/ZquGZGYxAHk' },
   { id: 1781455896705, title: 'PHD', titleEn: '', category: 'video', imageUrl: '', embedUrl: 'https://youtu.be/4nJyNRlcPq8' },
   { id: 1781455897498, title: 'فندق سويس ان دهب', titleEn: '', category: 'video', imageUrl: '', embedUrl: 'https://youtu.be/cceK-OKNk0Q' },

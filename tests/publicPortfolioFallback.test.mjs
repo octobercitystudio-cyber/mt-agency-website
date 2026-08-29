@@ -16,7 +16,7 @@ test('missing remote website configuration keeps the verified company portfolio'
 
   const addedSites = VERIFIED_PORTFOLIO.filter((item) => ['https://www.afc-cpa.com/', 'https://www.almajdwoods.com/'].includes(item.projectUrl));
   assert.equal(addedSites.length, 2);
-  assert.ok(addedSites.every((item) => item.category === 'web' && item.imageUrl.startsWith('/portfolio/')));
+  assert.ok(addedSites.every((item) => item.category === 'web' && item.imageUrl.startsWith('/portfolio-previews/')));
   for (const item of addedSites) {
     const image = await readFile(new URL(`../public${item.imageUrl}`, import.meta.url));
     assert.deepEqual([...image.subarray(0, 3)], [255, 216, 255]);
