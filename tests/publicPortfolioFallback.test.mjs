@@ -14,12 +14,16 @@ test('missing remote website configuration keeps the verified company portfolio'
   assert.ok(VERIFIED_PORTFOLIO.every((item) => !String(item.imageUrl || '').includes('unsplash.com')));
   assert.ok(VERIFIED_PORTFOLIO.every((item) => !item.embedUrl || /^https:\/\/(?:youtu\.be|youtube\.com)\//.test(item.embedUrl)));
 
-  const addedSites = VERIFIED_PORTFOLIO.filter((item) => ['https://www.afc-cpa.com/', 'https://www.almajdwoods.com/'].includes(item.projectUrl));
-  assert.equal(addedSites.length, 2);
-  assert.ok(addedSites.every((item) => item.category === 'web' && item.imageUrl.startsWith('/portfolio-previews/')));
-  for (const item of addedSites) {
+  const verifiedWebsites = VERIFIED_PORTFOLIO.filter((item) => [
+    'https://qpshoes.shop/',
+    'https://www.afc-cpa.com/',
+    'https://www.almajdwoods.com/',
+  ].includes(item.projectUrl));
+  assert.equal(verifiedWebsites.length, 3);
+  assert.ok(verifiedWebsites.every((item) => item.category === 'web' && item.imageUrl.startsWith('/portfolio-previews/')));
+  for (const item of verifiedWebsites) {
     const image = await readFile(new URL(`../public${item.imageUrl}`, import.meta.url));
-    assert.deepEqual([...image.subarray(0, 3)], [255, 216, 255]);
+    assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   }
 });
 
