@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../data/studioGalleries';
+import { VERIFIED_PORTFOLIO, VERIFIED_PORTFOLIO_CATEGORIES } from '../data/verifiedPortfolio';
 import './DataContext.css';
 import { unregisterPushNotifications } from '../lib/pushNotifications';
 
@@ -61,16 +62,10 @@ const defaultData = {
     { title: "إدارة السوشيال ميديا", titleEn: "Social Media Management", desc: "نبني تواجدك الرقمي ونزيد تأثيرك", descEn: "Building your digital presence and increasing your impact.", icon: "📱" },
     { title: "تطوير الويب", titleEn: "Web Development", desc: "مواقع مستقبلية تعكس هويتك", descEn: "Futuristic websites reflecting your identity.", icon: "💻" }
   ],
-  portfolioCategories: [
-    { id: 'video', nameAr: 'إنتاج فيديو', nameEn: 'Video' },
-    { id: 'design', nameAr: 'تصميم جرافيك', nameEn: 'Design' },
-    { id: 'reels', nameAr: 'ريلز & تيك توك', nameEn: 'Reels' },
-    { id: 'podcast', nameAr: 'بودكاست', nameEn: 'Podcast' },
-    { id: 'web', nameAr: 'برمجة ويب', nameEn: 'Web' }
-  ],
-  // Portfolio entries are business-owned content. Never fall back to third-party
-  // sample media when the remote website configuration is missing.
-  portfolio: [],
+  portfolioCategories: VERIFIED_PORTFOLIO_CATEGORIES,
+  // Keep verified company work visible if the remote configuration is missing.
+  // Generic stock-image placeholders are deliberately excluded.
+  portfolio: VERIFIED_PORTFOLIO,
   contact: {
     address: "مدينة 6 أكتوبر، الجيزة، مصر",
     addressEn: "6th of October City, Giza, Egypt",

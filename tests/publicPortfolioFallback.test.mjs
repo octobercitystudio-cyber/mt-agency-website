@@ -1,19 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { VERIFIED_PORTFOLIO, VERIFIED_PORTFOLIO_CATEGORIES } from '../src/data/verifiedPortfolio.js';
 
 const source = await readFile(new URL('../src/store/DataContext.jsx', import.meta.url), 'utf8');
 
-test('missing remote website configuration never exposes third-party portfolio samples', () => {
-  const fallbackStart = source.indexOf('const defaultData =');
-  const fallbackEnd = source.indexOf('const withOfficialContactEmail');
-  const fallback = source.slice(fallbackStart, fallbackEnd);
-  const portfolioStart = fallback.indexOf('portfolio:');
-  const portfolioEnd = fallback.indexOf('contact:', portfolioStart);
-  const portfolioFallback = fallback.slice(portfolioStart, portfolioEnd);
-
-  assert.match(portfolioFallback, /portfolio:\s*\[\]/);
-  assert.doesNotMatch(portfolioFallback, /youtube\.com\/embed|images\.unsplash\.com|qpshoes\.shop/);
+test('missing remote website configuration keeps the verified company portfolio', () => {
+  assert.match(source, /portfolioCategories:\s*VERIFIED_PORTFOLIO_CATEGORIES/);
+  assert.match(source, /portfolio:\s*VERIFIED_PORTFOLIO/);
+  assert.equal(VERIFIED_PORTFOLIO.length, 39);
+  assert.equal(VERIFIED_PORTFOLIO_CATEGORIES.length, 6);
+  assert.ok(VERIFIED_PORTFOLIO.every((item) => item.embedUrl || item.imageUrl));
+  assert.ok(VERIFIED_PORTFOLIO.every((item) => !String(item.imageUrl || '').includes('unsplash.com')));
+  assert.ok(VERIFIED_PORTFOLIO.every((item) => !item.embedUrl || /^https:\/\/(?:youtu\.be|youtube\.com)\//.test(item.embedUrl)));
 });
 
 test('the public surface still loads website_data from Hostinger before rendering owned work', () => {
