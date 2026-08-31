@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowLeftRight, CalendarCheck2, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, Clock3, Edit3, Eye, Filter, History, MoreVertical, PackageCheck, PackagePlus, PlayCircle, Plus, ReceiptText, RefreshCw, Search, ShieldAlert, TimerReset, Trash2, UserPlus, WalletCards, X } from 'lucide-react';
+import { Archive, ArrowLeftRight, CalendarCheck2, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, Clock3, Edit3, Eye, FileUp, Filter, History, MoreVertical, PackageCheck, PackagePlus, PlayCircle, Plus, ReceiptText, RefreshCw, Search, ShieldAlert, TimerReset, Trash2, UserPlus, WalletCards, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
@@ -21,6 +21,7 @@ import ERPAddBookingModal from './ERPAddBookingModal';
 import { packageBookingAvailability } from './packageBookingSelection';
 import OwnerPackageControl from './OwnerPackageControl';
 import PackagePaymentModal from './PackagePaymentModal';
+import LegacyPackageImportDialog from './LegacyPackageImportDialog';
 
 const today = () => cairoDateKey();
 const initialForm = { client_id: '', service_id: '', name: '', billing_unit: 'hour', validity_mode_snapshot: 'rolling', starts_at: '', shooting_date: '', expires_at: '', quantity: '', validity_days: 90, payment_due_quantity: 0, deposit_percent_snapshot: 0, overage_price_snapshot: 0, total_price: '', paid_amount: 0, payment_method: 'cash', notes: '' };
@@ -52,6 +53,7 @@ export default function ERPPackages() {
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [serviceFilter, setServiceFilter] = useState('all');
   const [formOpen, setFormOpen] = useState(false);
+  const [legacyImportOpen, setLegacyImportOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [formErrors, setFormErrors] = useState({});
   const [formBusy, setFormBusy] = useState(false);
@@ -75,6 +77,7 @@ export default function ERPPackages() {
   const bookingTriggerRef = useRef(null);
   const paymentTriggerRef = useRef(null);
   const packageRequestKeyRef = useRef('');
+  const importTriggerRef = useRef(null);
   const detailsRequestRef = useRef({ token: 0, packageId: null });
 
   const fetchData = useCallback(async () => {
@@ -311,14 +314,22 @@ export default function ERPPackages() {
     window.setTimeout(() => setNotice(''), 4000); await fetchData();
   };
 
+  const handleLegacyImported = async results => {
+    const imported = results.filter(item => item.ok && !item.idempotent).length;
+    setNotice(`تم ترحيل ${imported} باقة قديمة كأرصدة افتتاحية دون إضافة إيراد قديم إلى خزنة الشهر.`);
+    window.setTimeout(() => setNotice(''), 7000);
+    await fetchData();
+  };
+
   return <div className="sold-packages" dir="rtl">
-    <ERPPageHero icon={WalletCards} eyebrow="إدارة المبيعات والرصيد" title="الباقات المباعة" description="الرصيد الحقيقي من قاعدة البيانات، مستقل تمامًا عن تجميع الحجوزات." actions={canAssign && <button data-variant="primary" onClick={openAddDialog}><PackagePlus/> إضافة باقة لعميل</button>}/>
+    <ERPPageHero icon={WalletCards} eyebrow="إدارة المبيعات والرصيد" title="الباقات المباعة" description="الرصيد الحقيقي من قاعدة البيانات، مستقل تمامًا عن تجميع الحجوزات." actions={<>{role === 'owner' && <button ref={importTriggerRef} data-variant="secondary" onClick={() => setLegacyImportOpen(true)}><FileUp/> نقل من البرنامج القديم</button>}{canAssign && <button data-variant="primary" onClick={openAddDialog}><PackagePlus/> إضافة باقة لعميل</button>}</>}/>
     <section className="packages-summary"><Metric icon={CheckCircle2} label="الباقات النشطة" value={activePackages.length}/><Metric icon={CalendarClock} label="تنتهي خلال 14 يومًا تقويميًا" value={expiring.length} warning/><Metric icon={Clock3} label="متاح لحجز جديد" value={`${formatDurationMinutes(remainingHours * 60, { compact: true })} / ${remainingReels.toLocaleString('ar-EG')} ر`}/><Metric icon={CircleDollarSign} label="قيمة مستحقة" value={money(centsToMoney(outstandingCents))} danger/></section>
     {notice && <div className="packages-notice success" role="status"><CheckCircle2/> {notice}</div>}{error && <div className="packages-notice error" role="alert"><ShieldAlert/><span>{error}</span><button onClick={fetchData}>إعادة المحاولة</button></div>}
     <section className="packages-filters"><label className="packages-search"><Search/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث باسم العميل أو الهاتف أو الباقة"/></label><label><Filter/> الحالة<select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">كل الحالات</option>{Object.entries(STATUS).map(([key, [label]]) => <option value={key} key={key}>{label}</option>)}</select></label><label>الخدمة<select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)}><option value="all">كل الخدمات</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label><label>الانتهاء<select value={expiryFilter} onChange={event => setExpiryFilter(event.target.value)}><option value="all">كل التواريخ</option><option value="14">خلال 14 يومًا</option><option value="expired">منتهية التاريخ</option></select></label><button className="packages-refresh" onClick={fetchData}><RefreshCw className={loading ? 'packages-spin' : ''}/></button></section>
     {loading ? <Empty icon={RefreshCw} title="جارٍ تحميل الباقات" text="نسترجع أرصدة الباقات المباعة من الخادم." spin/> : filtered.length ? <><div className="packages-table-wrap"><table><thead><tr><th>العميل والباقة</th><th>الرصيد</th><th>فترة الصلاحية</th><th>الحالة المالية</th><th>الحالة والإجراءات</th></tr></thead><tbody>{filtered.map(pkg => { const person = client(pkg.client_id); const sessionBookings = sessionBookingsFor(pkg); const pkgStatus=effectiveStatus(pkg); const canPay=canAssign&&packageFinancialSummary(pkg).outstandingCents>0&&['active','expired','suspended','completed'].includes(pkgStatus); return <PackageRow key={pkg.id} pkg={pkg} person={person} canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canAssign && packageBookingAvailability(pkg, today()).bookable} canPay={canPay} canStart={canAssign && packageCanStartToday(pkg)} running={sessionBookings.some(booking => booking.status === 'in_progress')} status={pkgStatus} onBook={event => openPackageBooking(pkg, event)} onPay={event => openPackagePayment(pkg, event)} onStart={event => openSessionStart(pkg, person, event)} onDetails={event => openDetailsDialog(pkg, event)} onOwner={event => openPackageDialog('details', pkg, event)}/>; })}</tbody></table></div><div className="packages-mobile-list">{filtered.map(pkg => { const person = client(pkg.client_id); const sessionBookings = sessionBookingsFor(pkg); const pkgStatus=effectiveStatus(pkg); const canPay=canAssign&&packageFinancialSummary(pkg).outstandingCents>0&&['active','expired','suspended','completed'].includes(pkgStatus); return <PackageCard key={pkg.id} pkg={pkg} person={person} canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canAssign && packageBookingAvailability(pkg, today()).bookable} canPay={canPay} canStart={canAssign && packageCanStartToday(pkg)} running={sessionBookings.some(booking => booking.status === 'in_progress')} status={pkgStatus} onBook={event => openPackageBooking(pkg, event)} onPay={event => openPackagePayment(pkg, event)} onStart={event => openSessionStart(pkg, person, event)} onDetails={event => openDetailsDialog(pkg, event)} onOwner={event => openPackageDialog('details', pkg, event)}/>; })}</div></> : <Empty icon={Archive} title="لا توجد باقات مطابقة" text="غيّر عوامل البحث أو أضف أول باقة مباعة."/>}
 
     {formOpen && <AddPackageDialog dialogRef={addDialogRef} form={form} errors={formErrors} clients={visibleClients} serviceGroups={serviceGroups} selectedTemplate={selectedTemplate} dirty={formDirty} expiry={expiryPreview} busy={formBusy} clientSearch={clientSearch} childOpen={clientModalOpen} clientPickerTriggerRef={clientPickerTriggerRef} onClientSearch={setClientSearch} onOpenClient={() => setClientModalOpen(true)} onSelectClient={selectClient} onClose={closeAddDialog} onSubmit={submitPackage} onSelectService={selectService} onField={updateFormField} onReset={resetFormTemplate} resetNotice={templateResetNotice} resources={resources} calendarBookings={calendarBookings} appointments={saleBookings} appointment={appointment} appointmentErrors={appointmentErrors} editingAppointment={editingAppointment} usage={appointmentUsage} onAppointment={setAppointment} onSaveAppointment={saveAppointment} onEditAppointment={editAppointment} onRemoveAppointment={removeAppointment}/>}
+    {legacyImportOpen&&<LegacyPackageImportDialog open clients={clients} services={services} returnFocusRef={importTriggerRef} onClose={() => setLegacyImportOpen(false)} onImported={handleLegacyImported}/>}
     <ERPClientModal isOpen={clientModalOpen} nested returnFocusRef={clientPickerTriggerRef} onClose={() => setClientModalOpen(false)} onSuccess={handleClientCreated}/>
 
     {modal.open && <OwnerPackageControl pkg={modal.pkg} person={client(modal.pkg?.client_id)} resources={resources} returnFocusRef={dialogTriggerRef} childOpen={bookingPackage.open || paymentPackage.open} refreshToken={ownerRefreshToken} onClose={closeActionDialog} onChanged={fetchData} onNewBooking={event => openPackageBooking(modal.pkg, event)} onNewPayment={event => openPackagePayment(modal.pkg, event)}/>}
