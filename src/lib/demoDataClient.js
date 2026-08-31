@@ -1491,6 +1491,43 @@ const demoRequest = async (path, options = {}) => {
   }
   if (route === '/audit-logs' && (options.method || 'GET') === 'GET') { requireDemoOwner(); const entityType = url.searchParams.get('entity_type'); const entityId = Number(url.searchParams.get('entity_id') || 0); return clone(database.audit_logs.filter(row => (!entityType || row.entity_type === entityType) && (!entityId || Number(row.entity_id) === entityId)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))); }
 
+  if (route === '/client-packages/legacy-db-import' && options.method === 'POST') {
+    requireDemoOwner();
+    if (body.confirmation !== 'IMPORT_PACKAGES_ONLY') throw formationDemoError('أكد أن العملية خاصة بالباقات فقط.', 'legacy_import_confirmation_required');
+    const sourceSha = String(body.source?.sha256 || '').toLowerCase();
+    const key = String(body.idempotency_key || '');
+    const rows = body.packages;
+    if (!/^[a-f0-9]{64}$/.test(sourceSha) || key !== `legacydb.${sourceSha}`) throw formationDemoError('بصمة ملف البرنامج القديم غير صالحة.', 'invalid_legacy_source');
+    if (!Array.isArray(rows) || !rows.length || rows.length > 200) throw formationDemoError('قائمة الباقات القديمة غير صالحة.', 'invalid_legacy_packages');
+    const requestHash = JSON.stringify({ source_sha256: sourceSha, packages: rows });
+    const prior = tableRows(database, 'client_package_sale_requests').find(item => item.idempotency_key === key);
+    if (prior) { if (prior.request_hash !== requestHash) throw formationDemoError('تم استخدام ملف النسخة نفسه سابقًا ببيانات مختلفة.', 'idempotency_payload_mismatch'); return { ...clone(prior.response), idempotent: true }; }
+    const working = clone(database); const references = new Set(); const prepared = rows.map((row, index) => {
+      const number = index + 1; const reference = String(row.legacy_reference || '').toLowerCase();
+      if (!/^sqlite-[a-f0-9]{16}$/.test(reference) || references.has(reference)) throw formationDemoError(`مرجع الباقة رقم ${number} غير صالح أو مكرر.`, 'invalid_legacy_reference'); references.add(reference);
+      if (String(row.source_sha256 || '').toLowerCase() !== sourceSha) throw formationDemoError(`الباقة رقم ${number} لا تنتمي إلى ملف النسخة المحدد.`, 'legacy_source_mismatch');
+      const sourcePhone = normalizeDemoPhone(row.source_phone); const matches = working.clients.filter(client => [client.phone1, client.phone2].map(normalizeDemoPhone).includes(sourcePhone)); const client = matches.length === 1 ? matches[0] : null;
+      if (!client || Number(client.id) !== Number(row.client_id)) throw formationDemoError(`تعذرت مطابقة عميل الباقة رقم ${number} برقم الموبايل وحده.`, 'legacy_client_phone_mismatch');
+      const service = findById(working, 'services', row.service_id); const unit = String(row.billing_unit || '');
+      if (!service || !isSellablePackageTemplate(service) || normalizedPackageUnit(service) !== unit) throw formationDemoError(`قالب خدمة الباقة رقم ${number} غير موجود أو غير صالح.`, 'legacy_service_not_found');
+      const purchased = Number(row.purchased_quantity); const consumed = Number(row.consumed_quantity); const paymentDue = Number(row.payment_due_quantity || 0);
+      if (!(purchased > 0) || consumed < 0 || consumed > purchased || paymentDue < 0 || paymentDue > purchased) throw formationDemoError(`رصيد الباقة رقم ${number} غير متزن.`, 'invalid_legacy_balance');
+      if (!/^\d+(?:\.\d{1,2})?$/.test(String(row.total_price)) || !/^\d+(?:\.\d{1,2})?$/.test(String(row.paid_amount)) || moneyToCents(row.paid_amount) > moneyToCents(row.total_price)) throw formationDemoError(`الحالة المالية للباقة رقم ${number} غير صحيحة.`, 'invalid_legacy_money');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(row.starts_at)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(row.expires_at)) || row.expires_at < row.starts_at) throw formationDemoError(`فترة صلاحية الباقة رقم ${number} غير صحيحة.`, 'invalid_legacy_validity');
+      if (!['active','expired','completed'].includes(row.status)) throw formationDemoError(`حالة الباقة رقم ${number} غير صحيحة.`, 'invalid_legacy_status');
+      return { row, reference, client, service, unit, purchased, consumed, paymentDue };
+    });
+    const request = addRow(working, 'client_package_sale_requests', { idempotency_key: key, request_hash: requestHash, status: 'processing', response: null, created_by: 1 }); const created = [];
+    prepared.forEach(({ row, reference, client, service, unit, purchased, consumed, paymentDue }) => {
+      const purchasedMinutes = unit === 'hour' ? Math.round(purchased * 60) : null; const consumedMinutes = unit === 'hour' ? Math.round(consumed * 60) : null; const paymentDueMinutes = unit === 'hour' ? Math.round(paymentDue * 60) : null; const overage = Math.max(0, Number(row.overage_quantity || 0));
+      const notes = [`نُقلت من البرنامج القديم دون إنشاء إيراد جديد.`, `الاسم في الملف القديم: ${String(row.source_client_name || 'غير مسجل')}.`, `مرجع النقل: ${reference}.`, row.archived_source ? 'كان اسم الباقة مؤرشفًا في البرنامج القديم.' : '', overage > 0 ? `الاستهلاك الأصلي تجاوز الرصيد بمقدار ${overage}؛ حُفظ المستخدم عند حد الباقة لمنع رصيد سالب.` : ''].filter(Boolean).join(' ');
+      const pkg = addRow(working, 'client_packages', { client_id: client.id, service_id: service.id, source_invoice_id: null, name: String(row.source_service_name), notes, billing_unit: unit, purchased_quantity: unit === 'hour' ? demoSettlementHours(purchasedMinutes) : purchased, purchased_minutes: purchasedMinutes, held_quantity: 0, held_minutes: 0, consumed_quantity: unit === 'hour' ? demoSettlementHours(consumedMinutes) : consumed, consumed_minutes: consumedMinutes, payment_due_quantity: unit === 'hour' ? demoSettlementHours(paymentDueMinutes) : paymentDue, payment_due_minutes: paymentDueMinutes, deposit_percent_snapshot: Number(service.deposit_percent || 0), overage_price_snapshot: centsToMoney(moneyToCents(service.overage_price || 0)), overage_amount: '0.00', total_price: centsToMoney(moneyToCents(row.total_price)), paid_amount: centsToMoney(moneyToCents(row.paid_amount)), starts_at: row.starts_at, expires_at: row.expires_at, validity_mode_snapshot: 'rolling', validity_days_snapshot: Number(row.validity_days_snapshot), status: row.status, version: 1 });
+      addDemoPackageUsage(working, pkg, { movement_type: 'opening', quantity: pkg.purchased_quantity, reason: 'رصيد افتتاحي من البرنامج القديم', event_key: `legacy-import:${reference}:opening` }); if (Number(pkg.consumed_quantity) > 0) addDemoPackageUsage(working, pkg, { movement_type: 'consume', quantity: pkg.consumed_quantity, reason: 'استهلاك افتتاحي من البرنامج القديم', event_key: `legacy-import:${reference}:consume` });
+      addRow(working, 'audit_logs', { action: 'legacy_package_import', entity_type: 'client_packages', entity_id: pkg.id, before_data: null, after_data: { client_id: client.id, legacy_reference: reference, source_phone: normalizeDemoPhone(row.source_phone) }, actor_name: 'مالك النظام' }); addRow(working, 'change_events', { client_id: client.id, topic: 'packages', entity_type: 'client_packages', entity_id: pkg.id, action: 'created' }); created.push({ id: pkg.id, legacy_reference: reference, client_id: client.id, client_name: client.name, package_name: pkg.name });
+    });
+    const response = { imported_count: created.length, source_sha256: sourceSha, packages: created, idempotent: false }; Object.assign(request, { status: 'completed', response: clone(response), completed_at: nowText() }); writeDatabase(working); return response;
+  }
+
   if (route === '/client-packages' && options.method === 'POST') {
     if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لبيع باقة.', 'forbidden');
     const upgradeContext = body.upgrade_context && typeof body.upgrade_context === 'object' ? body.upgrade_context : null;

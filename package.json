@@ -28,7 +28,8 @@
     "react-helmet-async": "^3.0.0",
     "react-i18next": "^17.0.8",
     "react-router-dom": "^7.18.2",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "sql.js": "^1.13.0"
   },
   "devDependencies": {
     "@bubblewrap/cli": "^1.25.0",
