@@ -1491,61 +1491,6 @@ const demoRequest = async (path, options = {}) => {
   }
   if (route === '/audit-logs' && (options.method || 'GET') === 'GET') { requireDemoOwner(); const entityType = url.searchParams.get('entity_type'); const entityId = Number(url.searchParams.get('entity_id') || 0); return clone(database.audit_logs.filter(row => (!entityType || row.entity_type === entityType) && (!entityId || Number(row.entity_id) === entityId)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))); }
 
-  if (route === '/client-packages/legacy-import' && options.method === 'POST') {
-    requireDemoOwner();
-    const reference = String(body.legacy_reference || '').trim();
-    if (!reference || reference.length > 120) throw formationDemoError('المرجع القديم مطلوب ويجب ألا يتجاوز 120 حرفًا.', 'invalid_legacy_reference');
-    const key = `legacy-package-import:${reference.toLocaleLowerCase('en-US')}`;
-    const normalized = {
-      legacy_reference: reference,
-      client_id: Number(body.client_id),
-      service_id: Number(body.service_id),
-      name: String(body.package_name || '').trim(),
-      billing_unit: String(body.billing_unit || ''),
-      purchased_quantity: String(body.purchased_quantity ?? ''),
-      consumed_quantity: String(body.consumed_quantity ?? ''),
-      payment_due_quantity: String(body.payment_due_quantity ?? '0'),
-      total_price: String(body.total_price ?? ''),
-      paid_amount: String(body.paid_amount ?? ''),
-      starts_at: String(body.starts_at || '').slice(0, 10),
-      expires_at: String(body.expires_at || '').slice(0, 10),
-      status: String(body.status || 'active'),
-      notes: String(body.notes || '').trim(),
-    };
-    const hash = JSON.stringify(normalized);
-    const prior = tableRows(database, 'client_package_sale_requests').find(item => item.idempotency_key === key);
-    if (prior) {
-      if (prior.request_hash !== hash) { const mismatch = formationDemoError('المرجع القديم مستخدم لبيانات مختلفة.', 'legacy_reference_mismatch'); mismatch.status = 409; throw mismatch; }
-      return { ...clone(prior.response), idempotent: true };
-    }
-    const service = findById(database, 'services', normalized.service_id); const client = findById(database, 'clients', normalized.client_id);
-    if (!belongsToDemoOrganization(client)) throw formationDemoError('العميل غير موجود.', 'client_not_found');
-    if (!belongsToDemoOrganization(service) || !isSellablePackageTemplate(service)) throw formationDemoError('الخدمة غير موجودة أو ليست قالب باقة نشطًا.', 'service_not_found');
-    const unit = normalizedPackageUnit(service);
-    if (normalized.billing_unit !== unit) throw formationDemoError('وحدة الرصيد لا تطابق الخدمة.', 'invalid_billing_unit');
-    if (!normalized.name) throw formationDemoError('اسم الباقة مطلوب.', 'invalid_package_name');
-    const purchased = Number(normalized.purchased_quantity); const consumed = Number(normalized.consumed_quantity); const paymentDue = Number(normalized.payment_due_quantity || 0);
-    if (![purchased, consumed, paymentDue].every(Number.isFinite) || purchased <= 0 || consumed < 0 || consumed > purchased || paymentDue < 0 || paymentDue > purchased) throw formationDemoError('إجمالي الرصيد أو المستهلك أو حد الدفع غير صحيح.', 'invalid_package_quantity');
-    if (unit === 'reel' && (![purchased, consumed, paymentDue].every(Number.isInteger))) throw formationDemoError('أرصدة الريلز يجب أن تكون أعدادًا صحيحة.', 'invalid_package_quantity');
-    const totalCents = demoStrictMoneyCents(normalized.total_price, 'إجمالي السعر'); const paidCents = demoStrictMoneyCents(normalized.paid_amount, 'المدفوع');
-    if (paidCents > totalCents) throw formationDemoError('المدفوع لا يجوز أن يتجاوز إجمالي السعر.', 'invalid_payment_amount');
-    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-    if (!datePattern.test(normalized.starts_at) || !datePattern.test(normalized.expires_at) || normalized.expires_at < normalized.starts_at) throw formationDemoError('تاريخا البداية والانتهاء غير صحيحين.', 'invalid_package_dates');
-    if (!['active', 'suspended', 'completed', 'expired'].includes(normalized.status)) throw formationDemoError('حالة الباقة غير صحيحة.', 'invalid_package_status');
-    const startMs = Date.parse(`${normalized.starts_at}T00:00:00Z`); const endMs = Date.parse(`${normalized.expires_at}T00:00:00Z`); const validityDays = Math.floor((endMs - startMs) / 86400000) + 1;
-    if (!Number.isFinite(validityDays) || validityDays < 1 || validityDays > 3650) throw formationDemoError('مدة الصلاحية غير صحيحة.', 'invalid_package_dates');
-    const purchasedMinutes = unit === 'hour' ? demoSettlementMinutes(purchased) : null; const consumedMinutes = unit === 'hour' ? demoSettlementMinutes(consumed) : null; const paymentDueMinutes = unit === 'hour' ? demoSettlementMinutes(paymentDue) : null;
-    const working = clone(database); const request = addRow(working, 'client_package_sale_requests', { idempotency_key: key, request_hash: hash, status: 'processing', response: null, created_by: 1 });
-    const importNote = [normalized.notes, `مرحّل من البرنامج القديم — المرجع: ${reference}`].filter(Boolean).join('\n');
-    const row = addRow(working, 'client_packages', { client_id: normalized.client_id, service_id: normalized.service_id, name: normalized.name, notes: importNote, billing_unit: unit, purchased_quantity: unit === 'hour' ? demoSettlementHours(purchasedMinutes) : purchased, purchased_minutes: purchasedMinutes, held_quantity: 0, held_minutes: unit === 'hour' ? 0 : null, consumed_quantity: unit === 'hour' ? demoSettlementHours(consumedMinutes) : consumed, consumed_minutes: consumedMinutes, payment_due_quantity: unit === 'hour' ? demoSettlementHours(paymentDueMinutes) : paymentDue, payment_due_minutes: paymentDueMinutes, deposit_percent_snapshot: 0, overage_price_snapshot: 0, total_price: centsToMoney(totalCents), overage_amount: 0, paid_amount: centsToMoney(paidCents), starts_at: normalized.starts_at, expires_at: normalized.expires_at, validity_mode_snapshot: 'rolling', validity_days_snapshot: validityDays, status: normalized.status, version: 1 });
-    addDemoPackageUsage(working, row, { movement_type: 'opening', quantity: row.purchased_quantity, quantity_minutes: purchasedMinutes, reason: 'رصيد افتتاحي مرحّل من البرنامج القديم', event_key: `legacy-import:${request.id}:opening` });
-    if (consumed > 0) addDemoPackageUsage(working, row, { movement_type: 'consume', quantity: row.consumed_quantity, quantity_minutes: consumedMinutes, reason: 'استهلاك سابق مرحّل من البرنامج القديم', event_key: `legacy-import:${request.id}:consumed` });
-    demoAudit(working, 'legacy_import', 'client_packages', row.id, null, { ...clone(row), legacy_reference: reference, opening_balance_only: true });
-    const response = { id: row.id, legacy_reference: reference, billing_unit: unit, purchased_quantity: row.purchased_quantity, consumed_quantity: row.consumed_quantity, remaining_quantity: unit === 'hour' ? demoSettlementHours(purchasedMinutes - consumedMinutes) : purchased - consumed, total_price: row.total_price, paid_amount: row.paid_amount, outstanding_amount: centsToMoney(totalCents - paidCents), finance_entry_created: false, idempotent: false };
-    Object.assign(request, { status: 'completed', response: clone(response), completed_at: nowText() });
-    writeDatabase(working); return response;
-  }
-
   if (route === '/client-packages' && options.method === 'POST') {
     if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لبيع باقة.', 'forbidden');
     const upgradeContext = body.upgrade_context && typeof body.upgrade_context === 'object' ? body.upgrade_context : null;
