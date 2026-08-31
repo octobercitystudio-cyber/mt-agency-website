@@ -28,6 +28,9 @@ const ERPFinance = () => {
   const [loadError, setLoadError] = useState('');
   
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [financePeriod, setFinancePeriod] = useState(null);
+  const [periodBusy, setPeriodBusy] = useState(false);
+  const [periodError, setPeriodError] = useState('');
   const isAdmin = ['owner', 'admin'].includes(currentUser?.role);
   const isOwner = currentUser?.role === 'owner';
   const employeeFilter = searchParams.get('employee_user_id') || '';
@@ -41,7 +44,8 @@ const ERPFinance = () => {
   });
 
   // Form States
-  const emptyTransaction = () => ({ type: 'إيراد', entry_kind: 'income', category: 'other_income', client_id: '', employee_user_id: 'company', source_type: '', source_id: '', amount: '', method: 'cash', detail: '', date: format(new Date(), 'yyyy-MM-dd'), entity: 'الشركة' });
+  const selectedPeriodDate = () => selectedMonth === format(new Date(), 'yyyy-MM') ? format(new Date(), 'yyyy-MM-dd') : `${selectedMonth}-01`;
+  const emptyTransaction = () => ({ type: 'إيراد', entry_kind: 'income', category: 'other_income', client_id: '', employee_user_id: 'company', source_type: '', source_id: '', amount: '', method: 'cash', detail: '', date: selectedPeriodDate(), entity: 'الشركة' });
   const [txForm, setTxForm] = useState(emptyTransaction);
   const [txError, setTxError] = useState([]);
   const transactionDialogRef = useRef(null);
@@ -70,7 +74,7 @@ const ERPFinance = () => {
       dataClient.from('clients').select('id,name,status').order('name'),
       dataClient.from('client_packages').select('id,client_id,name,status').order('name'),
       dataClient.from('services').select('id,name,is_active').eq('is_active', 1).order('name'),
-      dataClient.request(`/attendance/employee-accounts?month=${format(new Date(), 'yyyy-MM')}`, { method: 'GET' }),
+      dataClient.request(`/attendance/employee-accounts?month=${selectedMonth}`, { method: 'GET' }),
     ]);
     const fData = financeResult.data;
     const cData = configResult.data;
@@ -94,10 +98,18 @@ const ERPFinance = () => {
     setEmployeeAccountsWarning(employeeAccountsResult.error?.message || (employeeAccountsResult.data?.schema_ready === false ? 'حسابات الموظفين تحتاج تحديث قاعدة البيانات رقم 027. باقي عمليات الخزنة تعمل بصورة طبيعية.' : ''));
     
     setLoading(false);
-  }, []);
+  }, [selectedMonth]);
 
   useEffect(() => { const timer = window.setTimeout(fetchData, 0); return () => window.clearTimeout(timer); }, [fetchData]);
   useChangeSync(useCallback((topics) => { if (topics.includes('finance')) fetchData(true); }, [fetchData]));
+
+  const fetchFinancePeriod = useCallback(async () => {
+    setPeriodError('');
+    const { data, error } = await dataClient.request(`/finance/periods?month=${encodeURIComponent(selectedMonth)}`, { method: 'GET' });
+    if (error) { setFinancePeriod(null); setPeriodError(error.message || 'تعذر تحميل حالة الشهر المالي.'); return; }
+    setFinancePeriod(data);
+  }, [selectedMonth]);
+  useEffect(() => { const timer = window.setTimeout(fetchFinancePeriod, 0); return () => window.clearTimeout(timer); }, [fetchFinancePeriod]);
 
   useEffect(() => {
     if (!modalState.addTransaction) return undefined;
@@ -120,7 +132,9 @@ const ERPFinance = () => {
   useEffect(() => { if (txError.length) transactionErrorRef.current?.focus(); }, [txError]);
 
   const clientPackages = useMemo(() => packages.filter(pkg => String(pkg.client_id) === String(txForm.client_id)), [packages, txForm.client_id]);
-  const openTransactionModal = () => { setTxError([]); setTxForm(emptyTransaction()); setModalState(state => ({ ...state, addTransaction: true })); };
+  const periodOpen = financePeriod?.status === 'open';
+  const canAdjustWallet = periodOpen && selectedMonth === format(new Date(), 'yyyy-MM');
+  const openTransactionModal = () => { if (!periodOpen) return; setTxError([]); setTxForm(emptyTransaction()); setModalState(state => ({ ...state, addTransaction: true })); };
   const txErrorFields = new Set(txError.map(error => error.field));
 
   const safeFloat = (val) => {
@@ -221,7 +235,7 @@ const ERPFinance = () => {
     if (error) return alert(error.message || 'تعذر تسجيل التحويل.');
 
     setModalState(s => ({...s, transfer: false}));
-    setTransferForm({ from_method: 'cash', to_method: 'vodafone_cash', amount: '', date: format(new Date(), 'yyyy-MM-dd'), note: '' });
+    setTransferForm({ from_method: 'cash', to_method: 'vodafone_cash', amount: '', date: selectedPeriodDate(), note: '' });
     fetchData(true);
   };
 
@@ -328,7 +342,19 @@ const ERPFinance = () => {
     setSelectedMonth(format(newDate, 'yyyy-MM'));
   };
 
+  const updateFinancePeriod = async action => {
+    if (!isOwner || periodBusy) return;
+    const message = action === 'close' ? `إقفال حسابات شهر ${selectedMonth}؟ لن يمكن إضافة أو تعديل حركاته إلا بعد إعادة فتحه.` : `إعادة فتح حسابات شهر ${selectedMonth} لإضافة أو تعديل حركات؟`;
+    if (!window.confirm(message)) return;
+    setPeriodBusy(true); setPeriodError('');
+    const { data, error } = await dataClient.request(`/finance/periods/${selectedMonth}/${action}`, { method: 'POST', body: '{}' });
+    setPeriodBusy(false);
+    if (error) { setPeriodError(error.message || 'تعذر تحديث حالة الشهر المالي.'); return; }
+    setFinancePeriod(data);
+  };
+
   const openAdjustWalletModal = (method, currentBalance) => {
+    if (!canAdjustWallet) return;
     setAdjustWalletForm({ method, new_balance: '', current_balance: currentBalance });
     setModalState(s => ({...s, adjustWallet: true}));
   };
@@ -373,8 +399,8 @@ const ERPFinance = () => {
         description="تابع الإيرادات والمصروفات والمستحقات وحركة المحافظ للفترة المختارة."
         actions={<>
           <button onClick={() => window.print()}><Printer aria-hidden="true"/> طباعة</button>
-          <button onClick={() => setModalState({...modalState, transfer: true})}><ArrowLeftRight aria-hidden="true"/> تحويل</button>
-          {isAdmin && <button ref={transactionTriggerRef} data-variant="primary" onClick={openTransactionModal}><CirclePlus aria-hidden="true"/> عملية مالية</button>}
+          <button disabled={!periodOpen} onClick={() => { setTransferForm({ from_method: 'cash', to_method: 'vodafone_cash', amount: '', date: selectedPeriodDate(), note: '' }); setModalState({...modalState, transfer: true}); }}><ArrowLeftRight aria-hidden="true"/> تحويل</button>
+          {isAdmin && <button ref={transactionTriggerRef} data-variant="primary" disabled={!periodOpen} onClick={openTransactionModal}><CirclePlus aria-hidden="true"/> عملية مالية</button>}
         </>}
         details={<div className="month-selector" aria-label="الشهر المالي">
             <button type="button" onClick={() => changeMonth(1)} className="finance-month-button" aria-label="عرض الشهر التالي" title="الشهر التالي"><ChevronRight aria-hidden="true"/></button>
@@ -382,6 +408,12 @@ const ERPFinance = () => {
             <button type="button" onClick={() => changeMonth(-1)} className="finance-month-button" aria-label="عرض الشهر السابق" title="الشهر السابق"><ChevronLeft aria-hidden="true"/></button>
         </div>}
       />
+      <section className={`finance-period-bar ${financePeriod?.status === 'closed' ? 'is-closed' : financePeriod?.status === 'open' ? 'is-open' : 'is-loading'}`} aria-live="polite">
+        <ShieldCheck aria-hidden="true"/>
+        <div><strong>{financePeriod?.status === 'closed' ? `حسابات ${selectedMonth} مقفلة` : financePeriod?.status === 'open' ? `حسابات ${selectedMonth} مفتوحة` : `جارٍ تحميل حسابات ${selectedMonth}`}</strong><span>{financePeriod?.status === 'closed' ? 'الأرقام محفوظة كما أُقفلت. أعد فتح الشهر لإضافة إيراد أو مصروف قديم.' : financePeriod?.status === 'open' ? 'يمكن تسجيل الحركات في هذا الشهر. يوم 1 يبدأ تقرير شهر جديد مع بقاء أرصدة المحافظ الفعلية.' : 'لن تتاح الإضافة أو التعديل حتى نتأكد من حالة الشهر.'}</span></div>
+        {isOwner && financePeriod && <button type="button" disabled={periodBusy} onClick={() => updateFinancePeriod(financePeriod.status === 'closed' ? 'reopen' : 'close')}>{periodBusy ? 'جارٍ الحفظ…' : financePeriod.status === 'closed' ? 'إعادة فتح الشهر' : 'إقفال الشهر'}</button>}
+      </section>
+      {periodError && <div className="finance-load-error" role="alert"><AlertCircle/><span>{periodError}</span><button type="button" onClick={fetchFinancePeriod}>إعادة المحاولة</button></div>}
       {loadError && <div className="finance-load-error" role="alert"><AlertCircle/><span>{loadError}</span><button type="button" onClick={() => fetchData(true)}>إعادة المحاولة</button></div>}
 
       {/* Overview Cards */}
@@ -427,7 +459,7 @@ const ERPFinance = () => {
                 <Banknote aria-hidden="true"/>
               </div>
               {isAdmin && (
-                <button className="finance-wallet-edit no-print" aria-label="تسوية رصيد الكاش" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('كاش', balances.cash)}><Pencil aria-hidden="true"/></button>
+                <button className="finance-wallet-edit no-print" disabled={!canAdjustWallet} aria-label="تسوية رصيد الكاش" title={canAdjustWallet ? 'تسوية الرصيد' : 'التسوية متاحة في الشهر الحالي المفتوح فقط'} onClick={() => openAdjustWalletModal('كاش', balances.cash)}><Pencil aria-hidden="true"/></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>الكاش (النقدية)</p>
@@ -441,7 +473,7 @@ const ERPFinance = () => {
                 <Smartphone aria-hidden="true"/>
               </div>
               {isAdmin && (
-                <button className="finance-wallet-edit danger no-print" aria-label="تسوية رصيد فودافون كاش" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('فودافون كاش', balances.vodafone)}><Pencil aria-hidden="true"/></button>
+                <button className="finance-wallet-edit danger no-print" disabled={!canAdjustWallet} aria-label="تسوية رصيد فودافون كاش" title={canAdjustWallet ? 'تسوية الرصيد' : 'التسوية متاحة في الشهر الحالي المفتوح فقط'} onClick={() => openAdjustWalletModal('فودافون كاش', balances.vodafone)}><Pencil aria-hidden="true"/></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>فودافون كاش</p>
@@ -455,7 +487,7 @@ const ERPFinance = () => {
                 <Send aria-hidden="true"/>
               </div>
               {isAdmin && (
-                <button className="finance-wallet-edit instapay no-print" aria-label="تسوية رصيد إنستاباي" title="تسوية الرصيد" onClick={() => openAdjustWalletModal('انستاباي', balances.instapay)}><Pencil aria-hidden="true"/></button>
+                <button className="finance-wallet-edit instapay no-print" disabled={!canAdjustWallet} aria-label="تسوية رصيد إنستاباي" title={canAdjustWallet ? 'تسوية الرصيد' : 'التسوية متاحة في الشهر الحالي المفتوح فقط'} onClick={() => openAdjustWalletModal('انستاباي', balances.instapay)}><Pencil aria-hidden="true"/></button>
               )}
             </div>
             <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>حساب البنك (InstaPay)</p>

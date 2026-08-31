@@ -43,16 +43,16 @@ test('over-consumption is capped and disclosed instead of producing a negative b
   const pkg = extracted.packages[0]; assert.equal(pkg.raw_used_quantity, 3); assert.equal(pkg.consumed_quantity, 2); assert.equal(pkg.remaining_quantity, 0); assert.equal(pkg.overage_quantity, 1); assert.match(pkg.issues.join(' '), /يتجاوز الرصيد/);
 });
 
-test('browser reader is restricted to the three package source tables', async () => {
+test('browser reader allow-lists all business tables while excluding users and passwords', async () => {
   const source = await load('src/lib/legacySqliteDatabase.js');
-  assert.match(source, /SELECT id,name,phone1,phone2 FROM clients/); assert.match(source, /SELECT id,name,price,validity_days,total_hours,payment_due_hours,total_reels FROM services/); assert.match(source, /SELECT id,client_name,service,date,status,actual_hours,payment,custom_price,custom_expiry,actual_reels FROM bookings/);
-  for (const table of ['finance', 'users', 'reminders', 'app_config']) assert.doesNotMatch(source, new RegExp(`SELECT[^;]+FROM ${table}`, 'i'));
+  for (const table of ['clients','services','bookings','finance','reminders','app_config']) assert.match(source, new RegExp(`SELECT[^;]+FROM ${table}`, 'i'));
+  assert.doesNotMatch(source, /users:\s*['"`]SELECT/i); assert.doesNotMatch(source, /password_hash/i);
+  assert.match(source, /dismissed_alerts/); assert.match(source, /backup settings/);
 });
 
-test('production importer writes package records without creating old payments, finance, bookings or clients', async () => {
+test('the packages-only production route is retired in favor of the comprehensive importer', async () => {
   const api = await load('api/index.php'); const start = api.indexOf("if ($path === '/client-packages/legacy-db-import'"); const end = api.indexOf("if ($path === '/client-packages'", start + 1); const route = api.slice(start, end);
-  assert.ok(start > 0 && end > start); assert.match(route, /requireRole\(\$user,\['owner'\]\)/); assert.match(route, /normalizePhone/); assert.match(route, /INSERT INTO client_packages/); assert.match(route, /insertPackageUsage/); assert.match(route, /legacy_package_import/);
-  for (const table of ['payments', 'payment_allocations', 'finance', 'bookings', 'clients', 'users', 'reminders']) assert.doesNotMatch(route, new RegExp(`INSERT\\s+INTO\\s+${table}\\b`, 'i'));
+  assert.ok(start > 0 && end > start); assert.match(route, /requireRole\(\$user,\['owner'\]\)/); assert.match(route, /legacy_packages_import_retired/); assert.match(route, /أداة النقل الشامل/);
 });
 
 test('demo import is atomic, idempotent and does not change unrelated ledgers', async () => {

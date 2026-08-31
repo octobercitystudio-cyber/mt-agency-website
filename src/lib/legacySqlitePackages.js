@@ -1,6 +1,6 @@
 const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
 const normalizeDigits = value => String(value ?? '').replace(/[٠-٩]/g, digit => String(arabicDigits.indexOf(digit)));
-const normalizeText = value => normalizeDigits(value)
+export const normalizeLegacyText = value => normalizeDigits(value)
   .trim()
   .toLowerCase()
   .replace(/[أإآ]/g, 'ا')
@@ -8,6 +8,7 @@ const normalizeText = value => normalizeDigits(value)
   .replace(/ة/g, 'ه')
   .replace(/[ًٌٍَُِّْـ]/g, '')
   .replace(/\s+/g, ' ');
+const normalizeText = normalizeLegacyText;
 
 export const normalizeLegacyPhone = value => {
   let digits = normalizeDigits(value).replace(/\D/g, '');
@@ -48,6 +49,8 @@ const stableReferenceHash = value => {
   return `${(first >>> 0).toString(16).padStart(8, '0')}${(second >>> 0).toString(16).padStart(8, '0')}`;
 };
 
+export const stableLegacyReference = (prefix, value) => `${prefix}-${stableReferenceHash(value)}`;
+
 const inferredPurchaseCount = ({ basePrice, paidAmount }) => {
   if (basePrice <= 0 || paidAmount < basePrice) return 1;
   const ratio = paidAmount / basePrice; const rounded = Math.round(ratio);
@@ -55,7 +58,29 @@ const inferredPurchaseCount = ({ basePrice, paidAmount }) => {
 };
 
 export const extractLegacyPackageRows = ({ clients = [], services = [], bookings = [], sourceFingerprint = '', asOfDate = new Date().toISOString().slice(0, 10) }) => {
-  const packageServices = services.filter(service => safeNumber(service.total_hours) > 0 || safeNumber(service.total_reels) > 0);
+  const virtualServices = [];
+  const knownServiceKeys = new Set(services.map(service => legacyPackageServiceKey(service.name)));
+  bookings.forEach(booking => {
+    const name = String(booking.service || '').trim();
+    const key = legacyPackageServiceKey(name);
+    if (!name || knownServiceKeys.has(key) || !/تصوير/u.test(name)) return;
+    const hoursMatch = normalizeDigits(name).match(/(\d+(?:\.\d+)?)\s*ساع/u);
+    if (!hoursMatch || safeNumber(hoursMatch[1]) <= 0) return;
+    knownServiceKeys.add(key);
+    const groupRows = bookings.filter(row => legacyPackageServiceKey(row.service) === key);
+    const customPrices = groupRows.map(row => safeNumber(row.custom_price)).filter(value => value > 0);
+    virtualServices.push({
+      id: `virtual:${key}`,
+      name,
+      price: customPrices.length ? Math.max(...customPrices) : 0,
+      validity_days: /شهر/u.test(groupRows.map(row => row.notes || '').join(' ')) ? 30 : 1,
+      total_hours: safeNumber(hoursMatch[1]),
+      payment_due_hours: 0,
+      total_reels: 0,
+      virtual: true,
+    });
+  });
+  const packageServices = [...services, ...virtualServices].filter(service => safeNumber(service.total_hours) > 0 || safeNumber(service.total_reels) > 0);
   const servicesByKey = new Map();
   packageServices.forEach(service => {
     const key = legacyPackageServiceKey(service.name);
@@ -143,6 +168,14 @@ export const extractLegacyPackageRows = ({ clients = [], services = [], bookings
       archived_source: isArchived,
       completed_booking_count: operationalRows.filter(row => completedStatus(row.status)).length,
       scheduled_booking_count: operationalRows.filter(row => !completedStatus(row.status)).length,
+      source_booking_ids: group.rows.map(row => Number(row.id)).filter(Number.isFinite),
+      source_payment_history: paymentRows.map(row => ({
+        source_booking_id: Number(row.id),
+        date: validDate(row.date),
+        amount: roundMoney(safeNumber(row.payment)),
+        method: String(row.notes || '').trim(),
+      })),
+      inferred_service: Boolean(service.virtual),
       has_completed_rows: hasCompletedRows,
       issues,
     });

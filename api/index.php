@@ -61,13 +61,15 @@ set_exception_handler(function (Throwable $error): never {
 });
 
 function body(): array {
+    static $cached = null;
+    if (is_array($cached)) return $cached;
     $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
     if ($contentLength > 1048576) fail('حجم الطلب أكبر من المسموح.', 413, 'request_too_large');
     $raw = file_get_contents('php://input');
-    if ($raw === false || trim($raw) === '') return [];
+    if ($raw === false || trim($raw) === '') return $cached = [];
     $decoded = json_decode($raw, true);
     if (!is_array($decoded)) fail('صيغة الطلب غير صحيحة.', 422, 'invalid_json');
-    return $decoded;
+    return $cached = $decoded;
 }
 
 function normalizeBusinessTime(mixed $value, bool $endOfDay = false): string {
@@ -1766,8 +1768,10 @@ function insertPackageUsage(PDO $pdo, array $package, ?int $bookingId, string $m
 
 require_once __DIR__ . '/post_production.php';
 require_once __DIR__ . '/session_settlement.php';
+require_once __DIR__ . '/legacy_import.php';
 
 handlePostProductionRoutes($pdo, $config, $user, $path, $method);
+handleLegacyImportRoutes($pdo, $config, $user, $path, $method);
 
 function ownerRecordDefinition(string $entity): array {
     $definitions=[
@@ -2384,7 +2388,9 @@ if (preg_match('#^/client-packages/(\d+)/details$#',$path,$m)&&$method==='GET') 
 }
 
 if ($path === '/client-packages/legacy-db-import' && $method === 'POST') {
-    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$organizationId=(int)$user['organization_id'];
+    $user=requireUser($user);requireRole($user,['owner']);
+    fail('تم استبدال نقل الباقات فقط بأداة النقل الشامل. حدّث الصفحة واستخدم زر نقل بيانات البرنامج القديم.',410,'legacy_packages_import_retired');
+    $payload=body();$organizationId=(int)$user['organization_id'];
     if(($payload['confirmation']??'')!=='IMPORT_PACKAGES_ONLY')fail('أكد أن العملية خاصة بالباقات فقط.',422,'legacy_import_confirmation_required');
     $source=is_array($payload['source']??null)?$payload['source']:[];$sourceSha=strtolower(trim((string)($source['sha256']??'')));if(!preg_match('/^[a-f0-9]{64}$/',$sourceSha))fail('بصمة ملف البرنامج القديم غير صالحة.',422,'invalid_legacy_source');
     $idempotencyKey=trim((string)($payload['idempotency_key']??''));if($idempotencyKey!=='legacydb.'.$sourceSha)fail('مفتاح أمان نقل الباقات غير صحيح.',422,'invalid_idempotency_key');
