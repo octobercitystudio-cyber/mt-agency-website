@@ -849,7 +849,9 @@ const demoPackageReminderQuantity = (pkg, kind) => {
   return minutes / 60;
 };
 
-const demoPackageReminderUnitText = (quantity, unit) => `${Number(Math.max(0, quantity).toFixed(2))} ${unit === 'reel' ? 'ريل' : 'ساعة'}`;
+const demoPackageReminderUnitText = (quantity, unit) => unit === 'hour'
+  ? formatDurationMinutes(Math.round(Math.max(0, quantity) * 60))
+  : `${Math.round(Math.max(0, quantity))} ريل`;
 
 const demoMaterializePackageLifecycleNotifications = (database, clientId = null) => {
   const today = cairoDateKey(); let created = 0;

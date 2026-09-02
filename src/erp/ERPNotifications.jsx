@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { dataClient } from '../dataClient';
-import { Bell, AlertTriangle, Clock, CheckCircle, Package, Calendar } from 'lucide-react';
+import { Bell, AlertTriangle, Clock, CheckCircle, Package, Calendar, DollarSign, X } from 'lucide-react';
 import { format, addDays } from 'date-fns';
-import { formatDateTime12, formatEGP } from '../lib/businessFormat';
+import { durationHoursToMinutes, formatDateTime12, formatDurationMinutes, formatEGP } from '../lib/businessFormat';
 
 export const useGlobalAlerts = () => {
   const [alerts, setAlerts] = useState([]);
@@ -40,12 +40,14 @@ export const useGlobalAlerts = () => {
         if (!usageMap[key]) {
           usageMap[key] = {
             client: b.client_name, service: b.service, 
-            used_h: 0, used_r: 0, paid: 0, 
+            used_minutes: 0, used_r: 0, paid: 0,
             custom_price: -1, discount: 0
           };
         }
         if (b.status !== 'دفعة') {
-          usageMap[key].used_h += (parseFloat(b.actual_hours) || 0);
+          usageMap[key].used_minutes += Number(b.actual_seconds || 0) > 0
+            ? Math.round(Number(b.actual_seconds) / 60)
+            : Math.max(0, Math.round(Number(b.duration_minutes || 0) || durationHoursToMinutes(b.actual_hours)));
           usageMap[key].used_r += (parseInt(b.actual_reels) || 0);
           usageMap[key].custom_price = Math.max(usageMap[key].custom_price, parseFloat(b.custom_price) || -1);
           usageMap[key].discount = Math.max(usageMap[key].discount, parseFloat(b.discount) || 0);
@@ -70,9 +72,10 @@ export const useGlobalAlerts = () => {
 
           // For Monthly packages, only alert if consumed hours reached the payment due threshold
           if (srv.category === 'باقة شهرية' && srv.payment_due_hours > 0) {
-            if (usage.used_h >= srv.payment_due_hours) {
+            const paymentDueMinutes = durationHoursToMinutes(srv.payment_due_hours);
+            if (usage.used_minutes >= paymentDueMinutes) {
                shouldAlertDebt = true;
-               extraMsg = ` (تجاوز ${srv.payment_due_hours} ساعات المستحقة للدفع)`;
+               extraMsg = ` (تجاوز ${formatDurationMinutes(paymentDueMinutes)} المستحقة للدفع)`;
             } else {
                shouldAlertDebt = false;
             }
@@ -92,14 +95,13 @@ export const useGlobalAlerts = () => {
 
         // Check Hours Remaining
         if (['باقة شهرية', 'باقة يومية', 'تصوير بالساعة'].includes(srv.category)) {
-          const totalH = parseFloat(srv.total_hours) || 0;
-          const remH = totalH - usage.used_h;
-          if (remH > 0 && remH <= 2) {
+          const remainingMinutes = durationHoursToMinutes(srv.total_hours) - usage.used_minutes;
+          if (remainingMinutes > 0 && remainingMinutes <= 120) {
             const alertId = `hrs_${usage.service}`;
             if (!isDismissed(usage.client, alertId)) {
               newAlerts.push({
                 id: alertId, client: usage.client, service: usage.service, type: 'hours',
-                msg: `الباقة أوشكت على الانتهاء (متبقي ${remH} ساعة)`,
+                msg: `الباقة أوشكت على الانتهاء (متبقي ${formatDurationMinutes(remainingMinutes)})`,
                 icon: <Clock className="text-warning" size={18} />
               });
             }
@@ -188,8 +190,6 @@ export const useGlobalAlerts = () => {
 };
 
 // Offcanvas Component
-import { DollarSign, X } from 'lucide-react';
-
 export const NotificationsOffcanvas = ({ isOpen, onClose, alerts, onDismiss }) => {
   return (
     <>

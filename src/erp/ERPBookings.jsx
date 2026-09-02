@@ -378,7 +378,7 @@ const ERPBookings = () => {
         let hours = 0;
         if (d.start_time && d.end_time) {
           const diffInMinutes = calculateDurationMinutes(d.start_time, d.end_time);
-          hours = diffInMinutes > 0 ? +(diffInMinutes / 60).toFixed(2) : 0;
+          hours = diffInMinutes > 0 ? diffInMinutes / 60 : 0;
         }
 
         let finalDeliveryDate = newBooking.delivery_date;
@@ -394,6 +394,7 @@ const ERPBookings = () => {
           date: d.date,
           start_time: d.start_time,
           end_time: d.end_time,
+          duration_minutes: d.start_time && d.end_time ? calculateDurationMinutes(d.start_time, d.end_time) : 0,
           actual_hours: hours,
           custom_price: newBooking.base_price,
           discount: newBooking.discount,
@@ -950,8 +951,8 @@ const ERPBookings = () => {
                   <div className="p-3 bg-white rounded-4 border shadow-sm mb-4">
                     <div className="row text-center">
                       <div className="col-4 border-end">
-                        <small className="text-muted d-block mb-1 fw-bold">الساعات</small>
-                        <div className="fw-bold fs-5">{selectedBookingDetails.actual_hours || 0}</div>
+                        <small className="text-muted d-block mb-1 fw-bold">المدة</small>
+                        <div className="fw-bold fs-5">{formatDurationMinutes(Number(selectedBookingDetails.actual_seconds || 0) > 0 ? Number(selectedBookingDetails.actual_seconds) / 60 : Number(selectedBookingDetails.duration_minutes || 0) || (Number(selectedBookingDetails.actual_hours || 0) * 60))}</div>
                       </div>
                       <div className="col-4 border-end">
                         <small className="text-muted d-block mb-1 fw-bold">الريلز</small>

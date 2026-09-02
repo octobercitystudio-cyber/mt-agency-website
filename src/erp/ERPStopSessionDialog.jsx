@@ -4,6 +4,7 @@ import {
   HandHeart, PackagePlus, ReceiptText, Save, Square, WalletCards, X,
 } from 'lucide-react';
 import { formatBookingDate, formatTime12 } from '../lib/businessFormat';
+import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
 import { parseStrictMoney, strictMoneyError } from '../lib/strictMoney';
 import useModalDialog from '../hooks/useModalDialog';
 import {
@@ -244,7 +245,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
             {family === 'new_package' && <section className="session-settlement-panel"><h3><PackagePlus /> تفاصيل الباقة الجديدة</h3><div className="session-settlement-grid">
               <label><span>نموذج الباقة</span><select value={newPackage.service_id} onChange={event => chooseTemplate(event.target.value)}><option value="">اختر النموذج</option>{preview.package_templates?.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
               <label><span>اسم الباقة</span><input value={newPackage.name} onChange={event => setNewPackage({ ...newPackage, name: event.target.value })} /></label>
-              <label><span>الرصيد بالدقائق</span><input type="number" min={preview.excess_minutes} step="15" value={newPackage.purchased_minutes} readOnly={!isOwner} onChange={event => setNewPackage({ ...newPackage, purchased_minutes: event.target.value })} /></label>
+              <DurationHoursMinutesInput idPrefix="session-new-package-balance" label="رصيد الباقة الجديدة" value={newPackage.purchased_minutes} valueUnit="minutes" minMinutes={preview.excess_minutes} readOnly={!isOwner} onChange={value => setNewPackage({ ...newPackage, purchased_minutes: value })}/>
               <label><span>الصلاحية بالأيام</span><input type="number" min="1" value={newPackage.validity_days} readOnly={!isOwner} onChange={event => setNewPackage({ ...newPackage, validity_days: event.target.value })} /></label>
               <SettlementMoneyInput id="session-new-package-total" label="إجمالي السعر" value={newPackage.total_price} readOnly={!isOwner} onChange={value => setNewPackage({ ...newPackage, total_price: value })} />
               <SettlementMoneyInput id="session-new-package-paid" label="المدفوع الآن" value={newPackage.initial_paid} onChange={value => setNewPackage({ ...newPackage, initial_paid: value })} />

@@ -4,6 +4,7 @@ import {
   PackageCheck, RefreshCw, Save, ShieldCheck, X,
 } from 'lucide-react';
 import { dataClient } from '../dataClient';
+import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
 import { formatEGP, formatPackageQuantity } from '../lib/businessFormat';
 import { parseStrictMoney, strictCentsToMoney, strictMoneyError } from '../lib/strictMoney';
 import { safeUiError } from '../lib/uiError';
@@ -161,13 +162,17 @@ export default function PackageUpgradeDialog({ packageId, sessionActive = false,
         <section className="package-upgrade-form"><h3><PackageCheck /> بيانات الباقة الجديدة</h3><div className="package-upgrade-grid">
           <label><span>نموذج الباقة</span><select value={draft.serviceId} onChange={event => chooseService(event.target.value)}><option value="">اختر النموذج</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
           <label><span>اسم الباقة</span><input value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} /></label>
-          <label><span>{unit === 'reel' ? 'إجمالي الريلز' : 'إجمالي الساعات'}</span><input type="number" min="1" step={unit === 'reel' ? '1' : '0.25'} value={draft.quantity} onChange={event => setDraft({ ...draft, quantity: event.target.value })} /></label>
+          {unit === 'reel'
+            ? <label><span>إجمالي الريلز</span><input type="number" min="1" step="1" value={draft.quantity} onChange={event => setDraft({ ...draft, quantity: event.target.value })} /></label>
+            : <DurationHoursMinutesInput idPrefix="package-upgrade-balance" label="إجمالي الرصيد" value={draft.quantity} minMinutes={1} onChange={value => setDraft({ ...draft, quantity: value })}/>}
           <label><span>صلاحية الباقة بالأيام</span><input type="number" min="1" max="3650" step="1" value={draft.validityDays} onChange={event => setDraft({ ...draft, validityDays: event.target.value })} /></label>
           <MoneyInput id="package-upgrade-total-price" label="إجمالي السعر" value={draft.totalPrice} onChange={value => setDraft({ ...draft, totalPrice: value })} />
           <MoneyInput id="package-upgrade-paid-now" label="المدفوع الآن" value={draft.paidNow} onChange={value => setDraft({ ...draft, paidNow: value })} />
           <label><span>طريقة الدفع</span><select value={draft.paymentMethod} onChange={event => setDraft({ ...draft, paymentMethod: event.target.value })}>{Object.entries(PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <MoneyInput id="package-upgrade-overage-price" label="سعر الساعة الإضافية" value={draft.overagePrice} onChange={value => setDraft({ ...draft, overagePrice: value })} />
-          <label><span>حد السداد من الرصيد</span><input type="number" min="0" max={draft.quantity || '0'} step={unit === 'reel' ? '1' : '0.25'} value={draft.paymentDue} onChange={event => setDraft({ ...draft, paymentDue: event.target.value })} /></label>
+          {unit === 'reel'
+            ? <label><span>حد السداد من الرصيد</span><input type="number" min="0" max={draft.quantity || '0'} step="1" value={draft.paymentDue} onChange={event => setDraft({ ...draft, paymentDue: event.target.value })} /></label>
+            : <DurationHoursMinutesInput idPrefix="package-upgrade-payment-due" label="حد السداد من الرصيد" value={draft.paymentDue} maxMinutes={Number(draft.quantity || 0) * 60} onChange={value => setDraft({ ...draft, paymentDue: value })}/>}
           <label><span>بداية الصلاحية</span><select value={draft.activationMode} onChange={event => setDraft({ ...draft, activationMode: event.target.value })}><option value="first_booking">من أول حجز على الباقة</option><option value="immediate">فور الاعتماد</option></select></label>
         </div><label className="package-upgrade-wide"><span>ملاحظات الباقة <small>(اختياري)</small></span><textarea rows="2" value={draft.notes} onChange={event => setDraft({ ...draft, notes: event.target.value })} /></label><label className="package-upgrade-wide"><span>سبب الترقية <b>مطلوب</b></span><textarea rows="2" minLength="5" value={draft.reason} onChange={event => setDraft({ ...draft, reason: event.target.value })} placeholder="مثال: طلب العميل الترقية لباقة أعلى" /></label></section>
         <section className="package-upgrade-policy"><ShieldCheck /><div><strong>ماذا سيحدث للباقة الحالية؟</strong><label><input type="checkbox" checked={draft.closeSource} disabled={!canCloseSource} onChange={event => setDraft({ ...draft, closeSource: event.target.checked })} /> إغلاقها كباقة مكتملة بعد إنشاء البديلة</label><p>{canCloseSource ? 'الإغلاق اختياري وموثق؛ لا يحذف الاستهلاك أو الدفعات.' : 'أنهِ الجلسة وسوِّ الوقت، أو عدّل المواعيد المحجوزة قبل إغلاقها.'}</p>{oldCredit > 0 && <p className="package-upgrade-credit">يوجد رصيد دائن {formatEGP(oldCredit)} على الباقة القديمة. لن يُنقل أو يُكرر تلقائيًا؛ عالجه كتصحيح مالي موثق.</p>}</div></section>

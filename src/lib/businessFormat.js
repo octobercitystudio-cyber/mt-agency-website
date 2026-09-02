@@ -79,7 +79,41 @@ export const packageFinancialSummary = pkg => {
   };
 };
 
+export const durationHoursToMinutes = value => {
+  const hours = Number(value);
+  return Number.isFinite(hours) ? Math.max(0, Math.round(hours * 60)) : 0;
+};
+
+export const durationMinutesToHours = value => {
+  const minutes = Number(value);
+  return Number.isFinite(minutes) ? Math.max(0, Math.round(minutes)) / 60 : 0;
+};
+
+export const splitDurationMinutes = value => {
+  const minutes = Number(value);
+  const totalMinutes = Number.isFinite(minutes) ? Math.max(0, Math.round(minutes)) : 0;
+  return { hours: Math.floor(totalMinutes / 60), minutes: totalMinutes % 60, totalMinutes };
+};
+
+export const packageDurationMinutes = (pkg, kind) => {
+  const minuteValue = Number(pkg?.[`${kind}_minutes`]);
+  if (Number.isSafeInteger(minuteValue) && minuteValue >= 0) return minuteValue;
+  return durationHoursToMinutes(pkg?.[`${kind}_quantity`]);
+};
+
 export const packageQuantitySummary = pkg => {
+  if (pkg?.billing_unit === 'hour') {
+    const purchasedMinutes = packageDurationMinutes(pkg, 'purchased');
+    const consumedMinutes = packageDurationMinutes(pkg, 'consumed');
+    const heldMinutes = packageDurationMinutes(pkg, 'held');
+    const remainingMinutes = Math.max(0, purchasedMinutes - consumedMinutes);
+    const availableMinutes = Math.max(0, purchasedMinutes - consumedMinutes - heldMinutes);
+    return {
+      purchased: durationMinutesToHours(purchasedMinutes), consumed: durationMinutesToHours(consumedMinutes), held: durationMinutesToHours(heldMinutes),
+      remaining: durationMinutesToHours(remainingMinutes), available: durationMinutesToHours(availableMinutes),
+      purchasedMinutes, consumedMinutes, heldMinutes, remainingMinutes, availableMinutes,
+    };
+  }
   const purchased = Math.max(0, Number(pkg?.purchased_quantity || 0));
   const consumed = Math.max(0, Number(pkg?.consumed_quantity || 0));
   const held = Math.max(0, Number(pkg?.held_quantity || 0));
@@ -133,10 +167,7 @@ export const effectivePackageStatus = (pkg, todayKey = cairoDateKey()) => (
 );
 
 export const formatDurationMinutes = (totalMinutes, { compact = false } = {}) => {
-  const parsed = Number(totalMinutes);
-  const value = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
+  const { hours, minutes } = splitDurationMinutes(totalMinutes);
   if (compact) {
     if (!hours) return `${numberFormatter.format(minutes)} د`;
     if (!minutes) return `${numberFormatter.format(hours)} س`;

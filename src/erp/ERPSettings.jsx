@@ -7,6 +7,8 @@ import ERPPageHero from './ERPPageHero';
 import OwnerRecordActions from './OwnerRecordActions';
 import { CUSTOM_CATEGORY_VALUE, FIXED_SERVICE_CATEGORIES, applyCategoryDefaults, buildServiceCategoryGroups, categoryCustomValue, categoryEditorValue, resolveServiceCategory, serviceUsesProjectFields } from '../lib/serviceCategories';
 import useModalDialog from '../hooks/useModalDialog';
+import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
+import { formatDurationMinutes, formatPackageQuantity } from '../lib/businessFormat';
 
 const ROLE_DETAILS = {
   owner: { label: 'مالك', note: 'صلاحيات كاملة وإدارة الحسابات.' },
@@ -471,7 +473,7 @@ const ERPSettings = () => {
         </div>
 
         <div className="service-category-panel" role="tabpanel" aria-label={selectedServiceGroup?.label}>
-          {selectedServiceGroup?.services.length ? <div className="table-responsive"><table className="table table-custom table-borderless align-middle w-100 text-center"><thead><tr><th className="text-end pe-4">اسم الخدمة</th><th>التصنيف</th><th>الوحدة / الكمية</th><th>السعر (ج.م)</th><th>الحالة</th><th className="text-start ps-4">الإجراءات</th></tr></thead><tbody>{selectedServiceGroup.services.map(s => <tr key={s.id}><td className="text-end pe-4 fw-bold text-dark">{s.name}</td><td><span className={`service-category-badge service-category-badge--${selectedServiceGroup.tone}`}>{s.category || 'غير مصنف'}</span></td><td className="fw-bold text-muted">{s.billing_unit === 'hour' ? `${Number(s.total_hours || 0).toLocaleString('ar-EG')} ساعة` : s.billing_unit === 'reel' ? `${Number(s.total_reels || 0).toLocaleString('ar-EG')} ريل` : 'مشروع'}</td><td className="fw-bold" style={{color:'#198754'}}>{formatServicePrice(s.price)}</td><td><span className={`badge ${Number(s.is_active ?? 1) ? 'bg-success' : 'bg-secondary'}`}>{Number(s.is_active ?? 1) ? 'نشطة' : 'مؤرشفة'}</span></td><td className="text-start ps-4">{renderServiceActions(s)}</td></tr>)}</tbody></table></div> : <div className="service-empty-state"><i className="fas fa-layer-group" aria-hidden="true"></i><h6>لا توجد خدمات في تصنيف «{selectedServiceGroup?.label}»</h6><p>يمكنك إنشاء أول خدمة في هذا التصنيف وستظهر هنا مباشرة.</p>{isOwner && <button type="button" onClick={event => { serviceDialogTriggerRef.current = event.currentTarget; const next = applyCategoryDefaults(emptyService, selectedServiceGroup?.value || 'باقة شهرية'); setAddForm({...next,category:selectedServiceGroup?.value || 'باقة شهرية'}); setServiceFormError(''); setServiceModal('add'); }}>إضافة خدمة</button>}</div>}
+          {selectedServiceGroup?.services.length ? <div className="table-responsive"><table className="table table-custom table-borderless align-middle w-100 text-center"><thead><tr><th className="text-end pe-4">اسم الخدمة</th><th>التصنيف</th><th>الوحدة / الكمية</th><th>السعر (ج.م)</th><th>الحالة</th><th className="text-start ps-4">الإجراءات</th></tr></thead><tbody>{selectedServiceGroup.services.map(s => <tr key={s.id}><td className="text-end pe-4 fw-bold text-dark">{s.name}</td><td><span className={`service-category-badge service-category-badge--${selectedServiceGroup.tone}`}>{s.category || 'غير مصنف'}</span></td><td className="fw-bold text-muted">{s.billing_unit === 'hour' ? formatPackageQuantity(s.total_hours, 'hour') : s.billing_unit === 'reel' ? `${Number(s.total_reels || 0).toLocaleString('ar-EG')} ريل` : 'مشروع'}</td><td className="fw-bold" style={{color:'#198754'}}>{formatServicePrice(s.price)}</td><td><span className={`badge ${Number(s.is_active ?? 1) ? 'bg-success' : 'bg-secondary'}`}>{Number(s.is_active ?? 1) ? 'نشطة' : 'مؤرشفة'}</span></td><td className="text-start ps-4">{renderServiceActions(s)}</td></tr>)}</tbody></table></div> : <div className="service-empty-state"><i className="fas fa-layer-group" aria-hidden="true"></i><h6>لا توجد خدمات في تصنيف «{selectedServiceGroup?.label}»</h6><p>يمكنك إنشاء أول خدمة في هذا التصنيف وستظهر هنا مباشرة.</p>{isOwner && <button type="button" onClick={event => { serviceDialogTriggerRef.current = event.currentTarget; const next = applyCategoryDefaults(emptyService, selectedServiceGroup?.value || 'باقة شهرية'); setAddForm({...next,category:selectedServiceGroup?.value || 'باقة شهرية'}); setServiceFormError(''); setServiceModal('add'); }}>إضافة خدمة</button>}</div>}
         </div>
       </div>
 
@@ -683,17 +685,12 @@ const ERPSettings = () => {
               <div className="row g-3 mb-4">
                 {showField(addForm.categorySelection, 'hours') && (
                   <div className="col-6 hours-div">
-                    <label className="small fw-bold text-muted mb-1">إجمالي الساعات</label>
-                    <input type="number" step="0.5" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.total_hours} onChange={e => setAddForm({...addForm, total_hours: e.target.value})} />
+                    <DurationHoursMinutesInput idPrefix="service-add-total" label="إجمالي الرصيد" value={addForm.total_hours} minMinutes={1} onChange={value => setAddForm({...addForm, total_hours: value})}/>
                   </div>
                 )}
                 {showField(addForm.categorySelection, 'due_hours') && (
                   <div className="col-6 due-hours-div">
-                    <label className="small fw-bold text-muted mb-1">استحقاق الدفع بعد</label>
-                    <div className="input-group shadow-sm rounded-3 overflow-hidden">
-                      <input type="number" step="0.5" className="form-control border-0 py-2 fw-bold text-danger text-center" value={addForm.payment_due_hours} onChange={e => setAddForm({...addForm, payment_due_hours: e.target.value})} />
-                      <span className="input-group-text border-0 bg-white small text-muted">ساعة</span>
-                    </div>
+                    <DurationHoursMinutesInput idPrefix="service-add-payment-due" label="استحقاق الدفع بعد" value={addForm.payment_due_hours} maxMinutes={Number(addForm.total_hours || 0) * 60} onChange={value => setAddForm({...addForm, payment_due_hours: value})}/>
                   </div>
                 )}
                 {showField(addForm.categorySelection, 'validity') && (
@@ -710,8 +707,8 @@ const ERPSettings = () => {
                 )}
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">الدفعة المقدمة %</label><input type="number" min="0" max="100" step="1" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.deposit_percent} onChange={e => setAddForm({...addForm,deposit_percent:e.target.value})}/></div>
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">سعر الوحدة الزائدة</label><input type="number" min="0" step="0.01" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.overage_price} onChange={e => setAddForm({...addForm,overage_price:e.target.value})}/></div>
-                <div className="col-6"><label className="small fw-bold text-muted mb-1">أقل حجز بالدقائق</label><input type="number" min="15" step="15" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.minimum_booking_minutes} onChange={e => setAddForm({...addForm,minimum_booking_minutes:e.target.value})}/></div>
-                <div className="col-6"><label className="small fw-bold text-muted mb-1">زيادة الحجز كل</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={addForm.booking_increment_minutes} onChange={e => setAddForm({...addForm,booking_increment_minutes:e.target.value})}><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">60 دقيقة</option></select></div>
+                <div className="col-6"><DurationHoursMinutesInput idPrefix="service-add-minimum-booking" label="أقل مدة للحجز" value={addForm.minimum_booking_minutes} valueUnit="minutes" minMinutes={15} onChange={value => setAddForm({...addForm,minimum_booking_minutes:value})}/></div>
+                <div className="col-6"><label className="small fw-bold text-muted mb-1">زيادة الحجز كل</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={addForm.booking_increment_minutes} onChange={e => setAddForm({...addForm,booking_increment_minutes:e.target.value})}>{[15,30,60].map(minutes => <option key={minutes} value={minutes}>{formatDurationMinutes(minutes)}</option>)}</select></div>
                 {!serviceUsesProjectFields(addForm.categorySelection) && <div className="col-12 form-check form-switch px-5"><input className="form-check-input" type="checkbox" checked={Boolean(Number(addForm.auto_start_timer))} onChange={e => setAddForm({...addForm,auto_start_timer:e.target.checked?1:0})}/><label className="form-check-label fw-bold">تشغيل تايمر التصوير تلقائيًا في الموعد</label></div>}
                 <div className="col-12"><label className="small fw-bold text-muted mb-1">سبب الإنشاء</label><textarea minLength="5" required className="form-control border-0 shadow-sm" rows="2" value={addForm.reason} onChange={e => setAddForm({...addForm,reason:e.target.value})} placeholder="اكتب سببًا واضحًا يظهر في سجل التدقيق" /></div>
                 {serviceFormError && <div className="col-12 service-form-error" role="alert">{serviceFormError}</div>}
@@ -756,17 +753,12 @@ const ERPSettings = () => {
               <div className="row g-3 mb-4">
                 {showField(editForm.categorySelection, 'hours') && (
                   <div className="col-6 hours-div">
-                    <label className="small fw-bold text-muted mb-1">إجمالي الساعات</label>
-                    <input type="number" step="0.5" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.total_hours} onChange={e => setEditForm({...editForm, total_hours: e.target.value})} />
+                    <DurationHoursMinutesInput idPrefix="service-edit-total" label="إجمالي الرصيد" value={editForm.total_hours} minMinutes={1} onChange={value => setEditForm({...editForm, total_hours: value})}/>
                   </div>
                 )}
                 {showField(editForm.categorySelection, 'due_hours') && (
                   <div className="col-6 due-hours-div">
-                    <label className="small fw-bold text-muted mb-1">استحقاق الدفع بعد</label>
-                    <div className="input-group shadow-sm rounded-3 overflow-hidden">
-                      <input type="number" step="0.5" className="form-control border-0 py-2 fw-bold text-danger text-center" value={editForm.payment_due_hours} onChange={e => setEditForm({...editForm, payment_due_hours: e.target.value})} />
-                      <span className="input-group-text border-0 bg-white small text-muted">ساعة</span>
-                    </div>
+                    <DurationHoursMinutesInput idPrefix="service-edit-payment-due" label="استحقاق الدفع بعد" value={editForm.payment_due_hours} maxMinutes={Number(editForm.total_hours || 0) * 60} onChange={value => setEditForm({...editForm, payment_due_hours: value})}/>
                   </div>
                 )}
                 {showField(editForm.categorySelection, 'validity') && (
@@ -784,8 +776,8 @@ const ERPSettings = () => {
                 {!showField(editForm.categorySelection, 'validity') && <div className="col-6"><label className="small fw-bold text-muted mb-1">صلاحية القالب بالأيام</label><input type="number" min="1" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.validity_days || 90} onChange={e => setEditForm({...editForm,validity_days:e.target.value})}/></div>}
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">الدفعة المقدمة %</label><input type="number" min="0" max="100" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.deposit_percent || 0} onChange={e => setEditForm({...editForm,deposit_percent:e.target.value})}/></div>
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">سعر الوحدة الزائدة</label><input type="number" min="0" step="0.01" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.overage_price || 0} onChange={e => setEditForm({...editForm,overage_price:e.target.value})}/></div>
-                <div className="col-6"><label className="small fw-bold text-muted mb-1">أقل حجز بالدقائق</label><input type="number" min="15" step="15" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.minimum_booking_minutes || 60} onChange={e => setEditForm({...editForm,minimum_booking_minutes:e.target.value})}/></div>
-                <div className="col-6"><label className="small fw-bold text-muted mb-1">زيادة الحجز كل</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={editForm.booking_increment_minutes || 15} onChange={e => setEditForm({...editForm,booking_increment_minutes:e.target.value})}><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">60 دقيقة</option></select></div>
+                <div className="col-6"><DurationHoursMinutesInput idPrefix="service-edit-minimum-booking" label="أقل مدة للحجز" value={editForm.minimum_booking_minutes || 60} valueUnit="minutes" minMinutes={15} onChange={value => setEditForm({...editForm,minimum_booking_minutes:value})}/></div>
+                <div className="col-6"><label className="small fw-bold text-muted mb-1">زيادة الحجز كل</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={editForm.booking_increment_minutes || 15} onChange={e => setEditForm({...editForm,booking_increment_minutes:e.target.value})}>{[15,30,60].map(minutes => <option key={minutes} value={minutes}>{formatDurationMinutes(minutes)}</option>)}</select></div>
                 {!serviceUsesProjectFields(editForm.categorySelection) && <div className="col-12 form-check form-switch px-5"><input className="form-check-input" type="checkbox" checked={Boolean(Number(editForm.auto_start_timer ?? 1))} onChange={e => setEditForm({...editForm,auto_start_timer:e.target.checked?1:0})}/><label className="form-check-label fw-bold">تشغيل تايمر التصوير تلقائيًا في الموعد</label></div>}
                 <div className="col-12"><label className="small fw-bold text-muted mb-1">حالة القالب</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={Number(editForm.is_active ?? 1)} onChange={e => setEditForm({...editForm,is_active:Number(e.target.value)})}><option value="1">نشط للمبيعات الجديدة</option><option value="0">موقوف عن المبيعات الجديدة</option></select></div>
                 <div className="col-12 service-impact-strip" aria-label="معاينة أثر تعديل قالب الخدمة"><article><span>سعر القالب</span><b>{Number(services.find(item=>Number(item.id)===Number(editForm.id))?.price||0).toLocaleString('ar-EG')} ← {Number(editForm.price||0).toLocaleString('ar-EG')} ج.م</b></article><article><span>الصلاحية</span><b>{services.find(item=>Number(item.id)===Number(editForm.id))?.validity_days||90} ← {editForm.validity_days||90} يوم</b></article><article><span>الباقات المباعة</span><b>لا تتغير</b></article></div>

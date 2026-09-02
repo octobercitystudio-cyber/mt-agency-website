@@ -1,3 +1,5 @@
+import { formatDurationMinutes } from './businessFormat.js';
+
 export const POST_PRODUCTION_STATUS = {
   editing_in_progress: { label: 'جاري العمل في المونتاج', short: 'المونتاج', step: 1, tone: 'editing' },
   editing_completed: { label: 'اكتمل المونتاج', short: 'اكتمل المونتاج', step: 2, tone: 'completed' },
@@ -15,10 +17,7 @@ export const postProductionMeta = status => POST_PRODUCTION_STATUS[status] || { 
 
 export const postProductionDuration = seconds => {
   const totalMinutes = Math.max(0, Math.round(Number(seconds || 0) / 60));
-  const hours = Math.floor(totalMinutes / 60); const minutes = totalMinutes % 60;
-  if (!hours) return `${minutes} دقيقة`;
-  if (!minutes) return `${hours} ${hours === 1 ? 'ساعة' : 'ساعات'}`;
-  return `${hours} ${hours === 1 ? 'ساعة' : 'ساعات'} و${minutes} دقيقة`;
+  return formatDurationMinutes(totalMinutes);
 };
 
 export const postProductionSessionLabel = job => job.package_name || job.service || 'جلسة تصوير';

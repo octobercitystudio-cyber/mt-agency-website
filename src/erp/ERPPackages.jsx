@@ -7,6 +7,7 @@ import './ERPPackages.css';
 import { safeUiError } from '../lib/uiError';
 import { cairoDateKey, centsToMoney, effectivePackageStatus, formatBookingDate, formatBookingStatus, formatDateTime12, formatDurationMinutes, formatEGP, formatPackageQuantity, formatPackageStatus, formatTime12, packageFinancialSummary, packageQuantitySummary, remainingCalendarDays } from '../lib/businessFormat';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
+import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
 import ERPPageHero from './ERPPageHero';
 import { isStudioPackageService } from '../lib/serviceCatalog';
 import { anchorPackageDraftToBookings, packageDraftExpiry, packageDraftIsDirty, resetPackageDraftToTemplate, templateToPackageDraft, validatePackageDraft } from '../lib/clientPackageDraft';
@@ -374,7 +375,7 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
       </div>
       {selectedTemplate && <section className={`packages-template-snapshot${dirty ? ' is-dirty' : ''}`} aria-label="ملخص قالب الخدمة">
         <div><span>القالب المختار</span><strong>{selectedTemplate.name}</strong><small>{dirty ? 'تم تعديل بعض شروط القالب' : 'مطابق لشروط القالب الأصلية'}</small></div>
-        <dl><div><dt>الرصيد الأصلي</dt><dd>{original?.quantity} {original?.billing_unit === 'reel' ? 'ريل' : 'ساعة'}</dd></div><div><dt>الصلاحية</dt><dd>{original?.validity_days} يوم</dd></div><div><dt>سعر القالب</dt><dd>{money(original?.total_price)}</dd></div><div><dt>المقدم</dt><dd>{original?.deposit_percent_snapshot}%</dd></div><div><dt>حد الاستحقاق</dt><dd>{original?.payment_due_quantity} {original?.billing_unit === 'reel' ? 'ريل' : 'ساعة'}</dd></div><div><dt>سعر {original?.billing_unit === 'reel' ? 'الريل' : 'الساعة'} الإضافي</dt><dd>{money(original?.overage_price_snapshot)}</dd></div></dl>
+        <dl><div><dt>الرصيد الأصلي</dt><dd>{formatPackageQuantity(original?.quantity, original?.billing_unit)}</dd></div><div><dt>الصلاحية</dt><dd>{original?.validity_days} يوم</dd></div><div><dt>سعر القالب</dt><dd>{money(original?.total_price)}</dd></div><div><dt>المقدم</dt><dd>{original?.deposit_percent_snapshot}%</dd></div><div><dt>حد الاستحقاق</dt><dd>{formatPackageQuantity(original?.payment_due_quantity, original?.billing_unit)}</dd></div><div><dt>سعر {original?.billing_unit === 'reel' ? 'الريل' : 'الساعة'} الإضافي</dt><dd>{money(original?.overage_price_snapshot)}</dd></div></dl>
         <button type="button" className="packages-reset-template" onClick={onReset} disabled={!dirty || busy}><TimerReset/> استعادة شروط القالب</button>
         {resetNotice && <p className="packages-reset-outcome" role="status">{resetNotice}</p>}
       </section>}
@@ -393,8 +394,12 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
           <div className="packages-form-grid packages-sale-grid">
             <label>اسم الباقة<input aria-invalid={Boolean(errors.name)} value={form.name} onChange={event => onField('name', event.target.value)}/>{errorFor('name')}</label>
             <label>وحدة الرصيد<select aria-invalid={Boolean(errors.billing_unit)} value={form.billing_unit} onChange={event => onField('billing_unit', event.target.value)}><option value="hour">ساعة</option><option value="reel">ريل</option></select>{errorFor('billing_unit')}</label>
-            <label>رصيد الباقة ({balanceUnitPlural})<input aria-invalid={Boolean(errors.quantity)} type="number" min="0.01" step={reelBalance ? '1' : '0.01'} value={form.quantity} onChange={event => onField('quantity', event.target.value)}/><small className="packages-field-help">الرصيد الذي يصبح متاحًا للعميل بوحدة {balanceUnit}.</small>{errorFor('quantity')}</label>
-            <label>حد الاستحقاق ({balanceUnit})<input aria-invalid={Boolean(errors.payment_due_quantity)} type="number" min="0" max={form.quantity || undefined} step={reelBalance ? '1' : '0.01'} value={form.payment_due_quantity} onChange={event => onField('payment_due_quantity', event.target.value)}/><small className="packages-field-help">يظهر تنبيه السداد عند بلوغ هذا الاستهلاك.</small>{errorFor('payment_due_quantity')}</label>
+            {reelBalance
+              ? <label>رصيد الباقة ({balanceUnitPlural})<input aria-invalid={Boolean(errors.quantity)} type="number" min="1" step="1" value={form.quantity} onChange={event => onField('quantity', event.target.value)}/><small className="packages-field-help">الرصيد الذي يصبح متاحًا للعميل بوحدة {balanceUnit}.</small>{errorFor('quantity')}</label>
+              : <DurationHoursMinutesInput idPrefix="package-sale-balance" label="رصيد الباقة" value={form.quantity} minMinutes={1} required error={errors.quantity} onChange={value => onField('quantity', value)}/>}
+            {reelBalance
+              ? <label>حد الاستحقاق ({balanceUnit})<input aria-invalid={Boolean(errors.payment_due_quantity)} type="number" min="0" max={form.quantity || undefined} step="1" value={form.payment_due_quantity} onChange={event => onField('payment_due_quantity', event.target.value)}/><small className="packages-field-help">يظهر تنبيه السداد عند بلوغ هذا الاستهلاك.</small>{errorFor('payment_due_quantity')}</label>
+              : <DurationHoursMinutesInput idPrefix="package-sale-payment-due" label="حد الاستحقاق" value={form.payment_due_quantity} maxMinutes={Number(form.quantity || 0) * 60} error={errors.payment_due_quantity} onChange={value => onField('payment_due_quantity', value)}/>}
             <div className="packages-validity-anchor packages-field-wide" role="status"><CalendarClock/><span><strong>بداية الصلاحية: {anchoredDraft.starts_at ? formatBookingDate(anchoredDraft.starts_at) : 'تُحدد عند أول حجز تصوير'}</strong><small>{daily ? 'الباقة اليومية صالحة في يوم أول حجز فقط.' : `كل الأيام التقويمية محسوبة، بما فيها الجمعة. الانتهاء: ${expiry === '—' ? 'بعد تحديد أول حجز' : expiry}`}</small></span></div>
             {!daily && <label>مدة الصلاحية بالأيام<input aria-invalid={Boolean(errors.validity_days)} type="number" min="1" step="1" value={form.validity_days} onChange={event => onField('validity_days', event.target.value)}/><small className="packages-field-help">يوم أول حجز هو اليوم رقم 1.</small>{errorFor('validity_days')}</label>}
           </div>

@@ -38,8 +38,8 @@ test('client inbox materializes upcoming payment and expiry reminders exactly on
   const first = await demoClient.request('/app-notifications?status=all&limit=50', { method: 'GET' }); assert.equal(first.error, null);
   const upcoming = first.data.items.find(item => item.type === 'payment_upcoming' && Number(item.entity_id) === 201);
   const expiry = first.data.items.find(item => item.type === 'package_expiry_reminder' && Number(item.entity_id) === 201);
-  assert.ok(upcoming); assert.match(upcoming.message, /6000\.00 ج\.م/); assert.match(upcoming.message, /1 ساعة/);
-  assert.ok(expiry); assert.match(expiry.message, /5 أيام/); assert.match(expiry.message, /5 ساعة/);
+  assert.ok(upcoming); assert.match(upcoming.message, /6000\.00 ج\.م/); assert.match(upcoming.message, /ساعة واحدة/);
+  assert.ok(expiry); assert.match(expiry.message, /5 أيام/); assert.match(expiry.message, /5 ساعات/);
 
   await demoClient.request('/app-notifications?status=all&limit=50', { method: 'GET' });
   const afterReplay = readDatabase().app_notifications;
