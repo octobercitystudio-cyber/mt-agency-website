@@ -88,6 +88,9 @@ test('validity-only owner edits use the narrow versioned route and keep dates sy
   assert.match(owner, /packageExpiryFromDays/);
   assert.match(owner, /packageValidityDays/);
   assert.match(owner, /validity_days_snapshot: Number\(details\.validityDays\)/);
+  assert.match(owner, /details\.reason\.trim\(\) \|\| \(validityOnly \? 'تعديل صلاحية الباقة بواسطة المالك'/);
+  assert.match(owner, /اختياري — سيُسجل التعديل تلقائيًا/);
+  assert.doesNotMatch(owner, /details\.reason\.trim\(\)\.length < 5/);
   assert.match(owner, /expected_version: info\.version/);
   assert.match(api, /invalid_package_expiry/);
   assert.match(api, /invalid_package_validity_days/);
