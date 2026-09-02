@@ -28,5 +28,6 @@ test('server import is owner-only, atomic, idempotent and archives only allow-li
   assert.match(api,/requireRole\(\$user,\['owner'\]\)/);assert.match(api,/beginTransaction/);assert.match(api,/rollBack/);assert.match(api,/legacy_import_batches/);assert.match(api,/source_sha256/);assert.match(api,/legacy_import_records/);
   assert.match(api,/\['clients','services','bookings','finance','reminders','app_config'\]/);assert.doesNotMatch(api,/INSERT INTO users/);assert.doesNotMatch(api,/password_hash/);
   assert.match(api,/reserveBookingSlots/);assert.match(api,/legacy_booking_conflict/);assert.match(api,/mutateLockedPackageQuantities/);assert.match(api,/حجز قادم من البرنامج القديم/);
+  assert.match(api,/function legacyImportReusableRecords/);assert.match(api,/packages_reused/);assert.match(api,/appointments_reused/);assert.match(api,/legacy_reused_booking_time_changed/);
   assert.match(api,/function legacyImportAudit/);assert.match(api,/legacyImportPublishChanges/);assert.match(api,/finance_periods_refreshed/);
 });
