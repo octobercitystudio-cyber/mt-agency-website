@@ -70,9 +70,18 @@ test('expiry-only owner edits use the narrow versioned validity route', async ()
   assert.match(owner, /expected_version: info\.version/);
   assert.match(api, /invalid_package_expiry/);
   assert.match(api, /bookings_outside_package_validity/);
-  assert.match(api, /status='expired' AND \? >= CURDATE\(\)/);
+  assert.match(api, /\$nextStatus=\$before\['status'\]===\'expired\'/);
   assert.match(api, /\[Package validity WhatsApp\]/);
   assert.match(demo, /client-packages\\\/\(\\d\+\)\\\/extend/);
+});
+
+test('package expiry survives optional adjustment and notification failures', async () => {
+  const api = await load('api/index.php');
+  assert.match(api, /\[Package validity adjustment\]/);
+  assert.match(api, /adjustment_recorded/);
+  assert.match(api, /\[Audit client notification\]/);
+  assert.match(api, /\[Audit owner notification\]/);
+  assert.match(api, /UPDATE client_packages SET expires_at=\?,status=\?,version=version\+1/);
 });
 
 test('demo consumed correction keeps exact authoritative balance and is idempotent', async () => {
