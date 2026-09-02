@@ -106,9 +106,18 @@ test('package expiry survives optional adjustment and notification failures', as
   assert.match(api, /adjustment_recorded/);
   assert.match(api, /\[Audit client notification\]/);
   assert.match(api, /\[Audit owner notification\]/);
-  assert.match(api, /UPDATE client_packages SET expires_at=\?,validity_days_snapshot=\?,status=\?,version=version\+1/);
+  assert.match(api, /\$sets=\['expires_at=\?','validity_days_snapshot=\?'\]/);
+  assert.match(api, /\$hasVersion=array_key_exists\('version',\$before\)/);
+  assert.match(api, /package_validity_update_conflict/);
+  assert.doesNotMatch(api, /\(date>\? OR \(\?='shooting_day'/);
   assert.match(api, /\$pdo->commit\(\);\$adjustmentRecorded=true/);
   assert.match(api, /\[Package validity audit\]/);
+});
+
+test('owner validity controls reject fractional or out-of-range calendar days', async () => {
+  const owner = await load('src/erp/OwnerPackageControl.jsx');
+  assert.match(owner, /!Number\.isInteger\(Number\(details\.validityDays\)\)/);
+  assert.match(owner, /Number\(details\.validityDays\) > 3650/);
 });
 
 test('demo validity edit derives inclusive calendar days from the selected end date', async () => {
