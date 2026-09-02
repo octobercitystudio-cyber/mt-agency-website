@@ -61,14 +61,18 @@ test('production reschedule enforces resource organization and package validity'
   assert.match(api, /format\('N'\)==='5'/);
 });
 
-test('expiry-only owner edits use the narrow versioned validity route', async () => {
+test('validity-only owner edits use the narrow versioned route and keep dates synchronized', async () => {
   const [owner, api, demo] = await Promise.all([
     load('src/erp/OwnerPackageControl.jsx'), load('api/index.php'), load('src/lib/demoDataClient.js'),
   ]);
-  assert.match(owner, /const expiryOnly = Boolean\(details\.expires\)/);
+  assert.match(owner, /const validityOnly = Boolean\(details\.expires\)/);
   assert.match(owner, /`\/client-packages\/\$\{pkg\.id\}\/extend`/);
+  assert.match(owner, /packageExpiryFromDays/);
+  assert.match(owner, /packageValidityDays/);
+  assert.match(owner, /validity_days_snapshot: Number\(details\.validityDays\)/);
   assert.match(owner, /expected_version: info\.version/);
   assert.match(api, /invalid_package_expiry/);
+  assert.match(api, /invalid_package_validity_days/);
   assert.match(api, /bookings_outside_package_validity/);
   assert.match(api, /\$nextStatus=\$before\['status'\]===\'expired\'/);
   assert.match(api, /\[Package validity WhatsApp\]/);
@@ -81,7 +85,29 @@ test('package expiry survives optional adjustment and notification failures', as
   assert.match(api, /adjustment_recorded/);
   assert.match(api, /\[Audit client notification\]/);
   assert.match(api, /\[Audit owner notification\]/);
-  assert.match(api, /UPDATE client_packages SET expires_at=\?,status=\?,version=version\+1/);
+  assert.match(api, /UPDATE client_packages SET expires_at=\?,validity_days_snapshot=\?,status=\?,version=version\+1/);
+  assert.match(api, /\$pdo->commit\(\);\$adjustmentRecorded=true/);
+  assert.match(api, /\[Package validity audit\]/);
+});
+
+test('demo validity edit derives inclusive calendar days from the selected end date', async () => {
+  const storage = new Map();
+  globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) };
+  globalThis.window = { dispatchEvent() {} };
+  globalThis.CustomEvent = class CustomEvent { constructor(type) { this.type = type; } };
+  const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
+  resetDemoDatabase(); activateDemoMode('owner');
+  const before = await demoClient.request('/client-packages/201/details', { method: 'GET' });
+  const starts = String(before.data.validity.starts_at).slice(0, 10);
+  const expiry = new Date(`${starts}T00:00:00Z`); expiry.setUTCDate(expiry.getUTCDate() + 44);
+  const expires = expiry.toISOString().slice(0, 10);
+  const saved = await demoClient.request('/client-packages/201/extend', { method: 'POST', body: JSON.stringify({ expires_at: expires, validity_days_snapshot: 999, reason: 'تصحيح مدة الصلاحية للاختبار', expected_version: before.data.package.version }) });
+  assert.equal(saved.error, null);
+  assert.equal(saved.data.expires_at, expires);
+  assert.equal(saved.data.validity_days_snapshot, 45);
+  const after = await demoClient.request('/client-packages/201/details', { method: 'GET' });
+  assert.equal(after.data.package.validity_days_snapshot, 45);
+  deactivateDemoMode();
 });
 
 test('demo consumed correction keeps exact authoritative balance and is idempotent', async () => {

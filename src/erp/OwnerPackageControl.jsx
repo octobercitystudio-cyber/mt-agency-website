@@ -13,6 +13,15 @@ const STATUS_LABELS = { pending: 'بانتظار التأكيد', confirmed: 'م
 const PACKAGE_STATUSES = { active: 'نشطة', suspended: 'موقوفة', completed: 'مكتملة', expired: 'منتهية', cancelled: 'ملغاة' };
 const PAYMENT_METHODS = { cash: 'كاش', bank_transfer: 'تحويل بنكي', vodafone_cash: 'فودافون كاش', instapay: 'إنستاباي' };
 const correctionKey = prefix => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+const PACKAGE_DAY_MS = 86400000;
+const packageExpiryFromDays = (starts, rawDays) => {
+  const days = Number(rawDays); if (!/^\d{4}-\d{2}-\d{2}$/.test(starts) || !Number.isInteger(days) || days < 1 || days > 3650) return '';
+  const date = new Date(`${starts}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + days - 1); return date.toISOString().slice(0, 10);
+};
+const packageValidityDays = (starts, expires) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(starts) || !/^\d{4}-\d{2}-\d{2}$/.test(expires) || expires < starts) return '';
+  return String(Math.round((Date.parse(`${expires}T00:00:00Z`) - Date.parse(`${starts}T00:00:00Z`)) / PACKAGE_DAY_MS) + 1);
+};
 
 export default function OwnerPackageControl({ pkg, person, resources, returnFocusRef, childOpen = false, refreshToken, onClose, onChanged, onNewBooking, onNewPayment }) {
   const dialogRef = useModalDialog(true, onClose, { returnFocusRef });
@@ -81,18 +90,17 @@ export default function OwnerPackageControl({ pkg, person, resources, returnFocu
   const saveConsumed = () => perform('consumed', `/client-packages/${pkg.id}/usage-adjustment`, { target_consumed_quantity: Number(balance.consumed), reason: balance.consumedReason, expected_version: info.version, correction_key: correctionKey('usage') }, 'تم تصحيح المستخدم بقيد مراجعة مستقل.');
   const saveFinance = () => perform('finance', `/client-packages/${pkg.id}/commercial-adjustment`, { target_total_price: finance.total, target_paid_amount: finance.paid, method: finance.method, reason: finance.reason, expected_version: info.version }, 'تم تحديث السعر والمدفوع وإنشاء القيود اللازمة.');
   const saveDetails = () => {
-    const expiryOnly = Boolean(details.expires)
+    const validityOnly = Boolean(details.expires)
       && details.name.trim() === String(info.name || '').trim()
       && Number(details.serviceId) === Number(info.service?.id)
       && details.notes.trim() === String(info.notes || '').trim()
       && details.starts === String(validity?.starts_at || '').slice(0, 10)
       && details.status === info.status
       && details.validityMode === (info.validity_mode_snapshot === 'shooting_day' ? 'shooting_day' : 'rolling')
-      && Number(details.validityDays) === Number(info.validity_days_snapshot || 1)
       && Number(details.paymentDue) === Number(info.payment_due_quantity || 0)
       && Number(details.depositPercent) === Number(info.deposit_percent_snapshot || 0)
       && Number(details.overagePrice) === Number(info.overage_price_snapshot || 0);
-    if (expiryOnly) return perform('details', `/client-packages/${pkg.id}/extend`, { expires_at: details.expires, reason: details.reason, expected_version: info.version }, 'تم تحديث تاريخ انتهاء الباقة دون تغيير الرصيد أو البيانات المالية.');
+    if (validityOnly) return perform('details', `/client-packages/${pkg.id}/extend`, { expires_at: details.expires, validity_days_snapshot: Number(details.validityDays), reason: details.reason, expected_version: info.version }, 'تم تحديث مدة وتاريخ صلاحية الباقة دون تغيير الرصيد أو البيانات المالية.');
     return perform('details', `/client-packages/${pkg.id}`, { name: details.name, service_id: Number(details.serviceId), notes: details.notes, starts_at: details.starts, expires_at: details.expires, status: details.status, validity_mode_snapshot: details.validityMode, validity_days_snapshot: Number(details.validityDays), payment_due_quantity: Number(details.paymentDue), deposit_percent_snapshot: Number(details.depositPercent), overage_price_snapshot: details.overagePrice, reason: details.reason, expected_version: info.version }, 'تم تحديث عقد الباقة وصلاحيتها وحدود الدفع.', 'PATCH');
   };
   const saveBooking = booking => perform(`booking-${booking.id}`, `/bookings/${booking.id}/admin-reschedule`, bookingDrafts[booking.id], 'تم تعديل الموعد وحجز المورد الجديد بأمان.');
@@ -116,12 +124,12 @@ export default function OwnerPackageControl({ pkg, person, resources, returnFocu
               <label>الخدمة<select value={details.serviceId} onChange={event => setDetails({ ...details, serviceId: event.target.value })}>{serviceOptions.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select><small>تبديل الخدمة متاح قبل وجود مواعيد أو استخدام أو دفعات فقط.</small></label>
               <label>الحالة<select value={details.status} onChange={event => setDetails({ ...details, status: event.target.value })}>{Object.entries(PACKAGE_STATUSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
               <label>نظام الصلاحية<select value={details.validityMode} onChange={event => setDetails({ ...details, validityMode: event.target.value, ...(event.target.value === 'shooting_day' && details.starts ? { expires: details.starts, validityDays: '1' } : {}) })}><option value="rolling">عدد أيام تقويمية</option><option value="shooting_day">يوم تصوير واحد</option></select></label>
-              <label>مدة الصلاحية بالأيام<input type="number" min="1" max="3650" value={details.validityDays} onChange={event => setDetails({ ...details, validityDays: event.target.value })}/></label>
+              <label>مدة الصلاحية بالأيام<input type="number" min="1" max="3650" value={details.validityDays} onChange={event => { const validityDays = event.target.value; setDetails({ ...details, validityDays, ...(details.validityMode === 'rolling' && details.starts ? { expires: packageExpiryFromDays(details.starts, Number(validityDays)) || details.expires } : {}) }); }}/></label>
               <label>حد السداد من الرصيد<input type="number" min="0" max={quantities.purchased} step={step} value={details.paymentDue} onChange={event => setDetails({ ...details, paymentDue: event.target.value })}/></label>
               <label>نسبة المقدم %<input type="number" min="0" max="100" step="0.01" value={details.depositPercent} onChange={event => setDetails({ ...details, depositPercent: event.target.value })}/></label>
               <label>سعر الإضافي<input type="number" min="0" step="0.01" value={details.overagePrice} onChange={event => setDetails({ ...details, overagePrice: event.target.value })}/></label>
-              <label>تاريخ البداية<input type="date" value={details.starts} onChange={event => setDetails({ ...details, starts: event.target.value, ...(details.validityMode === 'shooting_day' ? { expires: event.target.value } : {}) })}/><small>{pendingValidity ? 'اختياري — يبدأ مع أول حجز' : 'محدد يدويًا'}</small></label>
-              <label>تاريخ الانتهاء<input type="date" min={details.starts} disabled={details.validityMode === 'shooting_day'} value={details.expires} onChange={event => setDetails({ ...details, expires: event.target.value })}/></label>
+              <label>تاريخ البداية<input type="date" value={details.starts} onChange={event => { const starts = event.target.value; setDetails({ ...details, starts, ...(details.validityMode === 'shooting_day' ? { expires: starts, validityDays: '1' } : { expires: packageExpiryFromDays(starts, Number(details.validityDays)) || details.expires }) }); }}/><small>{pendingValidity ? 'اختياري — يبدأ مع أول حجز' : 'محدد يدويًا'}</small></label>
+              <label>تاريخ الانتهاء<input type="date" min={details.starts} disabled={details.validityMode === 'shooting_day'} value={details.expires} onChange={event => { const expires = event.target.value; setDetails({ ...details, expires, validityDays: packageValidityDays(details.starts, expires) || details.validityDays }); }}/></label>
             </div>
             <label>ملاحظات المالك<textarea rows="3" value={details.notes} onChange={event => setDetails({ ...details, notes: event.target.value })}/></label>
             <label>سبب تعديل العقد أو الصلاحية<textarea rows="3" minLength="5" value={details.reason} onChange={event => setDetails({ ...details, reason: event.target.value })}/></label>
