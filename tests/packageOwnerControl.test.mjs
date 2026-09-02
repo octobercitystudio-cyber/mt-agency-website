@@ -61,6 +61,20 @@ test('production reschedule enforces resource organization and package validity'
   assert.match(api, /format\('N'\)==='5'/);
 });
 
+test('expiry-only owner edits use the narrow versioned validity route', async () => {
+  const [owner, api, demo] = await Promise.all([
+    load('src/erp/OwnerPackageControl.jsx'), load('api/index.php'), load('src/lib/demoDataClient.js'),
+  ]);
+  assert.match(owner, /const expiryOnly = Boolean\(details\.expires\)/);
+  assert.match(owner, /`\/client-packages\/\$\{pkg\.id\}\/extend`/);
+  assert.match(owner, /expected_version: info\.version/);
+  assert.match(api, /invalid_package_expiry/);
+  assert.match(api, /bookings_outside_package_validity/);
+  assert.match(api, /status='expired' AND \? >= CURDATE\(\)/);
+  assert.match(api, /\[Package validity WhatsApp\]/);
+  assert.match(demo, /client-packages\\\/\(\\d\+\)\\\/extend/);
+});
+
 test('demo consumed correction keeps exact authoritative balance and is idempotent', async () => {
   const storage = new Map();
   globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) };

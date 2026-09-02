@@ -67,7 +67,7 @@ export default function OwnerPackageControl({ pkg, person, resources, returnFocu
     setNotice(success); await load(); await onChanged?.();
   };
 
-  const info = data?.package; const quantities = data?.quantities; const financial = data?.financial; const bookings = data?.all_bookings || [];
+  const info = data?.package; const quantities = data?.quantities; const financial = data?.financial; const validity = data?.validity; const bookings = data?.all_bookings || [];
   const unit = info?.billing_unit || pkg.billing_unit; const step = unit === 'reel' ? 1 : 1 / 60;
   const quantity = value => formatPackageQuantity(Number(value || 0), unit);
   const purchasedMinimum = Number(quantities?.used || 0) + Number(quantities?.upcoming_held || 0);
@@ -80,7 +80,21 @@ export default function OwnerPackageControl({ pkg, person, resources, returnFocu
   const savePurchased = () => perform('purchased', `/client-packages/${pkg.id}/adjust`, { target_quantity: Number(balance.purchased), reason: balance.purchasedReason, expected_version: info.version }, 'تم تصحيح إجمالي الباقة وتسجيل الأثر.');
   const saveConsumed = () => perform('consumed', `/client-packages/${pkg.id}/usage-adjustment`, { target_consumed_quantity: Number(balance.consumed), reason: balance.consumedReason, expected_version: info.version, correction_key: correctionKey('usage') }, 'تم تصحيح المستخدم بقيد مراجعة مستقل.');
   const saveFinance = () => perform('finance', `/client-packages/${pkg.id}/commercial-adjustment`, { target_total_price: finance.total, target_paid_amount: finance.paid, method: finance.method, reason: finance.reason, expected_version: info.version }, 'تم تحديث السعر والمدفوع وإنشاء القيود اللازمة.');
-  const saveDetails = () => perform('details', `/client-packages/${pkg.id}`, { name: details.name, service_id: Number(details.serviceId), notes: details.notes, starts_at: details.starts, expires_at: details.expires, status: details.status, validity_mode_snapshot: details.validityMode, validity_days_snapshot: Number(details.validityDays), payment_due_quantity: Number(details.paymentDue), deposit_percent_snapshot: Number(details.depositPercent), overage_price_snapshot: details.overagePrice, reason: details.reason, expected_version: info.version }, 'تم تحديث عقد الباقة وصلاحيتها وحدود الدفع.', 'PATCH');
+  const saveDetails = () => {
+    const expiryOnly = Boolean(details.expires)
+      && details.name.trim() === String(info.name || '').trim()
+      && Number(details.serviceId) === Number(info.service?.id)
+      && details.notes.trim() === String(info.notes || '').trim()
+      && details.starts === String(validity?.starts_at || '').slice(0, 10)
+      && details.status === info.status
+      && details.validityMode === (info.validity_mode_snapshot === 'shooting_day' ? 'shooting_day' : 'rolling')
+      && Number(details.validityDays) === Number(info.validity_days_snapshot || 1)
+      && Number(details.paymentDue) === Number(info.payment_due_quantity || 0)
+      && Number(details.depositPercent) === Number(info.deposit_percent_snapshot || 0)
+      && Number(details.overagePrice) === Number(info.overage_price_snapshot || 0);
+    if (expiryOnly) return perform('details', `/client-packages/${pkg.id}/extend`, { expires_at: details.expires, reason: details.reason, expected_version: info.version }, 'تم تحديث تاريخ انتهاء الباقة دون تغيير الرصيد أو البيانات المالية.');
+    return perform('details', `/client-packages/${pkg.id}`, { name: details.name, service_id: Number(details.serviceId), notes: details.notes, starts_at: details.starts, expires_at: details.expires, status: details.status, validity_mode_snapshot: details.validityMode, validity_days_snapshot: Number(details.validityDays), payment_due_quantity: Number(details.paymentDue), deposit_percent_snapshot: Number(details.depositPercent), overage_price_snapshot: details.overagePrice, reason: details.reason, expected_version: info.version }, 'تم تحديث عقد الباقة وصلاحيتها وحدود الدفع.', 'PATCH');
+  };
   const saveBooking = booking => perform(`booking-${booking.id}`, `/bookings/${booking.id}/admin-reschedule`, bookingDrafts[booking.id], 'تم تعديل الموعد وحجز المورد الجديد بأمان.');
   const deleteBooking = booking => { if (!window.confirm('حذف الموعد نهائيًا من الحجوزات؟ سيتم تحرير الرصيد المحجوز ولن يظهر الموعد للعميل.')) return; return perform(`delete-${booking.id}`, `/bookings/${booking.id}`, {}, 'تم حذف الموعد وتحرير رصيده بالكامل.', 'DELETE'); };
   const archivePackage = () => perform('archive', `/client-packages/${pkg.id}/archive`, { reason: archive.reason, hard_delete: false }, 'تمت أرشفة الباقة مع الاحتفاظ بسجلها.');
