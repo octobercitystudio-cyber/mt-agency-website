@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 import { dataClient } from '../dataClient';
 import { CalendarPlus, Trash2, DollarSign, X, CheckCircle, Truck, Pointer, PackageCheck, Clock3, WalletCards, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import arCalendarLocale from '@fullcalendar/core/locales/ar';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -405,7 +405,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                   <FullCalendar
                     plugins={[ dayGridPlugin, interactionPlugin ]}
                     initialView="dayGridMonth"
-                    locale={ar}
+                    locale={arCalendarLocale}
                     direction="rtl"
                     firstDay={6}
                     events={calendarEvents}

@@ -61,6 +61,24 @@ test('production reschedule enforces resource organization and package validity'
   assert.match(api, /format\('N'\)==='5'/);
 });
 
+test('owner package writes require a real valid change before save is enabled', async () => {
+  const [owner, packages, bookingModal] = await Promise.all([
+    load('src/erp/OwnerPackageControl.jsx'), load('src/erp/ERPPackages.jsx'), load('src/erp/ERPAddBookingModal.jsx'),
+  ]);
+  for (const guard of ['purchasedChanged', 'consumedChanged', 'financeChanged', 'detailsChanged']) {
+    assert.match(owner, new RegExp(`!${guard}`));
+  }
+  assert.match(owner, /const changed = draft\.date !==/);
+  assert.match(owner, /calculateDurationMinutes\(draft\.start_time, draft\.end_time\) > 0/);
+  assert.match(owner, /disabled=\{!changed \|\| !valid\}/);
+  assert.match(packages, /formatPackageQuantity\(usage\.selected, form\.billing_unit\)/);
+  assert.match(packages, /formatPackageQuantity\(usage\.remaining, form\.billing_unit\)/);
+  assert.doesNotMatch(packages, /usage\.selected\.toFixed/);
+  assert.match(bookingModal, /import arCalendarLocale from '@fullcalendar\/core\/locales\/ar'/);
+  assert.match(bookingModal, /locale=\{arCalendarLocale\}/);
+  assert.doesNotMatch(bookingModal, /locale=\{ar\}/);
+});
+
 test('validity-only owner edits use the narrow versioned route and keep dates synchronized', async () => {
   const [owner, api, demo] = await Promise.all([
     load('src/erp/OwnerPackageControl.jsx'), load('api/index.php'), load('src/lib/demoDataClient.js'),
