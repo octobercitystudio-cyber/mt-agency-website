@@ -46,6 +46,8 @@ test('public rendering cannot execute editable About HTML', () => {
 test('the web server enforces HTTPS and browser security headers', () => {
   assert.match(htaccess, /Strict-Transport-Security/);
   assert.match(htaccess, /Content-Security-Policy/);
+  assert.match(htaccess, /script-src 'self' 'wasm-unsafe-eval'/);
+  assert.doesNotMatch(htaccess, /script-src[^;]*'unsafe-eval'/);
   assert.match(htaccess, /frame-ancestors 'none'/);
   assert.match(htaccess, /X-Robots-Tag "noindex, nofollow, noarchive"/);
 });
