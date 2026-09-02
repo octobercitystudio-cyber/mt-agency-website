@@ -12,13 +12,11 @@ import { useData } from '../store/DataContext';
 import './ERPFinance.css';
 
 let globalFinanceCache = null;
-let globalConfigCache = null;
 
 const ERPFinance = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser } = useData();
   const [allTransactions, setAllTransactions] = useState(globalFinanceCache || []);
-  const [appConfig, setAppConfig] = useState(globalConfigCache || {});
   const [clients, setClients] = useState([]);
   const [packages, setPackages] = useState([]);
   const [services, setServices] = useState([]);
@@ -59,37 +57,28 @@ const ERPFinance = () => {
   const methodsList = ['cash', 'bank_transfer', 'vodafone_cash', 'instapay'].map(value => ({ value, label: formatPaymentMethod(value) }));
 
   const fetchData = useCallback(async () => {
-    if (globalFinanceCache && globalConfigCache) {
+    if (globalFinanceCache) {
        setAllTransactions(globalFinanceCache);
-       setAppConfig(globalConfigCache);
        setLoading(false);
     } else {
        setLoading(true);
     }
 
     setLoadError('');
-    const [financeResult, configResult, clientsResult, packagesResult, servicesResult, employeeAccountsResult] = await Promise.all([
+    const [financeResult, clientsResult, packagesResult, servicesResult, employeeAccountsResult] = await Promise.all([
       dataClient.request('/finance/entries', { method: 'GET' }),
-      dataClient.from('app_config').select('*'),
       dataClient.from('clients').select('id,name,status').order('name'),
       dataClient.from('client_packages').select('id,client_id,name,status').order('name'),
       dataClient.from('services').select('id,name,is_active').eq('is_active', 1).order('name'),
       dataClient.request(`/attendance/employee-accounts?month=${selectedMonth}`, { method: 'GET' }),
     ]);
     const fData = financeResult.data;
-    const cData = configResult.data;
-    const fetchError = [financeResult, configResult, clientsResult, packagesResult, servicesResult].find(result => result.error)?.error;
+    const fetchError = [financeResult, clientsResult, packagesResult, servicesResult].find(result => result.error)?.error;
     if (fetchError) setLoadError(fetchError.message || 'تعذر تحميل دفتر الحسابات.');
     
     if (fData) {
        setAllTransactions(fData);
        globalFinanceCache = fData;
-    }
-    if (cData) {
-      const cfg = {};
-      cData.forEach(c => cfg[c.key] = c.value);
-      setAppConfig(cfg);
-      globalConfigCache = cfg;
     }
     setClients((clientsResult.data || []).filter(client => client.status !== 'archived'));
     setPackages(packagesResult.data || []);
@@ -148,8 +137,9 @@ const ERPFinance = () => {
   const calculations = useMemo(() => {
     const movement = calculateOperationalFinanceMovement(allTransactions, selectedMonth);
     const balances = { 'كاش': 0, 'فودافون كاش': 0, 'انستاباي': 0, 'إنستاباي (InstaPay)': 0, 'تحويل بنكي': 0 };
+    const monthlyTransactions = allTransactions.filter(transaction => String(transaction.date || '').slice(0, 7) === selectedMonth);
 
-    allTransactions.forEach(t => {
+    monthlyTransactions.forEach(t => {
       const amt = safeFloat(t.amount);
       const kind = normalizeFinanceEntryKind(t);
       const reversedKind = kind === 'reversal' ? String(t.category || '').replace(/^reversal_/, '') : '';
@@ -160,7 +150,8 @@ const ERPFinance = () => {
 
       if (kind === 'reversal') {
         if (['income','advance_in','transfer_in'].includes(reversedKind)) balances[method] -= amt;
-        if (['expense','advance_out','settlement_out','transfer_out'].includes(reversedKind)) balances[method] += amt;
+        if (reversedKind === 'expense' && t.entity === 'الشركة') balances[method] += amt;
+        if (['advance_out','settlement_out','transfer_out'].includes(reversedKind)) balances[method] += amt;
       } else if (['income', 'advance_in', 'transfer_in'].includes(kind)) {
         balances[method] += amt;
       } else if (['expense', 'transfer_out'].includes(kind) && t.entity === 'الشركة') {
@@ -171,20 +162,16 @@ const ERPFinance = () => {
 
     });
 
-    const cash_adj = safeFloat(appConfig['wallet_كاش_adj'] || 0);
-    const vodafone_adj = safeFloat(appConfig['wallet_فودافون كاش_adj'] || 0);
-    const instapay_adj = safeFloat(appConfig['wallet_انستاباي_adj'] || 0);
-
-    const final_instapay = balances['انستاباي'] + (balances['إنستاباي (InstaPay)'] || 0) + (balances['تحويل بنكي'] || 0) + instapay_adj;
-    const final_cash = balances['كاش'] + cash_adj;
-    const final_vodafone = balances['فودافون كاش'] + vodafone_adj;
+    const final_instapay = balances['انستاباي'] + (balances['إنستاباي (InstaPay)'] || 0) + (balances['تحويل بنكي'] || 0);
+    const final_cash = balances['كاش'];
+    const final_vodafone = balances['فودافون كاش'];
 
     return { 
       total_inc: movement.income, total_exp: movement.expense, net_profit: movement.net,
       balances: { cash: final_cash, vodafone: final_vodafone, instapay: final_instapay }, 
       incomes: movement.incomes, expenses: movement.expenses,
     };
-  }, [allTransactions, appConfig, selectedMonth]);
+  }, [allTransactions, selectedMonth]);
 
   const { total_inc, total_exp, net_profit, balances, incomes, expenses } = calculations;
   const displayIncomes = employeeFilter ? incomes.filter(entry => String(entry.employee_user_id || '') === employeeFilter) : incomes;
@@ -410,7 +397,7 @@ const ERPFinance = () => {
       />
       <section className={`finance-period-bar ${financePeriod?.status === 'closed' ? 'is-closed' : financePeriod?.status === 'open' ? 'is-open' : 'is-loading'}`} aria-live="polite">
         <ShieldCheck aria-hidden="true"/>
-        <div><strong>{financePeriod?.status === 'closed' ? `حسابات ${selectedMonth} مقفلة` : financePeriod?.status === 'open' ? `حسابات ${selectedMonth} مفتوحة` : `جارٍ تحميل حسابات ${selectedMonth}`}</strong><span>{financePeriod?.status === 'closed' ? 'الأرقام محفوظة كما أُقفلت. أعد فتح الشهر لإضافة إيراد أو مصروف قديم.' : financePeriod?.status === 'open' ? 'يمكن تسجيل الحركات في هذا الشهر. يوم 1 يبدأ تقرير شهر جديد مع بقاء أرصدة المحافظ الفعلية.' : 'لن تتاح الإضافة أو التعديل حتى نتأكد من حالة الشهر.'}</span></div>
+        <div><strong>{financePeriod?.status === 'closed' ? `حسابات ${selectedMonth} مقفلة` : financePeriod?.status === 'open' ? `حسابات ${selectedMonth} مفتوحة` : `جارٍ تحميل حسابات ${selectedMonth}`}</strong><span>{financePeriod?.status === 'closed' ? 'الأرقام محفوظة كما أُقفلت. أعد فتح الشهر لإضافة إيراد أو مصروف قديم.' : financePeriod?.status === 'open' ? 'يمكن تسجيل الحركات في هذا الشهر. يوم 1 يبدأ شهر جديد وتبدأ أرصدة محافظه من صفر.' : 'لن تتاح الإضافة أو التعديل حتى نتأكد من حالة الشهر.'}</span></div>
         {isOwner && financePeriod && <button type="button" disabled={periodBusy} onClick={() => updateFinancePeriod(financePeriod.status === 'closed' ? 'reopen' : 'close')}>{periodBusy ? 'جارٍ الحفظ…' : financePeriod.status === 'closed' ? 'إعادة فتح الشهر' : 'إقفال الشهر'}</button>}
       </section>
       {periodError && <div className="finance-load-error" role="alert"><AlertCircle/><span>{periodError}</span><button type="button" onClick={fetchFinancePeriod}>إعادة المحاولة</button></div>}
@@ -449,7 +436,7 @@ const ERPFinance = () => {
 
       {/* Vault Balances */}
       <h5 className="fw-bold mb-3" style={{ color: 'var(--erp-text-main)' }}>
-        <Wallet className="finance-heading-icon" aria-hidden="true"/> أرصدة الخزائن الحالية (تراكمي)
+        <Wallet className="finance-heading-icon" aria-hidden="true"/> أرصدة المحافظ للشهر المحدد (تبدأ من صفر يوم 1)
       </h5>
       <div className="row g-3 mb-4">
         <div className="col-6 col-md-4">

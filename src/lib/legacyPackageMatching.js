@@ -64,6 +64,9 @@ export function legacyImportPayload(row, source) {
   return {
     legacy_reference: row.legacy_reference,
     source_sha256: source.sha256,
+    source_client_id: row.source_client_id,
+    source_service_id: row.source_service_id,
+    source_booking_ids: row.source_booking_ids || [],
     source_client_name: row.source_client_name,
     source_phone: row.source_phone,
     source_service_name: row.source_service_name,
@@ -159,14 +162,14 @@ export const legacyBusinessImportPayload = ({ matched, source, sourceArchive = {
   source_archive: sourceArchive,
   packages: matched.packages.map(row => legacyImportPayload(row, source)),
   projects: matched.projects.map(row => ({
-    legacy_reference: row.legacy_reference, source_sha256: source.sha256, source_client_name: row.source_client_name, source_phone: row.source_phone,
+    legacy_reference: row.legacy_reference, source_sha256: source.sha256, source_client_id: row.source_client_id, source_booking_ids: row.source_booking_ids || [], source_client_name: row.source_client_name, source_phone: row.source_phone,
     client_id: row.target_client_id, name: row.name, source_service_name: row.source_service_name, service_type: row.service_type,
     starts_at: row.starts_at, due_at: row.due_at, status: row.status, progress_percent: row.progress_percent,
     agreed_price: Number(row.agreed_price).toFixed(2), paid_amount: Number(row.paid_amount).toFixed(2),
     requires_booking: Boolean(row.requires_booking), notes: row.notes || '',
   })),
   appointments: matched.appointments.map(row => ({
-    legacy_reference: row.legacy_reference, source_sha256: source.sha256, source_booking_id: row.source_booking_id,
+    legacy_reference: row.legacy_reference, source_sha256: source.sha256, source_booking_id: row.source_booking_id, source_client_id: row.source_client_id,
     source_client_name: row.source_client_name, source_phone: row.source_phone, source_service_name: row.source_service_name,
     client_id: row.target_client_id, resource_id: row.target_resource_id, package_reference: row.target_package_reference,
     project_reference: row.target_project_reference, date: row.date, start_time: row.start_time, end_time: row.end_time,
@@ -176,7 +179,7 @@ export const legacyBusinessImportPayload = ({ matched, source, sourceArchive = {
   })),
   finance_entries: matched.finance_entries.map(row => ({ ...row, source_sha256: source.sha256 })),
   client_balances: matched.client_balances.map(row => ({
-    legacy_reference: row.legacy_reference, source_sha256: source.sha256, source_client_name: row.source_client_name,
+    legacy_reference: row.legacy_reference, source_sha256: source.sha256, source_client_id: row.source_client_id, source_client_name: row.source_client_name,
     source_phone: row.source_phone, client_id: row.target_client_id, debt: Number(row.debt || 0).toFixed(2),
     credit: Number(row.credit || 0).toFixed(2), points: Number(row.points || 0), points_updated_at: row.points_updated_at,
     job: row.job || '', notification_hours: Number(row.notification_hours || 0), color: row.color || '',

@@ -46,18 +46,18 @@ export default function LegacyPackageImportDialog({ open, clients, services, res
     const payload = legacyBusinessImportPayload({ matched, source: manifest.source, sourceArchive: manifest.source_archive });
     const { data, error: requestError } = await dataClient.request('/legacy-data/import', { method: 'POST', body: JSON.stringify(payload) });
     setSubmitting(false);
-    if (requestError) return setError(safeUiError(requestError, 'تعذر نقل بيانات البرنامج القديم. لم تُحفظ أي بيانات من العملية.'));
+    if (requestError) return setError(safeUiError(requestError, 'تعذرت مزامنة بيانات البرنامج القديم. لم تُحفظ أي بيانات من العملية.'));
     onImported(data);
   };
 
   return <div className="packages-modal legacy-package-import-modal" onMouseDown={event => { if (event.target === event.currentTarget && !submitting) onClose(); }}>
     <section className="legacy-package-import legacy-business-import" role="dialog" aria-modal="true" aria-labelledby="legacy-import-title" aria-describedby="legacy-import-description">
       <header>
-        <div><span><Database/> نقل آمن من البرنامج القديم</span><h2 id="legacy-import-title">نقل البيانات التشغيلية والمالية</h2><p id="legacy-import-description">تُقرأ النسخة على جهازك، وتُطابق كل بيانات العميل بالبرنامج الجديد برقم الموبايل فقط قبل الحفظ.</p></div>
+        <div><span><Database/> مزامنة آمنة من البرنامج القديم</span><h2 id="legacy-import-title">مزامنة البيانات التشغيلية والمالية</h2><p id="legacy-import-description">اختر أحدث نسخة: تُحدَّث السجلات التي سبق نقلها وتُضاف السجلات الجديدة فقط، بعد مطابقة العملاء برقم الموبايل.</p></div>
         <button type="button" onClick={onClose} disabled={submitting} aria-label="إغلاق"><X/></button>
       </header>
 
-      <div className="legacy-import-guard"><LockKeyhole/><p><strong>لن تُنقل حسابات الدخول أو كلمات المرور أو إعدادات النسخ الاحتياطي.</strong> أسماء العملاء الحالية لن تتغير. تُنقل الباقات والمواعيد والخدمات والمحاسبة والتذكيرات والنقاط داخل عملية واحدة؛ إذا فشل سجل واحد تُلغى العملية كلها.</p></div>
+      <div className="legacy-import-guard"><LockKeyhole/><p><strong>لن تُنقل حسابات الدخول أو كلمات المرور أو إعدادات النسخ الاحتياطي.</strong> أسماء العملاء الحالية لن تتغير، وعند تعارض دفعة أو استهلاك مع البرنامج الجديد تتوقف العملية للمراجعة. تتم المزامنة كلها في عملية واحدة؛ إذا فشل سجل واحد تُلغى العملية كلها.</p></div>
       <label className={`legacy-import-file${reading ? ' is-reading' : ''}`}>
         {reading ? <RefreshCw className="packages-spin"/> : manifest ? <FileCheck2/> : <Upload/>}
         <span><strong>{reading ? 'جارٍ فحص النسخة القديمة…' : manifest ? fileName : 'اختر ملف النسخة القديمة'}</strong><small>ملف DB أو SQLite — تُرسل بعد موافقتك البيانات التشغيلية المسموح بها فقط، ولا تُرسل جداول الدخول أو كلمات المرور</small></span>
@@ -73,7 +73,7 @@ export default function LegacyPackageImportDialog({ open, clients, services, res
           <article><CalendarDays/><span>المواعيد</span><strong>{manifest.summary.appointments}</strong></article>
           <article><Landmark/><span>الحركات المالية</span><strong>{manifest.summary.finance_entries}</strong></article>
           <article><UsersRound/><span>العملاء المطابقون</span><strong>{matched.matchedClients}</strong></article>
-          <article className={matched.blocked ? 'blocked' : 'ready'}><AlertTriangle/><span>{matched.blocked ? 'تمنع النقل' : 'ملاحظات محفوظة'}</span><strong>{matched.blocked || manifest.warnings?.length || 0}</strong></article>
+          <article className={matched.blocked ? 'blocked' : 'ready'}><AlertTriangle/><span>{matched.blocked ? 'تمنع المزامنة' : 'ملاحظات محفوظة'}</span><strong>{matched.blocked || manifest.warnings?.length || 0}</strong></article>
         </section>
 
         <label className="legacy-resource-map">الاستديو أو مورد المواعيد القديمة<select value={resourceId} onChange={event => { setConfirmed(false); setResourceId(event.target.value); }}><option value="">اختر مورد الحجوزات</option>{resources.filter(resource => Number(resource.is_active ?? 1) === 1).map(resource => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select><small>سيُستخدم للمواعيد فقط، ولا يغيّر بيانات الباقات أو الحسابات.</small></label>
@@ -89,10 +89,10 @@ export default function LegacyPackageImportDialog({ open, clients, services, res
         <details className="legacy-import-section"><summary>أرصدة العملاء والنقاط ({matched.client_balances.length})</summary><div className="legacy-preview-list">{matched.client_balances.map(row => <article key={row.legacy_reference} className={row.importable ? '' : 'blocked'}><div><strong>{row.target_client_name || row.source_client_name}</strong><span>{row.source_phone}</span></div><div><strong>{row.points} نقطة</strong><span>مديونية {formatEGP(row.debt)} · رصيد {formatEGP(row.credit)}</span></div><MatchState row={row}/></article>)}</div></details>
         <details className="legacy-import-section"><summary>التذكيرات ({matched.reminders.length}) وإعدادات العمل ({matched.business_config.length})</summary><div className="legacy-preview-list">{matched.reminders.map(row => <article key={row.legacy_reference} className={row.importable ? '' : 'blocked'}><div><strong>{row.title}</strong><span>{row.type} · {row.status === 'completed' ? 'مكتمل' : 'قيد الانتظار'}</span></div><div><strong>{row.due_date}</strong><span>{row.is_recurring ? 'متكرر شهريًا' : 'مرة واحدة'}{Number(row.amount) > 0 ? ` · ${formatEGP(row.amount)}` : ''}</span></div><MatchState row={row}/></article>)}{matched.business_config.map(row => <article key={row.legacy_reference} className={row.importable ? '' : 'blocked'}><div><strong>{row.key}</strong><span>إعداد عمل محفوظ</span></div><div><strong>{row.value}</strong><span>لن يستبدل إعدادًا موجودًا في البرنامج الجديد</span></div><MatchState row={row}/></article>)}</div></details>
 
-        {matched.blocked > 0 ? <div className="legacy-import-error"><AlertTriangle/><span>لن يبدأ النقل قبل حل كل المطابقات والملاحظات، حتى لا تُسجل حركة أو موعد أو باقة على عميل خطأ.</span></div> : <label className="legacy-import-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/><span><strong>راجعت المطابقة وأوافق على نقل كل السجلات الظاهرة أعلاه.</strong><small>ستُضاف إلى البيانات الحالية مرة واحدة دون حذف الموجود. الحركات القديمة لا تُنشئ إيرادًا إضافيًا من الباقات؛ دفتر الخزنة المنقول هو مصدر الحركة المالية.</small></span></label>}
+        {matched.blocked > 0 ? <div className="legacy-import-error"><AlertTriangle/><span>لن تبدأ المزامنة قبل حل كل المطابقات والملاحظات، حتى لا تُسجل حركة أو موعد أو باقة على عميل خطأ.</span></div> : <label className="legacy-import-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/><span><strong>راجعت المطابقة وأوافق على مزامنة كل السجلات الظاهرة أعلاه.</strong><small>سيُحدَّث المنقول سابقًا ويُضاف الجديد دون حذف بيانات البرنامج الجديد. دفتر الخزنة القديم هو مصدر الحركات المالية القديمة.</small></span></label>}
       </>}
 
-      <footer><button type="button" onClick={onClose} disabled={submitting}>إلغاء</button><button type="button" className="primary" onClick={submit} disabled={!manifest || !matched || matched.blocked > 0 || !confirmed || submitting}>{submitting ? <><RefreshCw className="packages-spin"/> جارٍ النقل والتحقق…</> : <><Database/> اعتماد ونقل البيانات</>}</button></footer>
+      <footer><button type="button" onClick={onClose} disabled={submitting}>إلغاء</button><button type="button" className="primary" onClick={submit} disabled={!manifest || !matched || matched.blocked > 0 || !confirmed || submitting}>{submitting ? <><RefreshCw className="packages-spin"/> جارٍ المزامنة والتحقق…</> : <><Database/> اعتماد ومزامنة البيانات</>}</button></footer>
     </section>
   </div>;
 }

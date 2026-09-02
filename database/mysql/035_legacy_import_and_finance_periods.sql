@@ -31,8 +31,9 @@ CREATE TABLE IF NOT EXISTS legacy_import_records (
   KEY idx_legacy_record_org (organization_id,source_table)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Each calendar month has its own close/reopen state and immutable close
--- snapshot. Closing never deletes ledger entries or resets real wallet cash.
+-- Each calendar month has its own close/reopen state and close snapshot.
+-- Wallet reports start from zero on day 1 while prior-month movements remain
+-- preserved and available by selecting their month.
 CREATE TABLE IF NOT EXISTS finance_periods (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   organization_id BIGINT UNSIGNED NOT NULL,
@@ -53,4 +54,3 @@ CREATE TABLE IF NOT EXISTS finance_periods (
   UNIQUE KEY uq_finance_period (organization_id,period_month),
   KEY idx_finance_period_status (organization_id,status,period_month)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-

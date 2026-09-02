@@ -172,7 +172,7 @@ test('missing employee finance migration cannot take down finance or attendance 
   assert.match(api, /if\(!employeeFinanceSchemaStatus\(\$pdo\)\['ready'\]\)fail\([^;]+employee_finance_migration_required/);
   assert.match(api, /in_array\('voided_at',\$financeColumns,true\)/);
   assert.match(api, /in_array\('entry_kind',\$financeColumns,true\)/);
-  assert.match(finance, /const fetchError = \[financeResult, configResult, clientsResult, packagesResult, servicesResult\]/);
+  assert.match(finance, /const fetchError = \[financeResult, clientsResult, packagesResult, servicesResult\]/);
   assert.doesNotMatch(finance, /const fetchError = \[[^\]]*employeeAccountsResult/);
   assert.match(finance, /employeeAccountsResult\.data\?\.schema_ready === false/);
   assert.match(employeeAccounts, /state\.migrationRequired/);
