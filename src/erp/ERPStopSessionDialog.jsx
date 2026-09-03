@@ -25,7 +25,7 @@ const emptyNewPackage = session => ({
 const emptyCustom = { description: 'وقت تصوير إضافي', hourly_rate: '', amount: '', project_name: 'خدمة وقت تصوير إضافي' };
 
 function minutesFromInputs(hours, minutes) {
-  try { return durationInputToMinutes(hours, minutes); } catch { return 0; }
+  try { return durationInputToMinutes(hours, minutes, { allowZero: true }); } catch { return null; }
 }
 
 function CoverageBar({ preview, destinationLabel, destinationTone = 'excess' }) {
@@ -89,6 +89,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   const dialogRef = useModalDialog(true, close, { returnFocusRef });
   const inputMinutes = useMemo(() => minutesFromInputs(hours, minutes), [hours, minutes]);
   const hasExcess = Number(preview?.excess_minutes || 0) > 0;
+  const isZeroCancellation = inputMinutes === 0;
   const isOwner = role === 'owner';
   const isOperations = role === 'operations';
 
@@ -98,7 +99,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   }, [session, serverOffset]);
 
   useEffect(() => {
-    if (!inputMinutes || session.billing_unit === 'reel') return undefined;
+    if (inputMinutes === null || inputMinutes === 0 || session.billing_unit === 'reel') { setPreview(null); setPreviewBusy(false); return undefined; }
     let active = true;
     const timer = window.setTimeout(async () => {
       setPreviewBusy(true); setError('');
@@ -125,8 +126,8 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   const destinationTone = family === 'waive' ? 'waive' : family === 'new_package' || (family === 'advanced' && otherMode === 'existing_package') ? 'transfer' : 'excess';
 
   const validateDuration = () => {
-    const totalMinutes = durationInputToMinutes(hours, minutes);
-    if (session.billing_unit === 'reel') {
+    const totalMinutes = durationInputToMinutes(hours, minutes, { allowZero: true });
+    if (totalMinutes > 0 && session.billing_unit === 'reel') {
       const reels = Number(actualReels);
       if (!/^\d+$/.test(String(actualReels).trim()) || !Number.isSafeInteger(reels) || reels <= 0) throw new Error('أدخل عدد الريلز التي تم تصويرها كرقم صحيح أكبر من صفر.');
     }
@@ -167,14 +168,15 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
     event.preventDefault(); if (busy) return;
     try {
       const totalMinutes = validateDuration();
-      if (!preview && session.billing_unit !== 'reel') throw new Error('انتظر لحظة حتى يكتمل حساب الرصيد.');
-      if (hasExcess && step === 1) { setStep(2); return; }
-      const settlement = selectedSettlement(); validateSettlement(settlement);
+      const cancelling = totalMinutes === 0;
+      if (!cancelling && !preview && session.billing_unit !== 'reel') throw new Error('انتظر لحظة حتى يكتمل حساب الرصيد.');
+      if (!cancelling && hasExcess && step === 1) { setStep(2); return; }
+      const settlement = cancelling ? null : selectedSettlement(); if (!cancelling) validateSettlement(settlement);
       setBusy(true); setError('');
       const result = await completeStudioSession(session, {
-        actualMinutes: totalMinutes, actualReels: Number(actualReels || 0), reason, settlement,
-        idempotencyKey, previewHash: preview?.preview_hash || '',
-        expectedSessionVersion: preview?.session_version || session.settlement_version || session.session_version || 1,
+        actualMinutes: totalMinutes, actualReels: cancelling ? 0 : Number(actualReels || 0), reason, settlement,
+        idempotencyKey: cancelling ? '' : idempotencyKey, previewHash: cancelling ? '' : preview?.preview_hash || '',
+        expectedSessionVersion: cancelling ? null : preview?.session_version || session.settlement_version || session.session_version || 1,
       });
       await onCompleted?.(result); onClose();
     } catch (requestError) {
@@ -227,6 +229,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
         {step === 1 && <>
           <section className="session-stop-live" aria-live="polite"><span className="session-stop-pulse" /><div><small>المدة المحسوبة حتى الآن</small><strong>{durationLabel(liveElapsedMinutes)}</strong></div><Clock3 /></section>
           <fieldset className="session-stop-duration"><legend>المدة التي سيتم حفظها</legend><div className="session-stop-duration-fields"><label><span>الساعات</span><input data-dialog-initial type="number" inputMode="numeric" min="0" step="1" value={hours} onChange={event => { setHours(event.target.value); setError(''); }} /></label><span className="session-stop-colon">:</span><label><span>الدقائق</span><input type="number" inputMode="numeric" min="0" max="59" step="1" value={minutes} onChange={event => { setMinutes(event.target.value); setError(''); }} /></label></div><p>يمكن تعديل الساعات والدقائق يدويًا. سيحسب النظام تلقائيًا الجزء المغطى والجزء الزائد.</p></fieldset>
+          {isZeroCancellation && <div className="session-stop-warning"><AlertTriangle /><p><strong>سيُلغى هذا الموعد دون اعتماد الجلسة.</strong> لن يُخصم وقت من الباقة، وسيُعاد كامل الرصيد المحجوز، ولن تُنشأ مهمة مونتاج.</p></div>}
           {session.billing_unit === 'reel' && <label className="session-stop-reels"><span>عدد الريلز التي تم تصويرها</span><input type="number" inputMode="numeric" min="1" step="1" value={actualReels} onChange={event => setActualReels(event.target.value)} /></label>}
           <label className="session-stop-reason"><span>سبب تعديل الوقت <small>(اختياري)</small></span><textarea rows="2" value={reason} onChange={event => setReason(event.target.value)} placeholder="يُحفظ في سجل المراجعة" /></label>
           {previewBusy && <div className="session-stop-preview-loading"><Clock3 /> جارٍ حساب الرصيد المتاح…</div>}
@@ -281,7 +284,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
 
       <footer>
         {step === 2 && !busy ? <button type="button" className="session-stop-secondary" onClick={() => setStep(1)}><ArrowLeft /> رجوع للمدة</button> : <button type="button" className="session-stop-secondary" onClick={close} disabled={busy}>إلغاء</button>}
-        {step === 2 && isOperations ? <button type="button" className="session-stop-primary session-stop-primary--handoff" onClick={close}>إرسال للمالك للتسوية</button> : <button type="submit" className="session-stop-primary" disabled={busy || previewBusy || (session.billing_unit !== 'reel' && !preview)}><Save /> {busy ? 'جارٍ الاعتماد…' : hasExcess && step === 1 ? 'متابعة لتسوية الوقت الزائد' : hasExcess ? 'اعتماد التسوية وإيقاف التصوير' : 'حفظ وإيقاف التصوير'}</button>}
+        {step === 2 && isOperations ? <button type="button" className="session-stop-primary session-stop-primary--handoff" onClick={close}>إرسال للمالك للتسوية</button> : <button type="submit" className="session-stop-primary" disabled={busy || previewBusy || inputMinutes === null || (inputMinutes > 0 && session.billing_unit !== 'reel' && !preview)}><Save /> {busy ? 'جارٍ الاعتماد…' : isZeroCancellation ? 'إلغاء الجلسة دون احتساب' : hasExcess && step === 1 ? 'متابعة لتسوية الوقت الزائد' : hasExcess ? 'اعتماد التسوية وإيقاف التصوير' : 'حفظ وإيقاف التصوير'}</button>}
       </footer>
     </form>
   </div>;

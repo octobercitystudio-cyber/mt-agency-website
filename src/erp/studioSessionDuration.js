@@ -30,7 +30,7 @@ export const formatElapsedTime = seconds => {
   return [hours, minutes, remainder].map(part => String(part).padStart(2, '0')).join(':');
 };
 
-export const durationInputToMinutes = (hours, minutes) => {
+export const durationInputToMinutes = (hours, minutes, { allowZero = false } = {}) => {
   const hoursText = String(hours ?? '').trim();
   const minutesText = String(minutes ?? '').trim();
   if (!/^\d+$/.test(hoursText) || !/^\d+$/.test(minutesText)) {
@@ -42,7 +42,7 @@ export const durationInputToMinutes = (hours, minutes) => {
     throw new Error('الدقائق يجب أن تكون من 0 إلى 59، والساعات رقمًا صحيحًا غير سالب.');
   }
   const total = (parsedHours * 60) + parsedMinutes;
-  if (total <= 0) throw new Error('مدة التصوير يجب أن تكون دقيقة واحدة على الأقل.');
+  if (total < 0 || (!allowZero && total === 0)) throw new Error('مدة التصوير يجب أن تكون دقيقة واحدة على الأقل.');
   return total;
 };
 

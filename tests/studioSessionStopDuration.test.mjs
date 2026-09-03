@@ -49,6 +49,7 @@ test('elapsed duration rounds to the nearest minute and positive time never beco
 test('manual hours and minutes convert exactly and reject invalid values', () => {
   assert.equal(durationInputToMinutes('1', '15'), 75);
   assert.equal(durationInputToMinutes('0', '1'), 1);
+  assert.equal(durationInputToMinutes('0', '0', { allowZero: true }), 0);
   for (const values of [['0', '0'], ['-1', '0'], ['1', '-1'], ['1', '60'], ['', '5'], ['x', '5'], ['1.5', '0']]) {
     assert.throws(() => durationInputToMinutes(...values));
   }
@@ -115,19 +116,33 @@ test('visible timer prefers explicit ISO while keeping a timezone-less productio
   assert.equal(elapsedSessionSeconds({ started_at: '2026-08-09 13:00:00' }, localFallback + 2000), 2);
 });
 
-test('demo rejects invalid stop without mutation, then deducts exactly once and stays idempotent', async () => {
+test('demo treats a zero-duration stop as cancellation without consumption, then keeps normal completion idempotent', async () => {
   await demoClient.request('/bookings/301/session/start', { method: 'POST' });
   const before = storedDatabase();
   const beforePackage = before.client_packages.find(item => item.id === 201);
   const beforeLedgerCount = before.package_usage_ledger.length;
 
-  const invalid = await demoClient.request('/bookings/301/session/complete', { method: 'POST', body: JSON.stringify({ actual_minutes: 0 }) });
-  assert.equal(invalid.error?.code, 'invalid_actual_duration');
-  const afterInvalid = storedDatabase();
-  assert.equal(afterInvalid.bookings.find(item => item.id === 301).status, 'in_progress');
-  assert.equal(afterInvalid.client_packages.find(item => item.id === 201).consumed_quantity, beforePackage.consumed_quantity);
-  assert.equal(afterInvalid.client_packages.find(item => item.id === 201).held_quantity, beforePackage.held_quantity);
-  assert.equal(afterInvalid.package_usage_ledger.length, beforeLedgerCount);
+  const cancelled = await demoClient.request('/bookings/301/session/complete', { method: 'POST', body: JSON.stringify({ actual_minutes: 0 }) });
+  assert.equal(cancelled.error, null);
+  assert.equal(cancelled.data.status, 'cancelled');
+  assert.equal(cancelled.data.actual_minutes, 0);
+  const afterCancelled = storedDatabase();
+  assert.equal(afterCancelled.bookings.find(item => item.id === 301).status, 'cancelled');
+  assert.equal(afterCancelled.booking_sessions.find(item => item.booking_id === 301).status, 'cancelled');
+  assert.equal(afterCancelled.client_packages.find(item => item.id === 201).consumed_quantity, beforePackage.consumed_quantity);
+  assert.equal(afterCancelled.client_packages.find(item => item.id === 201).held_quantity, beforePackage.held_quantity - 2);
+  assert.equal(afterCancelled.package_usage_ledger.length, beforeLedgerCount + 1);
+  assert.deepEqual(afterCancelled.package_usage_ledger.slice(-1).map(item => [item.movement_type, item.quantity]), [['release', 2]]);
+  assert.equal(afterCancelled.session_settlements.length, before.session_settlements.length);
+  assert.equal(afterCancelled.post_production_jobs.length, before.post_production_jobs.length);
+
+  const repeatedCancellation = await demoClient.request('/bookings/301/session/complete', { method: 'POST', body: JSON.stringify({ actual_minutes: 0 }) });
+  assert.equal(repeatedCancellation.error, null);
+  assert.equal(repeatedCancellation.data.idempotent_replay, true);
+  assert.equal(storedDatabase().package_usage_ledger.length, beforeLedgerCount + 1);
+
+  resetDemoDatabase();
+  await demoClient.request('/bookings/301/session/start', { method: 'POST' });
 
   const completed = await demoClient.request('/bookings/301/session/complete', { method: 'POST', body: JSON.stringify({ actual_minutes: 75, reason: 'اعتماد المدة الفعلية' }) });
   assert.equal(completed.error, null);
@@ -170,6 +185,7 @@ test('stop dialog keeps cancellation separate from completion and preserves edit
   assert.match(dialog, /if \(busy\) return/);
   assert.match(dialog, /setError\(requestError\?\.message/);
   assert.match(dialog, /حفظ وإيقاف التصوير/);
+  assert.match(dialog, /إلغاء الجلسة دون احتساب/);
   assert.match(helper, /dispatchStudioSessionUpdates/);
 });
 
@@ -178,10 +194,22 @@ test('production and demo settlement validate before mutation and remain idempot
   assert.match(api, /settleAndCompleteBookingSession/);
   assert.match(settlement, /FOR UPDATE/);
   assert.match(settlement, /invalid_actual_duration/);
+  assert.match(settlement, /session_cancel_zero_duration/);
+  assert.match(settlement, /status='cancelled'/);
   assert.match(settlement, /idempotency_payload_mismatch/);
   assert.match(settlement, /stale_settlement_preview/);
-  assert.ok(settlement.indexOf('invalid_new_package') < settlement.indexOf("UPDATE booking_sessions SET ended_at"));
+  assert.ok(settlement.indexOf('invalid_new_package') < settlement.indexOf("status='completed'"));
   assert.match(demo, /const working = clone\(database\)/);
   assert.match(demo, /idempotency_payload_mismatch/);
   assert.match(demo, /session_already_settled/);
+});
+
+test('scheduled photography sessions always auto-start through CSRF-exempt cron and the push worker', async () => {
+  const [api, settings] = await Promise.all([load('api/index.php'), load('src/erp/ERPSettings.jsx')]);
+  assert.match(api, /'\/cron\/booking-tick'\], true\)\) return/);
+  const scheduler = api.slice(api.indexOf('function activateScheduledSessions'), api.indexOf('function bookingSessionRows'));
+  assert.doesNotMatch(scheduler, /auto_start_timer/);
+  assert.match(api, /cron\/push-queue[\s\S]*activateScheduledSessions/);
+  assert.match(api, /cron\/booking-tick[\s\S]*activateScheduledSessions/);
+  assert.match(settings, /يبدأ تايمر التصوير تلقائيًا عند حلول وقت كل موعد مؤكد/);
 });

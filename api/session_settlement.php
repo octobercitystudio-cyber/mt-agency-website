@@ -49,8 +49,28 @@ function settlementCreateInvoice(PDO $pdo,array $user,array $booking,string $des
     $pdo->prepare('INSERT INTO invoice_items (invoice_id,service_id,description,quantity,unit,unit_price,total) VALUES (?,?,?,?,?,?,?)')->execute([$invoiceId,$booking['service_id']?:null,$description,1,'session',$amount,$amount]);return $invoiceId;
 }
 
+function cancelZeroDurationBookingSession(PDO $pdo,array $user,int $bookingId,array $payload): array {
+    $bookingStmt=$pdo->prepare("SELECT b.*,cp.billing_unit FROM bookings b LEFT JOIN client_packages cp ON cp.id=b.client_package_id AND cp.organization_id=b.organization_id WHERE b.id=? AND b.organization_id=? FOR UPDATE");
+    $bookingStmt->execute([$bookingId,$user['organization_id']]);$booking=$bookingStmt->fetch();if(!$booking)fail('الحجز غير موجود.',404,'booking_not_found');
+    $sessionStmt=$pdo->prepare('SELECT * FROM booking_sessions WHERE booking_id=? AND organization_id=? FOR UPDATE');$sessionStmt->execute([$bookingId,$user['organization_id']]);$session=$sessionStmt->fetch();if(!$session)fail('لا توجد جلسة تصوير لهذا الحجز.',404,'session_not_found');
+    if((string)$session['status']==='cancelled'&&(int)($session['actual_seconds']??0)===0){
+        return ['booking_id'=>$bookingId,'session_id'=>(int)$session['id'],'settlement_id'=>null,'post_production_job_id'=>null,'status'=>'cancelled','cancelled'=>true,'actual_minutes'=>0,'covered_minutes'=>0,'excess_minutes'=>0,'billable_minutes'=>0,'released_quantity'=>0,'billing_unit'=>(string)($booking['billing_unit']??'hour'),'idempotent_replay'=>true];
+    }
+    $settled=$pdo->prepare('SELECT COUNT(*) FROM session_settlements WHERE booking_session_id=? AND organization_id=?');$settled->execute([$session['id'],$user['organization_id']]);if((int)$settled->fetchColumn()>0)fail('تمت تسوية هذه الجلسة من قبل ولا يمكن إلغاؤها بقيمة صفر.',409,'session_already_settled');
+    if((string)$session['status']!=='active')fail('جلسة التصوير لم تعد نشطة.',409,'invalid_session_state');
+    $released=settleCancelledBooking($pdo,$booking,false,(int)$user['id']);$ended=cairoNow()->format('Y-m-d H:i:s');$reason=trim((string)($payload['reason']??''))?:'إلغاء الجلسة لإدخال مدة تصوير صفر';
+    $pdo->prepare("UPDATE booking_sessions SET ended_at=?,actual_seconds=0,billable_quantity=0,status='cancelled',ended_by=?,adjustment_reason=?,settlement_version=settlement_version+1 WHERE id=?")->execute([$ended,$user['id'],$reason,$session['id']]);
+    $pdo->prepare("UPDATE bookings SET status='cancelled',timer_ended_at=?,actual_seconds=0,actual_hours=0,actual_reels=0,billable_quantity=0,overage_quantity=0,overage_amount=0,session_version=session_version+1 WHERE id=?")->execute([$ended,$bookingId]);
+    $pdo->prepare("INSERT INTO booking_status_history (booking_id,from_status,to_status,note,changed_by) VALUES (?,'in_progress','cancelled',?,?)")->execute([$bookingId,$reason,$user['id']]);
+    if($released>0&&!empty($booking['client_package_id'])){$pdo->prepare('UPDATE client_packages SET version=version+1 WHERE id=? AND organization_id=?')->execute([$booking['client_package_id'],$user['organization_id']]);recordChangeEvent($pdo,(int)$user['organization_id'],(int)$booking['client_id'],'client_packages','client_packages',(int)$booking['client_package_id'],'booking_release');}
+    $response=['booking_id'=>$bookingId,'session_id'=>(int)$session['id'],'settlement_id'=>null,'post_production_job_id'=>null,'status'=>'cancelled','cancelled'=>true,'actual_minutes'=>0,'covered_minutes'=>0,'excess_minutes'=>0,'billable_minutes'=>0,'released_quantity'=>$released,'billing_unit'=>(string)($booking['billing_unit']??'hour')];
+    audit($pdo,$user,'session_cancel_zero_duration','booking_sessions',(int)$session['id'],$session,$response+['client_id'=>(int)$booking['client_id'],'booking_id'=>$bookingId]);
+    return $response;
+}
+
 function settleAndCompleteBookingSession(PDO $pdo,array $user,int $bookingId,array $payload): array {
-    $actual=filter_var($payload['actual_minutes']??null,FILTER_VALIDATE_INT);if($actual===false||$actual<1)fail('حدد مدة تصوير صحيحة، بحد أدنى '.arabicDurationMinutes(1).'.',422,'invalid_actual_duration');
+    $actual=filter_var($payload['actual_minutes']??null,FILTER_VALIDATE_INT);if($actual===false||$actual<0)fail('حدد مدة تصوير صحيحة بالساعات والدقائق.',422,'invalid_actual_duration');
+    if($actual===0){$pdo->beginTransaction();try{$response=cancelZeroDurationBookingSession($pdo,$user,$bookingId,$payload);$pdo->commit();return $response;}catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}}
     $submittedSettlement=is_array($payload['settlement']??null)?$payload['settlement']:[];$submittedMode=(string)($submittedSettlement['mode']??'');
     if($submittedMode==='new_package'){strictPackageMoneyCents($submittedSettlement['total_price']??null,'إجمالي سعر الباقة');strictPackageMoneyCents($submittedSettlement['initial_paid']??null,'المدفوع الآن');}
     if($submittedMode==='package_overage'&&array_key_exists('hourly_rate',$submittedSettlement))strictPackageMoneyCents($submittedSettlement['hourly_rate'],'سعر الساعة الإضافية');

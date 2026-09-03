@@ -135,7 +135,7 @@ const ERPSettings = () => {
       total_reels: Number(addForm.total_reels) || 0,
       minimum_booking_minutes: Number(addForm.minimum_booking_minutes) || 60,
       booking_increment_minutes: Number(addForm.booking_increment_minutes) || 15,
-      auto_start_timer: addForm.auto_start_timer ? 1 : 0,
+      auto_start_timer: serviceUsesProjectFields(addForm.categorySelection) ? 0 : 1,
       reason: addForm.reason || 'إنشاء قالب خدمة جديد بواسطة المالك',
     }) });
 
@@ -172,7 +172,7 @@ const ERPSettings = () => {
       total_reels: Number(editForm.total_reels) || 0,
       minimum_booking_minutes: Number(editForm.minimum_booking_minutes) || 60,
       booking_increment_minutes: Number(editForm.booking_increment_minutes) || 15,
-      auto_start_timer: editForm.auto_start_timer ? 1 : 0,
+      auto_start_timer: serviceUsesProjectFields(editForm.categorySelection) ? 0 : 1,
       is_active: Number(editForm.is_active ?? 1), reason: editForm.reason,
     }) });
 
@@ -709,7 +709,7 @@ const ERPSettings = () => {
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">سعر الوحدة الزائدة</label><input type="number" min="0" step="0.01" className="form-control border-0 py-2 fw-bold shadow-sm" value={addForm.overage_price} onChange={e => setAddForm({...addForm,overage_price:e.target.value})}/></div>
                 <div className="col-6"><DurationHoursMinutesInput idPrefix="service-add-minimum-booking" label="أقل مدة للحجز" value={addForm.minimum_booking_minutes} valueUnit="minutes" minMinutes={15} onChange={value => setAddForm({...addForm,minimum_booking_minutes:value})}/></div>
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">زيادة الحجز كل</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={addForm.booking_increment_minutes} onChange={e => setAddForm({...addForm,booking_increment_minutes:e.target.value})}>{[15,30,60].map(minutes => <option key={minutes} value={minutes}>{formatDurationMinutes(minutes)}</option>)}</select></div>
-                {!serviceUsesProjectFields(addForm.categorySelection) && <div className="col-12 form-check form-switch px-5"><input className="form-check-input" type="checkbox" checked={Boolean(Number(addForm.auto_start_timer))} onChange={e => setAddForm({...addForm,auto_start_timer:e.target.checked?1:0})}/><label className="form-check-label fw-bold">تشغيل تايمر التصوير تلقائيًا في الموعد</label></div>}
+                {!serviceUsesProjectFields(addForm.categorySelection) && <div className="col-12 alert alert-info mb-0 fw-bold">يبدأ تايمر التصوير تلقائيًا عند حلول وقت كل موعد مؤكد.</div>}
                 <div className="col-12"><label className="small fw-bold text-muted mb-1">سبب الإنشاء</label><textarea minLength="5" required className="form-control border-0 shadow-sm" rows="2" value={addForm.reason} onChange={e => setAddForm({...addForm,reason:e.target.value})} placeholder="اكتب سببًا واضحًا يظهر في سجل التدقيق" /></div>
                 {serviceFormError && <div className="col-12 service-form-error" role="alert">{serviceFormError}</div>}
               </div>
@@ -778,7 +778,7 @@ const ERPSettings = () => {
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">سعر الوحدة الزائدة</label><input type="number" min="0" step="0.01" className="form-control border-0 py-2 fw-bold shadow-sm" value={editForm.overage_price || 0} onChange={e => setEditForm({...editForm,overage_price:e.target.value})}/></div>
                 <div className="col-6"><DurationHoursMinutesInput idPrefix="service-edit-minimum-booking" label="أقل مدة للحجز" value={editForm.minimum_booking_minutes || 60} valueUnit="minutes" minMinutes={15} onChange={value => setEditForm({...editForm,minimum_booking_minutes:value})}/></div>
                 <div className="col-6"><label className="small fw-bold text-muted mb-1">زيادة الحجز كل</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={editForm.booking_increment_minutes || 15} onChange={e => setEditForm({...editForm,booking_increment_minutes:e.target.value})}>{[15,30,60].map(minutes => <option key={minutes} value={minutes}>{formatDurationMinutes(minutes)}</option>)}</select></div>
-                {!serviceUsesProjectFields(editForm.categorySelection) && <div className="col-12 form-check form-switch px-5"><input className="form-check-input" type="checkbox" checked={Boolean(Number(editForm.auto_start_timer ?? 1))} onChange={e => setEditForm({...editForm,auto_start_timer:e.target.checked?1:0})}/><label className="form-check-label fw-bold">تشغيل تايمر التصوير تلقائيًا في الموعد</label></div>}
+                {!serviceUsesProjectFields(editForm.categorySelection) && <div className="col-12 alert alert-info mb-0 fw-bold">يبدأ تايمر التصوير تلقائيًا عند حلول وقت كل موعد مؤكد.</div>}
                 <div className="col-12"><label className="small fw-bold text-muted mb-1">حالة القالب</label><select className="form-select border-0 py-2 fw-bold shadow-sm" value={Number(editForm.is_active ?? 1)} onChange={e => setEditForm({...editForm,is_active:Number(e.target.value)})}><option value="1">نشط للمبيعات الجديدة</option><option value="0">موقوف عن المبيعات الجديدة</option></select></div>
                 <div className="col-12 service-impact-strip" aria-label="معاينة أثر تعديل قالب الخدمة"><article><span>سعر القالب</span><b>{Number(services.find(item=>Number(item.id)===Number(editForm.id))?.price||0).toLocaleString('ar-EG')} ← {Number(editForm.price||0).toLocaleString('ar-EG')} ج.م</b></article><article><span>الصلاحية</span><b>{services.find(item=>Number(item.id)===Number(editForm.id))?.validity_days||90} ← {editForm.validity_days||90} يوم</b></article><article><span>الباقات المباعة</span><b>لا تتغير</b></article></div>
                 <div className="col-12"><label className="small fw-bold text-muted mb-1">سبب التعديل</label><textarea minLength="5" required className="form-control border-0 shadow-sm" rows="2" value={editForm.reason || ''} onChange={e => setEditForm({...editForm,reason:e.target.value})} placeholder="مثال: تحديث سعر القالب للمبيعات الجديدة" /></div>

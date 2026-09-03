@@ -236,7 +236,7 @@ function clearAuthCookies(array $config): void {
 
 function requireCsrf(array $config, string $path, string $method): void {
     if (in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) return;
-    if (in_array($path, ['/auth/login', '/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue'], true)) return;
+    if (in_array($path, ['/auth/login', '/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue', '/cron/booking-tick'], true)) return;
     $cookie = (string)($_COOKIE[csrfCookieName($config)] ?? $_COOKIE['mt_csrf'] ?? '');
     $header = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
     if ($cookie === '' || $header === '' || !hash_equals($cookie, $header)) {
@@ -627,7 +627,7 @@ function activateScheduledSessions(PDO $pdo, int $organizationId, ?int $clientId
     $ownTransaction=!$pdo->inTransaction();if($ownTransaction)$pdo->beginTransaction();$started=0;
     try{
         $now=cairoNow();$today=$now->format('Y-m-d');$nowSql=$now->format('Y-m-d H:i:s');$limit=max(1,min(100,$batchLimit));
-        $sql="SELECT b.* FROM bookings b LEFT JOIN services s ON s.id=b.service_id AND s.organization_id=b.organization_id WHERE b.organization_id=? AND b.status='confirmed' AND b.date=? AND b.start_time IS NOT NULL AND TIMESTAMP(b.date,b.start_time)<=? AND COALESCE(s.auto_start_timer,1)=1";
+        $sql="SELECT b.* FROM bookings b WHERE b.organization_id=? AND b.status='confirmed' AND b.date=? AND b.start_time IS NOT NULL AND TIMESTAMP(b.date,b.start_time)<=?";
         $params=[$organizationId,$today,$nowSql];if($clientId!==null){$sql.=' AND b.client_id=?';$params[]=$clientId;}$sql.=' ORDER BY b.start_time,b.id LIMIT '.$limit.' FOR UPDATE';$stmt=$pdo->prepare($sql);$stmt->execute($params);
         foreach($stmt->fetchAll() as $booking){
             if(empty($booking['resource_id']))continue;
@@ -817,6 +817,7 @@ function clientNotificationTemplate(string $entityType, string $action, mixed $b
     if($entityType==='reschedule_requests'){$moment=bookingNotificationMoment($merged);return ['reschedule_update','تحديث طلب تغيير الموعد',$status==='approved'?'تم اعتماد تغيير موعدك إلى: '.$moment.'.':'لم يتم اعتماد تغيير الموعد المقترح: '.$moment.'.','schedule',$status==='approved'?'success':'warning'];}
     if($entityType==='booking_sessions'){
         if($action==='session_start'||$action==='auto_start')return ['session_started','بدأت جلسة التصوير','بدأ احتساب وقت جلسة التصوير ويمكنك متابعة المؤقت الآن.','schedule','success'];
+        if($action==='session_cancel_zero_duration')return ['session_cancelled','تم إلغاء جلسة التصوير','تم إلغاء جلسة التصوير دون احتساب وقت أو خصم أي رصيد من الباقة.','schedule','warning'];
         if(in_array($action,['session_complete','session_settle_and_complete'],true)){$duration=arabicDurationMinutes($merged['actual_minutes']??(((int)($merged['actual_seconds']??0))/60));$moved=in_array((string)($merged['settlement_mode']??''),['new_package','existing_package'],true)&&!empty($merged['target_package_id']);return [$moved?'overage_moved':'session_completed','تم إيقاف جلسة التصوير','تم إيقاف جلسة التصوير. الوقت المصور '.$duration.'. '.completedSessionOutcome($merged),$moved?'home':'history','info'];}
         return null;
     }
@@ -1648,14 +1649,14 @@ if (preg_match('#^/client/promotions/(\d+)/subscribe$#',$path,$m) && $method ===
 
 if ($path === '/cron/push-queue' && $method === 'POST') {
     $workerKey=(string)($config['push']['worker_key']??'');$provided=(string)($_SERVER['HTTP_X_WORKER_KEY']??'');if($workerKey===''||$provided===''||!hash_equals($workerKey,$provided))fail('غير مصرح بتشغيل عامل إشعارات التطبيق.',401,'invalid_worker_key');$push=pushConfiguration($config);if(!$push['enabled'])fail('إشعارات التطبيق غير مفعلة.',503,'push_not_configured');if(!schemaTableExists($pdo,'app_push_jobs')||!schemaTableExists($pdo,'app_push_subscriptions'))fail('تحديث قاعدة بيانات الإشعارات مطلوب.',503,'push_migration_required');
-    $materialized=0;foreach($pdo->query('SELECT id FROM organizations')->fetchAll(PDO::FETCH_COLUMN) as $organizationId)$materialized+=materializePackageLifecycleNotifications($pdo,(int)$organizationId);
+    $started=0;$materialized=0;foreach($pdo->query('SELECT id FROM organizations')->fetchAll(PDO::FETCH_COLUMN) as $organizationId){$started+=activateScheduledSessions($pdo,(int)$organizationId);$materialized+=materializePackageLifecycleNotifications($pdo,(int)$organizationId);}
     $pdo->exec("UPDATE app_push_jobs SET status='pending' WHERE status='processing' AND available_at<=NOW() AND attempts<5");$pdo->beginTransaction();$stmt=$pdo->query("SELECT * FROM app_push_jobs WHERE status='pending' AND available_at<=NOW() AND attempts<5 ORDER BY id LIMIT 20 FOR UPDATE");$jobs=$stmt->fetchAll();if($jobs){$ids=array_map('intval',array_column($jobs,'id'));$marks=implode(',',array_fill(0,count($ids),'?'));$pdo->prepare("UPDATE app_push_jobs SET status='processing',available_at=DATE_ADD(NOW(),INTERVAL 10 MINUTE) WHERE id IN ($marks)")->execute($ids);}$pdo->commit();$sent=0;$failed=0;$devices=0;
     foreach($jobs as $job){try{$notificationStmt=$pdo->prepare('SELECT id,organization_id,client_id,recipient_user_id,audience,title,message,action_tab,payload_json FROM app_notifications WHERE id=? AND organization_id=? AND dismissed_at IS NULL');$notificationStmt->execute([$job['notification_id'],$job['organization_id']]);$notification=$notificationStmt->fetch();if(!$notification){$pdo->prepare("UPDATE app_push_jobs SET status='sent',attempts=attempts+1,sent_at=NOW(),last_error=NULL WHERE id=?")->execute([$job['id']]);$sent++;continue;}
             $where=['organization_id=?','is_active=1'];$params=[(int)$job['organization_id']];if((string)$notification['audience']==='client'){$where[]='client_id=?';$params[]=(int)$notification['client_id'];}elseif(!empty($notification['recipient_user_id'])){$where[]='user_id=?';$params[]=(int)$notification['recipient_user_id'];}else{$where[]='user_id IS NOT NULL';}$subscriptions=$pdo->prepare('SELECT id,token FROM app_push_subscriptions WHERE '.implode(' AND ',$where));$subscriptions->execute($params);
             foreach($subscriptions->fetchAll() as $subscription){try{sendFirebasePush($config,(string)$subscription['token'],$notification);$devices++;}catch(RuntimeException $sendError){if(in_array($sendError->getCode(),[400,404],true)){$pdo->prepare('UPDATE app_push_subscriptions SET is_active=0 WHERE id=?')->execute([$subscription['id']]);continue;}throw $sendError;}}
             $pdo->prepare("UPDATE app_push_jobs SET status='sent',attempts=attempts+1,sent_at=NOW(),last_error=NULL WHERE id=? AND status='processing'")->execute([$job['id']]);$sent++;
         }catch(Throwable $error){$attempts=(int)$job['attempts']+1;$status=$attempts>=5?'failed':'pending';$delay=min(1440,5*(2**max(0,$attempts-1)));$pdo->prepare('UPDATE app_push_jobs SET status=?,attempts=?,available_at=DATE_ADD(NOW(),INTERVAL ? MINUTE),last_error=? WHERE id=?')->execute([$status,$attempts,$delay,mb_substr($error->getMessage(),0,1000),$job['id']]);$failed++;}}
-    respond(['materialized_notifications'=>$materialized,'processed'=>count($jobs),'sent_jobs'=>$sent,'failed_jobs'=>$failed,'delivered_devices'=>$devices]);
+    respond(['started_sessions'=>$started,'materialized_notifications'=>$materialized,'processed'=>count($jobs),'sent_jobs'=>$sent,'failed_jobs'=>$failed,'delivered_devices'=>$devices]);
 }
 
 if ($path === '/auth/logout' && $method === 'POST') {

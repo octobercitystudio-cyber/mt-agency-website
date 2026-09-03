@@ -22,7 +22,8 @@ export async function completeStudioSession(session, { actualMinutes, actualReel
     targetPackageId: data?.target_package_id ? Number(data.target_package_id) : null,
     invoiceId: data?.invoice_id ? Number(data.invoice_id) : null,
     projectId: data?.project_id ? Number(data.project_id) : null,
-    completed: true,
+    completed: data?.status === 'completed',
+    cancelled: data?.status === 'cancelled',
     result: data || null,
   };
   dispatchStudioSessionUpdates(detail);
