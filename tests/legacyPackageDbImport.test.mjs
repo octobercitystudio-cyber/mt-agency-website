@@ -55,6 +55,12 @@ test('the packages-only production route is retired in favor of the comprehensiv
   assert.ok(start > 0 && end > start); assert.match(route, /requireRole\(\$user,\['owner'\]\)/); assert.match(route, /legacy_packages_import_retired/); assert.match(route, /أداة النقل الشامل/);
 });
 
+test('sold packages restores the original single add-package action and hides legacy sync', async () => {
+  const view = await load('src/erp/ERPPackages.jsx');
+  assert.match(view, /actions=\{canAssign && <button data-variant="primary" onClick=\{openAddDialog\}><PackagePlus\/> إضافة باقة لعميل<\/button>\}/);
+  assert.doesNotMatch(view, /مزامنة البرنامج القديم|LegacyPackageImportDialog|legacyImportOpen|packages-hero-actions/);
+});
+
 test('demo import is atomic, idempotent and does not change unrelated ledgers', async () => {
   const storage = new Map(); globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) }; globalThis.window = { dispatchEvent() {} }; globalThis.CustomEvent = class CustomEvent { constructor(type, init) { this.type = type; this.detail = init?.detail; } };
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js'); resetDemoDatabase(); activateDemoMode('owner'); const before = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const sha = 'd'.repeat(64);

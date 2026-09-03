@@ -22,7 +22,6 @@ import ERPAddBookingModal from './ERPAddBookingModal';
 import { packageBookingAvailability } from './packageBookingSelection';
 import OwnerPackageControl from './OwnerPackageControl';
 import PackagePaymentModal from './PackagePaymentModal';
-import LegacyPackageImportDialog from './LegacyPackageImportDialog';
 
 const today = () => cairoDateKey();
 const initialForm = { client_id: '', service_id: '', name: '', billing_unit: 'hour', validity_mode_snapshot: 'rolling', starts_at: '', shooting_date: '', expires_at: '', quantity: '', validity_days: 90, payment_due_quantity: 0, deposit_percent_snapshot: 0, overage_price_snapshot: 0, total_price: '', paid_amount: 0, payment_method: 'cash', notes: '' };
@@ -70,7 +69,6 @@ export default function ERPPackages() {
   const [bookingPackage, setBookingPackage] = useState({ open: false, pkg: null });
   const [paymentPackage, setPaymentPackage] = useState({ open: false, pkg: null });
   const [details, setDetails] = useState({ open: false, pkg: null, data: null, loading: false, error: '', tab: 'payments' });
-  const [legacyImportOpen, setLegacyImportOpen] = useState(false);
   const detailsDialogRef = useRef(null);
   const dialogTriggerRef = useRef(null);
   const clientPickerTriggerRef = useRef(null);
@@ -314,19 +312,8 @@ export default function ERPPackages() {
     window.setTimeout(() => setNotice(''), 4000); await fetchData();
   };
 
-  const handleLegacyImported = async result => {
-    setLegacyImportOpen(false);
-    const counts = result?.counts || result || {};
-    const preserved = Number(counts.existing_client_values_preserved || 0);
-    const updated = Number(counts.packages_reused || 0) + Number(counts.projects_reused || 0) + Number(counts.appointments_reused || 0) + Number(counts.finance_updated || 0) + Number(counts.reminders_updated || 0);
-    const created = Math.max(0, Number(counts.packages || 0) - Number(counts.packages_reused || 0)) + Math.max(0, Number(counts.projects || 0) - Number(counts.projects_reused || 0)) + Math.max(0, Number(counts.appointments || 0) - Number(counts.appointments_reused || 0)) + Number(counts.finance_created || 0) + Number(counts.reminders_created || 0);
-    setNotice(`تمت المزامنة بنجاح: أضيف ${created.toLocaleString('ar-EG')} سجل جديد وحُدث ${updated.toLocaleString('ar-EG')} سجل موجود.${preserved ? ` تم الاحتفاظ بـ${preserved.toLocaleString('ar-EG')} قيمة عُدلت داخل البرنامج الجديد.` : ''}`);
-    window.setTimeout(() => setNotice(''), 7000);
-    await fetchData();
-  };
-
   return <div className="sold-packages" dir="rtl">
-    <ERPPageHero icon={WalletCards} eyebrow="إدارة المبيعات والرصيد" title="الباقات المباعة" description="الرصيد الحقيقي من قاعدة البيانات، مستقل تمامًا عن تجميع الحجوزات." actions={canAssign && <div className="packages-hero-actions">{role === 'owner' && <button type="button" data-variant="secondary" onClick={() => setLegacyImportOpen(true)}><Archive/> مزامنة البرنامج القديم</button>}<button data-variant="primary" onClick={openAddDialog}><PackagePlus/> إضافة باقة لعميل</button></div>}/>
+    <ERPPageHero icon={WalletCards} eyebrow="إدارة المبيعات والرصيد" title="الباقات المباعة" description="الرصيد الحقيقي من قاعدة البيانات، مستقل تمامًا عن تجميع الحجوزات." actions={canAssign && <button data-variant="primary" onClick={openAddDialog}><PackagePlus/> إضافة باقة لعميل</button>}/>
     <section className="packages-summary"><Metric icon={CheckCircle2} label="الباقات النشطة" value={activePackages.length}/><Metric icon={CalendarClock} label="تنتهي خلال 14 يومًا تقويميًا" value={expiring.length} warning/><Metric icon={Clock3} label="متاح لحجز جديد" value={`${formatDurationMinutes(remainingHours * 60, { compact: true })} / ${remainingReels.toLocaleString('ar-EG')} ر`}/><Metric icon={CircleDollarSign} label="قيمة مستحقة" value={money(centsToMoney(outstandingCents))} danger/></section>
     {notice && <div className="packages-notice success" role="status"><CheckCircle2/> {notice}</div>}{error && <div className="packages-notice error" role="alert"><ShieldAlert/><span>{error}</span><button onClick={fetchData}>إعادة المحاولة</button></div>}
     <section className="packages-filters"><label className="packages-search"><Search/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث باسم العميل أو الهاتف أو الباقة"/></label><label><Filter/> الحالة<select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">كل الحالات</option>{Object.entries(STATUS).map(([key, [label]]) => <option value={key} key={key}>{label}</option>)}</select></label><label>الخدمة<select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)}><option value="all">كل الخدمات</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label><label>الانتهاء<select value={expiryFilter} onChange={event => setExpiryFilter(event.target.value)}><option value="all">كل التواريخ</option><option value="14">خلال 14 يومًا</option><option value="expired">منتهية التاريخ</option></select></label><button className="packages-refresh" onClick={fetchData}><RefreshCw className={loading ? 'packages-spin' : ''}/></button></section>
@@ -340,7 +327,6 @@ export default function ERPPackages() {
     <ERPAddBookingModal isOpen={bookingPackage.open} initialClientId={bookingPackage.pkg?.client_id} initialPackageId={bookingPackage.pkg?.id} returnFocusRef={bookingTriggerRef} onClose={() => setBookingPackage({ open: false, pkg: null })} onSuccess={handlePackageBookingCreated}/>
     <PackagePaymentModal isOpen={paymentPackage.open} pkg={paymentPackage.pkg} person={client(paymentPackage.pkg?.client_id)} returnFocusRef={paymentTriggerRef} onClose={() => setPaymentPackage({ open: false, pkg: null })} onSuccess={handlePackagePaymentCreated}/>
     <ERPStartSessionDialog open={sessionStart.open} bookings={sessionStart.bookings} clientName={sessionStart.person?.name} contextName={sessionStart.pkg?.name} returnFocusRef={sessionTriggerRef} onClose={() => setSessionStart({ open: false, pkg: null, person: null, bookings: [] })} onStarted={handleSessionStarted} onCreateBooking={() => navigate(`/erp/bookings?client_id=${sessionStart.pkg?.client_id || ''}&package_id=${sessionStart.pkg?.id || ''}`)}/>
-    <LegacyPackageImportDialog open={legacyImportOpen} clients={clients} services={services} resources={resources} onClose={() => setLegacyImportOpen(false)} onImported={handleLegacyImported}/>
   </div>;
 }
 
