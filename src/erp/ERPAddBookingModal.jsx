@@ -16,6 +16,7 @@ import './ERPProjectsCustomServices.css';
 import './ERPAddBookingModal.css';
 import { activeServiceCategories, isProjectServiceCategory } from '../lib/serviceCategories';
 import { packageBookingAvailability, packageBookingSnapshot, packagesForBookingClient, validatePackageBookingDraft } from './packageBookingSelection';
+import { getBookingAvailability } from './bookingAvailability';
 
 const NEW_CLIENT_OPTION = '__create_new_client__';
 export const CUSTOM_SERVICE_OPTION = '__custom_service__';
@@ -30,6 +31,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
   const [services, setServices] = useState([]);
   const [clientPackages, setClientPackages] = useState([]);
   const [bookings, setBookings] = useState([]); // for validation and calendar events
+  const [bookingBlocks, setBookingBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [customBusy, setCustomBusy] = useState(false);
   const [customError, setCustomError] = useState('');
@@ -54,11 +56,12 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [{ data: bData }, { data: cData }, { data: sData }, { data: pData }] = await Promise.all([
+    const [{ data: bData }, { data: cData }, { data: sData }, { data: pData }, blocksResult] = await Promise.all([
       dataClient.from('bookings').select('*'),
       dataClient.from('clients').select('id,name,color'),
       dataClient.from('services').select('*'),
       dataClient.from('client_packages').select('*').order('expires_at', { ascending: true }),
+      dataClient.request('/booking-blocks', { method: 'GET' }),
     ]);
 
     if (bData) setBookings(bData);
@@ -67,6 +70,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     }
     if (sData) setServices(sData);
     if (pData) setClientPackages(pData);
+    if (blocksResult?.data) setBookingBlocks(blocksResult.data);
 
     if (!initialSelectionAppliedRef.current) {
       const initialClient = (cData || []).find(c => String(c.id) === String(initialClientId))
@@ -237,6 +241,8 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       alert(`مواعيد الحجز من 12:00 م إلى 12:00 ص، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)} حسب إعدادات الخدمة.`);
       return;
     }
+    const unavailable = newBooking.dates.find(date => getBookingAvailability({ ...date, resource_id: 1 }, bookings, { blocks: bookingBlocks }).status !== 'available');
+    if (unavailable) return alert(`الموعد ${formatBookingDate(unavailable.date)} غير متاح. اختر فترة أخرى.`);
 
     if (selectedPackage) {
       const availableBalance = packageBookingSnapshot(selectedPackage, selectedService).quantity.available;
@@ -302,12 +308,12 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
   const bookingCategoryGroups = activeServiceCategories(services);
   const remainingPrice = Math.max(0, newBooking.base_price - newBooking.discount - newBooking.paid);
 
-  const calendarEvents = bookings.map(b => ({
+  const calendarEvents = [...bookings.map(b => ({
     id: b.id,
     title: b.client_name,
     start: b.date,
     color: getClientColor(b.client_name),
-  }));
+  })), ...bookingBlocks.map(block => ({ id: `block-${block.id}`, title: 'مغلق بواسطة الإدارة', start: block.block_date, color: '#a53645', editable: false, extendedProps: { kind: 'booking_block' } }))];
   const mobileCalendarBookings = [...bookings]
     .filter(booking => String(booking.date || '').slice(0, 10) >= cairoDateKey() && !['cancelled', 'completed'].includes(booking.status))
     .sort((left, right) => `${left.date || ''} ${left.start_time || ''}`.localeCompare(`${right.date || ''} ${right.start_time || ''}`))
@@ -414,7 +420,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                     buttonText={{ today: 'اليوم' }}
                     dayMaxEvents={2}
                     dateClick={(info) => addDateRow(info.dateStr)}
-                    eventDidMount={(info) => { info.el.setAttribute('aria-label', `حجز ${info.event.title}`); info.el.setAttribute('title', info.event.title); }}
+                    eventDidMount={(info) => { info.el.setAttribute('aria-label', info.event.extendedProps.kind === 'booking_block' ? 'مغلق بواسطة الإدارة' : `حجز ${info.event.title}`); info.el.setAttribute('title', info.event.title); }}
                     dayCellClassNames={(arg) => arg.date.getDay() === 5 ? ['fc-day-fri'] : []}
                   />
                 </div>

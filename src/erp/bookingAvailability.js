@@ -48,14 +48,32 @@ export function getBookingAvailability(candidate, bookings = [], options = {}) {
     if (!slot.valid || slot.date !== normalized.date || slot.resourceId !== normalized.resourceId) return false;
     return slot.startMinutes < normalized.endMinutes && slot.endMinutes > normalized.startMinutes;
   });
+  const blockConflicts = (options.blocks || []).filter(existing => {
+    if (String(existing?.status || 'active') !== 'active') return false;
+    const slot = normalizeBookingCandidate({ ...existing, date: existing.block_date || existing.date });
+    if (!slot.valid || slot.date !== normalized.date || slot.resourceId !== normalized.resourceId) return false;
+    return slot.startMinutes < normalized.endMinutes && slot.endMinutes > normalized.startMinutes;
+  }).map(block => ({ ...block, kind: 'booking_block', owner_label: 'مغلق بواسطة الإدارة' }));
 
   return {
-    status: conflicts.length ? 'conflict' : 'available',
-    available: conflicts.length === 0,
+    status: blockConflicts.length ? 'blocked' : conflicts.length ? 'conflict' : 'available',
+    available: conflicts.length === 0 && blockConflicts.length === 0,
     candidate: normalized,
-    conflicts,
+    conflicts: [...blockConflicts, ...conflicts],
   };
 }
+
+export const bookingBlockCalendarItem = block => ({
+  ...block,
+  id: block.id,
+  date: block.block_date,
+  start_time: block.start_time,
+  end_time: block.end_time,
+  resource_id: block.resource_id,
+  title: 'الحجز مغلق',
+  kind: 'booking_block',
+  owner_label: 'مغلق بواسطة الإدارة',
+});
 
 export const blockingBookings = bookings => (bookings || []).filter(booking => {
   if (!isBlockingBooking(booking)) return false;

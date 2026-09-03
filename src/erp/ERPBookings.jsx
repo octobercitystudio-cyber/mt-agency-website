@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { dataClient } from '../dataClient';
-import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send, CalendarClock } from 'lucide-react';
+import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send, CalendarClock, LockKeyhole } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar as arDateLocale } from 'date-fns/locale';
 import arCalendarLocale from '@fullcalendar/core/locales/ar';
@@ -14,6 +14,9 @@ import ERPBookingDetailsDialog from './ERPBookingDetailsDialog';
 import { startStudioSession } from './studioSessionStart';
 import ERPAddBookingModal from './ERPAddBookingModal';
 import { activeServiceCategories, isProjectServiceCategory } from '../lib/serviceCategories';
+import useChangeSync from '../hooks/useChangeSync';
+import { ERPBookingBlockDetailsDialog, ERPBookingBlockDialog } from './ERPBookingBlockDialog';
+import { bindBookingBlockDoubleClick } from './bookingBlockInteraction';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
@@ -34,6 +37,17 @@ const readableOnColor = value => {
   return luminance > .179 ? '#111827' : '#ffffff';
 };
 const applyCalendarEventColors = info => {
+  if (info.event.extendedProps.kind === 'booking_block') {
+    info.el.style.setProperty('--fc-event-bg-color', '#fff1f2');
+    info.el.style.setProperty('--fc-event-border-color', '#c56a76');
+    info.el.style.setProperty('--fc-event-text-color', '#8d2f3d');
+    info.el.style.setProperty('background-color', '#fff1f2', 'important');
+    info.el.style.setProperty('border-color', '#c56a76', 'important');
+    info.el.style.setProperty('color', '#8d2f3d', 'important');
+    info.el.setAttribute('aria-label', `الحجز مغلق، ${info.timeText || ''}`);
+    info.el.setAttribute('title', `الحجز مغلق — ${info.timeText || ''}`);
+    return;
+  }
   const background = safeClientColor(info.event.extendedProps.client_color);
   const foreground = readableOnColor(background);
   info.el.style.setProperty('--fc-event-bg-color', background);
@@ -75,6 +89,8 @@ const ERPBookings = () => {
   const [bookings, setBookings] = useState(globalBookingsCache || []);
   const [clients, setClients] = useState(globalClientsCache || []);
   const [services, setServices] = useState(globalServicesCache || []);
+  const [resources, setResources] = useState([]);
+  const [bookingBlocks, setBookingBlocks] = useState([]);
   const [loading, setLoading] = useState(!globalBookingsCache);
   const [clientColorsHydrated, setClientColorsHydrated] = useState(globalClientsCache !== null);
   
@@ -87,9 +103,18 @@ const ERPBookings = () => {
   const [alternativeModal, setAlternativeModal] = useState({ open: false, booking: null, date: '', start_time: '12:00', end_time: '13:00', note: '' });
   const [rescheduleModal, setRescheduleModal] = useState({ open: false, booking: null, proposal: null });
   const [rescheduleNotice, setRescheduleNotice] = useState('');
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [selectedBlock, setSelectedBlock] = useState(null);
+  const [blockBusy, setBlockBusy] = useState(false);
+  const [blockError, setBlockError] = useState('');
   const rescheduleTriggerRef = useRef(null);
   const detailsTriggerRef = useRef(null);
   const bookingTriggerRef = useRef(null);
+  const blockTriggerRef = useRef(null);
+  const blockDetailsTriggerRef = useRef(null);
+  const dayCellCleanupRef = useRef(new WeakMap());
+  const dateSelectionTimerRef = useRef(null);
+  const doubleClickGuardRef = useRef({ key: '', at: 0 });
 
   const isAdmin = ['owner', 'admin', 'operations'].includes(currentUser?.role);
   const isOwner = currentUser?.role === 'owner';
@@ -116,14 +141,18 @@ const ERPBookings = () => {
       setServices(globalServicesCache);
       setLoading(false);
       setClientColorsHydrated(true);
-      if (!force && (Date.now() - globalBookingsLastFetch < 30000)) return;
+      if (!force && resources.length > 0 && (Date.now() - globalBookingsLastFetch < 30000)) return;
     } else {
       setLoading(true);
     }
     
-    const { data: bData } = await dataClient.from('bookings').select('*').order('date', { ascending: false });
-    const { data: cData } = await dataClient.from('clients').select('id,name,color');
-    const { data: sData } = await dataClient.from('services').select('*');
+    const [{ data: bData }, { data: cData }, { data: sData }, { data: rData }, blocksResult] = await Promise.all([
+      dataClient.from('bookings').select('*').order('date', { ascending: false }),
+      dataClient.from('clients').select('id,name,color'),
+      dataClient.from('services').select('*'),
+      dataClient.from('resources').select('id,name,is_active,archived_at').eq('is_active', 1),
+      isAdmin ? dataClient.request('/booking-blocks', { method: 'GET' }) : Promise.resolve({ data: [] }),
+    ]);
 
     if (bData) {
       setBookings(bData);
@@ -138,12 +167,18 @@ const ERPBookings = () => {
       setServices(sData);
       globalServicesCache = sData;
     }
+    if (rData) setResources(rData);
+    if (blocksResult?.data) setBookingBlocks(blocksResult.data);
     
     globalBookingsLastFetch = Date.now();
     setLoading(false);
   };
 
+  // Initial hydration is intentionally one-shot; later server changes are handled by useChangeSync.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { const timer = window.setTimeout(() => fetchData(), 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => () => window.clearTimeout(dateSelectionTimerRef.current), []);
+  useChangeSync(topics => { if (topics.includes('bookings')) fetchData(true); }, isAdmin && !currentUser?.is_local_preview);
   useEffect(() => {
     const requestedClient = location.state?.openAddModalFor;
     const shouldOpenCreate = location.state?.openCreateBooking === true;
@@ -178,7 +213,7 @@ const ERPBookings = () => {
   const getStatusMeta = (status) => statusMeta[status] || { label: status || 'غير محدد', color: '#6f5b82' };
   const pendingBookings = bookings.filter(b => b.status === 'pending');
 
-  const calendarEvents = bookings.map(b => {
+  const bookingEvents = bookings.map(b => {
     const clientColor = getClientColor(b.client_name);
     return {
     id: b.id,
@@ -204,7 +239,24 @@ const ERPBookings = () => {
     }
   }});
 
+  const blockEvents = bookingBlocks.map(block => ({
+    id: `block-${block.id}`,
+    title: 'الحجز مغلق',
+    start: calendarDateTime(block.block_date, block.start_time),
+    end: calendarDateTime(block.block_date, block.end_time, true),
+    allDay: false,
+    backgroundColor: '#fff1f2',
+    borderColor: '#c56a76',
+    textColor: '#8d2f3d',
+    editable: false,
+    startEditable: false,
+    durationEditable: false,
+    extendedProps: { kind: 'booking_block', block_id: block.id, original_end_time: block.end_time, text_color: '#8d2f3d' },
+  }));
+  const calendarEvents = [...bookingEvents, ...blockEvents];
+
   const dailyBookings = bookings.filter(b => b.date === selectedDate);
+  const dailyBlocks = bookingBlocks.filter(block => block.block_date === selectedDate);
   const clientColorSignature = clients.map(client => `${client.id}:${client.name}:${safeClientColor(client.color)}`).sort().join('|') || 'no-clients';
 
   const submitDecision = async (booking, action, extra = {}) => {
@@ -230,7 +282,51 @@ const ERPBookings = () => {
   };
 
   const handleDateClick = (arg) => {
-    setSelectedDate(arg.dateStr);
+    const clickedDate = String(arg.dateStr || '').slice(0, 10);
+    window.clearTimeout(dateSelectionTimerRef.current);
+    dateSelectionTimerRef.current = window.setTimeout(() => setSelectedDate(clickedDate), 240);
+  };
+
+  const handleDayCellDidMount = arg => {
+    if (!isAdmin) return;
+    const clickedDate = format(arg.date, 'yyyy-MM-dd');
+    const cleanup = bindBookingBlockDoubleClick(arg.el, () => {
+      if (arg.date.getDay() === 5) return;
+      window.clearTimeout(dateSelectionTimerRef.current);
+      // Defer React state work until the native dblclick dispatch completes;
+      // otherwise the selected-cell rerender can detach FullCalendar's target
+      // between the two physical clicks.
+      window.setTimeout(() => {
+        setSelectedDate(clickedDate);
+        const now = Date.now(); const guard = doubleClickGuardRef.current;
+        if (guard.key === clickedDate && now - guard.at < 600) return;
+        doubleClickGuardRef.current = { key: clickedDate, at: now };
+        blockTriggerRef.current = arg.el;
+        setBlockError('');
+        setBlockDialogOpen(true);
+      }, 0);
+    });
+    dayCellCleanupRef.current.set(arg.el, cleanup);
+  };
+
+  const handleDayCellWillUnmount = arg => {
+    dayCellCleanupRef.current.get(arg.el)?.();
+    dayCellCleanupRef.current.delete(arg.el);
+  };
+
+  const openBlockDialogForSelectedDate = trigger => {
+    if (!isAdmin) return;
+    blockTriggerRef.current = trigger;
+    setBlockError('');
+    setBlockDialogOpen(true);
+  };
+
+  const handleCalendarDatesSet = async info => {
+    if (!isAdmin) return;
+    const end = new Date(info.end); end.setDate(end.getDate() - 1);
+    const from = format(info.start, 'yyyy-MM-dd'); const to = format(end, 'yyyy-MM-dd');
+    const { data } = await dataClient.request(`/booking-blocks?from=${from}&to=${to}`, { method: 'GET' });
+    if (data) setBookingBlocks(data);
   };
 
   const openBookingDetails = (booking, trigger = null) => {
@@ -240,6 +336,12 @@ const ERPBookings = () => {
   };
 
   const handleEventClick = (info) => {
+    if (info.event.extendedProps.kind === 'booking_block') {
+      blockDetailsTriggerRef.current = info.el || null;
+      setBlockError('');
+      setSelectedBlock(bookingBlocks.find(block => String(block.id) === String(info.event.extendedProps.block_id)) || null);
+      return;
+    }
     const bId = info.event.extendedProps.booking_id;
     const fullBooking = bookings.find(b => b.id === bId);
     if (fullBooking) {
@@ -247,6 +349,22 @@ const ERPBookings = () => {
     } else {
       alert('لم يتم العثور على تفاصيل الحجز، برجاء تحديث الصفحة.');
     }
+  };
+
+  const handleBlockCreated = async result => {
+    setBlockDialogOpen(false);
+    setRescheduleNotice(result?.count > 1 ? `تم حظر ${result.count} مواعيد بنجاح.` : 'تم حظر الموعد وإغلاق الفترة للحجز.');
+    await fetchData(true);
+    window.dispatchEvent(new CustomEvent('erpBookingsUpdated', { detail: { topics: ['bookings'] } }));
+  };
+
+  const cancelBookingBlock = async scope => {
+    if (!selectedBlock || !window.confirm(scope === 'series' ? 'إلغاء هذا الحظر وكل الفترات التالية في السلسلة؟' : 'إلغاء هذا الحظر وفتح الفترة للحجز؟')) return;
+    setBlockBusy(true); setBlockError('');
+    const { data, error } = await dataClient.request(`/booking-blocks/${selectedBlock.id}?scope=${scope}`, { method: 'DELETE' });
+    setBlockBusy(false); if (error) return setBlockError(error.message || 'تعذر إلغاء الحظر.');
+    setSelectedBlock(null); setRescheduleNotice(data?.cancelled > 1 ? `تم إلغاء ${data.cancelled} فترات وفتحها للحجز.` : 'تم إلغاء الحظر وفتح الفترة للحجز.'); await fetchData(true);
+    window.dispatchEvent(new CustomEvent('erpBookingsUpdated', { detail: { topics: ['bookings'] } }));
   };
 
   const openReschedule = (booking, proposal = null, trigger = null) => {
@@ -567,8 +685,25 @@ const ERPBookings = () => {
         .booking-reschedule-notice { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 11px 14px; border: 1px solid rgba(32,166,106,.25); border-radius: 10px; background: rgba(32,166,106,.08); color: #158254; font-size: .78rem; font-weight: 800; }
         .fc-event.is-reschedule-eligible { cursor: grab; }
         .fc-event.is-reschedule-eligible:active { cursor: grabbing; }
+        .fc-event.is-booking-block { cursor: pointer; box-shadow: none; border-right-width: 3px !important; }
+        .fc-event.is-booking-block:hover { filter: none; box-shadow: 0 4px 10px rgba(141,47,61,.12); }
+        .booking-block-calendar-event { display: flex; align-items: center; gap: 5px; min-width: 0; color: #8d2f3d; line-height: 1.25; }
+        .booking-block-calendar-event > svg { width: 13px; flex: none; }
+        .booking-block-calendar-event > span { display: grid; min-width: 0; }
+        .booking-block-calendar-event strong { font-size: .68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .booking-block-calendar-event strong b { font: inherit; }
+        .booking-block-label-compact { display: none; }
+        .booking-block-calendar-event small { font-size: .56rem; font-weight: 800; }
+        .booking-block-timeline { width: 100%; border: 1px solid #fecdd3; border-right: 4px solid #a53645 !important; background: #fff7f7; color: #8d2f3d; padding: 14px; display: flex; align-items: center; gap: 11px; text-align: right; cursor: pointer; }
+        .booking-block-timeline:hover { transform: translateX(-3px); border-right-color: #a53645 !important; }
+        .booking-block-timeline-icon { width: 38px; height: 38px; flex: none; display: grid; place-items: center; background: #fff1f2; border: 1px solid #fecdd3; }
+        .booking-block-timeline-icon svg { width: 18px; }
+        .booking-block-timeline > span:last-child { display: grid; gap: 3px; }
+        .booking-block-timeline strong { font-size: .82rem; }
+        .booking-block-timeline small { color: #8d2f3d; font-size: .72rem; font-weight: 800; }
+        .booking-block-timeline em { color: #64748b; font-size: .65rem; font-style: normal; }
         #bookingDetailsModal { display: none !important; }
-        @media (max-width: 600px) { .pending-requests-panel { padding: 15px; } .pending-requests-list { grid-template-columns: 1fr; } .pending-request-actions button { flex: 1; justify-content: center; } }
+        @media (max-width: 600px) { .pending-requests-panel { padding: 15px; } .pending-requests-list { grid-template-columns: 1fr; } .pending-request-actions button { flex: 1; justify-content: center; } .booking-block-calendar-event { gap: 2px; } .booking-block-calendar-event > svg { width: 10px; } .booking-block-calendar-event strong { font-size: .6rem; } .booking-block-calendar-event small { font-size: .5rem; } .booking-block-label-full { display: none; } .booking-block-label-compact { display: inline; } }
       `}</style>
 
       {/* Header */}
@@ -576,8 +711,8 @@ const ERPBookings = () => {
         icon={CalendarIcon}
         eyebrow="جدول الاستديو"
         title="إدارة المواعيد والتقويم"
-        description={<>{'اضغط مرتين على التقويم لبدء حجز جديد.'}{isAdmin && <> · يمكنك تعديل الموعد أو إلغاؤه مع الاحتفاظ بالسجل المحاسبي.</>}</>}
-        actions={<button data-variant="primary" onClick={event => { bookingTriggerRef.current = event.currentTarget; setIsModalOpen(true); }}><CalendarPlus size={18} /> حجز موعد / إضافة خدمة</button>}
+        description={<>{'اضغط مرة لاختيار اليوم، ومرتين لحظر فترة داخلية.'}{isAdmin && <> · يمكنك تعديل الموعد أو إلغاؤه مع الاحتفاظ بالسجل.</>}</>}
+        actions={<><button data-variant="primary" onClick={event => { bookingTriggerRef.current = event.currentTarget; setIsModalOpen(true); }}><CalendarPlus size={18} /> حجز موعد / إضافة خدمة</button>{isAdmin && <button data-variant="secondary" onClick={event => openBlockDialogForSelectedDate(event.currentTarget)}><LockKeyhole size={18}/>حظر موعد</button>}</>}
       />
 
       {rescheduleNotice && <div className="booking-reschedule-notice" role="status"><CheckCircle size={17} />{rescheduleNotice}<button type="button" onClick={() => setRescheduleNotice('')} style={{ marginRight: 'auto', border: 0, background: 'transparent', color: 'inherit' }} aria-label="إخفاء الرسالة"><X size={16}/></button></div>}
@@ -620,6 +755,9 @@ const ERPBookings = () => {
               firstDay={6}
               events={clientColorsHydrated ? calendarEvents : []}
               dateClick={handleDateClick}
+              dayCellDidMount={handleDayCellDidMount}
+              dayCellWillUnmount={handleDayCellWillUnmount}
+              datesSet={handleCalendarDatesSet}
               eventClick={handleEventClick}
               eventDisplay="block"
               eventDidMount={applyCalendarEventColors}
@@ -629,14 +767,14 @@ const ERPBookings = () => {
               eventDrop={handleCalendarRescheduleProposal}
               eventResize={handleCalendarRescheduleProposal}
               eventAllow={(dropInfo, draggedEvent) => Boolean(draggedEvent.extendedProps.reschedule_eligible) && dropInfo.start.getDay() !== 5}
-              eventClassNames={arg => arg.event.extendedProps.reschedule_eligible ? ['is-reschedule-eligible'] : []}
+              eventClassNames={arg => arg.event.extendedProps.kind === 'booking_block' ? ['is-booking-block'] : arg.event.extendedProps.reschedule_eligible ? ['is-reschedule-eligible'] : []}
               slotMinTime="12:00:00"
               slotMaxTime="24:00:00"
               allDaySlot={false}
               slotDuration="00:15:00"
               eventTimeFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
               slotLabelFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
-              eventContent={(arg) => (
+              eventContent={(arg) => arg.event.extendedProps.kind === 'booking_block' ? <div className="booking-block-calendar-event"><LockKeyhole/><span><strong><b className="booking-block-label-full">الحجز مغلق</b><b className="booking-block-label-compact">مغلق</b></strong><small>{arg.timeText}</small></span></div> : (
                 <div style={{ overflow: 'hidden', lineHeight: 1.35, color: arg.event.extendedProps.text_color }}>
                   <div style={{ fontSize: '.72rem', fontWeight: 900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{arg.event.title}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '.59rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><i aria-hidden="true" style={{ width: '7px', height: '7px', flex: '0 0 auto', borderRadius: '50%', background: getStatusMeta(arg.event.extendedProps.status).color, border: `1px solid ${arg.event.extendedProps.text_color}` }} />{getStatusMeta(arg.event.extendedProps.status).label}</div>
@@ -671,7 +809,7 @@ const ERPBookings = () => {
             </div>
 
             <div style={{ padding: '25px', overflowY: 'auto', flexGrow: 1, maxHeight: '600px' }}>
-              {dailyBookings.length === 0 ? (
+              {dailyBookings.length === 0 && dailyBlocks.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0' }}>
                   <div style={{ background: 'var(--erp-bg)', borderRadius: '50%', display: 'inline-flex', justifyContent: 'center', alignItems: 'center', width: '80px', height: '80px', marginBottom: '15px' }}>
                     <Clock size={32} color="var(--erp-text-muted)" style={{ opacity: 0.5 }} />
@@ -681,6 +819,9 @@ const ERPBookings = () => {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  {dailyBlocks.map(block => <button type="button" key={`block-${block.id}`} className="timeline-card booking-block-timeline" onClick={event => { blockDetailsTriggerRef.current = event.currentTarget; setBlockError(''); setSelectedBlock(block); }}>
+                    <span className="booking-block-timeline-icon"><LockKeyhole/></span><span><strong>الحجز مغلق</strong><small>{formatTime12(block.start_time)} — {formatTime12(block.end_time)}</small><em>{block.resource_name || 'مورد الحجز'}</em></span>
+                  </button>)}
                   {dailyBookings.map(b => (
                     <div key={b.id} className="timeline-card" style={{ padding: '15px', borderRadius: '12px', borderRightColor: getClientColor(b.client_name), opacity: b.status === 'منتهي' ? 0.6 : 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -889,6 +1030,9 @@ const ERPBookings = () => {
       )}
 
       <ERPAddBookingModal isOpen={isModalOpen} returnFocusRef={bookingTriggerRef} onClose={() => setIsModalOpen(false)} onSuccess={async () => { setIsModalOpen(false); await fetchData(true); }}/>
+
+      <ERPBookingBlockDialog isOpen={blockDialogOpen} date={selectedDate} resources={resources} returnFocusRef={blockTriggerRef} onClose={() => setBlockDialogOpen(false)} onSuccess={handleBlockCreated}/>
+      <ERPBookingBlockDetailsDialog block={selectedBlock} busy={blockBusy} error={blockError} returnFocusRef={blockDetailsTriggerRef} onClose={() => setSelectedBlock(null)} onCancel={cancelBookingBlock}/>
 
       <ERPBookingDetailsDialog
         booking={selectedBookingDetails}

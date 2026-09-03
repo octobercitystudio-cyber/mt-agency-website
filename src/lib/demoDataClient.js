@@ -272,6 +272,8 @@ const createDemoDatabase = () => ({
     { id: 106, name: 'إنتاج إعلان تجاري', category: 'خدمة إضافية', billing_unit: 'project', price: 35000, total_hours: 0, payment_due_hours: 0, total_reels: 0, validity_days: 90, deposit_percent: 50, overage_price: 0, minimum_booking_minutes: 60, booking_increment_minutes: 15, auto_start_timer: 0, is_active: 1 },
   ],
   resources: [{ id: 1, name: 'الاستديو الرئيسي', type: 'studio', is_active: 1 }],
+  booking_blocks: [],
+  booking_slots: [],
   client_packages: [
     { id: 201, client_id: 1, service_id: 101, name: 'باقة صناعة المحتوى', billing_unit: 'hour', purchased_quantity: 10, held_quantity: 2, consumed_quantity: 5.5, payment_due_quantity: 5, deposit_percent_snapshot: 30, overage_price_snapshot: 1400, total_price: 12000, overage_amount: 0, paid_amount: 6000, starts_at: dateOnly(-35), expires_at: dateOnly(55), status: 'active', created_at: dateTime(-35) },
     { id: 202, client_id: 1, service_id: 102, name: 'ريلز إطلاق المنتج', billing_unit: 'reel', purchased_quantity: 8, held_quantity: 1, consumed_quantity: 3, payment_due_quantity: 4, deposit_percent_snapshot: 50, overage_price_snapshot: 1200, total_price: 8000, overage_amount: 0, paid_amount: 8000, starts_at: dateOnly(-20), expires_at: dateOnly(40), status: 'active', source_invoice_id: 701, created_at: dateTime(-20) },
@@ -568,6 +570,17 @@ const upgradePostProductionDemo = database => {
   return changed;
 };
 
+const upgradeBookingBlocksDemo = database => {
+  let changed = false;
+  if (!Array.isArray(database.booking_blocks)) { database.booking_blocks = []; changed = true; }
+  if (!Array.isArray(database.booking_slots)) { database.booking_slots = []; changed = true; }
+  database.booking_slots.forEach(slot => {
+    if (!Object.prototype.hasOwnProperty.call(slot, 'booking_block_id')) { slot.booking_block_id = null; changed = true; }
+    if (!Object.prototype.hasOwnProperty.call(slot, 'booking_id')) { slot.booking_id = null; changed = true; }
+  });
+  return changed;
+};
+
 const upgradeCredentialResetDemo = database => {
   let changed = false;
   if (!Array.isArray(database.credential_reset_links)) { database.credential_reset_links = []; changed = true; }
@@ -590,14 +603,16 @@ const readDatabase = () => {
       const financeChanged = upgradeFinanceDemoCoverage(database);
       const ownerChanged = upgradeOwnerControlsDemo(database);
       const postProductionChanged = upgradePostProductionDemo(database);
+      const bookingBlocksChanged = upgradeBookingBlocksDemo(database);
       const credentialChanged = upgradeCredentialResetDemo(database);
-      if (financeChanged || ownerChanged || postProductionChanged || credentialChanged) localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+      if (financeChanged || ownerChanged || postProductionChanged || bookingBlocksChanged || credentialChanged) localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
       return database;
     }
   } catch { /* reset below */ }
   const database = createDemoDatabase();
   upgradeOwnerControlsDemo(database);
   upgradePostProductionDemo(database);
+  upgradeBookingBlocksDemo(database);
   upgradeCredentialResetDemo(database);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
   return database;
@@ -766,13 +781,13 @@ export const normalizeDemoPhone = value => {
 };
 
 const assertDemoBookingAvailable = (database, candidate, excludeBookingId = null) => {
-  const availability = getBookingAvailability(candidate, database.bookings, { excludeBookingId });
+  const availability = getBookingAvailability(candidate, database.bookings, { excludeBookingId, blocks: database.booking_blocks });
   if (availability.status === 'available') return availability;
   const error = formationDemoError(
-    availability.status === 'invalid' ? 'بيانات الموعد غير صحيحة.' : 'الموعد يتعارض مع حجز مؤكد آخر.',
+    availability.status === 'invalid' ? 'بيانات الموعد غير صحيحة.' : 'الموعد غير متاح.',
     availability.status === 'invalid' ? 'invalid_booking_time' : 'booking_conflict',
   );
-  if (availability.status === 'conflict') error.status = 409;
+  if (['conflict', 'blocked'].includes(availability.status)) error.status = 409;
   throw error;
 };
 
@@ -960,6 +975,12 @@ const demoAudit = (database, action, entityType, entityId, before, after) => {
   const auditRow = addRow(database, 'audit_logs', { action, entity_type: entityType, entity_id: Number(entityId), before_data: clone(before), after_data: clone(after), actor_name: 'مالك النظام' });
   const clientId = demoNotificationClientId(database, entityType, entityId, before, after); const sourceEvent = addRow(database, 'change_events', { client_id: clientId, topic: entityType === 'client_packages' ? 'packages' : entityType === 'offers' ? 'offers' : entityType.includes('project') || entityType === 'content_items' ? 'projects' : entityType.includes('booking') || entityType === 'reschedule_requests' ? 'bookings' : ['payments', 'payment_proofs', 'invoices'].includes(entityType) ? 'finance' : entityType, entity_type: entityType, entity_id: Number(entityId), action });
   demoNotifyClientChange(database, action, entityType, entityId, before, after, sourceEvent.id); demoNotifyOwnersOfClientAction(database, action, entityType, entityId, before, after, sourceEvent.id); return auditRow;
+};
+
+const demoAuditBookingBlockChange = (database, action, entityId, before, after) => {
+  const auditRow = addRow(database, 'audit_logs', { action, entity_type: 'booking_blocks', entity_id: Number(entityId), before_data: clone(before), after_data: clone(after), actor_name: 'مالك النظام' });
+  addRow(database, 'change_events', { client_id: null, topic: 'bookings', entity_type: 'booking_blocks', entity_id: Number(entityId), action });
+  return auditRow;
 };
 
 const demoReverseFinance = (database, entry, reason) => {
@@ -1797,6 +1818,30 @@ const demoRequest = async (path, options = {}) => {
     const progress = recalculateDemoProjectProgress(database, milestone.project_id); demoAudit(database, 'status_change', 'project_milestones', milestone.id, before, clone(milestone)); writeDatabase(database); return { id: milestone.id, status: milestone.status, progress_percent: milestone.progress_percent, project_progress_percent: progress };
   }
 
+  if (route === '/booking-blocks' && (options.method || 'GET') === 'GET') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض حظر المواعيد.', 'forbidden');
+    const from = url.searchParams.get('from') || dateOnly(-62); const to = url.searchParams.get('to') || dateOnly(400); const resourceId = Number(url.searchParams.get('resource_id') || 0);
+    return clone(database.booking_blocks.filter(item => belongsToDemoOrganization(item) && item.status === 'active' && item.block_date >= from && item.block_date <= to && (!resourceId || Number(item.resource_id) === resourceId)).sort((a, b) => `${a.block_date}${a.start_time}`.localeCompare(`${b.block_date}${b.start_time}`)).map(item => ({ ...item, resource_name: findById(database, 'resources', item.resource_id)?.name || 'مورد الحجز' })));
+  }
+  if (route === '/booking-blocks' && options.method === 'POST') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لحظر المواعيد.', 'forbidden');
+    const startDate = String(body.date || ''); const repeat = Boolean(body.repeat_daily); const repeatUntil = String(body.repeat_until || ''); const startTime = String(body.start_time || '').slice(0, 5); const endTime = String(body.end_time || '').slice(0, 5); const resourceId = Number(body.resource_id || 0); const idempotencyKey = String(body.idempotency_key || '').trim(); const note = String(body.note || '').trim().slice(0, 1000);
+    if (!/^[A-Za-z0-9:_-]{12,120}$/.test(idempotencyKey)) throw formationDemoError('مفتاح حفظ الحظر غير صحيح.', 'invalid_idempotency_key');
+    const duration = demoBookingDurationMinutes({ start_time: startTime, end_time: endTime }); const startMinutes = Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3, 5)); const rawEnd = Number(endTime.slice(0, 2)) * 60 + Number(endTime.slice(3, 5)); const endMinutes = rawEnd === 0 || endTime === '24:00' ? 1440 : rawEnd;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || startMinutes < 720 || endMinutes > 1440 || endMinutes <= startMinutes || duration < 60 || duration % 15 !== 0) throw formationDemoError('فترة الحظر غير صحيحة.', 'invalid_booking_block_time');
+    const resource = findById(database, 'resources', resourceId); if (!resource || !belongsToDemoOrganization(resource) || Number(resource.is_active ?? 1) !== 1) throw formationDemoError('مورد الحجز غير متاح.', 'invalid_booking_resource');
+    const normalized = { date: startDate, start_time: startTime, end_time: endTime, resource_id: resourceId, repeat_daily: repeat, repeat_until: repeat ? repeatUntil : null, note }; const requestHash = demoSettlementHash(normalized); const replay = database.booking_blocks.find(item => belongsToDemoOrganization(item) && item.idempotency_key === idempotencyKey);
+    if (replay) { if (replay.request_hash !== requestHash) { const error = formationDemoError('تم استخدام مفتاح الحفظ مع بيانات مختلفة.', 'idempotency_conflict'); error.status = 409; throw error; } return { ...clone(replay.response_json), idempotent: true }; }
+    const first = new Date(`${startDate}T12:00:00`); const last = new Date(`${repeat ? repeatUntil : startDate}T12:00:00`); if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime()) || last < first) throw formationDemoError(repeat ? 'حدد تاريخ نهاية التكرار.' : 'تاريخ الحظر غير صحيح.', repeat ? 'booking_block_repeat_until_required' : 'invalid_booking_block_date');
+    const inclusiveDays = Math.round((last - first) / 86400000) + 1; if (repeat && inclusiveDays > 90) throw formationDemoError('يمكن تكرار الحظر لمدة 90 يومًا كحد أقصى.', 'booking_block_range_too_long'); if (!repeat && first.getDay() === 5) throw formationDemoError('يوم الجمعة غير متاح للحجز بالفعل.', 'booking_block_friday');
+    const dates = []; for (const cursor = new Date(first); cursor <= last; cursor.setDate(cursor.getDate() + 1)) if (cursor.getDay() !== 5) dates.push(`${cursor.getFullYear()}-${pad(cursor.getMonth() + 1)}-${pad(cursor.getDate())}`);
+    for (const blockDate of dates) { const availability = getBookingAvailability({ date: blockDate, start_time: startTime, end_time: endTime, resource_id: resourceId }, database.bookings, { blocks: database.booking_blocks }); if (availability.status !== 'available') { const error = formationDemoError(`إحدى الفترات غير متاحة يوم ${blockDate}. لم يتم إنشاء أي حظر.`, availability.status === 'blocked' ? 'booking_block_conflict' : 'booking_conflict'); error.status = 409; throw error; } }
+    const working = clone(database); const seriesKey = repeat ? `demo-series-${Date.now()}-${Math.random().toString(16).slice(2)}` : null; const items = dates.map((blockDate, index) => { const block = addRow(working, 'booking_blocks', { organization_id: demoOrganizationId, resource_id: resourceId, resource_name: resource.name, block_date: blockDate, start_time: startTime, end_time: endTime, duration_minutes: duration, title: 'الحجز مغلق', note: note || null, series_key: seriesKey, idempotency_key: index ? `${idempotencyKey}:${index}` : idempotencyKey, request_hash: requestHash, response_json: null, status: 'active', created_by: demoUserId, cancelled_by: null, cancelled_at: null }); for (let minute = startMinutes; minute < endMinutes; minute += 15) addRow(working, 'booking_slots', { organization_id: demoOrganizationId, booking_id: null, booking_block_id: block.id, resource_id: resourceId, slot_date: blockDate, slot_start: `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}:00` }); return block; });
+    const response = { items: clone(items), count: items.length, series_key: seriesKey, idempotent: false, skipped_fridays: inclusiveDays - items.length }; working.booking_blocks.find(item => item.idempotency_key === idempotencyKey).response_json = clone(response); demoAuditBookingBlockChange(working, 'create', items[0]?.id, null, { resource_id: resourceId, dates, start_time: startTime, end_time: endTime, series_key: seriesKey }); writeDatabase(working); return response;
+  }
+  if ((match = route.match(/^\/booking-blocks\/(\d+)$/)) && options.method === 'DELETE') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لإلغاء حظر المواعيد.', 'forbidden'); const scope = url.searchParams.get('scope') || 'single'; if (!['single', 'series'].includes(scope)) throw formationDemoError('نطاق الإلغاء غير صحيح.', 'invalid_booking_block_scope'); const selected = database.booking_blocks.find(item => Number(item.id) === Number(match[1]) && belongsToDemoOrganization(item) && item.status === 'active'); if (!selected) throw formationDemoError('فترة الحظر غير موجودة.', 'booking_block_not_found'); const working = clone(database); const ids = working.booking_blocks.filter(item => Number(item.id) === Number(selected.id) || scope === 'series' && selected.series_key && item.series_key === selected.series_key && item.status === 'active' && item.block_date >= selected.block_date).map(item => Number(item.id)); working.booking_blocks.forEach(item => { if (ids.includes(Number(item.id))) Object.assign(item, { status: 'cancelled', cancelled_by: demoUserId, cancelled_at: nowText() }); }); working.booking_slots = working.booking_slots.filter(slot => !ids.includes(Number(slot.booking_block_id))); demoAuditBookingBlockChange(working, scope === 'series' ? 'cancel_series' : 'cancel', selected.id, clone(selected), { cancelled_ids: ids, scope }); writeDatabase(working); return { cancelled: ids.length, ids, scope };
+  }
   if (route === '/bookings/request' && options.method === 'POST') {
     const clientId = Number(body.client_id || (demoRole === 'client' ? 1 : 0));
     const client = findById(database, 'clients', clientId);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Banknote, CalendarClock, CalendarDays, Check, CheckCircle2, Eye, Focus, Inbox, RefreshCw, RotateCcw, Send, ShieldCheck, X, XCircle } from 'lucide-react';
+import { AlertTriangle, Banknote, CalendarClock, CalendarDays, Check, CheckCircle2, Eye, Focus, Inbox, LockKeyhole, RefreshCw, RotateCcw, Send, ShieldCheck, X, XCircle } from 'lucide-react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -34,7 +34,7 @@ export default function ERPRequests() {
   const canOperations = ['owner', 'admin', 'operations'].includes(role);
   const canFinance = ['owner', 'admin', 'finance'].includes(role);
   const isOwner = role === 'owner';
-  const [data, setData] = useState({ bookings: [], reschedules: [], proofs: [], clients: [] });
+  const [data, setData] = useState({ bookings: [], bookingBlocks: [], reschedules: [], proofs: [], clients: [] });
   const [activeTab, setActiveTab] = useState(canOperations ? 'bookings' : 'proofs');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -53,15 +53,16 @@ export default function ERPRequests() {
       canOperations ? dataClient.from('reschedule_requests').select('*').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
       canFinance ? dataClient.from('payment_proofs').select('id,client_id,client_package_id,invoice_id,amount,original_name,mime_type,status,admin_note,created_at').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
       dataClient.from('clients').select('id,name,phone1,color'),
+      canOperations ? dataClient.request('/booking-blocks', { method: 'GET' }) : Promise.resolve({ data: [] }),
     ];
-    const [bookingsResult, reschedulesResult, proofsResult, clientsResult] = await Promise.all(queries);
-    const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult].find(result => result.error);
+    const [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult] = await Promise.all(queries);
+    const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult].find(result => result.error);
     if (failed?.error) {
       setError(safeUiError(failed.error, 'تعذر تحميل بعض الطلبات الآن. أعد المحاولة بعد قليل.'));
       if (showLoading) setLoading(false);
       return null;
     }
-    const nextData = { bookings: bookingsResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [] };
+    const nextData = { bookings: bookingsResult.data || [], bookingBlocks: blocksResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [] };
     setData(nextData);
     if (showLoading) setLoading(false);
     return nextData;
@@ -82,6 +83,7 @@ export default function ERPRequests() {
     const original = kind === 'reschedule' ? source.bookings.find(booking => Number(booking.id) === Number(item.booking_id)) : item;
     return getBookingAvailability(candidateForRequest(kind, item, original), source.bookings, {
       excludeBookingId: kind === 'reschedule' ? item.booking_id : item.id,
+      blocks: source.bookingBlocks,
     });
   };
   const counts = { bookings: pendingBookings.length, reschedules: data.reschedules.length, cancellations: cancellations.length, proofs: data.proofs.length };
@@ -113,7 +115,7 @@ export default function ERPRequests() {
       const availability = requestAvailability(kind, item, fresh);
       if (availability.status !== 'available') {
         focusRequestOnCalendar(kind, item, fresh);
-        setError(availability.status === 'conflict' ? 'لا يمكن اعتماد الطلب: الموعد أصبح متعارضًا مع حجز آخر. اختر موعدًا بديلًا.' : 'تعذر التحقق من الموعد. راجع التاريخ والتوقيت.');
+        setError(['conflict', 'blocked'].includes(availability.status) ? 'لا يمكن اعتماد الطلب: الموعد غير متاح. اختر موعدًا بديلًا.' : 'تعذر التحقق من الموعد. راجع التاريخ والتوقيت.');
         return;
       }
     }
@@ -132,7 +134,7 @@ export default function ERPRequests() {
         setDecisionBusy(false);
         setDecision(emptyDecision);
         focusRequestOnCalendar(decision.kind, decision.item, fresh);
-        setError(availability.status === 'conflict' ? 'تم حجز هذا الموعد أثناء المراجعة. لم يتم الاعتماد، ويمكنك اختيار موعد بديل.' : 'بيانات الموعد غير مكتملة، لم يتم الاعتماد.');
+        setError(['conflict', 'blocked'].includes(availability.status) ? 'أصبح هذا الموعد غير متاح أثناء المراجعة. لم يتم الاعتماد، ويمكنك اختيار موعد بديل.' : 'بيانات الموعد غير مكتملة، لم يتم الاعتماد.');
         return;
       }
     }
@@ -185,6 +187,14 @@ export default function ERPRequests() {
       extendedProps: { kind: 'blocking', client_color: color, status: booking.status },
     };
   });
+  data.bookingBlocks.forEach(block => calendarEvents.push({
+    id: `block-${block.id}`,
+    title: 'مغلق بواسطة الإدارة',
+    start: calendarDateTime(block.block_date, block.start_time),
+    end: calendarDateTime(block.block_date, block.end_time, true),
+    backgroundColor: '#fff1f2', borderColor: '#c56a76', textColor: '#8d2f3d',
+    extendedProps: { kind: 'booking_block', client_color: '#fff1f2', status: 'blocked' },
+  }));
   if (calendarPreview?.availability?.candidate?.valid) {
     const previewColor = calendarPreview.availability.status === 'available' ? '#16895a' : '#c13a4d';
     const previewName = calendarPreview.kind === 'booking' ? calendarPreview.item.client_name : clientName(calendarPreview.item.client_id);
@@ -250,14 +260,14 @@ export default function ERPRequests() {
           nowIndicator
           eventDidMount={info => {
             const background = safeBookingColor(info.event.extendedProps.client_color);
-            const foreground = info.event.extendedProps.kind === 'preview' ? '#ffffff' : readableBookingTextColor(background);
+            const foreground = info.event.extendedProps.kind === 'preview' ? '#ffffff' : info.event.extendedProps.kind === 'booking_block' ? '#8d2f3d' : readableBookingTextColor(background);
             info.el.style.setProperty('--fc-event-bg-color', background);
             info.el.style.setProperty('--fc-event-border-color', background);
             info.el.style.setProperty('--fc-event-text-color', foreground);
             info.el.setAttribute('aria-label', `${info.event.title}، ${info.timeText || ''}`);
           }}
           dayCellClassNames={arg => arg.date.getDay() === 5 ? ['fc-day-fri'] : []}
-          eventContent={arg => <div className="requests-calendar-event" style={{ color: arg.event.textColor }}><strong>{arg.event.title}</strong>{arg.event.extendedProps.kind === 'preview' && <small>{calendarPreview?.availability.status === 'available' ? 'الموعد متاح' : 'الموعد غير متاح'}</small>}</div>}
+          eventContent={arg => <div className="requests-calendar-event" style={{ color: arg.event.textColor }}>{arg.event.extendedProps.kind === 'booking_block' && <LockKeyhole/>}<strong>{arg.event.title}</strong>{arg.event.extendedProps.kind === 'preview' && <small>{calendarPreview?.availability.status === 'available' ? 'الموعد متاح' : 'الموعد غير متاح'}</small>}</div>}
         />
       </div>
     </section>}
@@ -285,6 +295,7 @@ function AvailabilityStrip({ availability, candidate, clientLabel }) {
   const first = availability.conflicts[0];
   const extra = Math.max(0, availability.conflicts.length - 1);
   if (availability.status === 'invalid') return <div className="request-availability invalid" role="status" aria-live="polite"><AlertTriangle/><div><strong>تعذر التحقق من الموعد</strong><span>راجع التاريخ ووقت البداية والنهاية قبل الاعتماد.</span></div></div>;
+  if (availability.status === 'blocked') return <div className="request-availability conflict" role="status" aria-live="polite"><LockKeyhole/><div><strong>مغلق بواسطة الإدارة</strong><span>تتقاطع الفترة المقترحة مع إغلاق إداري. اختر موعدًا آخر.</span></div></div>;
   if (availability.status === 'conflict') return <div className="request-availability conflict" role="status" aria-live="polite"><AlertTriangle/><div><strong>الموعد غير متاح</strong><span>يتعارض مع حجز {clientLabel(first)} من {time(first.start_time)} إلى {time(first.end_time)}{extra ? ` · و${extra} تعارض إضافي` : ''}.</span></div></div>;
   return <div className="request-availability available" role="status" aria-live="polite"><CheckCircle2/><div><strong>الموعد متاح</strong><span>{formatBookingDate(candidate.date)} · {time(candidate.start_time)} إلى {time(candidate.end_time)}</span></div></div>;
 }

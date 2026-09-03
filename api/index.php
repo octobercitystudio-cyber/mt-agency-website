@@ -152,6 +152,11 @@ function validateBookingSchedule(
         $sql="SELECT id FROM bookings WHERE organization_id=? AND resource_id=? AND date=? AND status IN ('confirmed','in_progress') AND start_time<? AND end_time>?";$params=[$organizationId,$resourceId,$date,$end.':00',$start.':00'];
         if($excludeBookingId){$sql.=' AND id<>?';$params[]=$excludeBookingId;}$sql.=' LIMIT 1 FOR UPDATE';$conflict=$pdo->prepare($sql);$conflict->execute($params);
         if($conflict->fetch())fail('يوجد حجز مؤكد متعارض مع هذا الموعد.',409,'booking_conflict');
+        if(bookingBlockSchemaReady($pdo)){
+            $blocked=$pdo->prepare("SELECT id FROM booking_blocks WHERE organization_id=? AND resource_id=? AND block_date=? AND status='active' AND start_time<? AND end_time>? LIMIT 1 FOR UPDATE");
+            $blocked->execute([$organizationId,$resourceId,$date,$end.':00',$start.':00']);
+            if($blocked->fetch())fail('هذا الموعد غير متاح.',409,'booking_conflict');
+        }
     }
     return $minutes;
 }
@@ -431,7 +436,7 @@ function setSessionCookie(array $config, string $token, int $days): void {
 
 function changeTopic(string $entityType): string {
     return match ($entityType) {
-        'bookings', 'booking_sessions', 'reschedule_requests', 'session_settlements' => 'bookings',
+        'bookings', 'booking_blocks', 'booking_sessions', 'reschedule_requests', 'session_settlements' => 'bookings',
         'post_production_jobs', 'post_production_status_history', 'video_delivery_links' => 'post_production',
         'client_packages', 'package_usage_ledger', 'session_settlement_allocations' => 'client_packages',
         'projects', 'project_items', 'project_milestones', 'project_tasks', 'content_items' => 'projects',
@@ -471,6 +476,19 @@ function audit(PDO $pdo, array $user, string $action, string $entityType, ?int $
     return $sourceEventId;
 }
 
+function auditBookingBlockChange(PDO $pdo, array $user, string $action, ?int $entityId, mixed $before, mixed $after): int {
+    $stmt=$pdo->prepare('INSERT INTO audit_logs (organization_id,user_id,action,entity_type,entity_id,before_data,after_data,ip_hash) VALUES (?,?,?,?,?,?,?,?)');
+    $stmt->execute([
+        $user['organization_id'],$user['id'],$action,'booking_blocks',$entityId,
+        $before===null?null:json_encode($before,JSON_UNESCAPED_UNICODE),
+        $after===null?null:json_encode($after,JSON_UNESCAPED_UNICODE),
+        requestIpHash(),
+    ]);
+    // Booking blocks are operational-only: broadcast the owner refresh topic
+    // directly, without invoking either client-notification pipeline.
+    return recordChangeEvent($pdo,(int)$user['organization_id'],null,'bookings','booking_blocks',$entityId,$action);
+}
+
 function reserveBookingSlots(PDO $pdo, array $booking): void {
     $start=businessTimeMinutes((string)$booking['start_time']);$end=businessTimeMinutes((string)$booking['end_time'],true);
     if($start<0||$end<=0||$end<=$start)return;
@@ -478,8 +496,21 @@ function reserveBookingSlots(PDO $pdo, array $booking): void {
     for($minute=$start;$minute<$end;$minute+=15){$hour=intdiv($minute,60);$mins=$minute%60;$stmt->execute([(int)$booking['organization_id'],(int)$booking['id'],(int)$booking['resource_id'],$booking['date'],sprintf('%02d:%02d:00',$hour,$mins)]);}
 }
 
+function reserveBookingBlockSlots(PDO $pdo, array $block): void {
+    $start=businessTimeMinutes((string)$block['start_time']);$end=businessTimeMinutes((string)$block['end_time'],true);
+    if($start<0||$end<=$start)return;
+    $stmt=$pdo->prepare('INSERT INTO booking_slots (organization_id,booking_id,booking_block_id,resource_id,slot_date,slot_start) VALUES (?,NULL,?,?,?,?)');
+    for($minute=$start;$minute<$end;$minute+=15){$hour=intdiv($minute,60);$mins=$minute%60;$stmt->execute([(int)$block['organization_id'],(int)$block['id'],(int)$block['resource_id'],$block['block_date'],sprintf('%02d:%02d:00',$hour,$mins)]);}
+}
+
 function releaseBookingSlots(PDO $pdo, int $bookingId): void {
     $pdo->prepare('DELETE FROM booking_slots WHERE booking_id=?')->execute([$bookingId]);
+}
+
+function releaseBookingBlockSlots(PDO $pdo, array $blockIds, int $organizationId): void {
+    $ids=array_values(array_filter(array_map('intval',$blockIds),fn($id)=>$id>0));if(!$ids)return;
+    $marks=implode(',',array_fill(0,count($ids),'?'));
+    $pdo->prepare("DELETE FROM booking_slots WHERE organization_id=? AND booking_block_id IN ($marks)")->execute(array_merge([$organizationId],$ids));
 }
 
 function schemaTableExists(PDO $pdo, string $table): bool {
@@ -495,6 +526,32 @@ function schemaTableColumns(PDO $pdo,string $table): array {
     static $cache=[];if(array_key_exists($table,$cache))return $cache[$table];
     $stmt=$pdo->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');$stmt->execute([$table]);
     return $cache[$table]=array_map('strval',$stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+function bookingBlockSchemaReady(PDO $pdo): bool {
+    if(!schemaTableExists($pdo,'booking_blocks')||!schemaTableExists($pdo,'booking_slots'))return false;
+    $blockColumns=schemaTableColumns($pdo,'booking_blocks');$slotColumns=schemaTableColumns($pdo,'booking_slots');
+    foreach(['id','organization_id','resource_id','block_date','start_time','end_time','duration_minutes','series_key','idempotency_key','request_hash','response_json','status','created_by','cancelled_by','cancelled_at'] as $column)if(!in_array($column,$blockColumns,true))return false;
+    return in_array('booking_block_id',$slotColumns,true);
+}
+
+function requireBookingBlockSchema(PDO $pdo): void {
+    if(!bookingBlockSchemaReady($pdo))fail('يلزم تشغيل تحديث قاعدة بيانات حظر المواعيد رقم 036.',503,'booking_blocks_migration_required');
+}
+
+function bookingBlockDate(string $value): ?DateTimeImmutable {
+    $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,new DateTimeZone('Africa/Cairo'));
+    return $date&&$date->format('Y-m-d')===$value?$date:null;
+}
+
+function bookingBlockDates(string $startDate, bool $repeatDaily, string $repeatUntil): array {
+    $start=bookingBlockDate($startDate);if(!$start)fail('تاريخ الحظر غير صحيح.',422,'invalid_booking_block_date');
+    if(!$repeatDaily){if($start->format('N')==='5')fail('يوم الجمعة غير متاح للحجز بالفعل.',422,'booking_block_friday');return [$startDate];}
+    $end=bookingBlockDate($repeatUntil);if(!$end)fail('حدد تاريخ نهاية التكرار.',422,'booking_block_repeat_until_required');
+    if($end<$start)fail('تاريخ نهاية التكرار يجب ألا يسبق تاريخ البداية.',422,'invalid_booking_block_range');
+    if((int)$start->diff($end)->days+1>90)fail('يمكن تكرار الحظر لمدة 90 يومًا كحد أقصى.',422,'booking_block_range_too_long');
+    $dates=[];for($cursor=$start;$cursor<=$end;$cursor=$cursor->modify('+1 day'))if($cursor->format('N')!=='5')$dates[]=$cursor->format('Y-m-d');
+    if(!$dates)fail('لا توجد أيام عمل ضمن فترة التكرار.',422,'empty_booking_block_series');return $dates;
 }
 
 function pushConfiguration(array $config): array {
@@ -2789,6 +2846,38 @@ if (preg_match('#^/clients/(\d+)/credentials/toggle$#',$path,$m)&&$method==='POS
 if (preg_match('#^/clients/(\d+)/access$#', $path, $m) && $method === 'POST') {
     $user=requireUser($user);requireRole($user,['owner']);
     fail('تم إيقاف هذا المسار. استخدم قسم الدخول والأمان المخصص.',410,'insecure_credential_route_retired');
+}
+
+if ($path==='/booking-blocks'&&$method==='GET') {
+    $user=requireUser($user);requireRole($user,['owner','admin','operations']);requireBookingBlockSchema($pdo);
+    $from=trim((string)($_GET['from']??cairoNow()->modify('-62 days')->format('Y-m-d')));$to=trim((string)($_GET['to']??cairoNow()->modify('+400 days')->format('Y-m-d')));$fromDate=bookingBlockDate($from);$toDate=bookingBlockDate($to);
+    if(!$fromDate||!$toDate||$toDate<$fromDate||(int)$fromDate->diff($toDate)->days>730)fail('فترة عرض حظر المواعيد غير صحيحة.',422,'invalid_booking_block_range');
+    $resourceId=max(0,(int)($_GET['resource_id']??0));$sql="SELECT bb.*,r.name resource_name FROM booking_blocks bb JOIN resources r ON r.id=bb.resource_id AND r.organization_id=bb.organization_id WHERE bb.organization_id=? AND bb.status='active' AND bb.block_date BETWEEN ? AND ?";$params=[$user['organization_id'],$from,$to];
+    if($resourceId>0){$sql.=' AND bb.resource_id=?';$params[]=$resourceId;}$sql.=' ORDER BY bb.block_date,bb.start_time,bb.id';$stmt=$pdo->prepare($sql);$stmt->execute($params);respond($stmt->fetchAll());
+}
+
+if ($path==='/booking-blocks'&&$method==='POST') {
+    $user=requireUser($user);requireRole($user,['owner','admin','operations']);requireBookingBlockSchema($pdo);$payload=body();
+    $date=trim((string)($payload['date']??''));$start=normalizeBusinessTime($payload['start_time']??'');$end=normalizeBusinessTime($payload['end_time']??'',true);$resourceId=(int)($payload['resource_id']??0);$repeatDaily=!empty($payload['repeat_daily']);$repeatUntil=trim((string)($payload['repeat_until']??''));$note=mb_substr(trim((string)($payload['note']??'')),0,1000);$idempotencyKey=trim((string)($payload['idempotency_key']??''));
+    if(!preg_match('/^[A-Za-z0-9:_-]{12,120}$/',$idempotencyKey))fail('مفتاح حفظ الحظر غير صحيح.',422,'invalid_idempotency_key');$duration=bookingDurationMinutes($start,$end);if(!validBusinessBooking($start,$end,60)||$duration%15!==0)fail('فترة الحظر يجب أن تكون ساعة على الأقل، بزيادات 15 دقيقة، بين 12:00 م و12:00 ص.',422,'invalid_booking_block_time');
+    $dates=bookingBlockDates($date,$repeatDaily,$repeatUntil);$normalized=['date'=>$date,'start_time'=>$start,'end_time'=>$end,'resource_id'=>$resourceId,'repeat_daily'=>$repeatDaily,'repeat_until'=>$repeatDaily?$repeatUntil:null,'note'=>$note];$requestHash=hash('sha256',json_encode($normalized,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+    $pdo->beginTransaction();try{
+        $replay=$pdo->prepare('SELECT request_hash,response_json FROM booking_blocks WHERE organization_id=? AND idempotency_key=? LIMIT 1 FOR UPDATE');$replay->execute([$user['organization_id'],$idempotencyKey]);$existing=$replay->fetch();if($existing){if(!hash_equals((string)$existing['request_hash'],$requestHash)){$pdo->rollBack();fail('تم استخدام مفتاح الحفظ نفسه مع بيانات مختلفة.',409,'idempotency_conflict');}$response=json_decode((string)$existing['response_json'],true);$pdo->commit();if(!is_array($response))fail('تعذر استعادة نتيجة الحفظ السابقة.',409,'idempotency_incomplete');$response['idempotent']=true;respond($response);}
+        $resource=$pdo->prepare('SELECT id,name FROM resources WHERE id=? AND organization_id=? AND is_active=1 FOR UPDATE');$resource->execute([$resourceId,$user['organization_id']]);$resourceRow=$resource->fetch();if(!$resourceRow){$pdo->rollBack();fail('الاستديو أو مورد الحجز غير متاح.',422,'invalid_booking_resource');}
+        // A concurrent request can pass the first replay check before waiting on
+        // the resource lock. Recheck while holding that lock so the same key is
+        // still an exact replay instead of surfacing a duplicate-key failure.
+        $replay->execute([$user['organization_id'],$idempotencyKey]);$existing=$replay->fetch();if($existing){if(!hash_equals((string)$existing['request_hash'],$requestHash)){$pdo->rollBack();fail('تم استخدام مفتاح الحفظ نفسه مع بيانات مختلفة.',409,'idempotency_conflict');}$response=json_decode((string)$existing['response_json'],true);$pdo->commit();if(!is_array($response))fail('تعذر استعادة نتيجة الحفظ السابقة.',409,'idempotency_incomplete');$response['idempotent']=true;respond($response);}
+        foreach($dates as $blockDate){$bookingConflict=$pdo->prepare("SELECT id FROM bookings WHERE organization_id=? AND resource_id=? AND date=? AND status IN ('confirmed','in_progress') AND start_time<? AND end_time>? LIMIT 1 FOR UPDATE");$bookingConflict->execute([$user['organization_id'],$resourceId,$blockDate,$end.':00',$start.':00']);if($bookingConflict->fetch()){$pdo->rollBack();fail('يتعارض الحظر مع حجز مؤكد يوم '.$blockDate.'. لم يتم إنشاء أي حظر.',409,'booking_conflict');}$blockConflict=$pdo->prepare("SELECT id FROM booking_blocks WHERE organization_id=? AND resource_id=? AND block_date=? AND status='active' AND start_time<? AND end_time>? LIMIT 1 FOR UPDATE");$blockConflict->execute([$user['organization_id'],$resourceId,$blockDate,$end.':00',$start.':00']);if($blockConflict->fetch()){$pdo->rollBack();fail('توجد فترة مغلقة متعارضة يوم '.$blockDate.'. لم يتم إنشاء أي حظر.',409,'booking_block_conflict');}}
+        $seriesKey=null;if($repeatDaily){$seriesBytes=random_bytes(16);$seriesBytes[6]=chr((ord($seriesBytes[6])&0x0f)|0x40);$seriesBytes[8]=chr((ord($seriesBytes[8])&0x3f)|0x80);$hex=bin2hex($seriesBytes);$seriesKey=substr($hex,0,8).'-'.substr($hex,8,4).'-'.substr($hex,12,4).'-'.substr($hex,16,4).'-'.substr($hex,20,12);}$items=[];$insert=$pdo->prepare("INSERT INTO booking_blocks (organization_id,resource_id,block_date,start_time,end_time,duration_minutes,title,note,series_key,idempotency_key,request_hash,status,created_by) VALUES (?,?,?,?,?,?,'الحجز مغلق',?,?,?,?,'active',?)");
+        foreach($dates as $index=>$blockDate){$rowKey=$index===0?$idempotencyKey:$idempotencyKey.':'.$index;$insert->execute([$user['organization_id'],$resourceId,$blockDate,$start.':00',$end.':00',$duration,$note?:null,$seriesKey,$rowKey,$requestHash,$user['id']]);$id=(int)$pdo->lastInsertId();$block=['id'=>$id,'organization_id'=>(int)$user['organization_id'],'resource_id'=>$resourceId,'resource_name'=>$resourceRow['name'],'block_date'=>$blockDate,'start_time'=>$start.':00','end_time'=>$end.':00','duration_minutes'=>$duration,'title'=>'الحجز مغلق','note'=>$note?:null,'series_key'=>$seriesKey,'status'=>'active'];try{reserveBookingBlockSlots($pdo,$block);}catch(PDOException $slotError){if(($slotError->errorInfo[1]??0)===1062){$pdo->rollBack();fail('أصبحت إحدى الفترات غير متاحة. لم يتم إنشاء أي حظر.',409,'booking_conflict');}throw $slotError;}$items[]=$block;}
+        $response=['items'=>$items,'count'=>count($items),'series_key'=>$seriesKey,'idempotent'=>false,'skipped_fridays'=>($repeatDaily?((int)bookingBlockDate($date)->diff(bookingBlockDate($repeatUntil))->days+1-count($items)):0)];$pdo->prepare('UPDATE booking_blocks SET response_json=? WHERE organization_id=? AND idempotency_key=?')->execute([json_encode($response,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),$user['organization_id'],$idempotencyKey]);auditBookingBlockChange($pdo,$user,'create',(int)$items[0]['id'],null,['resource_id'=>$resourceId,'dates'=>$dates,'start_time'=>$start,'end_time'=>$end,'series_key'=>$seriesKey]);$pdo->commit();respond($response,201);
+    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
+}
+
+if (preg_match('#^/booking-blocks/(\d+)$#',$path,$m)&&$method==='DELETE') {
+    $user=requireUser($user);requireRole($user,['owner','admin','operations']);requireBookingBlockSchema($pdo);$id=(int)$m[1];$scope=(string)($_GET['scope']??'single');if(!in_array($scope,['single','series'],true))fail('نطاق إلغاء الحظر غير صحيح.',422,'invalid_booking_block_scope');
+    $pdo->beginTransaction();try{$stmt=$pdo->prepare("SELECT * FROM booking_blocks WHERE id=? AND organization_id=? AND status='active' FOR UPDATE");$stmt->execute([$id,$user['organization_id']]);$selected=$stmt->fetch();if(!$selected){$pdo->rollBack();fail('فترة الحظر غير موجودة أو ألغيت من قبل.',404,'booking_block_not_found');}$ids=[$id];if($scope==='series'&&!empty($selected['series_key'])){$series=$pdo->prepare("SELECT id FROM booking_blocks WHERE organization_id=? AND series_key=? AND status='active' AND block_date>=? ORDER BY block_date,id FOR UPDATE");$series->execute([$user['organization_id'],$selected['series_key'],$selected['block_date']]);$ids=array_map('intval',$series->fetchAll(PDO::FETCH_COLUMN));}$marks=implode(',',array_fill(0,count($ids),'?'));$pdo->prepare("UPDATE booking_blocks SET status='cancelled',cancelled_by=?,cancelled_at=NOW() WHERE organization_id=? AND id IN ($marks) AND status='active'")->execute(array_merge([$user['id'],$user['organization_id']],$ids));releaseBookingBlockSlots($pdo,$ids,(int)$user['organization_id']);auditBookingBlockChange($pdo,$user,$scope==='series'?'cancel_series':'cancel',$id,$selected,['cancelled_ids'=>$ids,'scope'=>$scope]);$pdo->commit();respond(['cancelled'=>count($ids),'ids'=>$ids,'scope'=>$scope]);}catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
 if (preg_match('#^/reschedule-requests/(\d+)/decision$#',$path,$m)&&$method==='POST'){
