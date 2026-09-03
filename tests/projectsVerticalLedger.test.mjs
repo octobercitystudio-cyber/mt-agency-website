@@ -58,3 +58,24 @@ test('project ledger is one record per row and reflows without horizontal overfl
   assert.match(css, /\.project-record:focus-visible/);
   assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
 });
+
+test('project records use the shared light ERP theme instead of a dark local palette', async () => {
+  const css = await load('src/erp/ERPProjectsCustomServices.css');
+  const recordRule = css.match(/\.project-record\{[^}]+\}/)?.[0] || '';
+
+  assert.match(recordRule, /background:var\(--erp-surface-raised\)/);
+  assert.match(recordRule, /color:var\(--erp-text-default\)/);
+  assert.match(recordRule, /border:1px solid var\(--erp-border\)/);
+  assert.match(recordRule, /box-shadow:var\(--erp-shadow\)/);
+  assert.doesNotMatch(recordRule, /#0d192b|#f6f8fc|#263b58/);
+  assert.match(css, /\.project-record__heading strong\{[^}]*color:var\(--erp-text-main\)/);
+  assert.match(css, /\.project-record__section\+\.project-record__section\{[^}]*var\(--erp-border\)/);
+});
+
+test('project lifecycle selects and native options keep readable light contrast', async () => {
+  const css = await load('src/erp/ERPProjectsLifecycle.css');
+
+  assert.match(css, /\.lifecycle-control select,\.lifecycle-select\{[^}]*color-scheme:light/);
+  assert.match(css, /\.project-dialog \.lifecycle-select option,\.project-dialog \.lifecycle-control option\{background:#fff!important;color:#171a27!important\}/);
+  assert.doesNotMatch(css, /\.lifecycle-select option,\.lifecycle-control option\{background:#101d30\}/);
+});
