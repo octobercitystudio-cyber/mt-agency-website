@@ -33,6 +33,12 @@ test('WhatsApp and direct-call actions use the exact company number and accessib
   assert.match(actionSource, /<Phone aria-hidden="true" \/>/);
 });
 
+test('the contact dock is not rendered anywhere inside the owner ERP dashboard', () => {
+  assert.match(actionSource, /const isErpDashboard = pathname\.startsWith\('\/erp'\)/);
+  assert.match(actionSource, /if \(isErpDashboard\) return null/);
+  assert.doesNotMatch(actionSource, /global-contact-actions--erp/);
+});
+
 test('the homepage duplicate is removed without affecting regular contact content', () => {
   assert.doesNotMatch(contactSource, /whatsapp-float|Floating WhatsApp Button|wa\.me/);
   assert.doesNotMatch(contactStyles, /\.whatsapp-float/);
@@ -49,16 +55,13 @@ test('the dock remains tappable, focus-visible, modal-safe, and clear of mobile 
   assert.match(actionStyles, /html\[dir="ltr"\] \.global-contact-actions\s*\{[\s\S]*?left:\s*auto;[\s\S]*?right:\s*max\(18px/);
   assert.match(actionStyles, /html\[dir="ltr"\] \.global-contact-actions__button::after/);
   assert.match(actionStyles, /\.global-contact-actions--client[\s\S]*?bottom:\s*calc\(88px/);
-  assert.match(actionStyles, /\.global-contact-actions--erp\s*\{\s*bottom:\s*calc\(88px/);
   assert.match(footerStyles, /html\[dir="rtl"\] \.app-container \.footer-section \.container\s*\{[\s\S]*?margin-left:\s*72px/);
   assert.match(footerStyles, /html\[lang="en"\]\[dir="ltr"\] \.app-container \.footer-section \.container\s*\{[\s\S]*?margin-right:\s*72px/);
 });
 
-test('ERP timer clearance is conditional and dashboard labels never cover working cards', () => {
-  assert.match(actionStyles, /body:has\(\.erp-live-session\) \.global-contact-actions--erp/);
-  assert.match(actionStyles, /body:has\(\.erp-live-session\) \.global-contact-actions--erp\s*\{\s*bottom:\s*calc\(158px/);
+test('client dashboard labels never cover working cards', () => {
   assert.match(actionStyles, /\.global-contact-actions--client \.global-contact-actions__button::after/);
-  assert.match(actionStyles, /\.global-contact-actions--erp \.global-contact-actions__button::after[\s\S]*?display:\s*none/);
+  assert.doesNotMatch(actionStyles, /global-contact-actions--erp/);
   assert.match(actionStyles, /bottom:\s*max\(26px,\s*calc\(env\(safe-area-inset-bottom/);
 });
 

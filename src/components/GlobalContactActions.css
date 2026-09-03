@@ -20,10 +20,6 @@ body:has(.unified-login-container) .global-contact-actions {
   z-index: 1010;
 }
 
-body:has(.erp-live-session) .global-contact-actions--erp {
-  bottom: max(118px, calc(env(safe-area-inset-bottom, 0px) + 22px));
-}
-
 .global-contact-actions__button {
   position: relative;
   display: grid;
@@ -108,9 +104,8 @@ html[dir="ltr"] .global-contact-actions__button:focus-visible::after {
   box-shadow: 0 0 0 6px rgba(109, 50, 220, .25), 0 9px 24px rgba(19, 12, 30, .26);
 }
 
-/* Dense dashboards keep the accessible name without painting labels over cards. */
-.global-contact-actions--client .global-contact-actions__button::after,
-.global-contact-actions--erp .global-contact-actions__button::after {
+/* The client dashboard keeps the accessible name without painting labels over cards. */
+.global-contact-actions--client .global-contact-actions__button::after {
   display: none;
 }
 
@@ -127,14 +122,6 @@ html[dir="ltr"] .global-contact-actions__button:focus-visible::after {
 
   .global-contact-actions--client {
     bottom: calc(88px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .global-contact-actions--erp {
-    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
-  }
-
-  body:has(.erp-live-session) .global-contact-actions--erp {
-    bottom: calc(158px + env(safe-area-inset-bottom, 0px));
   }
 
   .global-contact-actions__button {

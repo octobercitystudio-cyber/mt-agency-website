@@ -11,11 +11,10 @@ const GlobalContactActions = () => {
   const { pathname } = useLocation();
   const { i18n } = useTranslation();
   const isEnglish = String(i18n.language).startsWith('en');
-  const surface = pathname.startsWith('/erp')
-    ? 'erp'
-    : pathname === '/dashboard'
-      ? 'client'
-      : 'standard';
+  const isErpDashboard = pathname.startsWith('/erp');
+  const surface = pathname === '/dashboard' ? 'client' : 'standard';
+
+  if (isErpDashboard) return null;
 
   return (
     <nav
