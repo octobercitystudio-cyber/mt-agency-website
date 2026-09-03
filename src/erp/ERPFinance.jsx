@@ -12,6 +12,7 @@ import { useData } from '../store/DataContext';
 import './ERPFinance.css';
 
 let globalFinanceCache = null;
+const packagePaymentRequestKey = () => `finance-package-payment-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 
 const ERPFinance = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -49,6 +50,7 @@ const ERPFinance = () => {
   const transactionDialogRef = useRef(null);
   const transactionErrorRef = useRef(null);
   const transactionTriggerRef = useRef(null);
+  const transactionRequestKeyRef = useRef('');
   const ownerDialogRef = useRef(null);
   const ownerActionTriggerRef = useRef(null);
   const [transferForm, setTransferForm] = useState({ from_method: 'cash', to_method: 'vodafone_cash', amount: '', date: format(new Date(), 'yyyy-MM-dd'), note: '' });
@@ -123,7 +125,7 @@ const ERPFinance = () => {
   const clientPackages = useMemo(() => packages.filter(pkg => String(pkg.client_id) === String(txForm.client_id)), [packages, txForm.client_id]);
   const periodOpen = financePeriod?.status === 'open';
   const canAdjustWallet = periodOpen && selectedMonth === format(new Date(), 'yyyy-MM');
-  const openTransactionModal = () => { if (!periodOpen) return; setTxError([]); setTxForm(emptyTransaction()); setModalState(state => ({ ...state, addTransaction: true })); };
+  const openTransactionModal = () => { if (!periodOpen) return; transactionRequestKeyRef.current = packagePaymentRequestKey(); setTxError([]); setTxForm(emptyTransaction()); setModalState(state => ({ ...state, addTransaction: true })); };
   const txErrorFields = new Set(txError.map(error => error.field));
 
   const safeFloat = (val) => {
@@ -191,7 +193,13 @@ const ERPFinance = () => {
     if (txForm.entry_kind === 'income' && txForm.category === 'client_revenue' && !txForm.client_id) errors.push({ field: 'finance-client', message: 'اختر العميل المطلوب لإيراد العميل.' });
     if (txForm.entry_kind === 'income' && txForm.source_type && !txForm.source_id) errors.push({ field: 'finance-source', message: txForm.source_type === 'client_package' ? 'اختر الباقة المباعة المرتبطة.' : 'اختر الخدمة المرتبطة.' });
     if (errors.length) { setTxError(errors); return; }
-    const { error } = await dataClient.request('/finance/manual', { method: 'POST', body: JSON.stringify({
+    const packagePayment = txForm.entry_kind === 'income' && txForm.source_type === 'client_package';
+    if (packagePayment && !transactionRequestKeyRef.current) transactionRequestKeyRef.current = packagePaymentRequestKey();
+    const endpoint = packagePayment ? `/client-packages/${Number(txForm.source_id)}/payments` : '/finance/manual';
+    const payload = packagePayment ? {
+      amount: String(txForm.amount).trim(), method: txForm.method, reference: '', note: txForm.detail.trim(), payment_date: txForm.date,
+      idempotency_key: transactionRequestKeyRef.current,
+    } : {
       entry_kind: txForm.entry_kind,
       category: txForm.category,
       client_id: txForm.entry_kind === 'income' && txForm.client_id ? Number(txForm.client_id) : null,
@@ -200,9 +208,11 @@ const ERPFinance = () => {
       amount: safeFloat(txForm.amount), method: txForm.method, detail: txForm.detail, date: txForm.date,
       entity: txForm.entry_kind === 'expense' ? txForm.entity : 'الشركة',
       employee_user_id: txForm.entry_kind === 'expense' && txForm.employee_user_id !== 'company' ? Number(txForm.employee_user_id) : null,
-    }) });
+    };
+    const { error } = await dataClient.request(endpoint, { method: 'POST', body: JSON.stringify(payload) });
 
     if (!error) {
+      transactionRequestKeyRef.current = '';
       setModalState(s => ({...s, addTransaction: false}));
       setTxForm(emptyTransaction());
       fetchData(true);
@@ -528,7 +538,7 @@ const ERPFinance = () => {
                   <div className="col-md-6 finance-conditional-field"><label htmlFor="finance-client" className="small fw-bold mb-1">اسم العميل {txForm.category === 'client_revenue' ? <b>مطلوب</b> : <span>اختياري</span>}</label><select id="finance-client" className="form-select border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={txForm.client_id} onChange={e => setTxForm({...txForm,client_id:e.target.value,source_id:txForm.source_type==='client_package'?'':txForm.source_id})} required={txForm.category === 'client_revenue'} aria-invalid={txErrorFields.has('finance-client')||undefined} aria-describedby={txErrorFields.has('finance-client')?'finance-form-errors':undefined}><option value="">{txForm.category === 'client_revenue' ? 'اختر العميل' : 'إيراد عام بلا عميل'}</option>{clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}</select></div>
                   <div className="col-md-6 finance-conditional-field"><label htmlFor="finance-relation" className="small fw-bold mb-1">الربط التشغيلي <span>اختياري</span></label><select id="finance-relation" className="form-select border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={txForm.source_type} onChange={e => setTxForm({...txForm,source_type:e.target.value,source_id:''})}><option value="">غير مرتبط بباقة أو خدمة</option><option value="client_package" disabled={!txForm.client_id}>باقة مباعة للعميل</option><option value="service">خدمة</option></select></div>
                   {txForm.source_type && <div className="col-12 finance-conditional-field"><label htmlFor="finance-source" className="small fw-bold mb-1">{txForm.source_type === 'client_package' ? 'الباقة المباعة' : 'الخدمة'} <b>مطلوب</b></label><select id="finance-source" className="form-select border-0 fw-bold" style={{ background: 'var(--erp-bg)' }} value={txForm.source_id} onChange={e => setTxForm({...txForm,source_id:e.target.value})} required aria-invalid={txErrorFields.has('finance-source')||undefined} aria-describedby={txErrorFields.has('finance-source')?'finance-form-errors':undefined}><option value="">اختر {txForm.source_type === 'client_package' ? 'الباقة' : 'الخدمة'}</option>{(txForm.source_type === 'client_package' ? clientPackages : services).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
-                  {txForm.source_type === 'client_package' && <div className="col-12"><div className="finance-package-warning"><PackageOpen/><p><strong>هذا الربط وصفي في دفتر الحسابات فقط.</strong>لا يغيّر المدفوع على الباقة أو الفاتورة. سجّل الدفعة الفعلية من مسار الدفع/إثبات التحويل.</p></div></div>}
+                  {txForm.source_type === 'client_package' && <div className="col-12"><div className="finance-package-warning"><PackageOpen/><p><strong>ستُسجّل كدفعة فعلية على الباقة.</strong>سيتم تحديث المدفوع والمتبقي والفاتورة وسجل مدفوعات العميل تلقائيًا دون إنشاء قيد مكرر.</p></div></div>}
                 </>}
                 {txForm.type === 'مصروف' && (
                   <div className="col-12 mt-3 animate__animated animate__fadeIn">

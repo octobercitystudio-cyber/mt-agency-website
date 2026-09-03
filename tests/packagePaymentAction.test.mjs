@@ -23,10 +23,10 @@ test('package payment UI is shared, exact, accessible and responsive', async () 
 test('demo package payment creates one exact payment, allocation and finance row and refreshes package/invoice cents', async () => {
   const storage = browserGlobals(); const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); let db = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const pkg = db.client_packages.find(row => row.id === 203); pkg.source_invoice_id = 703; storage.set('mt_agency_erp_demo_v12', JSON.stringify(db)); activateDemoMode('finance');
-  const body = { amount: '100.25', method: 'bank_transfer', reference: 'EVAL-10025', note: 'اختبار مستقل لمسار الدفعة', idempotency_key: 'package-payment-exact-001' };
+  const body = { amount: '100.25', method: 'bank_transfer', reference: 'EVAL-10025', note: 'اختبار مستقل لمسار الدفعة', payment_date: '2026-08-30', idempotency_key: 'package-payment-exact-001' };
   const result = await demoClient.request('/client-packages/203/payments', { method: 'POST', body: JSON.stringify(body) }); assert.equal(result.error, null); assert.equal(result.data.idempotent, false); assert.equal(result.data.amount, '100.25');
   db = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const payment = db.payments.find(row => row.id === result.data.payment_id); const allocation = db.payment_allocations.filter(row => row.payment_id === payment.id); const finance = db.finance.filter(row => row.source_type === 'payment' && row.source_id === payment.id);
-  assert.equal(payment.status, 'approved'); assert.equal(payment.amount, '100.25'); assert.equal(payment.note, body.note); assert.equal(allocation.length, 1); assert.equal(allocation[0].client_package_id, 203); assert.equal(allocation[0].invoice_id, 703); assert.equal(allocation[0].amount, '100.25'); assert.equal(finance.length, 1); assert.equal(finance[0].amount, '100.25');
+  assert.equal(payment.status, 'approved'); assert.equal(payment.amount, '100.25'); assert.equal(payment.note, body.note); assert.equal(allocation.length, 1); assert.equal(allocation[0].client_package_id, 203); assert.equal(allocation[0].invoice_id, 703); assert.equal(allocation[0].amount, '100.25'); assert.equal(finance.length, 1); assert.equal(finance[0].amount, '100.25'); assert.equal(finance[0].date, body.payment_date); assert.equal(finance[0].detail, body.note);
   assert.equal(db.client_packages.find(row => row.id === 203).paid_amount, '10100.25'); assert.equal(db.invoices.find(row => row.id === 703).paid_amount, '10100.25');
   assert.equal(db.audit_logs.filter(row => row.action === 'record_package_payment' && row.entity_id === payment.id).length, 1); assert.equal(db.app_notifications.filter(row => row.type === 'payment_recorded' && row.entity_id === payment.id).length, 1);
   const replay = await demoClient.request('/client-packages/203/payments', { method: 'POST', body: JSON.stringify(body) }); assert.equal(replay.error, null); assert.equal(replay.data.payment_id, payment.id); assert.equal(replay.data.idempotent, true);
@@ -59,4 +59,14 @@ test('production endpoint is transactional, package scoped and exact-once', asyn
   assert.match(api, /client_package_payment_requests/); assert.match(api, /idempotency_payload_mismatch/); assert.match(api, /payment_exceeds_outstanding/); assert.match(api, /INSERT INTO payment_allocations/); assert.match(api, /'package_payment'/); assert.match(api, /refreshInvoicePaidStatus/); assert.match(api, /record_package_payment/); assert.match(api, /payment_recorded/); assert.match(api, /queueClientWhatsAppSummary/); assert.match(api, /if\(\$pdo->inTransaction\(\)\)\$pdo->rollBack\(\)/);
   assert.match(migration, /UNIQUE KEY uq_client_package_payment_request \(organization_id,idempotency_key\)/); assert.match(migration, /ADD COLUMN IF NOT EXISTS note VARCHAR\(500\)/);
   assert.ok(api.includes("clients/(\\d+)/payment-history")); assert.match(api, /WHERE p\.organization_id=\? AND p\.client_id=\?/); assert.match(api, /LEFT JOIN payment_allocations pa ON pa\.payment_id=p\.id/); assert.match(api, /package_name/); assert.match(api, /source_type<>\'payment\'/);
+});
+
+test('cashbox package relation submits a real protected package payment instead of a descriptive finance row', async () => {
+  const finance = await load('src/erp/ERPFinance.jsx');
+  assert.match(finance, /packagePayment = txForm\.entry_kind === 'income' && txForm\.source_type === 'client_package'/);
+  assert.match(finance, /`\/client-packages\/\$\{Number\(txForm\.source_id\)\}\/payments`/);
+  assert.match(finance, /payment_date: txForm\.date/);
+  assert.match(finance, /idempotency_key: transactionRequestKeyRef\.current/);
+  assert.match(finance, /ستُسجّل كدفعة فعلية على الباقة/);
+  assert.doesNotMatch(finance, /هذا الربط وصفي في دفتر الحسابات فقط/);
 });
