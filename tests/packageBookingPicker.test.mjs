@@ -93,7 +93,7 @@ test('demo client create normalizes phone and rejects an organization duplicate 
   assert.equal((await demoClient.from('clients').select('id')).data.length, beforeCount);
   assert.equal(storage.get('mt_agency_erp_demo_v12'), before, 'duplicate failure must not write any demo state');
   const created = await demoClient.request('/clients', { method: 'POST', body: JSON.stringify({ name: 'عميل فريد', phone1: '010-8888 9999', color: '#7c3aed' }) });
-  assert.equal(created.error, null); assert.deepEqual(Object.keys(created.data).sort(), ['id', 'portal_access']); assert.equal(created.data.portal_access, false);
+  assert.equal(created.error, null); assert.deepEqual(Object.keys(created.data).sort(), ['color', 'id', 'portal_access']); assert.equal(created.data.color, '#7C3AED'); assert.equal(created.data.portal_access, false);
   const successOutcome = resolveClientModalSaveResult({ result: created, isEditing: false, draft: {}, payload: { name: 'عميل فريد', phone1: '01088889999' } });
   assert.equal(successOutcome.ok, true); assert.equal(successOutcome.shouldClose, true); assert.equal(successOutcome.savedClient.id, created.data.id);
   const saved = (await demoClient.from('clients').select('id,phone1')).data.find(client => Number(client.id) === Number(created.data.id));

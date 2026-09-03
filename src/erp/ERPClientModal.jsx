@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { UserPlus, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
@@ -16,16 +16,29 @@ export default function ERPClientModal({ isOpen, onClose, onSuccess, client = em
   const appearanceContract = clientModalAppearance(appearance);
   const [draft, setDraft] = useState(() => ({ ...emptyClient, ...client }));
   const [saveState, setSaveState] = useState({ busy: false, type: '', message: '' });
+  const [colorMode, setColorMode] = useState(client?.id ? 'manual' : 'auto');
+  const colorEditedRef = useRef(Boolean(client?.id));
   const close = useCallback(() => { if (!saveState.busy) onClose(); }, [onClose, saveState.busy]);
   const dialogRef = useModalDialog(isOpen, close, { returnFocusRef });
 
   useEffect(() => {
     if (!isOpen) return;
-    const timer = window.setTimeout(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const editing = Boolean(client?.id);
+      colorEditedRef.current = editing;
+      setColorMode(editing ? 'manual' : 'auto');
       setDraft({ ...emptyClient, ...client, email: client?.email || '' });
       setSaveState({ busy: false, type: '', message: '' });
+      if (!editing) {
+        const result = await dataClient.request('/clients/next-color', { method: 'GET' });
+        const suggestedColor = result?.data?.color;
+        if (!cancelled && !colorEditedRef.current && /^#[0-9a-f]{6}$/i.test(suggestedColor || '')) {
+          setDraft(current => ({ ...current, color: suggestedColor }));
+        }
+      }
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [client, isOpen]);
 
   const update = (field, value) => setDraft(current => ({ ...current, [field]: value }));
@@ -37,7 +50,8 @@ export default function ERPClientModal({ isOpen, onClose, onSuccess, client = em
       company_name: draft.company_name || null, contact_person: draft.contact_person || null, job: draft.job || null,
       address: draft.address || null, city: draft.city || null, tax_number: draft.tax_number || null,
       commercial_registration: draft.commercial_registration || null, preferred_contact: draft.preferred_contact,
-      whatsapp_opt_in: draft.whatsapp_opt_in ? 1 : 0, notes: draft.notes || null, color: draft.color,
+      whatsapp_opt_in: draft.whatsapp_opt_in ? 1 : 0, notes: draft.notes || null,
+      color: isEditing || colorEditedRef.current ? draft.color : null,
     };
     const result = isEditing
       ? await dataClient.from('clients').update(payload).eq('id', draft.id)
@@ -68,7 +82,7 @@ export default function ERPClientModal({ isOpen, onClose, onSuccess, client = em
         <div><label style={labelStyle}>البريد الإلكتروني (اختياري)</label><input type="email" dir="ltr" style={fieldStyle} value={draft.email || ''} onChange={e => update('email', e.target.value)} placeholder="client@example.com" /></div>
         <div className="erp-client-modal-grid erp-client-modal-grid--wide"><div><label style={labelStyle}>العنوان</label><input value={draft.address || ''} onChange={e => update('address', e.target.value)} style={fieldStyle}/></div><div><label style={labelStyle}>المدينة</label><input value={draft.city || ''} onChange={e => update('city', e.target.value)} style={fieldStyle}/></div></div>
         <div className="erp-client-modal-grid"><div><label style={labelStyle}>الرقم الضريبي</label><input value={draft.tax_number || ''} onChange={e => update('tax_number', e.target.value)} style={fieldStyle}/></div><div><label style={labelStyle}>السجل التجاري</label><input value={draft.commercial_registration || ''} onChange={e => update('commercial_registration', e.target.value)} style={fieldStyle}/></div></div>
-        <div className="erp-client-modal-grid erp-client-modal-grid--wide"><div><label style={labelStyle}>الوظيفة / ملاحظة</label><input style={fieldStyle} value={draft.job || ''} onChange={e => update('job', e.target.value)} /></div><div><label style={labelStyle}>اللون</label><input type="color" style={{ ...fieldStyle, padding: '5px', height: '45px' }} value={draft.color} onChange={e => update('color', e.target.value)} /></div></div>
+        <div className="erp-client-modal-grid erp-client-modal-grid--wide"><div><label style={labelStyle}>الوظيفة / ملاحظة</label><input style={fieldStyle} value={draft.job || ''} onChange={e => update('job', e.target.value)} /></div><div><label style={labelStyle}>لون العميل</label><input type="color" aria-describedby="client-color-note" style={{ ...fieldStyle, padding: '5px', height: '45px' }} value={draft.color} onChange={e => { colorEditedRef.current = true; setColorMode('manual'); update('color', e.target.value); }} /><small id="client-color-note" className={`erp-client-color-note${colorMode === 'auto' ? ' is-auto' : ''}`}>{colorMode === 'auto' ? 'لون مختلف يُختار تلقائيًا عند الحفظ.' : 'لون مخصص تم اختياره يدويًا.'}</small></div></div>
         <div className="erp-client-modal-grid"><div><label style={labelStyle}>وسيلة التواصل المفضلة</label><select value={draft.preferred_contact || 'whatsapp'} onChange={e => update('preferred_contact', e.target.value)} style={fieldStyle}><option value="whatsapp">واتساب</option><option value="phone">مكالمة</option><option value="email">بريد إلكتروني</option></select></div><label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', borderRadius: '.5rem', background: 'rgba(25,135,84,.08)', fontSize: '.78rem', fontWeight: 700 }}><input type="checkbox" checked={Boolean(Number(draft.whatsapp_opt_in ?? 1))} onChange={e => update('whatsapp_opt_in', e.target.checked ? 1 : 0)}/>موافق على إشعارات واتساب</label></div>
         <div><label style={labelStyle}>ملاحظات العميل</label><textarea rows="2" value={draft.notes || ''} onChange={e => update('notes', e.target.value)} style={{ ...fieldStyle, resize: 'vertical' }}/></div>
         {!isEditing && <p className="erp-client-modal-security-note">بعد حفظ العميل، افتح بياناته واستخدم قسم «الدخول والأمان» لتعيين كلمة المرور أو إرسال رابط إعادة تعيين.</p>}

@@ -50,8 +50,8 @@ test('a created client keeps a non-default saved color through refresh, selectio
   const draft = selection.applyBookingClientToDraft({ category: 'باقة ريلز', notes: 'مسودة محفوظة' }, created);
   const indicator = selection.bookingClientIndicatorStyle(draft.color);
   assert.equal(draft.client_id, saved.data.id);
-  assert.equal(draft.color, '#0ea5e9');
-  assert.equal(indicator.background, '#0ea5e9');
+  assert.equal(draft.color, '#0EA5E9');
+  assert.equal(indicator.background, '#0EA5E9');
   assert.equal(draft.category, 'باقة ريلز');
   assert.equal(draft.notes, 'مسودة محفوظة');
   deactivateDemoMode();

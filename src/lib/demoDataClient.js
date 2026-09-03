@@ -12,6 +12,7 @@ import { appointmentStartIsPast, cairoAppointmentNowKey } from './packageSaleApp
 import { buildDashboardKpis } from './dashboardKpis.js';
 import { parseStrictMoney, strictMoneyError } from './strictMoney.js';
 import { calculateAttendanceLateCharge } from './attendancePayrollPolicy.js';
+import { nextClientColor, normalizeClientColor } from './clientColors.js';
 
 const STORAGE_KEY = 'mt_agency_erp_demo_v12';
 
@@ -1475,6 +1476,10 @@ const demoRequest = async (path, options = {}) => {
     Object.assign(target, safeBody, { updated_at: nowText() }); writeDatabase(database); return { id: Number(match[1]) };
   }
 
+  if (route === '/clients/next-color' && (options.method || 'GET') === 'GET') {
+    if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('غير مصرح بعرض لون العميل التالي.', 'forbidden');
+    return { color: nextClientColor(database.clients.map(client => client.color)), mode: 'auto' };
+  }
   if (route === '/clients' && options.method === 'POST') {
     if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('غير مصرح بإنشاء عميل.', 'forbidden');
     const name = String(body.name || '').trim();
@@ -1484,10 +1489,14 @@ const demoRequest = async (path, options = {}) => {
     const duplicate = database.clients.some(client => Number(client.organization_id || 1) === organizationId && normalizeDemoPhone(client.phone1) === phone1);
     if (duplicate) { const error = formationDemoError('رقم الهاتف أو البريد مستخدم بالفعل.', 'duplicate_client'); error.status = 409; throw error; }
     const preferredContact = ['whatsapp', 'phone', 'email'].includes(body.preferred_contact) ? body.preferred_contact : 'whatsapp';
-    const row = addRow(database, 'clients', { ...body, organization_id: organizationId, name, phone1, phone2: body.phone2 ? normalizeDemoPhone(body.phone2) : null, preferred_contact: preferredContact, whatsapp_opt_in: body.whatsapp_opt_in == null ? 1 : Number(Boolean(Number(body.whatsapp_opt_in))), status: 'active', color: body.color || '#6D28D9', points: 0, debt: 0, credit: 0 });
+    const requestedColor = String(body.color || '').trim();
+    const manualColor = requestedColor ? normalizeClientColor(requestedColor) : null;
+    if (requestedColor && !manualColor) throw formationDemoError('لون العميل غير صحيح.', 'invalid_client_color');
+    const color = manualColor || nextClientColor(database.clients.map(client => client.color));
+    const row = addRow(database, 'clients', { ...body, organization_id: organizationId, name, phone1, phone2: body.phone2 ? normalizeDemoPhone(body.phone2) : null, preferred_contact: preferredContact, whatsapp_opt_in: body.whatsapp_opt_in == null ? 1 : Number(Boolean(Number(body.whatsapp_opt_in))), status: 'active', color, points: 0, debt: 0, credit: 0 });
     demoAudit(database, 'create', 'clients', row.id, null, { name, phone1, portal_access: false });
     writeDatabase(database);
-    return { id: row.id, portal_access: false };
+    return { id: row.id, color, portal_access: false };
   }
   if ((match = route.match(/^\/clients\/(\d+)\/access$/))) return { client_id: Number(match[1]), demo: true };
 

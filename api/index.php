@@ -1364,6 +1364,30 @@ function socialProfitPayload(array $payload): array {
     return ['platform'=>$platform,'amount_cents'=>$amountCents,'receipt_date'=>$receiptDate,'earning_year'=>$year,'earning_month'=>$month,'channel_name'=>$channel,'payout_reference'=>mb_substr(trim((string)($payload['payout_reference']??'')),0,140),'note'=>mb_substr(trim((string)($payload['note']??'')),0,3000)];
 }
 
+function normalizeClientColor(mixed $value): ?string {
+    $color=strtoupper(trim((string)$value));
+    return preg_match('/^#[0-9A-F]{6}$/',$color)?$color:null;
+}
+
+function automaticClientColor(array $existingColors): string {
+    $palette=['#2563EB','#7C3AED','#059669','#DB2777','#EA580C','#0891B2','#BE123C','#4338CA','#047857','#A21CAF','#C2410C','#0E7490','#1D4ED8','#6D28D9','#15803D','#BE185D','#B45309','#0369A1','#4F46E5','#9333EA','#0F766E','#9F1239','#A16207','#075985'];
+    $used=[];foreach($existingColors as $existing){$normalized=normalizeClientColor($existing);if($normalized!==null)$used[$normalized]=true;}
+    foreach($palette as $color)if(!isset($used[$color]))return $color;
+    $seed=0x244059;$step=0x9E3779;$space=0x1000000;
+    for($index=0;$index<$space;$index++){
+        $value=($seed+($index*$step))%$space;$red=($value>>16)&255;$green=($value>>8)&255;$blue=$value&255;
+        $brightness=$red*299+$green*587+$blue*114;$spread=max($red,$green,$blue)-min($red,$green,$blue);
+        if($brightness>155000||$spread<55)continue;$color='#'.strtoupper(str_pad(dechex($value),6,'0',STR_PAD_LEFT));
+        if(!isset($used[$color]))return $color;
+    }
+    throw new RuntimeException('No unused client color is available.');
+}
+
+function nextClientColor(PDO $pdo,int $organizationId): string {
+    $stmt=$pdo->prepare('SELECT color FROM clients WHERE organization_id=? AND color IS NOT NULL');$stmt->execute([$organizationId]);
+    return automaticClientColor($stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
 $resources = [
     'clients' => ['org' => true, 'clientScoped' => true, 'scopeColumn' => 'id', 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => ['owner','admin','operations'], 'columns' => ['id','organization_id','name','company_name','contact_person','phone1','phone2','email','job','address','city','tax_number','commercial_registration','preferred_contact','whatsapp_opt_in','whatsapp_opt_in_at','color','notes','debt','credit','points','points_updated_at','dismissed_alerts','status','created_at','updated_at']],
     'services' => ['org' => true, 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => [], 'columns' => ['id','organization_id','name','category','billing_unit','price','total_hours','payment_due_hours','deposit_percent','overage_price','total_reels','validity_days','package_validity_mode','minimum_booking_minutes','booking_increment_minutes','auto_start_timer','is_active','is_draft','archive_reason','archived_by','archived_at','version','created_at','updated_at']],
@@ -2285,17 +2309,25 @@ if (preg_match('#^/users/(\d+)$#', $path, $m) && $method === 'PATCH') {
     audit($pdo,$user,'update','users',$targetId,$before,array_diff_key($payload,['password'=>true]));respond(['updated'=>true]);
 }
 
+if ($path === '/clients/next-color' && $method === 'GET') {
+    $user=requireUser($user);requireRole($user,['owner','admin','operations']);
+    respond(['color'=>nextClientColor($pdo,(int)$user['organization_id']),'mode'=>'auto']);
+}
+
 if ($path === '/clients' && $method === 'POST') {
     $user = requireUser($user); requireRole($user, ['owner','admin','operations']);
     $payload=body();$name=trim((string)($payload['name']??''));$phone=normalizePhone((string)($payload['phone1']??''));
     if($name===''||strlen($phone)<10)fail('اسم العميل ورقم الهاتف الصحيح مطلوبان.',422);
     if(!empty($payload['portal_password']))fail('لا يمكن تعيين كلمة مرور العميل يدويًا. احفظ العميل ثم استخدم قسم الدخول والأمان.',422,'plaintext_client_password_retired');
     if(!empty($payload['email'])&&!filter_var($payload['email'],FILTER_VALIDATE_EMAIL))fail('البريد الإلكتروني غير صحيح.',422,'invalid_email');$preferred=(string)($payload['preferred_contact']??'whatsapp');if(!in_array($preferred,['whatsapp','phone','email'],true))$preferred='whatsapp';$whatsappOptIn=!array_key_exists('whatsapp_opt_in',$payload)||!empty($payload['whatsapp_opt_in']);
+    $requestedColor=trim((string)($payload['color']??''));$manualColor=$requestedColor!==''?normalizeClientColor($requestedColor):null;if($requestedColor!==''&&$manualColor===null)fail('لون العميل غير صحيح.',422,'invalid_client_color');
     $pdo->beginTransaction();
     try{
+        $organizationLock=$pdo->prepare('SELECT id FROM organizations WHERE id=? FOR UPDATE');$organizationLock->execute([$user['organization_id']]);if(!$organizationLock->fetchColumn())fail('المؤسسة غير موجودة.',404,'organization_not_found');
+        $color=$manualColor??nextClientColor($pdo,(int)$user['organization_id']);
         $stmt=$pdo->prepare('INSERT INTO clients (organization_id,name,company_name,contact_person,phone1,phone2,email,job,address,city,tax_number,commercial_registration,preferred_contact,whatsapp_opt_in,whatsapp_opt_in_at,color,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        $stmt->execute([$user['organization_id'],$name,$payload['company_name']??null,$payload['contact_person']??null,$phone,isset($payload['phone2'])?normalizePhone((string)$payload['phone2']):null,$payload['email']??null,$payload['job']??null,$payload['address']??null,$payload['city']??null,$payload['tax_number']??null,$payload['commercial_registration']??null,$preferred,$whatsappOptIn?1:0,$whatsappOptIn?date('Y-m-d H:i:s'):null,$payload['color']??'#6D28D9',$payload['notes']??null]);$clientId=(int)$pdo->lastInsertId();
-        audit($pdo,$user,'create','clients',$clientId,null,['name'=>$name,'phone1'=>$phone,'portal_access'=>false]);$pdo->commit();respond(['id'=>$clientId,'portal_access'=>false],201);
+        $stmt->execute([$user['organization_id'],$name,$payload['company_name']??null,$payload['contact_person']??null,$phone,isset($payload['phone2'])?normalizePhone((string)$payload['phone2']):null,$payload['email']??null,$payload['job']??null,$payload['address']??null,$payload['city']??null,$payload['tax_number']??null,$payload['commercial_registration']??null,$preferred,$whatsappOptIn?1:0,$whatsappOptIn?date('Y-m-d H:i:s'):null,$color,$payload['notes']??null]);$clientId=(int)$pdo->lastInsertId();
+        audit($pdo,$user,'create','clients',$clientId,null,['name'=>$name,'phone1'=>$phone,'color'=>$color,'portal_access'=>false]);$pdo->commit();respond(['id'=>$clientId,'color'=>$color,'portal_access'=>false],201);
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();if($e instanceof PDOException&&$e->getCode()==='23000')fail('رقم الهاتف أو البريد مستخدم بالفعل.',409,'duplicate_client');throw $e;}
 }
 
@@ -3256,7 +3288,7 @@ if (preg_match('#^/data/([a-z_]+)$#', $path, $m)) {
     }
     if($method==='PATCH') {
         if(!is_array($values))$values=$payload;
-        if($table==='clients'){if(isset($values['phone1'])){$values['phone1']=normalizePhone((string)$values['phone1']);if(strlen($values['phone1'])<10)fail('رقم الهاتف غير صحيح.',422,'invalid_phone');}if(isset($values['phone2']))$values['phone2']=$values['phone2']?normalizePhone((string)$values['phone2']):null;if(!empty($values['email'])&&!filter_var($values['email'],FILTER_VALIDATE_EMAIL))fail('البريد الإلكتروني غير صحيح.',422,'invalid_email');if(isset($values['preferred_contact'])&&!in_array($values['preferred_contact'],['whatsapp','phone','email'],true))fail('وسيلة التواصل غير صحيحة.',422,'invalid_contact_method');if(array_key_exists('whatsapp_opt_in',$values))$values['whatsapp_opt_in_at']=!empty($values['whatsapp_opt_in'])?date('Y-m-d H:i:s'):null;}
+        if($table==='clients'){if(isset($values['phone1'])){$values['phone1']=normalizePhone((string)$values['phone1']);if(strlen($values['phone1'])<10)fail('رقم الهاتف غير صحيح.',422,'invalid_phone');}if(isset($values['phone2']))$values['phone2']=$values['phone2']?normalizePhone((string)$values['phone2']):null;if(!empty($values['email'])&&!filter_var($values['email'],FILTER_VALIDATE_EMAIL))fail('البريد الإلكتروني غير صحيح.',422,'invalid_email');if(isset($values['preferred_contact'])&&!in_array($values['preferred_contact'],['whatsapp','phone','email'],true))fail('وسيلة التواصل غير صحيحة.',422,'invalid_contact_method');if(array_key_exists('color',$values)){$clientColor=normalizeClientColor($values['color']);if($clientColor===null)fail('لون العميل غير صحيح.',422,'invalid_client_color');$values['color']=$clientColor;}if(array_key_exists('whatsapp_opt_in',$values))$values['whatsapp_opt_in_at']=!empty($values['whatsapp_opt_in'])?date('Y-m-d H:i:s'):null;}
         if($table==='finance'){$where.=' AND is_system=0';$immutableFinance=['entry_kind','source_type','source_id','correlation_id','is_system','reversed_entry_id'];foreach($immutableFinance as $field)unset($values[$field]);if(isset($values['amount'])&&(float)$values['amount']<=0)fail('مبلغ الحركة يجب أن يكون أكبر من صفر.',422,'invalid_finance_amount');}
         if($table==='services'){if(isset($values['billing_unit'])&&!in_array($values['billing_unit'],['hour','reel','day','month','project'],true))fail('وحدة الخدمة غير صحيحة.',422,'invalid_billing_unit');foreach(['minimum_booking_minutes','booking_increment_minutes'] as $field)if(isset($values[$field])&&((int)$values[$field]<15||(int)$values[$field]%15!==0))fail('حدود الحجز يجب أن تكون بزيادات 15 دقيقة.',422,'invalid_booking_policy');if(isset($values['deposit_percent']))$values['deposit_percent']=max(0,min(100,(float)$values['deposit_percent']));if(isset($values['overage_price']))$values['overage_price']=max(0,(float)$values['overage_price']);}
         if($table==='bookings'&&(isset($values['start_time'])||isset($values['end_time']))){$start=normalizeBusinessTime($values['start_time']??'');$end=normalizeBusinessTime($values['end_time']??'',true);if(!validBusinessBooking($start,$end))fail('موعد الحجز يجب أن يكون بين 12:00 م و12:00 ص، بحد أدنى ساعة وبزيادات 15 دقيقة.',422,'invalid_booking_time');$values['start_time']=$start.':00';$values['end_time']=$end.':00';$values['duration_minutes']=bookingDurationMinutes($start,$end);$values['requested_quantity']=$values['duration_minutes']/60;}
