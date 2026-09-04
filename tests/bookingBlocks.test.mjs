@@ -140,6 +140,11 @@ test('production API and migration enforce a single atomic schedule owner', asyn
   assert.match(migration, /ON DELETE CASCADE/);
   assert.doesNotMatch(migration, /\b(?:UPDATE|DELETE)\s+(?:bookings|client_packages|finance_transactions)\b/i);
   assert.match(api, /booking_blocks_migration_required/);
+  assert.match(api, /function installBookingBlockSchema/);
+  assert.match(api, /GET_LOCK\(\?,10\)/);
+  assert.match(api, /booking_blocks_ready/);
+  const automaticMigration = api.slice(api.indexOf('function installBookingBlockSchema'), api.indexOf('function requireBookingBlockSchema'));
+  assert.doesNotMatch(automaticMigration, /\b(?:UPDATE|DELETE|TRUNCATE)\s+(?:bookings|client_packages|finance|finance_transactions)\b/i);
   assert.match(api, /requireRole\(\$user,\['owner','admin','operations'\]\)/);
   assert.match(api, /FOR UPDATE/);
   assert.match(api, /reserveBookingBlockSlots/);

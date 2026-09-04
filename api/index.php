@@ -535,8 +535,65 @@ function bookingBlockSchemaReady(PDO $pdo): bool {
     return in_array('booking_block_id',$slotColumns,true);
 }
 
+function bookingBlockSchemaReadyFresh(PDO $pdo): bool {
+    $table=$pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
+    foreach(['booking_blocks','booking_slots'] as $name){$table->execute([$name]);if((int)$table->fetchColumn()===0)return false;}
+    $columns=$pdo->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
+    $columns->execute(['booking_blocks']);$blockColumns=array_map('strval',$columns->fetchAll(PDO::FETCH_COLUMN));
+    foreach(['id','organization_id','resource_id','block_date','start_time','end_time','duration_minutes','series_key','idempotency_key','request_hash','response_json','status','created_by','cancelled_by','cancelled_at'] as $column)if(!in_array($column,$blockColumns,true))return false;
+    $columns->execute(['booking_slots']);$slotColumns=array_map('strval',$columns->fetchAll(PDO::FETCH_COLUMN));
+    return in_array('booking_block_id',$slotColumns,true);
+}
+
+function installBookingBlockSchema(PDO $pdo): bool {
+    if(bookingBlockSchemaReadyFresh($pdo))return true;
+    $lockName='mta_036_booking_blocks_schema';$locked=false;
+    try{
+        $lock=$pdo->prepare('SELECT GET_LOCK(?,10)');$lock->execute([$lockName]);$locked=(int)$lock->fetchColumn()===1;if(!$locked)return false;
+        if(bookingBlockSchemaReadyFresh($pdo))return true;
+        $pdo->exec("CREATE TABLE IF NOT EXISTS booking_blocks (
+          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+          organization_id BIGINT UNSIGNED NOT NULL,
+          resource_id BIGINT UNSIGNED NOT NULL,
+          block_date DATE NOT NULL,
+          start_time TIME NOT NULL,
+          end_time TIME NOT NULL,
+          duration_minutes SMALLINT UNSIGNED NOT NULL,
+          title VARCHAR(120) NOT NULL DEFAULT 'الحجز مغلق',
+          note VARCHAR(1000) NULL,
+          series_key CHAR(36) NULL,
+          idempotency_key VARCHAR(160) NOT NULL,
+          request_hash CHAR(64) NOT NULL,
+          response_json JSON NULL,
+          status ENUM('active','cancelled') NOT NULL DEFAULT 'active',
+          created_by BIGINT UNSIGNED NOT NULL,
+          cancelled_by BIGINT UNSIGNED NULL,
+          cancelled_at DATETIME NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_booking_blocks_idempotency (organization_id,idempotency_key),
+          KEY idx_booking_blocks_calendar (organization_id,block_date,resource_id,status,start_time),
+          KEY idx_booking_blocks_series (organization_id,series_key,block_date,status),
+          CONSTRAINT fk_booking_blocks_org FOREIGN KEY (organization_id) REFERENCES organizations(id),
+          CONSTRAINT fk_booking_blocks_resource FOREIGN KEY (resource_id) REFERENCES resources(id),
+          CONSTRAINT fk_booking_blocks_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT,
+          CONSTRAINT fk_booking_blocks_canceller FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $column=$pdo->prepare('SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
+        $column->execute(['booking_slots','booking_id']);$bookingNullable=$column->fetchColumn();if($bookingNullable==='NO')$pdo->exec('ALTER TABLE booking_slots MODIFY COLUMN booking_id BIGINT UNSIGNED NULL');
+        $column->execute(['booking_slots','booking_block_id']);if($column->fetchColumn()===false)$pdo->exec('ALTER TABLE booking_slots ADD COLUMN booking_block_id BIGINT UNSIGNED NULL AFTER booking_id');
+        $index=$pdo->prepare('SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=?');
+        $index->execute(['booking_slots','idx_booking_slots_block']);if((int)$index->fetchColumn()===0)$pdo->exec('ALTER TABLE booking_slots ADD KEY idx_booking_slots_block (booking_block_id)');
+        $constraint=$pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME=? AND CONSTRAINT_NAME=?');
+        $constraint->execute(['booking_slots','fk_booking_slots_block']);if((int)$constraint->fetchColumn()===0)$pdo->exec('ALTER TABLE booking_slots ADD CONSTRAINT fk_booking_slots_block FOREIGN KEY (booking_block_id) REFERENCES booking_blocks(id) ON DELETE CASCADE');
+        $constraint->execute(['booking_slots','chk_booking_slots_one_owner']);if((int)$constraint->fetchColumn()===0)$pdo->exec('ALTER TABLE booking_slots ADD CONSTRAINT chk_booking_slots_one_owner CHECK ((booking_id IS NOT NULL) <> (booking_block_id IS NOT NULL))');
+        return bookingBlockSchemaReadyFresh($pdo);
+    }catch(Throwable $error){error_log('[ERP API][booking-block-schema] '.$error->getMessage());return false;}
+    finally{if($locked){try{$release=$pdo->prepare('SELECT RELEASE_LOCK(?)');$release->execute([$lockName]);}catch(Throwable){}}}
+}
+
 function requireBookingBlockSchema(PDO $pdo): void {
-    if(!bookingBlockSchemaReady($pdo))fail('يلزم تشغيل تحديث قاعدة بيانات حظر المواعيد رقم 036.',503,'booking_blocks_migration_required');
+    if(!bookingBlockSchemaReady($pdo)&&!installBookingBlockSchema($pdo))fail('يلزم تشغيل تحديث قاعدة بيانات حظر المواعيد رقم 036.',503,'booking_blocks_migration_required');
 }
 
 function bookingBlockDate(string $value): ?DateTimeImmutable {
@@ -1521,7 +1578,8 @@ function remainingPackageCalendarDays(?string $expiresAt, ?string $today=null): 
 
 if ($path === '/health' && $method === 'GET') {
     $pdo->query('SELECT 1');
-    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives')]);
+    $bookingBlocksReady=bookingBlockSchemaReadyFresh($pdo)||installBookingBlockSchema($pdo);
+    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady]);
 }
 
 if ($path === '/push/config' && $method === 'GET') {
