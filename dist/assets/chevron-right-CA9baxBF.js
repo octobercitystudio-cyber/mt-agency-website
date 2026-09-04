@@ -1,1 +1,0 @@
-import{Ut as e}from"./index-LTK1y1f4.js";var t=e(`chevron-right`,[[`path`,{d:`m9 18 6-6-6-6`,key:`mthhwq`}]]);export{t};
