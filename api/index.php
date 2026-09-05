@@ -528,6 +528,52 @@ function schemaTableColumns(PDO $pdo,string $table): array {
     return $cache[$table]=array_map('strval',$stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
+function packagePaymentSchemaReadyFresh(PDO $pdo): bool {
+    $table=$pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
+    $table->execute(['client_package_payment_requests']);if((int)$table->fetchColumn()===0)return false;
+    $columns=$pdo->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
+    $columns->execute(['payments']);$paymentColumns=array_map('strval',$columns->fetchAll(PDO::FETCH_COLUMN));if(!in_array('note',$paymentColumns,true))return false;
+    $columns->execute(['client_package_payment_requests']);$requestColumns=array_map('strval',$columns->fetchAll(PDO::FETCH_COLUMN));
+    foreach(['id','organization_id','client_package_id','idempotency_key','request_hash','status','response_json','created_by','created_at','completed_at'] as $column)if(!in_array($column,$requestColumns,true))return false;
+    $index=$pdo->prepare("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR ',') FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='client_package_payment_requests' AND NON_UNIQUE=0 GROUP BY INDEX_NAME");$index->execute();
+    return in_array('organization_id,idempotency_key',array_map('strval',$index->fetchAll(PDO::FETCH_COLUMN)),true);
+}
+
+function installPackagePaymentSchema(PDO $pdo): bool {
+    if(packagePaymentSchemaReadyFresh($pdo))return true;
+    $lockName='mta_025_package_payment_schema';$locked=false;
+    try{
+        $lock=$pdo->prepare('SELECT GET_LOCK(?,10)');$lock->execute([$lockName]);$locked=(int)$lock->fetchColumn()===1;if(!$locked)return false;
+        if(packagePaymentSchemaReadyFresh($pdo))return true;
+        $column=$pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
+        $column->execute(['payments','note']);if((int)$column->fetchColumn()===0)$pdo->exec('ALTER TABLE payments ADD COLUMN note VARCHAR(500) NULL AFTER reference');
+        $pdo->exec("CREATE TABLE IF NOT EXISTS client_package_payment_requests (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          organization_id BIGINT UNSIGNED NOT NULL,
+          client_package_id BIGINT UNSIGNED NOT NULL,
+          idempotency_key VARCHAR(128) NOT NULL,
+          request_hash CHAR(64) NOT NULL,
+          status ENUM('processing','completed') NOT NULL DEFAULT 'processing',
+          response_json JSON NULL,
+          created_by BIGINT UNSIGNED NOT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          completed_at DATETIME NULL,
+          PRIMARY KEY (id),
+          UNIQUE KEY uq_client_package_payment_request (organization_id,idempotency_key),
+          KEY idx_client_package_payment_package (client_package_id,created_at),
+          CONSTRAINT fk_client_package_payment_request_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+          CONSTRAINT fk_client_package_payment_request_package FOREIGN KEY (client_package_id) REFERENCES client_packages(id) ON DELETE RESTRICT,
+          CONSTRAINT fk_client_package_payment_request_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        return packagePaymentSchemaReadyFresh($pdo);
+    }catch(Throwable $error){error_log('[ERP API][package-payment-schema] '.$error->getMessage());return false;}
+    finally{if($locked){try{$release=$pdo->prepare('SELECT RELEASE_LOCK(?)');$release->execute([$lockName]);}catch(Throwable){}}}
+}
+
+function requirePackagePaymentSchema(PDO $pdo): void {
+    if(!packagePaymentSchemaReadyFresh($pdo)&&!installPackagePaymentSchema($pdo))fail('يلزم تشغيل تحديث قاعدة بيانات مدفوعات الباقات رقم 025.',503,'package_payments_migration_required');
+}
+
 function bookingBlockSchemaReady(PDO $pdo): bool {
     if(!schemaTableExists($pdo,'booking_blocks')||!schemaTableExists($pdo,'booking_slots'))return false;
     $blockColumns=schemaTableColumns($pdo,'booking_blocks');$slotColumns=schemaTableColumns($pdo,'booking_slots');
@@ -2725,7 +2771,7 @@ if (preg_match('#^/offers/(\d+)/accept$#',$path,$m)&&$method==='POST'){
 }
 
 if (preg_match('#^/client-packages/(\d+)/payments$#',$path,$m)&&$method==='POST') {
-    $user=requireUser($user);requireRole($user,['owner','admin','finance']);$id=(int)$m[1];$payload=body();
+    $user=requireUser($user);requireRole($user,['owner','admin','finance']);requirePackagePaymentSchema($pdo);$id=(int)$m[1];$payload=body();
     $rawAmount=trim((string)($payload['amount']??''));if(!preg_match('/^\d+(?:\.\d{1,2})?$/',$rawAmount))fail('أدخل مبلغ الدفعة بدقة قرشين كحد أقصى.',422,'invalid_payment_amount');$amountCents=packageMoneyCents($rawAmount);if($amountCents<=0)fail('مبلغ الدفعة يجب أن يكون أكبر من صفر.',422,'invalid_payment_amount');
     $methodValue=trim((string)($payload['method']??''));if(!in_array($methodValue,['cash','bank_transfer','vodafone_cash','instapay'],true))fail('طريقة الدفع غير صحيحة.',422,'invalid_payment_method');
     $reference=trim((string)($payload['reference']??''));$note=trim((string)($payload['note']??''));if(mb_strlen($reference)>120)fail('مرجع الدفعة طويل جدًا.',422,'payment_reference_too_long');if(mb_strlen($note)>500)fail('ملاحظات الدفعة طويلة جدًا.',422,'payment_note_too_long');$paymentDate=trim((string)($payload['payment_date']??cairoNow()->format('Y-m-d')));$parsedPaymentDate=DateTimeImmutable::createFromFormat('!Y-m-d',$paymentDate);if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$paymentDate)||!$parsedPaymentDate||$parsedPaymentDate->format('Y-m-d')!==$paymentDate)fail('تاريخ الدفعة غير صحيح.',422,'invalid_payment_date');
