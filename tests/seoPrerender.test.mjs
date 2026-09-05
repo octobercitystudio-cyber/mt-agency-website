@@ -56,6 +56,36 @@ test('service prerenders expose the same visible FAQ and Service schema in both 
   }
 });
 
+test('priority service prerenders expose local proof and the complete Al Majd partner gallery', async () => {
+  for (const locale of ['ar', 'en']) {
+    for (const slug of ['commercial-video-production', 'reels-production', 'social-media-management']) {
+      const html = await load(`dist/${locale}/services/${slug}/index.html`);
+      assert.match(html, /class="public-local-expertise container"/);
+      assert.match(html, /"serviceType":"[^"]+"/);
+      assert.match(html, /class="public-seo-work-list"/);
+    }
+
+    const social = await load(`dist/${locale}/services/social-media-management/index.html`);
+    assert.match(social, /class="public-success-partner"/);
+    assert.match(social, /https:\/\/www\.almajdwoods\.com\//);
+    assert.equal((social.match(/\/portfolio\/social-media\/al-majd\/[a-z0-9-]+\.webp/g) || []).length, 9);
+    assert.equal((social.match(/loading="lazy" decoding="async"/g) || []).length, 9);
+  }
+});
+
+test('web design prerender includes the visible decision guide, local expertise and related service links', async () => {
+  for (const locale of ['ar', 'en']) {
+    const html = await load(`dist/${locale}/services/web-design-development/index.html`);
+    assert.match(html, /class="public-local-expertise container"/);
+    assert.match(html, /class="public-decision-guide"/);
+    assert.match(html, /class="public-related-services container"/);
+    assert.match(html, /"serviceType":"[^"]+"/);
+    for (const slug of ['creative-design-branding', 'social-media-management', 'software-development']) {
+      assert.match(html, new RegExp(`/${locale}/services/${slug}/`));
+    }
+  }
+});
+
 test('private shell and unknown-route page are protected from indexing', async () => {
   const [app, notFound, htaccess, main] = await Promise.all([load('dist/app.html'), load('dist/404.html'), load('.htaccess'), load('src/main.jsx')]);
   assert.match(app, /<meta name="robots" content="noindex, nofollow, noarchive">/);

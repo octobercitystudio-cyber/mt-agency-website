@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { AL_MAJD_SOCIAL_PARTNER } from '../src/data/alMajdSocialPartner.js';
 import { getPublicService, getServicePortfolio, portfolioMatchesService, publicServiceCatalog, publicServiceSlugs } from '../src/data/publicServiceCatalog.js';
 import { VERIFIED_PORTFOLIO, withVerifiedPortfolioServiceLinks } from '../src/data/verifiedPortfolio.js';
 
@@ -28,6 +29,48 @@ test('public catalog has ten stable unique service slugs and complete bilingual 
     assert.equal(getPublicService(service.slug), service);
   }
   assert.equal(new Set(heroImages).size, publicServiceCatalog.length, 'each service must have a unique hero image');
+});
+
+test('priority commercial services expose equivalent local expertise and Al Majd has durable static artwork', async () => {
+  for (const slug of ['commercial-video-production', 'reels-production', 'social-media-management']) {
+    const service = getPublicService(slug);
+    for (const locale of ['ar', 'en']) {
+      assert.ok(service[locale].title.match(/6|أكتوبر|October|Giza|الجيزة/), `${slug}.${locale} local H1`);
+      assert.ok(service[locale].serviceType?.trim(), `${slug}.${locale}.serviceType`);
+      assert.ok(service[locale].localExpertise?.title?.trim(), `${slug}.${locale}.localExpertise.title`);
+      assert.equal(service[locale].localExpertise.items.length, 3);
+    }
+  }
+
+  assert.equal(AL_MAJD_SOCIAL_PARTNER.serviceSlug, 'social-media-management');
+  assert.equal(AL_MAJD_SOCIAL_PARTNER.images.length, 9);
+  assert.deepEqual(AL_MAJD_SOCIAL_PARTNER.images.map(image => image.id), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  for (const image of AL_MAJD_SOCIAL_PARTNER.images) {
+    assert.match(image.src, /^\/portfolio\/social-media\/al-majd\/[a-z0-9-]+\.webp$/);
+    assert.ok(image.arAlt && image.enAlt && image.width > 0 && image.height > 0);
+    await access(new URL(`public${image.src}`, root));
+  }
+});
+
+test('web design service exposes bilingual local intent, a practical buying guide and contextual internal links', () => {
+  const service = getPublicService('web-design-development');
+  for (const locale of ['ar', 'en']) {
+    const copy = service[locale];
+    assert.match(copy.title, /6|أكتوبر|October/);
+    assert.ok(copy.serviceType?.trim());
+    assert.ok(copy.localExpertise?.title?.trim());
+    assert.equal(copy.localExpertise.items.length, 3);
+    assert.ok(copy.decisionGuide?.title?.trim());
+    assert.equal(copy.decisionGuide.options.length, 3);
+    assert.equal(copy.decisionGuide.factors.length, 4);
+    assert.equal(copy.relatedServices.length, 3);
+    assert.equal(copy.faq.length, 6);
+  }
+  assert.deepEqual(service.ar.relatedServices.map(item => item.slug), [
+    'creative-design-branding',
+    'social-media-management',
+    'software-development',
+  ]);
 });
 
 test('portfolio linkage honors explicit assignments and keeps legacy fallbacks service-specific', () => {

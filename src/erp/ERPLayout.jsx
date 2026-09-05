@@ -226,7 +226,10 @@ const ERPLayout = () => {
 
       {/* Main Content Area */}
       <div className="erp-main" style={{marginTop: '0'}}>
-        {role === 'owner' && <OwnerNotifications userId={currentUser?.id} onNavigate={navigate}/>}
+        <header className="erp-global-toolbar" aria-label="أدوات التشغيل المباشر">
+          {role === 'owner' && <OwnerNotifications userId={currentUser?.id} onNavigate={navigate}/>}
+          <ERPSessionTimer role={role} />
+        </header>
         {currentUser?.is_local_preview && (
           <aside className={`erp-demo-banner erp-demo-banner--${demoResetState}`} aria-label="تنبيه وضع التجربة">
             <div className="erp-demo-banner__status" aria-hidden="true">
@@ -307,8 +310,6 @@ const ERPLayout = () => {
         onDismiss={dismissAlert} 
       />
 
-      {/* Global Session Timer */}
-      <ERPSessionTimer role={role} />
     </div>
   );
 };

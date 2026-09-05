@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { publicServiceCatalog } from '../src/data/publicServiceCatalog.js';
+import { AL_MAJD_SOCIAL_PARTNER } from '../src/data/alMajdSocialPartner.js';
+import { getServicePortfolio, publicServiceCatalog } from '../src/data/publicServiceCatalog.js';
+import { VERIFIED_PORTFOLIO } from '../src/data/verifiedPortfolio.js';
 import { SITE_URL, organizationId, siteIdentity, websiteId } from '../src/seo/siteIdentity.js';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -90,14 +92,66 @@ const servicesList = locale => `<section class="services-section"><div class="co
   return `<article class="service-card glass-panel"><h3><a href="${languagePath(locale, `/services/${service.slug}/`)}">${escapeHtml(copy.title)}</a></h3><p>${escapeHtml(copy.outcomes[0])}</p></article>`;
 }).join('')}</div></div></section>`;
 
+const localExpertiseContent = (copy, locale, number) => {
+  const content = copy.localExpertise;
+  if (!content) return '';
+  return `<section class="public-local-expertise container" aria-labelledby="local-expertise-title"><header class="public-local-expertise__intro"><span class="public-section-number">${number}</span><div><span class="public-eyebrow">${escapeHtml(content.eyebrow)}</span><h2 id="local-expertise-title">${escapeHtml(content.title)}</h2><p>${escapeHtml(content.summary)}</p></div></header><div class="public-local-expertise__details">${content.items.map((item, index) => `<article><span>${String(index + 1).padStart(2, '0')}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.text)}</p></article>`).join('')}</div></section>`;
+};
+
+const decisionGuideContent = (copy, number) => {
+  const content = copy.decisionGuide;
+  if (!content) return '';
+  return `<section class="public-decision-guide" aria-labelledby="decision-guide-title"><div class="container"><header class="public-decision-guide__header"><span class="public-section-number">${number}</span><div><h2 id="decision-guide-title">${escapeHtml(content.title)}</h2><p>${escapeHtml(content.summary)}</p></div></header><div class="public-decision-guide__options">${content.options.map((item, index) => `<article><span>${String(index + 1).padStart(2, '0')}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.text)}</p></article>`).join('')}</div><div class="public-decision-guide__factors"><h3>${escapeHtml(content.factorsTitle)}</h3><div>${content.factors.map(item => `<article><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.text)}</p></article>`).join('')}</div></div></div></section>`;
+};
+
+const alMajdPartnerContent = (service, locale, number) => {
+  if (service.slug !== AL_MAJD_SOCIAL_PARTNER.serviceSlug) return '';
+  const copy = AL_MAJD_SOCIAL_PARTNER[locale];
+  const arrow = locale === 'en' ? '→' : '←';
+  return `<section class="public-success-partner" aria-labelledby="al-majd-partner-title"><div class="container"><header class="public-success-partner__header"><span class="public-success-partner__number">${number}</span><div><span class="public-eyebrow">${escapeHtml(copy.eyebrow)}</span><h2 id="al-majd-partner-title"><a href="${escapeHtml(AL_MAJD_SOCIAL_PARTNER.website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.name)} <span aria-hidden="true">${arrow}</span></a></h2><p>${escapeHtml(copy.summary)}</p><a class="public-success-partner__link" href="${escapeHtml(AL_MAJD_SOCIAL_PARTNER.website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.websiteLabel)} <span aria-hidden="true">${arrow}</span></a></div></header><div class="public-success-partner__gallery">${AL_MAJD_SOCIAL_PARTNER.images.map(image => `<figure><img src="${escapeHtml(image.src)}" alt="${escapeHtml(locale === 'en' ? image.enAlt : image.arAlt)}" width="${image.width}" height="${image.height}" loading="lazy" decoding="async"><figcaption>${locale === 'en' ? `Campaign design ${String(image.id).padStart(2, '0')}` : `تصميم إعلاني ${String(image.id).padStart(2, '0')}`}</figcaption></figure>`).join('')}</div></div></section>`;
+};
+
+const verifiedWorkContent = (service, locale, number) => {
+  const work = getServicePortfolio(VERIFIED_PORTFOLIO, service);
+  if (!work.length) return '';
+  const title = locale === 'en' ? 'Verified work for this service' : 'أعمال موثقة في هذه الخدمة';
+  const summary = locale === 'en' ? 'Direct links to published work connected to this capability.' : 'روابط مباشرة لأعمال منشورة ومرتبطة فعليًا بهذه الخدمة.';
+  return `<section id="service-work" class="public-work-section public-seo-work container"><div class="public-section-heading"><span>${number}</span><div><h2>${title}</h2><p>${summary}</p></div></div><div class="public-seo-work-list">${work.map(item => {
+    const href = item.projectUrl || item.embedUrl;
+    const itemTitle = locale === 'en' ? (item.titleEn || item.title) : item.title;
+    return `<article><span>${locale === 'en' ? 'Verified project' : 'عمل موثق'}</span><h3><a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(itemTitle)}</a></h3></article>`;
+  }).join('')}</div></section>`;
+};
+
+const relatedServicesContent = (copy, locale, number) => {
+  if (!copy.relatedServices?.length) return '';
+  const title = locale === 'en' ? 'Services that complete the website journey' : 'خدمات تكمل رحلة الموقع';
+  const summary = locale === 'en' ? 'Move from identity to launch and growth through connected capabilities from one team.' : 'اربط الهوية والإطلاق والنمو بخدمات مترابطة يقدمها فريق واحد.';
+  const arrow = locale === 'en' ? '→' : '←';
+  return `<section class="public-related-services container" aria-labelledby="related-services-title"><div class="public-section-heading"><span>${number}</span><div><h2 id="related-services-title">${title}</h2><p>${summary}</p></div></div><div class="public-related-services__grid">${copy.relatedServices.map(item => `<a href="${languagePath(locale, `/services/${item.slug}/`)}"><span>${escapeHtml(item.title)}</span><p>${escapeHtml(item.text)}</p><i aria-hidden="true">${arrow}</i></a>`).join('')}</div></section>`;
+};
+
 const serviceContent = (page, locale) => {
   const copy = page.service[locale];
   const sectionTitle = (ar, en) => locale === 'en' ? en : ar;
+  let nextSection = 5;
+  const sectionNumber = () => String(nextSection++).padStart(2, '0');
+  const localNumber = copy.localExpertise ? sectionNumber() : null;
+  const decisionNumber = copy.decisionGuide ? sectionNumber() : null;
+  const partnerNumber = page.service.slug === AL_MAJD_SOCIAL_PARTNER.serviceSlug ? sectionNumber() : null;
+  const workNumber = sectionNumber();
+  const faqNumber = sectionNumber();
+  const relatedNumber = copy.relatedServices?.length ? sectionNumber() : null;
   return `<section class="public-intro container"><h2>${sectionTitle('حل واضح مبني حول النتيجة', 'A focused solution built around the result')}</h2><p>${escapeHtml(copy.introduction)}</p></section>
   <section class="public-split-section container"><h2>${sectionTitle('ما الذي تحله الخدمة', 'What this service solves')}</h2><ul>${copy.outcomes.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul><h2>${sectionTitle('ما الذي تستلمه', 'What you receive')}</h2><ul>${copy.deliverables.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></section>
   <section class="public-process-section"><div class="container"><h2>${sectionTitle('خطوات التنفيذ', 'How the work moves')}</h2><ol>${copy.process.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ol></div></section>
   <section class="public-suitable container"><h2>${sectionTitle('مناسبة بشكل خاص لـ', 'A strong fit for')}</h2><ul>${copy.suitableFor.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></section>
-  <section class="public-faq container"><h2>${sectionTitle('أسئلة شائعة', 'Frequently asked questions')}</h2>${copy.faq.map(([question, answer]) => `<details><summary>${escapeHtml(question)}</summary><p>${escapeHtml(answer)}</p></details>`).join('')}</section>
+  ${localExpertiseContent(copy, locale, localNumber)}
+  ${decisionGuideContent(copy, decisionNumber)}
+  ${alMajdPartnerContent(page.service, locale, partnerNumber)}
+  ${verifiedWorkContent(page.service, locale, workNumber)}
+  <section class="public-faq container"><div class="public-section-heading"><span>${faqNumber}</span><h2>${sectionTitle('أسئلة شائعة', 'Frequently asked questions')}</h2></div><div>${copy.faq.map(([question, answer]) => `<details><summary>${escapeHtml(question)}</summary><p>${escapeHtml(answer)}</p></details>`).join('')}</div></section>
+  ${relatedServicesContent(copy, locale, relatedNumber)}
   <section class="public-inline-cta container"><h2>${sectionTitle('ابدأ مناقشة المشروع', 'Start a project conversation')}</h2><a class="public-solid-button" href="${languagePath(locale, `/contact/?service=${page.service.slug}`)}">${sectionTitle('اطلب عرض سعر', 'Request a quote')}</a></section>`;
 };
 
@@ -129,7 +183,7 @@ const schemaGraph = (page, locale, canonical) => {
   }];
   if (page.path === '/') graph.unshift({ '@type': 'WebSite', '@id': websiteId, url: siteIdentity.url, name: siteIdentity.name, alternateName: siteIdentity.alternateName, publisher: { '@id': organizationId }, inLanguage: ['ar-EG', 'en-EG'] });
   if (page.service) {
-    graph.push({ '@type': 'Service', '@id': `${canonical}#service`, name: page[locale].h1, description: copy.description, url: canonical, image: absoluteUrl(page.service.heroImage), provider: { '@id': organizationId }, areaServed: organization.areaServed });
+    graph.push({ '@type': 'Service', '@id': `${canonical}#service`, name: page[locale].h1, serviceType: page.service[locale].serviceType || page[locale].h1, description: copy.description, url: canonical, image: absoluteUrl(page.service.heroImage), inLanguage: locale === 'en' ? 'en-EG' : 'ar-EG', provider: { '@id': organizationId }, areaServed: organization.areaServed });
     graph.push({ '@type': 'BreadcrumbList', '@id': `${canonical}#breadcrumb`, itemListElement: [
       { '@type': 'ListItem', position: 1, name: locale === 'en' ? 'Home' : 'الرئيسية', item: absoluteUrl(languagePath(locale, '/')) },
       { '@type': 'ListItem', position: 2, name: locale === 'en' ? 'Services' : 'الخدمات', item: absoluteUrl(languagePath(locale, '/services/')) },

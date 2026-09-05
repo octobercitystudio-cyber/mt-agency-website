@@ -41,6 +41,8 @@ export default function ERPSessionTimer({ role }) {
 
   const active = sessions[0] || null;
   const canComplete = canRoleCompleteStudioSession(role);
+  const canUpgrade = role === 'owner' && Boolean(active?.client_package_id);
+  const hasActions = canUpgrade || canComplete;
   const elapsed = useMemo(() => active
     ? elapsedSessionSeconds(active, now, serverOffset)
     : 0, [active, now, serverOffset]);
@@ -48,8 +50,8 @@ export default function ERPSessionTimer({ role }) {
   if (!active) return null;
 
   return <>
-    <aside className="erp-live-session" aria-live="polite">
-      <span className="erp-live-session__pulse" />
+    <aside className={`erp-live-session ${hasActions ? 'erp-live-session--has-actions' : ''}`} aria-live="polite">
+      <span className="erp-live-session__pulse" aria-hidden="true" />
       <div className="erp-live-session__identity">
         <small>تصوير جارٍ الآن</small>
         <strong>{active.client_name}</strong>
@@ -57,8 +59,10 @@ export default function ERPSessionTimer({ role }) {
       </div>
       <time dir="ltr">{formatElapsedTime(elapsed)}</time>
       {sessions.length > 1 && <span className="erp-live-session__count">+{sessions.length - 1}</span>}
-      {role === 'owner' && active.client_package_id && <button ref={upgradeButtonRef} className="erp-live-session__upgrade" type="button" onClick={() => setUpgradePackageId(active.client_package_id)}><ArrowUpCircle /> ترقية الباقة</button>}
-      {canComplete && <button ref={stopButtonRef} className="erp-live-session__stop" type="button" onClick={() => setSelected(active)}><StopCircle /> إيقاف التصوير</button>}
+      {hasActions && <div className="erp-live-session__actions">
+        {canUpgrade && <button ref={upgradeButtonRef} className="erp-live-session__upgrade" type="button" aria-label="ترقية الباقة" title="ترقية الباقة" onClick={() => setUpgradePackageId(active.client_package_id)}><ArrowUpCircle aria-hidden="true" /><span className="erp-live-session__action-label">ترقية الباقة</span></button>}
+        {canComplete && <button ref={stopButtonRef} className="erp-live-session__stop" type="button" aria-label="إيقاف التصوير" title="إيقاف التصوير" onClick={() => setSelected(active)}><StopCircle aria-hidden="true" /><span className="erp-live-session__action-label">إيقاف التصوير</span></button>}
+      </div>}
     </aside>
     {canComplete && <ERPStopSessionDialog role={role} session={selected} serverOffset={serverOffset} returnFocusRef={stopButtonRef} onClose={() => setSelected(null)} onCompleted={loadSessions} />}
     {role === 'owner' && upgradePackageId && <PackageUpgradeDialog packageId={upgradePackageId} sessionActive returnFocusRef={upgradeButtonRef} onClose={() => setUpgradePackageId(null)} onCompleted={async () => { await loadSessions(); window.dispatchEvent(new CustomEvent('erpDataChanged', { detail: { topics: ['client_packages', 'clients'] } })); }} />}
