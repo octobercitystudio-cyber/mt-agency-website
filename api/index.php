@@ -1701,7 +1701,7 @@ function remainingPackageCalendarDays(?string $expiresAt, ?string $today=null): 
 if ($path === '/health' && $method === 'GET') {
     $pdo->query('SELECT 1');
     $bookingBlocksReady=bookingBlockSchemaReadyFresh($pdo)||installBookingBlockSchema($pdo);
-    $push=pushConfiguration($config);$pushReady=$push['enabled']&&schemaTableExists($pdo,'app_push_subscriptions')&&schemaTableExists($pdo,'app_push_jobs');
+    $push=pushConfiguration($config);$pushConfig=is_array($config['push']??null)?$config['push']:[];$serviceAccount=trim((string)($pushConfig['service_account_file']??''));$pushServerReady=trim((string)($pushConfig['worker_key']??''))!==''&&$serviceAccount!==''&&is_file($serviceAccount);$pushReady=$push['enabled']&&$pushServerReady&&schemaTableExists($pdo,'app_push_subscriptions')&&schemaTableExists($pdo,'app_push_jobs');
     respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'push_ready'=>$pushReady]);
 }
 
