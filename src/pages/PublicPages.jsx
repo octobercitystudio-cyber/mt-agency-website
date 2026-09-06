@@ -51,7 +51,7 @@ function RelatedServicesSection({ items, number, isEnglish }) {
 function AlMajdPartnerSection({ isEnglish, number }) {
   const partner = AL_MAJD_SOCIAL_PARTNER;
   const copy = isEnglish ? partner.en : partner.ar;
-  return <section className="public-success-partner" aria-labelledby="al-majd-partner-title">
+  return <section id="al-majd-work" className="public-success-partner" aria-labelledby="al-majd-partner-title">
     <div className="container">
       <header className="public-success-partner__header">
         <span className="public-success-partner__number">{number}</span>
@@ -105,8 +105,9 @@ export function ServiceDetailPage() {
   if (!service) return <PublicNotFound />;
   const text = isEnglish ? service.en : service.ar; const work = getServicePortfolio(siteData.portfolio, service); const categories = siteData.portfolioCategories || [];
   const hasLocalExpertise = Boolean(text.localExpertise); const hasDecisionGuide = Boolean(text.decisionGuide); const hasSuccessPartner = service.slug === AL_MAJD_SOCIAL_PARTNER.serviceSlug; const hasRelatedServices = Boolean(text.relatedServices?.length);
+  const showWorkSection = work.length > 0 || !hasSuccessPartner; const workTarget = hasSuccessPartner ? '#al-majd-work' : '#service-work';
   let nextSection = 5; const sectionNumber = () => String(nextSection++).padStart(2, '0');
-  const localSectionNumber = hasLocalExpertise ? sectionNumber() : null; const decisionSectionNumber = hasDecisionGuide ? sectionNumber() : null; const partnerSectionNumber = hasSuccessPartner ? sectionNumber() : null; const workSectionNumber = sectionNumber(); const faqSectionNumber = sectionNumber(); const relatedSectionNumber = hasRelatedServices ? sectionNumber() : null;
+  const localSectionNumber = hasLocalExpertise ? sectionNumber() : null; const decisionSectionNumber = hasDecisionGuide ? sectionNumber() : null; const partnerSectionNumber = hasSuccessPartner ? sectionNumber() : null; const workSectionNumber = showWorkSection ? sectionNumber() : null; const faqSectionNumber = sectionNumber(); const relatedSectionNumber = hasRelatedServices ? sectionNumber() : null;
   const home = isEnglish ? 'Home' : 'الرئيسية'; const services = isEnglish ? 'Services' : 'الخدمات';
   const serviceUrl = publicUrl(`/services/${service.slug}`, isEnglish);
   const serviceSchema = { '@context': 'https://schema.org', '@type': 'Service', '@id': `${serviceUrl}#service`, name: text.title, serviceType: text.serviceType || text.title, description: text.metaDescription, url: serviceUrl, image: `${SITE_URL}${service.heroImage}`, inLanguage: isEnglish ? 'en-EG' : 'ar-EG', provider: { '@id': organizationId }, areaServed: [{ '@type': 'City', name: '6th of October City' }, { '@type': 'AdministrativeArea', name: 'Giza' }, { '@type': 'Country', name: 'Egypt' }] };
@@ -117,7 +118,7 @@ export function ServiceDetailPage() {
     <nav className="public-breadcrumb container" aria-label={isEnglish ? 'Breadcrumb' : 'مسار الصفحة'}><Link to={publicPath('/', isEnglish)}>{home}</Link><CrumbArrow isEnglish={isEnglish}/><Link to={publicPath('/services', isEnglish)}>{services}</Link><CrumbArrow isEnglish={isEnglish}/><span aria-current="page">{text.navLabel}</span></nav>
     <PageHero eyebrow={text.eyebrow} title={text.title} summary={text.heroSummary} image={service.heroImage} imageAlt={text.heroAlt} actions={<>
       <Link className="public-solid-button" to={publicPath(`/contact?service=${service.slug}`, isEnglish)} state={{ service: service.slug }}>{isEnglish ? 'Start a conversation' : 'ابدأ مناقشة المشروع'}<DirectionArrow isEnglish={isEnglish}/></Link>
-      <a className="public-ghost-button" href="#service-work">{isEnglish ? 'See relevant work' : 'شاهد الأعمال المرتبطة'}</a>
+      <a className="public-ghost-button" href={workTarget}>{isEnglish ? 'See relevant work' : 'شاهد الأعمال المرتبطة'}</a>
     </>} />
     <section className="public-intro container"><span className="public-section-number">01</span><div><h2>{isEnglish ? 'A focused solution, built around the result' : 'حل واضح مبني حول النتيجة'}</h2><p>{text.introduction}</p></div></section>
     <section className="public-split-section container">
@@ -130,10 +131,10 @@ export function ServiceDetailPage() {
     <LocalExpertiseSection content={text.localExpertise} number={localSectionNumber} />
     <DecisionGuideSection content={text.decisionGuide} number={decisionSectionNumber} />
     {hasSuccessPartner && <AlMajdPartnerSection isEnglish={isEnglish} number={partnerSectionNumber} />}
-    <section id="service-work" className="public-work-section container"><div className="public-section-heading"><span>{workSectionNumber}</span><div><h2>{isEnglish ? 'Our work in this service' : 'أعمالنا في هذه الخدمة'}</h2><p>{isEnglish ? 'Only verified portfolio work connected to this capability appears here.' : 'نعرض هنا فقط الأعمال الموثقة والمرتبطة فعليًا بهذه الخدمة.'}</p></div></div>
+    {showWorkSection && <section id="service-work" className="public-work-section container"><div className="public-section-heading"><span>{workSectionNumber}</span><div><h2>{isEnglish ? 'Our work in this service' : 'أعمالنا في هذه الخدمة'}</h2><p>{isEnglish ? 'Only verified portfolio work connected to this capability appears here.' : 'نعرض هنا فقط الأعمال الموثقة والمرتبطة فعليًا بهذه الخدمة.'}</p></div></div>
       <PublicPortfolioGrid items={work} categories={categories} isEnglish={isEnglish} emptyTitle={isEnglish ? 'No verified work is published here yet' : 'لا توجد أعمال موثقة منشورة هنا بعد'} emptyText={isEnglish ? 'Ask us for the most relevant private examples or discuss a first project.' : 'تواصل معنا للاطلاع على أمثلة مناسبة غير منشورة أو لمناقشة مشروعك الأول.'}/>
       {!work.length && <Link className="public-text-link" to={publicPath(`/contact?service=${service.slug}`, isEnglish)}>{isEnglish ? 'Discuss this service' : 'ناقش هذه الخدمة'}<DirectionArrow isEnglish={isEnglish}/></Link>}
-    </section>
+    </section>}
     <section className="public-faq container"><div className="public-section-heading"><span>{faqSectionNumber}</span><h2>{isEnglish ? 'Useful questions before we start' : 'أسئلة مهمة قبل أن نبدأ'}</h2></div><div>{text.faq.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div></section>
     <RelatedServicesSection items={text.relatedServices} number={relatedSectionNumber} isEnglish={isEnglish} />
     <section className="public-final-cta"><div className="container"><span>{isEnglish ? 'Ready when you are' : 'نبدأ عندما تكون مستعدًا'}</span><h2>{isEnglish ? 'Let us shape the right scope for your next project.' : 'دعنا نبني النطاق المناسب لمشروعك القادم.'}</h2><div><Link className="public-solid-button" to={publicPath(`/contact?service=${service.slug}`, isEnglish)}>{isEnglish ? `Contact ${siteIdentity.name}` : `تواصل مع ${siteIdentity.name}`}<DirectionArrow isEnglish={isEnglish}/></Link><a className="public-ghost-button" href={`https://wa.me/${companyPhoneWhatsApp(siteData.contact?.phone)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a></div></div></section>

@@ -120,7 +120,7 @@
 .public-related-services__grid p{grid-column:1/-1;margin:10px 0 0;color:#c7bdcd;line-height:1.8}
 .public-related-services__grid svg,.public-related-services__grid i{width:20px;color:#c678ff;font-style:normal}
 
-.public-success-partner{position:relative;margin-bottom:110px;padding:100px 0;background:#171007;color:#fff7e7;border-block:1px solid rgba(225,167,72,.32);overflow:hidden;isolation:isolate}
+.public-success-partner{position:relative;margin-bottom:110px;padding:100px 0;background:#171007;color:#fff7e7;border-block:1px solid rgba(225,167,72,.32);overflow:hidden;isolation:isolate;scroll-margin-top:104px}
 .public-success-partner::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(circle at 88% 4%,rgba(218,151,48,.18),transparent 30rem),repeating-linear-gradient(7deg,transparent 0,transparent 44px,rgba(232,183,100,.035) 45px,transparent 47px)}
 .public-success-partner__header{display:grid;grid-template-columns:72px minmax(0,830px);gap:28px;align-items:start;margin-bottom:48px}
 .public-success-partner__number{font-family:var(--font-latin);color:#e1a748;font-size:.82rem;font-weight:900;padding-top:7px}

@@ -162,50 +162,50 @@ export const publicServiceCatalog = [
     faq: [['Do you provide both photo and video?', 'The crew can be scoped for either or both.'], ['Can you deliver during the event?', 'With advance planning, rapid same-day social assets are available.'], ['Do you cover outside Cairo?', 'Location, travel and logistics are included in a custom event quotation.']],
     seoTitle: 'Event and Conference Video Coverage in Cairo', metaDescription: 'Professional event and conference coverage in Cairo and Giza with photography, highlight films and fast social content.', keywords: ['event coverage', 'conference filming', 'event photography', 'highlight video'],
   }),
-  entry('social-media-management', 'social_media', 'Share2', 'marketing', ['reels', 'design'], '/service-heroes/social-media-management.webp', {
+  entry('social-media-management', 'social_media', 'Share2', 'marketing', ['design'], '/service-heroes/social-media-management.webp', {
     title: 'إدارة السوشيال ميديا في 6 أكتوبر والجيزة', navLabel: 'إدارة السوشيال ميديا', eyebrow: 'حضور مستمر بدل النشر العشوائي',
-    heroSummary: 'إدارة سوشيال ميديا للشركات في 6 أكتوبر والجيزة تشمل خطة المحتوى والإنتاج والتصميم وإدارة المنصات وتقارير الأداء بنطاق مرن.',
+    heroSummary: 'إدارة سوشيال ميديا للشركات في 6 أكتوبر والجيزة تشمل خطة المحتوى وكتابة وتصميم المنشورات وإدارة المنصات وتقارير الأداء بنطاق مرن.',
     heroAlt: 'مجسم ثلاثي الأبعاد لهاتف وتقويم محتوى وبطاقات منشورات ورسوم تحليل أداء.',
     introduction: 'نربط الرسائل بالمحتوى والتوزيع والقياس في نظام واحد، مع وضوح ما سينشر ولماذا وكيف يتحسن الأداء.',
     outcomes: ['تقويم نشر واضح ومتوازن', 'صوت وهوية متسقان عبر المنصات', 'قرارات مبنية على تقارير قابلة للفهم'],
-    deliverables: ['استراتيجية وخطة محتوى', 'كتابة وتصميم البوستات', 'فيديوهات وريلز حسب الباقة', 'إدارة النشر والتفاعل المتفق عليه', 'تقارير وتحليل وإعلانات ممولة اختيارية'],
+    deliverables: ['استراتيجية وخطة محتوى', 'كتابة وتصميم المنشورات', 'قوالب بصرية متسقة للمنصات', 'إدارة النشر والتفاعل المتفق عليه', 'تقارير وتحليل وإعلانات ممولة اختيارية'],
     process: ['مراجعة البراند والجمهور', 'بناء الخطة والأعمدة', 'الإنتاج والموافقة', 'النشر وإدارة الدورة', 'القياس والتحسين الشهري'],
     suitableFor: ['الشركات الناشئة', 'العيادات والخدمات', 'المطاعم والمتاجر', 'البراندات متعددة المنصات'],
-    faq: [['هل كل الباقات متشابهة؟', 'لا، يتغير النطاق حسب عدد المنصات والبوستات والفيديوهات والإعلانات والخدمات المطلوبة.'], ['هل تشمل الإعلانات الممولة؟', 'يمكن إضافة إدارة الحملات وميزانية الإعلان كبند واضح منفصل.'], ['كيف أتابع التنفيذ؟', 'تظهر مراحل العمل والحالة المالية والتحديثات من خلال لوحة العميل.']],
+    faq: [['هل كل الباقات متشابهة؟', 'لا، يتغير النطاق حسب عدد المنصات والمنشورات والتصميمات والإعلانات والخدمات المطلوبة.'], ['هل تشمل الإعلانات الممولة؟', 'يمكن إضافة إدارة الحملات وميزانية الإعلان كبند واضح منفصل.'], ['كيف أتابع التنفيذ؟', 'تظهر مراحل العمل والحالة المالية والتحديثات من خلال لوحة العميل.']],
     serviceType: 'إدارة السوشيال ميديا وصناعة المحتوى',
     localExpertise: {
       eyebrow: 'فريق محتوى قريب من نشاطك',
-      title: 'إدارة شهرية تربط الخطة بالتصميم والإنتاج والنشر',
-      summary: 'نبني دورة عمل واضحة من أعمدة المحتوى والموافقات إلى التصميم والريلز والنشر والتقارير، مع نطاق يناسب احتياج كل براند.',
+      title: 'إدارة شهرية تربط الخطة بالتصميم والنشر',
+      summary: 'نبني دورة عمل واضحة من أعمدة المحتوى والموافقات إلى الكتابة والتصميم والنشر والتقارير، مع نطاق يناسب احتياج كل براند.',
       items: [
-        { title: 'ما نقدمه', text: 'استراتيجية وتقويم محتوى وكتابة وتصميم بوستات وريلز، مع النشر والتقارير وإدارة الحملات عند إضافتها للنطاق.' },
+        { title: 'ما نقدمه', text: 'استراتيجية وتقويم محتوى وكتابة وتصميم منشورات، مع النشر والتقارير وإدارة الحملات عند إضافتها للنطاق.' },
         { title: 'لمن تناسب', text: 'للشركات الناشئة والعيادات والمطاعم والمتاجر والخدمات والبراندات التي تدير أكثر من منصة.' },
-        { title: 'نطاق الخدمة', text: 'نعمل مع الشركات في مدينة 6 أكتوبر والشيخ زايد ومناطق الجيزة، ويمكن تنسيق أيام تصوير المحتوى داخل الاستديو أو في مقر النشاط.' },
+        { title: 'نطاق الخدمة', text: 'نعمل مع الشركات في مدينة 6 أكتوبر والشيخ زايد ومناطق الجيزة، مع اجتماعات تخطيط ومراجعات محتوى منتظمة.' },
       ],
     },
-    seoTitle: 'شركة إدارة سوشيال ميديا في 6 أكتوبر والجيزة', metaDescription: 'إدارة صفحات السوشيال ميديا للشركات في 6 أكتوبر والجيزة: خطة محتوى وتصميم وريلز ونشر وتقارير وإعلانات ممولة اختيارية.', keywords: ['إدارة السوشيال ميديا', 'صناعة المحتوى', 'خطة محتوى', 'تصميم بوستات'],
+    seoTitle: 'شركة إدارة سوشيال ميديا في 6 أكتوبر والجيزة', metaDescription: 'إدارة صفحات السوشيال ميديا للشركات في 6 أكتوبر والجيزة: استراتيجية وخطة محتوى وكتابة وتصميم منشورات ونشر وتقارير وإعلانات ممولة اختيارية.', keywords: ['إدارة السوشيال ميديا', 'صناعة المحتوى', 'خطة محتوى', 'تصميم بوستات'],
   }, {
     title: 'Social Media Management in 6th of October and Giza', navLabel: 'Social Media', eyebrow: 'A consistent presence, not random posting',
-    heroSummary: 'Social media management for businesses in 6th of October and Giza, combining content strategy, production, design, channel management and reporting.',
+    heroSummary: 'Social media management for businesses in 6th of October and Giza, combining content strategy, copywriting, post design, channel management and reporting.',
     heroAlt: 'A 3D phone, content calendar, post cards and analytics shapes for social media management.',
     introduction: 'We connect messaging, production, distribution and measurement in one workflow with clear visibility into what is published and why.',
     outcomes: ['A clear, balanced publishing calendar', 'Consistent brand voice across channels', 'Understandable performance-led decisions'],
-    deliverables: ['Strategy and content plan', 'Copywriting and post design', 'Reels and videos by package', 'Publishing and agreed community tasks', 'Reporting, analysis and optional paid media'],
+    deliverables: ['Strategy and content plan', 'Copywriting and post design', 'Consistent visual templates for each channel', 'Publishing and agreed community tasks', 'Reporting, analysis and optional paid media'],
     process: ['Audit brand and audience', 'Build pillars and plan', 'Produce and approve', 'Publish and manage', 'Measure and improve monthly'],
     suitableFor: ['Startups', 'Clinics and service brands', 'Restaurants and retailers', 'Multi-platform brands'],
-    faq: [['Are all packages the same?', 'No. Scope changes by platforms, post and video volume, ads and support needs.'], ['Are paid ads included?', 'Campaign management and media budget can be added as clear separate items.'], ['How do I follow progress?', 'Project stages, financial status and updates are visible in the client dashboard.']],
+    faq: [['Are all packages the same?', 'No. Scope changes by platforms, post and design volume, ads and support needs.'], ['Are paid ads included?', 'Campaign management and media budget can be added as clear separate items.'], ['How do I follow progress?', 'Project stages, financial status and updates are visible in the client dashboard.']],
     serviceType: 'Social media management and content production',
     localExpertise: {
       eyebrow: 'A content team close to your business',
-      title: 'Monthly management that connects planning, design, production and publishing',
-      summary: 'We build a clear workflow from content pillars and approvals to design, Reels, publishing and reporting, with a scope shaped around each brand.',
+      title: 'Monthly management that connects planning, design and publishing',
+      summary: 'We build a clear workflow from content pillars and approvals to copywriting, design, publishing and reporting, with a scope shaped around each brand.',
       items: [
-        { title: 'What we provide', text: 'Strategy, content calendar, copywriting, post design and Reels, with publishing, reporting and campaign management when included.' },
+        { title: 'What we provide', text: 'Strategy, content calendar, copywriting and post design, with publishing, reporting and campaign management when included.' },
         { title: 'Who it is for', text: 'Startups, clinics, restaurants, retailers, service businesses and brands working across multiple platforms.' },
-        { title: 'Where we work', text: 'We work with businesses in 6th of October City, Sheikh Zayed and Giza, coordinating content shoots in our studio or at the business location.' },
+        { title: 'Where we work', text: 'We work with businesses in 6th of October City, Sheikh Zayed and Giza, with regular planning sessions and content reviews.' },
       ],
     },
-    seoTitle: 'Social Media Management in 6th of October and Giza', metaDescription: 'Social media management for businesses in 6th of October and Giza, with content planning, design, Reels, publishing, reporting and optional paid campaigns.', keywords: ['social media management', 'content strategy', 'post design', 'paid social campaigns'],
+    seoTitle: 'Social Media Management in 6th of October and Giza', metaDescription: 'Social media management for businesses in 6th of October and Giza, with strategy, content planning, copywriting, post design, publishing, reporting and optional paid campaigns.', keywords: ['social media management', 'content strategy', 'post design', 'paid social campaigns'],
   }),
   entry('creative-design-branding', 'creative_design', 'Palette', 'marketing', ['design'], '/service-heroes/creative-design-branding.webp', {
     title: 'التصميم الإبداعي والهوية البصرية', navLabel: 'التصميم والهوية', eyebrow: 'هوية يمكن تمييزها وتطبيقها',
@@ -378,14 +378,25 @@ const normalizedSlugs = item => Array.isArray(item?.serviceSlugs) ? item.service
 const titleText = item => `${item?.title || ''} ${item?.titleEn || ''}`.toLowerCase();
 const normalizedCategory = item => String(item?.category || '').trim().toLowerCase();
 const categoryIn = (category, values) => values.includes(category);
+const isReelsPortfolioItem = item => {
+  const category = `${normalizedCategory(item)} ${String(item?.type || '')} ${String(item?.format || '')} ${String(item?.mediaType || '')}`.toLowerCase();
+  const title = titleText(item);
+  const mediaUrl = `${item?.embedUrl || ''} ${item?.projectUrl || ''}`.toLowerCase();
+  return /(?:^|[\s/_-])reels?(?:$|[\s/_-])/.test(category)
+    || /(?:^|[\s/_-])ريل(?:ز)?(?:$|[\s/_-])/.test(category)
+    || /(?:^|[\s/_-])reels?(?:$|[\s/_-])/.test(title)
+    || /(?:^|[\s/_-])ريل(?:ز)?(?:$|[\s/_-])/.test(title)
+    || /(?:youtube\.com\/shorts|youtu\.be\/shorts)/.test(mediaUrl);
+};
 
 export const portfolioMatchesService = (item, serviceOrSlug) => {
   const slug = typeof serviceOrSlug === 'string' ? serviceOrSlug : serviceOrSlug?.slug;
   if (!slug) return false;
+  if (slug === 'social-media-management' && isReelsPortfolioItem(item)) return false;
   const explicit = normalizedSlugs(item);
   if (explicit.length) return explicit.includes(slug);
   const category = normalizedCategory(item);
-  if (category === 'reels') return ['reels-production', 'social-media-management'].includes(slug);
+  if (category === 'reels') return slug === 'reels-production';
   if (category === 'podcast') return slug === 'podcast-production';
   if (categoryIn(category, ['تغطية فعاليات', 'event', 'events', 'event_coverage', 'event-coverage'])) return slug === 'event-coverage';
   if (categoryIn(category, ['محتوى تعليمي', 'educational', 'educational-content', 'studio', 'course'])) return slug === 'studio-content-production';

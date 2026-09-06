@@ -62,14 +62,19 @@ test('priority service prerenders expose local proof and the complete Al Majd pa
       const html = await load(`dist/${locale}/services/${slug}/index.html`);
       assert.match(html, /class="public-local-expertise container"/);
       assert.match(html, /"serviceType":"[^"]+"/);
-      assert.match(html, /class="public-seo-work-list"/);
+      if (slug !== 'social-media-management') assert.match(html, /class="public-seo-work-list"/);
     }
 
     const social = await load(`dist/${locale}/services/social-media-management/index.html`);
-    assert.match(social, /class="public-success-partner"/);
+    assert.match(social, /id="al-majd-work" class="public-success-partner"/);
     assert.match(social, /https:\/\/www\.almajdwoods\.com\//);
+    assert.doesNotMatch(social, /class="public-seo-work-list"/);
+    assert.doesNotMatch(social, /برومو ريل معلم|ريل معلم/);
     assert.equal((social.match(/\/portfolio\/social-media\/al-majd\/[a-z0-9-]+\.webp/g) || []).length, 9);
     assert.equal((social.match(/loading="lazy" decoding="async"/g) || []).length, 9);
+
+    const reels = await load(`dist/${locale}/services/reels-production/index.html`);
+    assert.match(reels, /برومو ريل معلم|ريل معلم/);
   }
 });
 

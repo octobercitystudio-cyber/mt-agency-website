@@ -78,7 +78,10 @@ test('portfolio linkage honors explicit assignments and keeps legacy fallbacks s
   assert.equal(portfolioMatchesService(explicit, 'ai-video-production'), true);
   assert.equal(portfolioMatchesService(explicit, 'commercial-video-production'), false, 'explicit service assignment blocks legacy cross-noise');
   assert.equal(portfolioMatchesService({ category: 'reels', title: 'Shorts' }, 'reels-production'), true);
-  assert.equal(portfolioMatchesService({ category: 'reels', title: 'Shorts' }, 'social-media-management'), true);
+  assert.equal(portfolioMatchesService({ category: 'reels', title: 'Shorts' }, 'social-media-management'), false);
+  assert.equal(portfolioMatchesService({ category: 'video-reel', title: 'Campaign', serviceSlugs: ['social-media-management'] }, 'social-media-management'), false, 'explicit legacy assignment cannot leak a reel into social media management');
+  assert.equal(portfolioMatchesService({ category: 'video', title: 'Brand Reel', serviceSlugs: ['social-media-management'] }, 'social-media-management'), false, 'reel title evidence is rejected on the social media page');
+  assert.equal(portfolioMatchesService({ category: 'design', title: 'Post design', serviceSlugs: ['social-media-management'] }, 'social-media-management'), true);
   assert.equal(portfolioMatchesService({ category: 'podcast', title: 'Episode' }, 'podcast-production'), true);
   assert.equal(portfolioMatchesService({ category: 'web', title: 'Company website' }, 'web-design-development'), true);
   assert.equal(portfolioMatchesService({ category: 'web', title: 'Client Portal' }, 'software-development'), true);
@@ -99,7 +102,7 @@ test('all verified legacy work is linked to the correct public service pages', (
     'commercial-video-production': 9,
     'podcast-production': 4,
     'event-coverage': 10,
-    'social-media-management': 6,
+    'social-media-management': 0,
     'web-design-development': 3,
     'software-development': 0,
   };
@@ -110,6 +113,37 @@ test('all verified legacy work is linked to the correct public service pages', (
   const legacyRemoteItems = VERIFIED_PORTFOLIO.map(({ serviceSlugs, ...item }) => item);
   const hydrated = withVerifiedPortfolioServiceLinks(legacyRemoteItems);
   assert.deepEqual(hydrated.map(item => item.serviceSlugs), VERIFIED_PORTFOLIO.map(item => item.serviceSlugs));
+});
+
+test('social media management excludes reels while the dedicated reels service keeps them', () => {
+  const social = getPublicService('social-media-management');
+  const reels = getPublicService('reels-production');
+  const mixed = [
+    { id: 1, category: 'reels', title: 'ريل حملة', serviceSlugs: ['social-media-management', 'reels-production'] },
+    { id: 2, category: 'video-reel', title: 'Vertical campaign', serviceSlugs: ['social-media-management', 'reels-production'] },
+    { id: 3, category: 'design', title: 'تصميم منشور', serviceSlugs: ['social-media-management'] },
+  ];
+
+  assert.deepEqual(getServicePortfolio(mixed, social).map(item => item.id), [3]);
+  assert.deepEqual(getServicePortfolio(mixed, reels).map(item => item.id), [1, 2]);
+  assert.deepEqual(social.portfolioCategories, ['design']);
+  assert.deepEqual(reels.portfolioCategories, ['reels']);
+  for (const locale of ['ar', 'en']) {
+    const copy = social[locale];
+    const visibleCopy = [copy.heroSummary, ...copy.deliverables, copy.localExpertise.summary, ...copy.localExpertise.items.map(item => item.text), copy.metaDescription].join(' ');
+    assert.doesNotMatch(visibleCopy, /ريل|reels?/i, `${locale} social media copy must not claim reels production`);
+  }
+});
+
+test('social media success-partner proof replaces the empty portfolio state and receives the hero shortcut', async () => {
+  const pages = await load('src/pages/PublicPages.jsx');
+  const css = await load('src/pages/PublicPages.css');
+  assert.match(pages, /id="al-majd-work" className="public-success-partner"/);
+  assert.match(pages, /const showWorkSection = work\.length > 0 \|\| !hasSuccessPartner;/);
+  assert.match(pages, /const workTarget = hasSuccessPartner \? '#al-majd-work' : '#service-work';/);
+  assert.match(pages, /href=\{workTarget\}/);
+  assert.match(pages, /\{showWorkSection && <section id="service-work"/);
+  assert.match(css, /\.public-success-partner\{[^}]*scroll-margin-top:104px/);
 });
 
 test('public routes use one persistent shell and preserve private route boundaries', async () => {

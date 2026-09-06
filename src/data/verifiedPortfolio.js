@@ -12,7 +12,7 @@ export const VERIFIED_PORTFOLIO_CATEGORIES = [
 const VERIFIED_SERVICE_SLUGS_BY_CATEGORY = {
   web: ['web-design-development'],
   video: ['commercial-video-production'],
-  reels: ['reels-production', 'social-media-management'],
+  reels: ['reels-production'],
   podcast: ['podcast-production'],
   'تغطية فعاليات': ['event-coverage'],
   'محتوى تعليمي': ['studio-content-production'],

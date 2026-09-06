@@ -108,7 +108,7 @@ const alMajdPartnerContent = (service, locale, number) => {
   if (service.slug !== AL_MAJD_SOCIAL_PARTNER.serviceSlug) return '';
   const copy = AL_MAJD_SOCIAL_PARTNER[locale];
   const arrow = locale === 'en' ? '→' : '←';
-  return `<section class="public-success-partner" aria-labelledby="al-majd-partner-title"><div class="container"><header class="public-success-partner__header"><span class="public-success-partner__number">${number}</span><div><span class="public-eyebrow">${escapeHtml(copy.eyebrow)}</span><h2 id="al-majd-partner-title"><a href="${escapeHtml(AL_MAJD_SOCIAL_PARTNER.website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.name)} <span aria-hidden="true">${arrow}</span></a></h2><p>${escapeHtml(copy.summary)}</p><a class="public-success-partner__link" href="${escapeHtml(AL_MAJD_SOCIAL_PARTNER.website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.websiteLabel)} <span aria-hidden="true">${arrow}</span></a></div></header><div class="public-success-partner__gallery">${AL_MAJD_SOCIAL_PARTNER.images.map(image => `<figure><img src="${escapeHtml(image.src)}" alt="${escapeHtml(locale === 'en' ? image.enAlt : image.arAlt)}" width="${image.width}" height="${image.height}" loading="lazy" decoding="async"><figcaption>${locale === 'en' ? `Campaign design ${String(image.id).padStart(2, '0')}` : `تصميم إعلاني ${String(image.id).padStart(2, '0')}`}</figcaption></figure>`).join('')}</div></div></section>`;
+  return `<section id="al-majd-work" class="public-success-partner" aria-labelledby="al-majd-partner-title"><div class="container"><header class="public-success-partner__header"><span class="public-success-partner__number">${number}</span><div><span class="public-eyebrow">${escapeHtml(copy.eyebrow)}</span><h2 id="al-majd-partner-title"><a href="${escapeHtml(AL_MAJD_SOCIAL_PARTNER.website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.name)} <span aria-hidden="true">${arrow}</span></a></h2><p>${escapeHtml(copy.summary)}</p><a class="public-success-partner__link" href="${escapeHtml(AL_MAJD_SOCIAL_PARTNER.website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(copy.websiteLabel)} <span aria-hidden="true">${arrow}</span></a></div></header><div class="public-success-partner__gallery">${AL_MAJD_SOCIAL_PARTNER.images.map(image => `<figure><img src="${escapeHtml(image.src)}" alt="${escapeHtml(locale === 'en' ? image.enAlt : image.arAlt)}" width="${image.width}" height="${image.height}" loading="lazy" decoding="async"><figcaption>${locale === 'en' ? `Campaign design ${String(image.id).padStart(2, '0')}` : `تصميم إعلاني ${String(image.id).padStart(2, '0')}`}</figcaption></figure>`).join('')}</div></div></section>`;
 };
 
 const verifiedWorkContent = (service, locale, number) => {
@@ -139,7 +139,8 @@ const serviceContent = (page, locale) => {
   const localNumber = copy.localExpertise ? sectionNumber() : null;
   const decisionNumber = copy.decisionGuide ? sectionNumber() : null;
   const partnerNumber = page.service.slug === AL_MAJD_SOCIAL_PARTNER.serviceSlug ? sectionNumber() : null;
-  const workNumber = sectionNumber();
+  const hasVerifiedWork = getServicePortfolio(VERIFIED_PORTFOLIO, page.service).length > 0;
+  const workNumber = hasVerifiedWork ? sectionNumber() : null;
   const faqNumber = sectionNumber();
   const relatedNumber = copy.relatedServices?.length ? sectionNumber() : null;
   return `<section class="public-intro container"><h2>${sectionTitle('حل واضح مبني حول النتيجة', 'A focused solution built around the result')}</h2><p>${escapeHtml(copy.introduction)}</p></section>
