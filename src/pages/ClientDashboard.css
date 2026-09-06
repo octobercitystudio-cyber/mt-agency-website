@@ -350,4 +350,5 @@
 .client-booking-submit-error{grid-column:1/-1;min-height:48px;display:flex;align-items:center;gap:7px;padding:10px 12px;border:1px solid rgba(255,108,125,.34);border-radius:10px;background:rgba(255,108,125,.1);color:#ffb4be;font-size:12px;line-height:1.7}.client-booking-submit-error svg{width:18px;flex:none}.client-booking-submit-error:focus{outline:3px solid var(--client-blue);outline-offset:2px}.client-app--calm .client-booking-submit-error{border-color:#efb7be;background:#fff0f2;color:#9f3240}
 
 .client-booking-submit-error{position:sticky;top:0;z-index:4;margin-top:12px;scroll-margin-block:12px;background:#321923}.client-app--calm .client-booking-submit-error{background:#fff0f2}
+.client-booking-continuous-note{display:flex;align-items:flex-start;gap:7px;margin:0 0 10px;padding:9px 10px;border-radius:9px;background:rgba(93,184,255,.09);color:var(--client-muted);font-size:12px;line-height:1.7}.client-booking-continuous-note svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--client-blue)}
 @media(prefers-reduced-motion:reduce){.client-spin{animation:none!important}}

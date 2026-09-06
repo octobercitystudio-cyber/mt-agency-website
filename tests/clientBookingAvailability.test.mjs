@@ -54,6 +54,55 @@ test('client availability demo is private, role scoped, bounded, and keeps pendi
   deactivateDemoMode();
 });
 
+test('requested hours must fit one continuous same-day slot and are never split across gaps', async () => {
+  installBrowserStubs();
+  const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
+  resetDemoDatabase(); activateDemoMode('client');
+
+  const baseline = await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=120&days=21');
+  assert.equal(baseline.error, null);
+
+  activateDemoMode('owner');
+  const bookings = (await demoClient.from('bookings').select('*')).data;
+  const target = baseline.data.days.find(day => day.available && !bookings.some(booking => booking.date === day.date));
+  assert.ok(target, 'the fixture must have an otherwise empty bookable day');
+
+  const alternatingBlocks = [
+    ['12:00', '13:00'], ['14:00', '15:00'], ['16:00', '17:00'],
+    ['18:00', '19:00'], ['20:00', '21:00'], ['22:00', '23:00'],
+  ];
+  for (const [index, [start_time, end_time]] of alternatingBlocks.entries()) {
+    const blocked = await demoClient.request('/booking-blocks', {
+      method: 'POST',
+      body: JSON.stringify({
+        date: target.date,
+        start_time,
+        end_time,
+        resource_id: 1,
+        repeat_daily: false,
+        idempotency_key: `continuous-client-booking-${target.date}-${index}`,
+      }),
+    });
+    assert.equal(blocked.error, null);
+  }
+
+  activateDemoMode('client');
+  const twoHours = await demoClient.request(`/client/booking-availability?client_package_id=201&duration_minutes=120&days=1&start_date=${target.date}`);
+  assert.equal(twoHours.error, null);
+  assert.equal(twoHours.data.days[0].available, false, 'separate one-hour gaps must not be combined into a two-hour appointment');
+  assert.deepEqual(twoHours.data.days[0].slots, []);
+
+  const oneHour = await demoClient.request(`/client/booking-availability?client_package_id=201&duration_minutes=60&days=1&start_date=${target.date}`);
+  assert.equal(oneHour.error, null);
+  assert.equal(oneHour.data.days[0].available, true, 'a genuinely continuous one-hour gap remains bookable');
+  for (const slot of oneHour.data.days[0].slots) {
+    const [startHour, startMinute] = slot.start_time.split(':').map(Number);
+    const endMinutes = slot.end_time === '24:00' ? 1440 : slot.end_time.split(':').map(Number).reduce((hour, minute) => (hour * 60) + minute);
+    assert.equal(endMinutes - ((startHour * 60) + startMinute), 60, 'every suggestion must be one exact continuous interval');
+  }
+  deactivateDemoMode();
+});
+
 test('final submit rechecks a stale availability snapshot and returns a conflict', async () => {
   installBrowserStubs();
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
@@ -89,6 +138,7 @@ test('production availability route and guided UI enforce the privacy contract w
   assert.match(demo, /route === '\/client\/booking-availability'/);
   assert.match(dialog, /احجز موعد تصوير/);
   assert.match(dialog, /الطلب يحتاج موافقة الإدارة/);
+  assert.match(dialog, /تتسع لمدة الجلسة كاملة ومتّصلة في اليوم نفسه، ولا يتم تقسيم الساعات/);
   assert.match(dialog, /type="number"[^>]+inputMode="numeric"/);
   assert.match(dialog, /هذا الموعد لم يعد متاحًا، اختر موعدًا آخر/);
   assert.match(dialog, /aria-live="polite"/);
