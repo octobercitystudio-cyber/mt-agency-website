@@ -189,6 +189,44 @@ const mutateDemoPackageQuantities = (pkg, { purchased = 0, held = 0, consumed = 
 const demoPackageAvailable = pkg => pkg.billing_unit === 'hour'
   ? Math.max(0, (demoPackageMinutes(pkg, 'purchased') - demoPackageMinutes(pkg, 'held') - demoPackageMinutes(pkg, 'consumed')) / 60)
   : Math.max(0, Number(pkg.purchased_quantity || 0) - Number(pkg.held_quantity || 0) - Number(pkg.consumed_quantity || 0));
+const demoClientBookingAvailability = (database, url) => {
+  if (demoRole !== 'client') throw formationDemoError('عرض المواعيد المتاحة مخصص للعميل فقط.', 'forbidden');
+  const packageId = Number(url.searchParams.get('client_package_id'));
+  const durationMinutes = Number(url.searchParams.get('duration_minutes'));
+  const days = Number(url.searchParams.get('days') || 21);
+  const today = cairoDateKey();
+  const startDate = String(url.searchParams.get('start_date') || today);
+  const pkg = findById(database, 'client_packages', packageId);
+  if (!pkg || Number(pkg.client_id) !== 1 || pkg.status !== 'active') throw formationDemoError('الباقة غير فعالة أو لا تخص هذا الحساب.', 'invalid_package');
+  const service = findById(database, 'services', pkg.service_id);
+  const minimum = Math.max(15, Number(service?.minimum_booking_minutes || 60));
+  const increment = Math.max(15, Number(service?.booking_increment_minutes || 15));
+  if (!Number.isSafeInteger(durationMinutes) || durationMinutes < minimum || durationMinutes > 720 || durationMinutes % increment !== 0) throw formationDemoError(`المدة المطلوبة يجب ألا تقل عن ${formatDurationMinutes(minimum)} وتكون بزيادات ${formatDurationMinutes(increment)}.`, 'invalid_booking_duration');
+  if (!Number.isSafeInteger(days) || days < 1 || days > 31 || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || startDate < today) throw formationDemoError('فترة البحث غير صحيحة.', 'availability_window_out_of_range');
+  const availableQuantity = demoPackageAvailable(pkg);
+  if (pkg.billing_unit === 'hour' ? availableQuantity * 60 + .001 < durationMinutes : availableQuantity < 1) throw formationDemoError('رصيد الباقة المتاح لا يكفي للمدة المطلوبة.', 'insufficient_package_balance');
+  if (!['hour', 'reel'].includes(pkg.billing_unit)) throw formationDemoError('هذه الباقة لا تدعم حجز جلسة تصوير.', 'unsupported_booking_package');
+  const resources = database.resources.filter(resource => belongsToDemoOrganization(resource) && Number(resource.is_active ?? 1) === 1).sort((a, b) => Number(a.id) - Number(b.id));
+  if (!resources.length) throw formationDemoError('لا يوجد مورد تصوير متاح للحجز الآن.', 'no_booking_resource');
+  const startValue = new Date(`${startDate}T12:00:00`);
+  const nowParts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  const nowMinutes = Number(nowParts.hour) * 60 + Number(nowParts.minute);
+  const resultDays = Array.from({ length: days }, (_, offset) => {
+    const current = new Date(startValue); current.setDate(current.getDate() + offset); const date = `${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`;
+    const inValidity = (!pkg.starts_at && !pkg.expires_at) || (date >= String(pkg.starts_at).slice(0, 10) && date <= String(pkg.expires_at).slice(0, 10) && (pkg.validity_mode_snapshot !== 'shooting_day' || date === String(pkg.starts_at).slice(0, 10)));
+    if (current.getDay() === 5 || !inValidity) return { date, available: false, slots: [] };
+    const slots = [];
+    for (let start = 720; start + durationMinutes <= 1440; start += 15) {
+      if (date === today && start < nowMinutes) continue;
+      const formatTime = value => value === 1440 ? '24:00' : `${pad(Math.floor(value / 60))}:${pad(value % 60)}`;
+      const end = start + durationMinutes;
+      const resource = resources.find(item => getBookingAvailability({ date, start_time: formatTime(start), end_time: formatTime(end), resource_id: item.id }, database.bookings, { blocks: database.booking_blocks }).available);
+      if (resource) slots.push({ start_time: formatTime(start), end_time: formatTime(end), resource_id: Number(resource.id) });
+    }
+    return { date, available: slots.length > 0, slots };
+  });
+  return { package: { id: Number(pkg.id), name: String(pkg.name), billing_unit: pkg.billing_unit, available_quantity: availableQuantity, starts_at: pkg.starts_at || null, expires_at: pkg.expires_at || null, minimum_booking_minutes: minimum, booking_increment_minutes: increment }, duration_minutes: durationMinutes, server_time: demoCairoNowIso(), days: resultDays };
+};
 const demoPackageExpiry = (startsAt, days, mode = 'rolling') => {
   if (!startsAt) return null;
   if (mode === 'shooting_day') return startsAt;
@@ -1842,17 +1880,21 @@ const demoRequest = async (path, options = {}) => {
   if ((match = route.match(/^\/booking-blocks\/(\d+)$/)) && options.method === 'DELETE') {
     if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لإلغاء حظر المواعيد.', 'forbidden'); const scope = url.searchParams.get('scope') || 'single'; if (!['single', 'series'].includes(scope)) throw formationDemoError('نطاق الإلغاء غير صحيح.', 'invalid_booking_block_scope'); const selected = database.booking_blocks.find(item => Number(item.id) === Number(match[1]) && belongsToDemoOrganization(item) && item.status === 'active'); if (!selected) throw formationDemoError('فترة الحظر غير موجودة.', 'booking_block_not_found'); const working = clone(database); const ids = working.booking_blocks.filter(item => Number(item.id) === Number(selected.id) || scope === 'series' && selected.series_key && item.series_key === selected.series_key && item.status === 'active' && item.block_date >= selected.block_date).map(item => Number(item.id)); working.booking_blocks.forEach(item => { if (ids.includes(Number(item.id))) Object.assign(item, { status: 'cancelled', cancelled_by: demoUserId, cancelled_at: nowText() }); }); working.booking_slots = working.booking_slots.filter(slot => !ids.includes(Number(slot.booking_block_id))); demoAuditBookingBlockChange(working, scope === 'series' ? 'cancel_series' : 'cancel', selected.id, clone(selected), { cancelled_ids: ids, scope }); writeDatabase(working); return { cancelled: ids.length, ids, scope };
   }
+  if (route === '/client/booking-availability' && (options.method || 'GET') === 'GET') return demoClientBookingAvailability(database, url);
   if (route === '/bookings/request' && options.method === 'POST') {
-    const clientId = Number(body.client_id || (demoRole === 'client' ? 1 : 0));
+    const clientId = demoRole === 'client' ? 1 : Number(body.client_id || 0);
     const client = findById(database, 'clients', clientId);
     const service = findById(database, 'services', body.service_id);
     const pkg = body.client_package_id ? findById(database, 'client_packages', body.client_package_id) : database.client_packages.find(item => Number(item.client_id) === clientId && Number(item.service_id) === Number(body.service_id) && item.status === 'active');
     const start = Number(String(body.start_time).slice(0, 2)) * 60 + Number(String(body.start_time).slice(3, 5));
     let end = Number(String(body.end_time).slice(0, 2)) * 60 + Number(String(body.end_time).slice(3, 5)); if (end === 0) end = 1440;
     const quantity = body.requested_reels || ((end - start) / 60);
-    const status = body.status === 'confirmed' ? 'confirmed' : 'pending';
+    const status = demoRole === 'client' ? 'pending' : body.status === 'confirmed' ? 'confirmed' : 'pending';
     const resourceId = Number(body.resource_id || 1);
-    if (status === 'confirmed') { assertDemoBookingAvailable(database, { date: body.date, start_time: body.start_time, end_time: body.end_time, resource_id: resourceId }); if (!pkg) throw formationDemoError('الباقة غير موجودة.', 'package_not_found'); activateDemoPackageOnFirstBooking(database, pkg, String(body.date)); if (demoPackageAvailable(pkg) + 0.000001 < Number(quantity)) throw formationDemoError('رصيد الباقة المتاح لا يكفي لتأكيد هذا الحجز.', 'insufficient_package_balance'); }
+    if (demoRole === 'client' || status === 'confirmed') assertDemoBookingAvailable(database, { date: body.date, start_time: body.start_time, end_time: body.end_time, resource_id: resourceId });
+    if (!pkg || Number(pkg.client_id) !== clientId || pkg.status !== 'active') throw formationDemoError('الباقة غير موجودة أو لا تخص العميل.', 'package_not_found');
+    if (demoRole === 'client' && (pkg.billing_unit === 'hour' ? demoPackageAvailable(pkg) + 0.000001 < Number(quantity) : demoPackageAvailable(pkg) < Number(quantity))) throw formationDemoError('رصيد الباقة المتاح لا يكفي لهذا الحجز.', 'insufficient_package_balance');
+    if (status === 'confirmed') { activateDemoPackageOnFirstBooking(database, pkg, String(body.date)); if (demoPackageAvailable(pkg) + 0.000001 < Number(quantity)) throw formationDemoError('رصيد الباقة المتاح لا يكفي لتأكيد هذا الحجز.', 'insufficient_package_balance'); }
     const row = addRow(database, 'bookings', { client_id: clientId, client_name: client?.name || 'عميل تجريبي', client_package_id: pkg?.id || null, service_id: body.service_id, resource_id: resourceId, resource_name: 'الاستديو الرئيسي', service: body.service || service?.name || 'جلسة تصوير', date: body.date, start_time: body.start_time, end_time: body.end_time, status, requested_quantity: quantity, requested_reels: body.requested_reels || 0, notes: body.notes || '', payment: 0 });
     if (pkg && status === 'confirmed') { const minutes = pkg.billing_unit === 'hour' ? Math.max(1, end - start) : null; mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: minutes } : { held: quantity }); addDemoPackageUsage(database, pkg, { booking_id: row.id, movement_type: 'hold', quantity, quantity_minutes: minutes, reason: 'تأكيد الحجز', event_key: `booking:${row.id}:hold` }); }
     demoAudit(database, 'create', 'bookings', row.id, null, clone(row));

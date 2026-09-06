@@ -8,7 +8,7 @@ import arCalendarLocale from '@fullcalendar/core/locales/ar';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { safeUiError } from '../lib/uiError';
-import { formatBookingDate, formatDateTime12, formatEGP, formatPackageQuantity, formatTime12 } from '../lib/businessFormat';
+import { calculateDurationMinutes, formatBookingDate, formatDateTime12, formatDurationMinutes, formatEGP, formatPackageQuantity, formatTime12 } from '../lib/businessFormat';
 import ERPPageHero from './ERPPageHero';
 import { blockingBookings, candidateForRequest, getBookingAvailability, readableBookingTextColor, safeBookingColor } from './bookingAvailability';
 import './ERPRequests.css';
@@ -26,6 +26,13 @@ const calendarDateTime = (date, value, end = false) => {
   }
   return `${date}T${raw}:00`;
 };
+const requestedDurationMinutes = item => {
+  const stored = Number(item?.duration_minutes);
+  if (Number.isFinite(stored) && stored > 0) return Math.round(stored);
+  const start = item?.requested_start_time || item?.proposed_start_time || item?.scheduled_start_time || item?.start_time;
+  const end = item?.requested_end_time || item?.proposed_end_time || item?.scheduled_end_time || item?.end_time;
+  return calculateDurationMinutes(start, end);
+};
 
 export default function ERPRequests() {
   const { currentUser } = useData();
@@ -34,7 +41,7 @@ export default function ERPRequests() {
   const canOperations = ['owner', 'admin', 'operations'].includes(role);
   const canFinance = ['owner', 'admin', 'finance'].includes(role);
   const isOwner = role === 'owner';
-  const [data, setData] = useState({ bookings: [], bookingBlocks: [], reschedules: [], proofs: [], clients: [] });
+  const [data, setData] = useState({ bookings: [], bookingBlocks: [], reschedules: [], proofs: [], clients: [], packages: [] });
   const [activeTab, setActiveTab] = useState(canOperations ? 'bookings' : 'proofs');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -54,15 +61,16 @@ export default function ERPRequests() {
       canFinance ? dataClient.from('payment_proofs').select('id,client_id,client_package_id,invoice_id,amount,original_name,mime_type,status,admin_note,created_at').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
       dataClient.from('clients').select('id,name,phone1,color'),
       canOperations ? dataClient.request('/booking-blocks', { method: 'GET' }) : Promise.resolve({ data: [] }),
+      canOperations ? dataClient.from('client_packages').select('id,name,billing_unit') : Promise.resolve({ data: [] }),
     ];
-    const [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult] = await Promise.all(queries);
-    const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult].find(result => result.error);
+    const [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult] = await Promise.all(queries);
+    const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult].find(result => result.error);
     if (failed?.error) {
       setError(safeUiError(failed.error, 'تعذر تحميل بعض الطلبات الآن. أعد المحاولة بعد قليل.'));
       if (showLoading) setLoading(false);
       return null;
     }
-    const nextData = { bookings: bookingsResult.data || [], bookingBlocks: blocksResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [] };
+    const nextData = { bookings: bookingsResult.data || [], bookingBlocks: blocksResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [], packages: packagesResult.data || [] };
     setData(nextData);
     if (showLoading) setLoading(false);
     return nextData;
@@ -73,12 +81,13 @@ export default function ERPRequests() {
     fetchRequests(true);
   }, [fetchRequests]);
 
-  const pendingBookings = data.bookings.filter(item => item.status === 'pending');
+  const pendingBookings = data.bookings.filter(item => item.status === 'pending').map(item => ({ ...item, duration_minutes: requestedDurationMinutes(item) }));
   const cancellations = data.bookings.filter(item => ['cancel_requested', 'late_cancel_requested'].includes(item.status));
   const bookingById = id => data.bookings.find(item => Number(item.id) === Number(id));
   const clientName = id => data.clients.find(item => Number(item.id) === Number(id))?.name || 'عميل';
   const clientById = id => data.clients.find(item => Number(item.id) === Number(id));
   const bookingClientName = booking => booking?.client_name || clientById(booking?.client_id)?.name || 'عميل';
+  const bookingPackageName = booking => data.packages.find(item => Number(item.id) === Number(booking?.client_package_id))?.name || (booking?.client_package_id ? `باقة #${booking.client_package_id}` : 'بدون باقة');
   const requestAvailability = (kind, item, source = data) => {
     const original = kind === 'reschedule' ? source.bookings.find(booking => Number(booking.id) === Number(item.booking_id)) : item;
     return getBookingAvailability(candidateForRequest(kind, item, original), source.bookings, {
@@ -274,7 +283,7 @@ export default function ERPRequests() {
 
     <main className="requests-workspace">
       {loading ? <LoadingState/> : <>
-        {activeTab === 'bookings' && <RequestGrid empty={!pendingBookings.length} emptyLabel="لا توجد حجوزات جديدة بانتظار التأكيد.">{pendingBookings.map(item => { const availability = requestAvailability('booking', item); const blocked = availability.status !== 'available'; return <RequestCard key={item.id} tone="amber" icon={CalendarDays} title={item.client_name} badge="بانتظار التأكيد" meta={[formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, item.service]} note={item.notes} onFocus={() => focusRequestOnCalendar('booking', item)}><button className="calendar-focus" onClick={() => focusRequestOnCalendar('booking', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidateForRequest('booking', item)} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `booking-${item.id}`} title={blocked ? 'لا يمكن التأكيد قبل اختيار موعد متاح' : ''} onClick={() => openDecision('booking', 'confirm', item)}><Check/> {checkingId === `booking-${item.id}` ? 'جارٍ التحقق...' : 'تأكيد'}</button><button className="alternative" onClick={() => navigate('/erp/bookings')}><CalendarClock/> موعد بديل</button><button className="reject" onClick={() => openDecision('booking', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
+        {activeTab === 'bookings' && <RequestGrid empty={!pendingBookings.length} emptyLabel="لا توجد حجوزات جديدة بانتظار التأكيد.">{pendingBookings.map(item => { const availability = requestAvailability('booking', item); const blocked = availability.status !== 'available'; return <RequestCard key={item.id} tone="amber" icon={CalendarDays} title={item.client_name} badge="بانتظار التأكيد" meta={[bookingPackageName(item), item.service, formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, `المدة المطلوبة: ${formatDurationMinutes(item.duration_minutes || 0)}`]} note={item.notes} onFocus={() => focusRequestOnCalendar('booking', item)}><button className="calendar-focus" onClick={() => focusRequestOnCalendar('booking', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidateForRequest('booking', item)} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `booking-${item.id}`} title={blocked ? 'لا يمكن التأكيد قبل اختيار موعد متاح' : ''} onClick={() => openDecision('booking', 'confirm', item)}><Check/> {checkingId === `booking-${item.id}` ? 'جارٍ التحقق...' : 'تأكيد'}</button><button className="alternative" onClick={() => navigate('/erp/bookings')}><CalendarClock/> موعد بديل</button><button className="reject" onClick={() => openDecision('booking', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
 
         {activeTab === 'reschedules' && <RequestGrid empty={!data.reschedules.length} emptyLabel="لا توجد طلبات تغيير موعد.">{data.reschedules.map(item => { const old = bookingById(item.booking_id); const availability = requestAvailability('reschedule', item); const candidate = candidateForRequest('reschedule', item, old); const blocked = availability.status !== 'available'; return <RequestCard key={item.id} tone="blue" icon={RotateCcw} title={clientName(item.client_id)} badge="طلب تغيير" meta={[]} note={item.reason} onFocus={() => focusRequestOnCalendar('reschedule', item)}><div className="requests-time-change"><div><span>الموعد الحالي</span><strong>{formatBookingDate(old?.date)}</strong><small>{time(old?.start_time)} – {time(old?.end_time)}</small></div><i>←</i><div><span>الموعد المقترح</span><strong>{formatBookingDate(item.proposed_date)}</strong><small>{time(item.proposed_start_time)} – {time(item.proposed_end_time)}</small></div></div><button className="calendar-focus" onClick={() => focusRequestOnCalendar('reschedule', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidate} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `reschedule-${item.id}`} title={blocked ? 'لا يمكن قبول موعد متعارض' : ''} onClick={() => openDecision('reschedule', 'approve', item)}><Check/> {checkingId === `reschedule-${item.id}` ? 'جارٍ التحقق...' : 'قبول التغيير'}</button><button className="reject" onClick={() => openDecision('reschedule', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
 

@@ -36,6 +36,7 @@ import ClientOfferTickets, { ClientOfferDetails, ClientPublicPromotions } from '
 import { adaptClientOfferList, clientOfferServerOffset, normalizeClientOffer } from '../lib/clientOfferAdapter';
 import ClientPostProduction from './ClientPostProduction';
 import ClientSecuritySettings from './ClientSecuritySettings';
+import ClientBookingDialog from './ClientBookingDialog';
 
 const STATUS_META = {
   pending: { label: 'بانتظار التأكيد', tone: 'waiting' },
@@ -143,7 +144,6 @@ export default function ClientDashboard() {
   const [notice, setNotice] = useState(null);
   const [bookingForm, setBookingForm] = useState(initialBooking);
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [bookingBusy, setBookingBusy] = useState(false);
   const [reschedule, setReschedule] = useState(initialReschedule);
   const [cancelConfirm, setCancelConfirm] = useState(null);
   const [actionBusy, setActionBusy] = useState(null);
@@ -156,6 +156,7 @@ export default function ClientDashboard() {
   const offerDialogRef = useRef(null);
   const offerTriggerRef = useRef(null);
   const clientDataRequestRef = useRef(0);
+  const bookingTriggerRef = useRef(null);
 
   const fetchClientData = useCallback(async (background = false) => {
     if (!clientId) return;
@@ -282,34 +283,6 @@ export default function ClientDashboard() {
   const showNotice = (type, message) => {
     setNotice({ type, message });
     window.setTimeout(() => setNotice(null), 5000);
-  };
-
-  const submitBooking = async (event) => {
-    event.preventDefault();
-    const pkg = activePackages.find(item => String(item.id) === String(bookingForm.client_package_id));
-    if (!pkg) return showNotice('error', 'اختر الباقة التي تريد الحجز منها.');
-    const service = serviceForPackage(pkg);
-    const minimum = Math.max(15, Number(service?.minimum_booking_minutes || 60));
-    const increment = Math.max(15, Number(service?.booking_increment_minutes || 15));
-    const duration = calculateDurationMinutes(bookingForm.start_time, bookingForm.end_time);
-    if (!isValidBusinessBooking(bookingForm.start_time, bookingForm.end_time, minimum) || duration % increment !== 0) {
-      return showNotice('error', `راجع الوقت: أقل حجز ${formatDurationMinutes(minimum)}، والزيادة كل ${formatDurationMinutes(increment)}، ${BUSINESS_HOURS_LABEL}.`);
-    }
-    setBookingBusy(true);
-    const { error } = await dataClient.request('/bookings/request', {
-      method: 'POST',
-      body: JSON.stringify({
-        client_package_id: Number(pkg.id), service_id: service?.id || pkg.service_id,
-        service: pkg.name, date: bookingForm.date, start_time: bookingForm.start_time,
-        end_time: bookingForm.end_time, notes: bookingForm.notes,
-      }),
-    });
-    setBookingBusy(false);
-    if (error) return showNotice('error', error.message || 'تعذر إرسال طلب الحجز.');
-    setBookingForm(initialBooking);
-    setBookingOpen(false);
-    showNotice('success', 'تم إرسال الطلب');
-    await fetchClientData();
   };
 
   const submitReschedule = async (event) => {
@@ -504,12 +477,12 @@ export default function ClientDashboard() {
           onNavigate={navigateClient}
           onBookPackage={packageId => {
             setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) }));
-            navigateClient('schedule');
+            setBookingOpen(true);
           }}
         />}
 
         {activeTab === 'schedule' && <section className="client-view client-appointments-page">
-          <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div><button type="button" className="client-primary" onClick={() => setBookingOpen(true)}><CalendarDays/> حجز موعد</button></header>
+          <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div><button ref={bookingTriggerRef} type="button" className="client-primary" onClick={() => setBookingOpen(true)}><CalendarDays/> حجز موعد</button></header>
           {upcomingBookings[0] ? <section className="client-next-appointment"><div><span>الموعد القادم</span><strong>{format(new Date(`${upcomingBookings[0].date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</strong><p>{timeLabel(upcomingBookings[0].start_time)} – {timeLabel(upcomingBookings[0].end_time)} · {formatDurationMinutes(calculateDurationMinutes(upcomingBookings[0].start_time, upcomingBookings[0].end_time))}</p></div><StatusBadge status={upcomingBookings[0].status}/></section> : <div className="client-empty client-empty--compact"><CalendarDays/><p>لا يوجد موعد قادم.</p></div>}
           <section className="client-appointment-cards" aria-labelledby="all-client-bookings"><div className="client-section-head"><div><span>الأحدث أولًا</span><h2 id="all-client-bookings">كل مواعيدك</h2></div></div>{orderedBookings.map(booking => <BookingRow key={booking.id} booking={booking} session={sessionByBookingId.get(Number(booking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>)}{!orderedBookings.length && <div className="client-empty"><CalendarDays/><h3>لم تطلب أي حجز بعد</h3></div>}</section>
         </section>}
@@ -520,7 +493,7 @@ export default function ClientDashboard() {
           projects={projects.filter(project => ['planning', 'active', 'on_hold'].includes(project.status))}
           onBookPackage={packageId => {
             setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) }));
-            navigateClient('schedule'); setBookingOpen(true);
+            setBookingOpen(true);
           }}
         />}
 
@@ -538,7 +511,7 @@ export default function ClientDashboard() {
         {activeTab === 'security' && <ClientSecuritySettings />}
       </main>
 
-      {bookingOpen && <div className="client-modal" onMouseDown={event => { if (event.target === event.currentTarget) setBookingOpen(false); }}><section className="client-modal-card client-booking-request-dialog" role="dialog" aria-modal="true" aria-labelledby="client-booking-request-title"><button className="client-modal-close" type="button" onClick={() => setBookingOpen(false)} aria-label="إغلاق"><X/></button><span className="client-eyebrow"><CalendarDays size={16}/> حجز جديد</span><h2 id="client-booking-request-title">اختر موعد التصوير</h2><p>حدد الباقة واليوم والوقت من وإلى، ثم أرسل الطلب.</p><form onSubmit={submitBooking}><label>الباقة<select required value={bookingForm.client_package_id} onChange={event => setBookingForm({ ...bookingForm, client_package_id: event.target.value })}><option value="">اختر الباقة</option>{activePackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}</select></label><label>اليوم والتاريخ<input required type="date" min={format(new Date(), 'yyyy-MM-dd')} value={bookingForm.date} onChange={event => setBookingForm({ ...bookingForm, date: event.target.value })}/></label><div className="client-time-fields"><label>الوقت من<BusinessTimeSelect required min="12:00" max="23:00" value={bookingForm.start_time} onChange={event => setBookingForm({ ...bookingForm, start_time: event.target.value })}/></label><label>الوقت إلى<BusinessTimeSelect required min="13:00" max="24:00" value={bookingForm.end_time} onChange={event => setBookingForm({ ...bookingForm, end_time: event.target.value })}/></label></div><p className="client-policy"><Clock3/> اكتب الوقت بنظام 12 ساعة ثم اختر «ص» أو «م»؛ الاختيار الافتراضي مساءً. مواعيد العمل {BUSINESS_HOURS_LABEL}.</p><label>ملاحظات اختيارية<textarea rows="3" value={bookingForm.notes} onChange={event => setBookingForm({ ...bookingForm, notes: event.target.value })}/></label><button className="client-primary" disabled={bookingBusy || !activePackages.length}>{bookingBusy ? <RefreshCw className="client-spin"/> : <Send/>}{bookingBusy ? 'جارٍ الإرسال...' : 'إرسال الطلب'}</button>{!activePackages.length && <small className="client-field-error">يلزم وجود باقة فعالة لإرسال طلب حجز.</small>}</form></section></div>}
+      {bookingOpen && <ClientBookingDialog open packages={activePackages} services={services} initialPackageId={bookingForm.client_package_id} triggerRef={bookingTriggerRef} onClose={() => setBookingOpen(false)} onSuccess={fetchClientData} showNotice={showNotice}/>}
 
       {offerDetail && <div className="client-modal client-offer-modal" onMouseDown={event => { if (event.target === event.currentTarget) closeOfferDetail(); }}><section ref={offerDialogRef} className="client-modal-card client-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="client-offer-title"><button className="client-modal-close" onClick={closeOfferDetail} aria-label="إغلاق تفاصيل العرض"><X/></button>{offerDetailBusy ? <div className="client-empty"><RefreshCw className="client-spin"/><h3>جارٍ تحميل العرض</h3></div> : <ClientOfferDetails offer={offerDetail} serverOffset={offerServerOffset} busy={acceptBusy} confirm={acceptConfirm} onConfirm={() => setAcceptConfirm(true)} onCancelConfirm={() => setAcceptConfirm(false)} onAccept={acceptOffer}/>}</section></div>}
 

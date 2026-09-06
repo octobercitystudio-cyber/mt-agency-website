@@ -149,7 +149,7 @@ function validateBookingSchedule(
     $resource=$pdo->prepare('SELECT id FROM resources WHERE id=? AND organization_id=? AND is_active=1');$resource->execute([$resourceId,$organizationId]);
     if(!$resource->fetch())fail('الاستديو أو مورد الحجز غير متاح.',422,'invalid_booking_resource');
     if($checkConflict){
-        $sql="SELECT id FROM bookings WHERE organization_id=? AND resource_id=? AND date=? AND status IN ('confirmed','in_progress') AND start_time<? AND end_time>?";$params=[$organizationId,$resourceId,$date,$end.':00',$start.':00'];
+        $sql="SELECT id FROM bookings WHERE organization_id=? AND resource_id=? AND date=? AND status IN ('confirmed','in_progress','cancel_requested','late_cancel_requested') AND start_time<? AND end_time>?";$params=[$organizationId,$resourceId,$date,$end.':00',$start.':00'];
         if($excludeBookingId){$sql.=' AND id<>?';$params[]=$excludeBookingId;}$sql.=' LIMIT 1 FOR UPDATE';$conflict=$pdo->prepare($sql);$conflict->execute($params);
         if($conflict->fetch())fail('يوجد حجز مؤكد متعارض مع هذا الموعد.',409,'booking_conflict');
         if(bookingBlockSchemaReady($pdo)){
@@ -474,6 +474,73 @@ function audit(PDO $pdo, array $user, string $action, string $entityType, ?int $
     try{notifyClientChange($pdo,$user,$action,$entityType,$entityId,$before,$after,$sourceEventId);}catch(Throwable $notificationError){error_log('[Audit client notification] '.$notificationError->getMessage());}
     try{notifyOwnersOfClientAction($pdo,$user,$action,$entityType,$entityId,$before,$after,$sourceEventId);}catch(Throwable $notificationError){error_log('[Audit owner notification] '.$notificationError->getMessage());}
     return $sourceEventId;
+}
+
+/**
+ * Return bookable windows only. Busy intervals stay on the server and are
+ * deliberately never included in the response, even as aggregate counts.
+ */
+function clientBookingAvailability(PDO $pdo, array $user, int $packageId, int $durationMinutes, string $startDate, int $windowDays): array {
+    $organizationId=(int)$user['organization_id'];$clientId=(int)$user['client_id'];$zone=new DateTimeZone('Africa/Cairo');$now=cairoNow();
+    $minimumWindow=1;$maximumWindow=31;$windowDays=max($minimumWindow,min($maximumWindow,$windowDays));
+    $first=DateTimeImmutable::createFromFormat('!Y-m-d',$startDate,$zone);
+    if(!$first||$first->format('Y-m-d')!==$startDate)fail('تاريخ بداية البحث غير صحيح.',422,'invalid_availability_start');
+    $today=$now->setTime(0,0);$latestStart=$today->modify('+90 days');
+    if($first<$today)$first=$today;
+    if($first>$latestStart)fail('يمكن البحث عن المواعيد خلال 90 يومًا فقط.',422,'availability_start_out_of_range');
+    if($durationMinutes<15||$durationMinutes>720)fail('مدة الحجز يجب أن تكون بين 15 دقيقة و12 ساعة.',422,'invalid_booking_duration');
+
+    $packageStmt=$pdo->prepare("SELECT cp.*,s.name AS service_name,s.minimum_booking_minutes,s.booking_increment_minutes FROM client_packages cp JOIN services s ON s.id=cp.service_id AND s.organization_id=cp.organization_id AND s.is_active=1 WHERE cp.id=? AND cp.client_id=? AND cp.organization_id=? AND cp.status='active' LIMIT 1");
+    $packageStmt->execute([$packageId,$clientId,$organizationId]);$package=$packageStmt->fetch();
+    if(!$package)fail('الباقة غير فعالة أو لا تخص هذا الحساب.',404,'invalid_package');
+    $minimum=max(15,(int)($package['minimum_booking_minutes']??60));$increment=max(15,(int)($package['booking_increment_minutes']??15));
+    if($durationMinutes<$minimum||$durationMinutes%$increment!==0)fail('المدة المطلوبة يجب ألا تقل عن '.arabicDurationMinutes($minimum).' وتكون بزيادات '.arabicDurationMinutes($increment).'.',422,'invalid_booking_duration');
+    $availableQuantity=packageAvailableQuantity($package);$unit=(string)$package['billing_unit'];
+    if($unit==='hour'&&($availableQuantity*60)+.001<$durationMinutes)fail('رصيد الباقة المتاح لا يكفي للمدة المطلوبة.',422,'insufficient_package_balance');
+    if($unit==='reel'&&$availableQuantity<1)fail('لا يوجد ريل متاح للحجز في هذه الباقة.',422,'insufficient_package_balance');
+    if(!in_array($unit,['hour','reel'],true))fail('هذه الباقة لا تدعم حجز جلسة تصوير.',422,'unsupported_booking_package');
+
+    $starts=substr((string)($package['starts_at']??''),0,10);$expires=substr((string)($package['expires_at']??''),0,10);
+    if(($starts===''||$expires==='')&&($starts!==''||$expires!==''))fail('بيانات صلاحية الباقة غير مكتملة.',409,'package_validity_incomplete');
+    $last=$first->modify('+'.($windowDays-1).' days');$from=$first->format('Y-m-d');$to=$last->format('Y-m-d');
+
+    $resourceStmt=$pdo->prepare('SELECT id FROM resources WHERE organization_id=? AND is_active=1 ORDER BY id');$resourceStmt->execute([$organizationId]);$resourceIds=array_map('intval',$resourceStmt->fetchAll(PDO::FETCH_COLUMN));
+    if(!$resourceIds)fail('لا يوجد مورد تصوير متاح للحجز الآن.',409,'no_booking_resource');
+    $occupied=[];
+    $mark=function(int $resourceId,string $date,mixed $startValue,mixed $endValue)use(&$occupied):void{
+        $start=businessTimeMinutes((string)$startValue);$end=businessTimeMinutes((string)$endValue,true);if($start<0||$end<0||$end<=$start)return;
+        for($minute=(int)(floor($start/15)*15);$minute<$end;$minute+=15)$occupied[$date][$resourceId][$minute]=true;
+    };
+    // Prefer the canonical 15-minute reservations when they are available.
+    // The interval queries below remain as a legacy/incomplete-slot fallback.
+    if(schemaTableExists($pdo,'booking_slots')){
+        $slotBookings=$pdo->prepare("SELECT bs.resource_id,bs.slot_date,bs.slot_start FROM booking_slots bs JOIN bookings b ON b.id=bs.booking_id AND b.organization_id=bs.organization_id WHERE bs.organization_id=? AND bs.slot_date BETWEEN ? AND ? AND bs.booking_id IS NOT NULL AND b.status IN ('confirmed','in_progress','cancel_requested','late_cancel_requested')");
+        $slotBookings->execute([$organizationId,$from,$to]);
+        foreach($slotBookings->fetchAll() as $row){$minute=businessTimeMinutes((string)$row['slot_start']);if($minute>=0)$occupied[(string)$row['slot_date']][(int)$row['resource_id']][$minute]=true;}
+        if(bookingBlockSchemaReady($pdo)){
+            $slotBlocks=$pdo->prepare("SELECT bs.resource_id,bs.slot_date,bs.slot_start FROM booking_slots bs JOIN booking_blocks bb ON bb.id=bs.booking_block_id AND bb.organization_id=bs.organization_id WHERE bs.organization_id=? AND bs.slot_date BETWEEN ? AND ? AND bs.booking_block_id IS NOT NULL AND bb.status='active'");
+            $slotBlocks->execute([$organizationId,$from,$to]);
+            foreach($slotBlocks->fetchAll() as $row){$minute=businessTimeMinutes((string)$row['slot_start']);if($minute>=0)$occupied[(string)$row['slot_date']][(int)$row['resource_id']][$minute]=true;}
+        }
+    }
+    $bookings=$pdo->prepare("SELECT resource_id,date,start_time,end_time FROM bookings WHERE organization_id=? AND date BETWEEN ? AND ? AND status IN ('confirmed','in_progress','cancel_requested','late_cancel_requested')");$bookings->execute([$organizationId,$from,$to]);foreach($bookings->fetchAll() as $row)$mark((int)$row['resource_id'],(string)$row['date'],$row['start_time'],$row['end_time']);
+    if(bookingBlockSchemaReady($pdo)){$blocks=$pdo->prepare("SELECT resource_id,block_date,start_time,end_time FROM booking_blocks WHERE organization_id=? AND block_date BETWEEN ? AND ? AND status='active'");$blocks->execute([$organizationId,$from,$to]);foreach($blocks->fetchAll() as $row)$mark((int)$row['resource_id'],(string)$row['block_date'],$row['start_time'],$row['end_time']);}
+
+    $days=[];
+    for($offset=0;$offset<$windowDays;$offset++){
+        $dateValue=$first->modify('+'.$offset.' days');$date=$dateValue->format('Y-m-d');$slots=[];$validDate=$dateValue->format('N')!=='5';
+        if($validDate&&$starts!==''&&($date<$starts||$date>$expires||(($package['validity_mode_snapshot']??'rolling')==='shooting_day'&&$date!==$starts)))$validDate=false;
+        if($validDate){
+            for($candidate=720;$candidate+$durationMinutes<=1440;$candidate+=15){
+                if($date===$now->format('Y-m-d')&&$candidate<($now->format('G')*60+(int)$now->format('i')))continue;
+                foreach($resourceIds as $resourceId){$free=true;for($minute=$candidate;$minute<$candidate+$durationMinutes;$minute+=15)if(!empty($occupied[$date][$resourceId][$minute])){$free=false;break;}
+                    if($free){$format=fn(int $value):string=>$value===1440?'24:00':sprintf('%02d:%02d',intdiv($value,60),$value%60);$slots[]=['start_time'=>$format($candidate),'end_time'=>$format($candidate+$durationMinutes),'resource_id'=>$resourceId];break;}
+                }
+            }
+        }
+        $days[]=['date'=>$date,'available'=>count($slots)>0,'slots'=>$slots];
+    }
+    return ['package'=>['id'=>(int)$package['id'],'name'=>(string)$package['name'],'billing_unit'=>$unit,'available_quantity'=>$availableQuantity,'starts_at'=>$starts?:null,'expires_at'=>$expires?:null,'minimum_booking_minutes'=>$minimum,'booking_increment_minutes'=>$increment],'duration_minutes'=>$durationMinutes,'server_time'=>$now->format(DATE_ATOM),'days'=>$days];
 }
 
 function auditBookingBlockChange(PDO $pdo, array $user, string $action, ?int $entityId, mixed $before, mixed $after): int {
@@ -3182,6 +3249,16 @@ if (preg_match('#^/project-milestones/(\d+)/status$#',$path,$m)&&$method==='POST
     $user=requireUser($user);requireRole($user,['owner','admin','operations','staff']);$id=(int)$m[1];$payload=body();$status=(string)($payload['status']??'');if(!in_array($status,['pending','in_progress','review','completed','blocked'],true))fail('حالة المرحلة غير صحيحة.',422,'invalid_milestone_status');$pdo->beginTransaction();try{$stmt=$pdo->prepare('SELECT * FROM project_milestones WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$id,$user['organization_id']]);$before=$stmt->fetch();if(!$before){$pdo->rollBack();fail('مرحلة المشروع غير موجودة.',404);}$progress=array_key_exists('progress_percent',$payload)?max(0,min(100,(int)$payload['progress_percent'])):($status==='completed'?100:($status==='in_progress'?50:0));$completed=$status==='completed'?date('Y-m-d H:i:s'):null;$pdo->prepare('UPDATE project_milestones SET status=?,progress_percent=?,completed_at=?,client_note=COALESCE(?,client_note) WHERE id=?')->execute([$status,$progress,$completed,isset($payload['client_note'])?trim((string)$payload['client_note']):null,$id]);$stmt=$pdo->prepare('SELECT ROUND(AVG(progress_percent)) FROM project_milestones WHERE project_id=? AND organization_id=? AND is_client_visible=1');$stmt->execute([$before['project_id'],$user['organization_id']]);$projectProgress=max(0,min(100,(int)$stmt->fetchColumn()));$projectStatus=$projectProgress>=100?'completed':($projectProgress>0?'active':'planning');$pdo->prepare('UPDATE projects SET progress_percent=?,status=IF(status IN (\'cancelled\',\'on_hold\'),status,?) WHERE id=?')->execute([$projectProgress,$projectStatus,$before['project_id']]);audit($pdo,$user,'status_change','project_milestones',$id,$before,['client_id'=>(int)$before['client_id'],'project_id'=>(int)$before['project_id'],'status'=>$status,'progress_percent'=>$progress]);$pdo->commit();respond(['id'=>$id,'status'=>$status,'progress_percent'=>$progress,'project_progress_percent'=>$projectProgress]);}catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
+if ($path === '/client/booking-availability' && $method === 'GET') {
+    $user=requireUser($user);requireRole($user,['client']);
+    $rawPackage=(string)($_GET['client_package_id']??'');$rawDuration=(string)($_GET['duration_minutes']??'');$rawDays=(string)($_GET['days']??'21');
+    if(!ctype_digit($rawPackage)||!ctype_digit($rawDuration)||!ctype_digit($rawDays))fail('حدد الباقة والمدة وفترة البحث بشكل صحيح.',422,'invalid_availability_request');
+    $packageId=(int)$rawPackage;$durationMinutes=(int)$rawDuration;$windowDays=(int)$rawDays;
+    if($packageId<1||$windowDays<1||$windowDays>31)fail('فترة البحث من يوم واحد إلى 31 يومًا.',422,'availability_window_out_of_range');
+    $startDate=trim((string)($_GET['start_date']??cairoNow()->format('Y-m-d')));
+    respond(clientBookingAvailability($pdo,$user,$packageId,$durationMinutes,$startDate,$windowDays));
+}
+
 if ($path === '/bookings/request' && $method === 'POST') {
     $user = requireUser($user);
     requireRole($user, ['owner','admin','operations','client']);
@@ -3216,7 +3293,8 @@ if ($path === '/bookings/request' && $method === 'POST') {
     $status = $user['role'] === 'client' ? 'pending' : (string)($payload['status'] ?? 'pending');
     if (!in_array($status, ['pending','confirmed'], true)) $status = 'pending';
     $pdo->beginTransaction();try{
-        $minutes=validateBookingSchedule($pdo,(int)$user['organization_id'],$resourceId,$date,$start,$end,$minimumMinutes,$incrementMinutes,null,$package,true);
+        $minutes=validateBookingSchedule($pdo,(int)$user['organization_id'],$resourceId,$date,$start,$end,$minimumMinutes,$incrementMinutes,null,$package,$user['role']==='client'||$status==='confirmed');
+        if($user['role']==='client'&&$package){$available=packageAvailableQuantity($package);if(($package['billing_unit']==='hour'&&($available*60)+.001<$minutes)||($package['billing_unit']==='reel'&&$available<$requestedQuantity)){$pdo->rollBack();fail('رصيد الباقة المتاح لا يكفي لهذا الحجز.',422,'insufficient_package_balance');}}
         $stmt=$pdo->prepare('INSERT INTO bookings (organization_id,client_id,client_package_id,project_id,service_id,resource_id,client_name,service,date,start_time,end_time,duration_minutes,requested_quantity,status,notes,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');$stmt->execute([$user['organization_id'],$clientId,$packageId,$projectId,$serviceId,$resourceId,$client['name'],$serviceName,$date,"$start:00","$end:00",$minutes,$requestedQuantity,$status,trim((string)($payload['notes']??'')),$user['id']]);$id=(int)$pdo->lastInsertId();
         if($status==='confirmed'){$booking=['id'=>$id,'organization_id'=>$user['organization_id'],'resource_id'=>$resourceId,'date'=>$date,'start_time'=>"$start:00",'end_time'=>"$end:00"];
             try{reserveBookingSlots($pdo,$booking);}catch(PDOException $error){if(($error->errorInfo[1]??0)===1062){$pdo->rollBack();fail('يوجد حجز مؤكد متعارض مع هذا الموعد.',409,'booking_conflict');}throw $error;}
