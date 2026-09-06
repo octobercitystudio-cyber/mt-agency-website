@@ -74,6 +74,7 @@ test('production push routes require authentication or a worker key and preserve
   assert.match(api, /\$path === '\/cron\/push-queue'.*HTTP_X_WORKER_KEY.*hash_equals/s);
   assert.match(api, /firebase\.messaging/);
   assert.match(api, /'unread_count'=>\(string\)max/);
+  assert.match(api, /'push_ready'=>\$pushReady/);
 });
 
 test('permission is requested only by the explicit enable action and logout unregisters the device', async () => {
