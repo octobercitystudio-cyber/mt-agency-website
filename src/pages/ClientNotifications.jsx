@@ -3,6 +3,7 @@ import { Bell, CalendarClock, CheckCheck, CircleDollarSign, FileText, FolderKanb
 import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
 import { captureNotificationOpen, reconcileNotificationOpen, resolveNotificationOpenBoundary, unreadNotifications } from '../lib/notificationReadBoundary';
+import { clearSystemNotification, syncAppBadge } from '../lib/pushNotifications';
 import './ClientNotifications.css';
 
 const safeItems = value => Array.isArray(value) ? value.filter(item => item && Number(item.id) > 0 && item.title && item.message) : [];
@@ -79,7 +80,9 @@ export default function ClientNotifications({ clientId, onNavigate }) {
   useEffect(() => {
     if (previousUnreadRef.current !== null && previousUnreadRef.current !== unreadCount) setAnnouncement(unreadCount ? `لديك ${unreadCount} إشعارات غير مقروءة` : 'تمت قراءة كل الإشعارات');
     previousUnreadRef.current = unreadCount;
-  }, [unreadCount]);
+    if (loading) return;
+    syncAppBadge(unreadCount, { clearSystemNotifications: unreadCount === 0 });
+  }, [loading, unreadCount]);
 
   const visibleItems = useMemo(() => filter === 'unread' ? items.filter(item => !item.read_at) : items, [filter, items]);
   const groups = useMemo(() => ['اليوم', 'أمس', 'الأقدم'].map(label => ({ label, items: visibleItems.filter(item => dateBucket(item.created_at) === label) })).filter(group => group.items.length), [visibleItems]);
@@ -107,7 +110,7 @@ export default function ClientNotifications({ clientId, onNavigate }) {
     updateItems(reconciled.items); setUnreadCount(reconciled.unreadCount); setNextCursor(data?.next_cursor || null); setLoading(false);
   };
   const markRead = async item => {
-    if (item.read_at) return; const stamp = new Date().toISOString(); updateItems(current => current.map(row => Number(row.id) === Number(item.id) ? { ...row, read_at: stamp } : row)); setUnreadCount(count => Math.max(0, count - 1));
+    if (item.read_at) return; const stamp = new Date().toISOString(); updateItems(current => current.map(row => Number(row.id) === Number(item.id) ? { ...row, read_at: stamp } : row)); setUnreadCount(count => Math.max(0, count - 1)); clearSystemNotification(item.id);
     const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/read`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true });
   };
   const openItem = async item => { await markRead(item); close(); onNavigate(destinationFor(item), item.payload || {}); };
@@ -115,7 +118,7 @@ export default function ClientNotifications({ clientId, onNavigate }) {
     const upToId = Math.max(0, ...items.map(item => Number(item.id) || 0)); if (!upToId || !unreadCount) return; const stamp = new Date().toISOString(); updateItems(current => current.map(item => Number(item.id) <= upToId ? { ...item, read_at: item.read_at || stamp } : item)); setUnreadCount(0);
     const { error: requestError } = await dataClient.request('/app-notifications/read-all', { method: 'POST', body: JSON.stringify({ up_to_id: upToId }) }); if (requestError) load({ quiet: true });
   };
-  const dismiss = async (event, item) => { event.stopPropagation(); updateItems(current => current.filter(row => Number(row.id) !== Number(item.id))); if (!item.read_at) setUnreadCount(count => Math.max(0, count - 1)); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/dismiss`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
+  const dismiss = async (event, item) => { event.stopPropagation(); updateItems(current => current.filter(row => Number(row.id) !== Number(item.id))); if (!item.read_at) setUnreadCount(count => Math.max(0, count - 1)); clearSystemNotification(item.id); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/dismiss`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
 
   return <div className="client-notifications">
     <button ref={bellRef} type="button" className={`client-notifications__bell ${unreadCount ? 'has-unread' : ''}`} aria-label={unreadCount ? `الإشعارات، ${unreadCount} غير مقروء` : 'الإشعارات'} aria-expanded={open} aria-controls="client-notification-center" onClick={() => open ? close() : openNotifications()}>

@@ -179,6 +179,10 @@
                 <meta-data
                     android:name="android.support.customtabs.trusted.SMALL_ICON"
                     android:resource="@drawable/ic_notification_icon" />
+
+                <meta-data
+                    android:name="androidx.browser.trusted.USE_HIGH_PRI_NOTIFICATIONS"
+                    android:value="true" />
             
 
             <intent-filter>

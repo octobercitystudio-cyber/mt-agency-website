@@ -5,6 +5,7 @@ import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
 import { formatDateTime12 } from '../lib/businessFormat';
 import { captureNotificationOpen, markNotificationsReadThrough, notificationBoundary, reconcileNotificationOpen, resolveNotificationOpenBoundary, unreadNotifications } from '../lib/notificationReadBoundary';
+import { clearSystemNotification, syncAppBadge } from '../lib/pushNotifications';
 import './OwnerNotifications.css';
 
 const safeItems = value => Array.isArray(value) ? value.filter(item => item && Number(item.id) > 0 && item.title && item.message) : [];
@@ -63,9 +64,12 @@ export default function OwnerNotifications({ userId, onNavigate }) {
   useEffect(() => { load(); }, [load, userId]);
   useEffect(() => {
     const refresh = () => load({ quiet: true }); const timer = window.setInterval(refresh, 60000);
-    window.addEventListener('erpRequestsUpdated', refresh); window.addEventListener('demoDataChanged', refresh);
-    return () => { window.clearInterval(timer); window.removeEventListener('erpRequestsUpdated', refresh); window.removeEventListener('demoDataChanged', refresh); };
+    const pushRefresh = event => { if ((event.detail?.topics || []).includes('notifications')) refresh(); };
+    window.addEventListener('erpRequestsUpdated', refresh); window.addEventListener('demoDataChanged', refresh); window.addEventListener('mtPushChange', pushRefresh);
+    return () => { window.clearInterval(timer); window.removeEventListener('erpRequestsUpdated', refresh); window.removeEventListener('demoDataChanged', refresh); window.removeEventListener('mtPushChange', pushRefresh); };
   }, [load]);
+
+  useEffect(() => { if (!loading) syncAppBadge(unreadCount, { clearSystemNotifications: unreadCount === 0 }); }, [loading, unreadCount]);
 
   const updateItem = (id, update) => setItems(current => current.map(item => Number(item.id) === Number(id) ? { ...item, ...update } : item));
   const openCenter = async () => {
@@ -90,9 +94,9 @@ export default function OwnerNotifications({ userId, onNavigate }) {
     }
     setItems(reconciled.items); setUnreadCount(reconciled.unreadCount); setNextCursor(data?.next_cursor || null); setLoading(false);
   };
-  const markRead = async item => { if (item.read_at) return; updateItem(item.id, { read_at: new Date().toISOString() }); setUnreadCount(count => Math.max(0, count - 1)); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/read`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
+  const markRead = async item => { if (item.read_at) return; updateItem(item.id, { read_at: new Date().toISOString() }); setUnreadCount(count => Math.max(0, count - 1)); clearSystemNotification(item.id); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/read`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
   const openItem = async item => { await markRead(item); close(); onNavigate(destination(item)); };
-  const dismiss = async (event, item) => { event.stopPropagation(); setItems(current => current.filter(row => Number(row.id) !== Number(item.id))); if (!item.read_at) setUnreadCount(count => Math.max(0, count - 1)); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/dismiss`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
+  const dismiss = async (event, item) => { event.stopPropagation(); setItems(current => current.filter(row => Number(row.id) !== Number(item.id))); if (!item.read_at) setUnreadCount(count => Math.max(0, count - 1)); clearSystemNotification(item.id); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/dismiss`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
   const readAll = async () => { const boundary = notificationBoundary(items); if (!boundary) return; setItems(current => markNotificationsReadThrough(current, boundary)); setUnreadCount(0); const { error: requestError } = await dataClient.request('/app-notifications/read-all', { method: 'POST', body: JSON.stringify({ up_to_id: boundary, channel: 'client-actions' }) }); if (requestError) load({ quiet: true }); };
 
   const visible = useMemo(() => filter === 'unread' ? items.filter(item => !item.read_at) : items, [filter, items]);

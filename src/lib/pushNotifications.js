@@ -5,6 +5,32 @@ const FIREBASE_APP_NAME = 'mt-agency-push';
 
 let foregroundUnsubscribe;
 
+const normalizedBadgeCount = value => Math.max(0, Math.min(999, Math.trunc(Number(value) || 0)));
+
+export const syncAppBadge = async (value, { clearSystemNotifications = false } = {}) => {
+  if (typeof navigator === 'undefined') return;
+  const count = normalizedBadgeCount(value);
+  try {
+    if (count > 0 && typeof navigator.setAppBadge === 'function') await navigator.setAppBadge(count);
+    else if (count === 0 && typeof navigator.clearAppBadge === 'function') await navigator.clearAppBadge();
+  } catch { /* Badge support is launcher/browser dependent. */ }
+  if (!clearSystemNotifications || !('serviceWorker' in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const notifications = await registration.getNotifications();
+    notifications.filter(item => String(item.tag || '').startsWith('mt-notification-')).forEach(item => item.close());
+  } catch { /* Closing delegated notifications is best effort. */ }
+};
+
+export const clearSystemNotification = async notificationId => {
+  if (!notificationId || typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const notifications = await registration.getNotifications({ tag: `mt-notification-${notificationId}` });
+    notifications.forEach(item => item.close());
+  } catch { /* Notification may already have been opened or dismissed. */ }
+};
+
 export const pushEnvironmentSupported = () => (
   typeof window !== 'undefined'
   && 'serviceWorker' in navigator
@@ -41,8 +67,10 @@ const firebaseMessaging = async configuration => {
 
 const foregroundNotification = async payload => {
   const data = payload?.data || {};
+  const unreadCount = normalizedBadgeCount(data.unread_count || 1);
   const syncTopics = String(data.sync_topics || 'notifications').split(',').map(topic => topic.trim()).filter(Boolean);
   window.dispatchEvent(new CustomEvent('mtPushChange', { detail: { topics: [...new Set(syncTopics)], source: 'firebase' } }));
+  await syncAppBadge(unreadCount);
   if (Notification.permission !== 'granted') return;
   const registration = await navigator.serviceWorker.ready;
   const notification = payload?.notification || {};
@@ -52,7 +80,10 @@ const foregroundNotification = async payload => {
     badge: '/app-icon-monochrome.svg',
     dir: 'rtl',
     lang: 'ar',
-    tag: data.notification_id ? `mt-notification-${data.notification_id}` : undefined,
+    tag: data.notification_id ? `mt-notification-${data.notification_id}` : `mt-notification-${Date.now()}`,
+    renotify: true,
+    silent: false,
+    vibrate: [220, 100, 220],
     data: { url: data.url || '/login?source=android-notification' },
   });
 };

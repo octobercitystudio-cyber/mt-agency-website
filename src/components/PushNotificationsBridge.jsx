@@ -9,6 +9,7 @@ import {
   pushEnvironmentSupported,
   pushPromptDismissed,
   registerPushNotifications,
+  syncAppBadge,
 } from '../lib/pushNotifications';
 
 const friendlyError = error => {
@@ -57,6 +58,15 @@ export default function PushNotificationsBridge() {
     });
     return () => { disposed = true; };
   }, [currentPrincipal, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || !('serviceWorker' in navigator)) return undefined;
+    const receiveBadge = event => {
+      if (event.data?.type === 'MT_PUSH_BADGE') syncAppBadge(event.data.unread_count);
+    };
+    navigator.serviceWorker.addEventListener('message', receiveBadge);
+    return () => navigator.serviceWorker.removeEventListener('message', receiveBadge);
+  }, [currentUser]);
 
   const enable = async () => {
     if (!configuration) return;

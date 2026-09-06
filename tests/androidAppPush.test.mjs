@@ -21,15 +21,21 @@ test('service worker handles push and clicks without caching site releases', asy
   assert.match(worker, /showNotification/);
   assert.match(worker, /addEventListener\('notificationclick'/);
   assert.match(worker, /clients\.openWindow/);
+  assert.match(worker, /renotify:\s*true/);
+  assert.match(worker, /silent:\s*false/);
+  assert.match(worker, /vibrate:\s*\[220, 100, 220\]/);
+  assert.match(worker, /setAppBadge/);
+  assert.match(worker, /unread_count/);
   assert.doesNotMatch(worker, /addEventListener\('fetch'/);
   assert.doesNotMatch(worker, /caches\.open|cache\.put/);
 });
 
 test('Android package, notification delegation and Digital Asset Links share one signing identity', async () => {
-  const [twaSource, gradle, androidManifest, assetLinksSource] = await Promise.all([
+  const [twaSource, gradle, androidManifest, delegationService, assetLinksSource] = await Promise.all([
     load('android-twa/twa-manifest.json'),
     load('android-twa/app/build.gradle'),
     load('android-twa/app/src/main/AndroidManifest.xml'),
+    load('android-twa/app/src/main/java/com/multitaskagency/app/DelegationService.java'),
     load('public/.well-known/assetlinks.json'),
   ]);
   const twa = JSON.parse(twaSource);
@@ -39,6 +45,12 @@ test('Android package, notification delegation and Digital Asset Links share one
   assert.equal(twa.enableNotifications, true);
   assert.match(gradle, /enableNotifications: true/);
   assert.match(androidManifest, /@bool\/enableNotification/);
+  assert.match(androidManifest, /androidx\.browser\.trusted\.USE_HIGH_PRI_NOTIFICATIONS/);
+  assert.match(delegationService, /notification\.number\s*=\s*Math\.max/);
+  assert.match(delegationService, /Notification\.DEFAULT_SOUND/);
+  assert.match(delegationService, /Notification\.DEFAULT_VIBRATE/);
+  assert.equal(twa.appVersionCode, 2);
+  assert.match(gradle, /androidbrowserhelper:2\.7\.2/);
   assert.equal(assetLinks[0].target.package_name, twa.packageId);
   assert.equal(assetLinks[0].target.sha256_cert_fingerprints[0], '28:0C:7B:AE:3E:EF:12:72:34:59:91:CC:C0:E8:80:A0:05:A9:F5:82:31:E1:97:04:83:D1:5E:25:E7:C8:A5:DA');
 });
@@ -61,6 +73,7 @@ test('production push routes require authentication or a worker key and preserve
   assert.match(api, /\$user\['role'\]==='client'.*client_id.*else.*user_id/s);
   assert.match(api, /\$path === '\/cron\/push-queue'.*HTTP_X_WORKER_KEY.*hash_equals/s);
   assert.match(api, /firebase\.messaging/);
+  assert.match(api, /'unread_count'=>\(string\)max/);
 });
 
 test('permission is requested only by the explicit enable action and logout unregisters the device', async () => {
