@@ -1,0 +1,1 @@
+var e=new Set([`cancelled`,`canceled`,`rejected`,`ملغي`,`ملغى`,`ملغاة`,`ملغية`,`مرفوض`,`مرفوضة`]),t=t=>{let n=String(t?.status||``).normalize(`NFKC`).trim().toLowerCase();return!e.has(n)};export{t};

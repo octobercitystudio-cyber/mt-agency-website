@@ -481,6 +481,62 @@
     min-width: 300px;
 }
 
+.booking-time-summary {
+    display: grid;
+    grid-template-columns: minmax(0, .85fr) minmax(0, .85fr) minmax(0, 1.3fr);
+    gap: 0;
+    margin: 13px 0 0;
+    padding: 10px 0;
+    border-block: 1px solid var(--erp-border);
+    background: var(--erp-bg);
+}
+
+.booking-time-fact {
+    min-width: 0;
+    padding-inline: 10px;
+    text-align: center;
+}
+
+.booking-time-fact + .booking-time-fact {
+    border-inline-start: 1px solid var(--erp-border);
+}
+
+.booking-time-fact dt {
+    margin: 0 0 3px;
+    color: var(--erp-text-muted);
+    font-size: .66rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.booking-time-fact dd {
+    margin: 0;
+    color: var(--erp-text-main);
+    font-size: .78rem;
+    font-weight: 900;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.booking-time-fact:not(.booking-duration-fact) dd {
+    direction: rtl;
+    white-space: nowrap;
+}
+
+@media (max-width: 380px) {
+    .booking-time-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .booking-duration-fact {
+        grid-column: 1 / -1;
+        margin-top: 9px;
+        padding-top: 9px;
+        border-inline-start: 0 !important;
+        border-top: 1px solid var(--erp-border);
+    }
+}
+
 @media (max-width: 992px) {
     .erp-clients-layout {
         display: flex !important;

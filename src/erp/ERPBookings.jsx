@@ -17,6 +17,7 @@ import { activeServiceCategories, isProjectServiceCategory } from '../lib/servic
 import useChangeSync from '../hooks/useChangeSync';
 import { ERPBookingBlockDetailsDialog, ERPBookingBlockDialog } from './ERPBookingBlockDialog';
 import { bindBookingBlockDoubleClick } from './bookingBlockInteraction';
+import { isClientBookingVisible } from '../lib/clientBookingVisibility';
 
 // FullCalendar Imports
 import FullCalendar from '@fullcalendar/react';
@@ -212,8 +213,9 @@ const ERPBookings = () => {
 
   const getStatusMeta = (status) => statusMeta[status] || { label: status || 'غير محدد', color: '#6f5b82' };
   const pendingBookings = bookings.filter(b => b.status === 'pending');
+  const visibleBookings = bookings.filter(isClientBookingVisible);
 
-  const bookingEvents = bookings.map(b => {
+  const bookingEvents = visibleBookings.map(b => {
     const clientColor = getClientColor(b.client_name);
     return {
     id: b.id,
@@ -255,7 +257,7 @@ const ERPBookings = () => {
   }));
   const calendarEvents = [...bookingEvents, ...blockEvents];
 
-  const dailyBookings = bookings.filter(b => b.date === selectedDate);
+  const dailyBookings = visibleBookings.filter(b => b.date === selectedDate);
   const dailyBlocks = bookingBlocks.filter(block => block.block_date === selectedDate);
   const clientColorSignature = clients.map(client => `${client.id}:${client.name}:${safeClientColor(client.color)}`).sort().join('|') || 'no-clients';
 
@@ -641,23 +643,23 @@ const ERPBookings = () => {
 
         td.fc-day-fri { background-color: rgba(0,0,0,0.03) !important; border-color: var(--erp-border) !important; }
         th.fc-day-fri { background-color: rgba(0,0,0,0.05) !important; border-color: var(--erp-border) !important; }
-        th.fc-day-fri .fc-col-header-cell-cushion { color: var(--erp-warning) !important; } 
+        th.fc-day-fri .fc-col-header-cell-cushion { color: var(--erp-warning) !important; }
         td.fc-day-fri .fc-daygrid-day-number { color: var(--erp-text-muted) !important; }
         td.fc-day-fri:hover { background-color: rgba(0,0,0,0.06) !important; }
         td.fc-day-fri .fc-daygrid-day-frame::before { content: "إجازة رسمية"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 1.4rem; font-weight: 900; color: rgba(0,0,0, 0.05); pointer-events: none; z-index: 0; white-space: nowrap; }
-        
+
         .fc-daygrid-day-events { position: relative; z-index: 1; }
         .fc-event { border: 1px solid var(--fc-event-border-color, currentColor) !important; border-radius: 6px !important; padding: 4px 6px; margin-bottom: 4px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .fc-daygrid-event, .fc-timegrid-event { opacity: 1 !important; filter: none; background-color: var(--fc-event-bg-color) !important; border-color: var(--fc-event-border-color) !important; }
         .fc-daygrid-event .fc-event-main, .fc-timegrid-event .fc-event-main { color: inherit !important; }
         .fc-event:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); filter: brightness(1.1); }
         .fc-event .fc-event-main { color: var(--fc-event-text-color) !important; }
-        
+
         .fc-toolbar-title { font-weight: 800 !important; color: var(--erp-text-main) !important; font-size: 1.5rem !important; }
         .fc .fc-button-primary { background-color: var(--erp-surface); border: 1px solid var(--erp-border); color: var(--erp-text-muted); font-weight: 700; border-radius: 8px; text-transform: capitalize; transition: 0.2s; }
         .fc .fc-button-primary:hover { background-color: var(--erp-bg); border-color: var(--erp-text-muted); color: var(--erp-text-main); }
         .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active { background-color: var(--erp-primary); border-color: var(--erp-primary); color: white; }
-        
+
         .timeline-card { transition: all 0.3s ease; border-right: 4px solid var(--erp-primary); background: var(--erp-surface); }
         .timeline-card:hover { transform: translateX(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.05) !important; border-right-color: var(--erp-warning); }
         .timeline-time { font-size: 1.1rem; font-weight: 800; color: var(--erp-primary); letter-spacing: -0.5px; }
@@ -843,6 +845,20 @@ const ERPBookings = () => {
                       </div>
                       <h5 className="timeline-client" style={{ marginBottom: '10px', marginTop: 0 }}>{b.client_name}</h5>
                       <span className="timeline-service">{b.service}</span>
+                      <dl className="booking-time-summary" aria-label="تفاصيل توقيت جلسة التصوير">
+                        <div className="booking-time-fact">
+                          <dt>من</dt>
+                          <dd>{formatTime12(b.start_time)}</dd>
+                        </div>
+                        <div className="booking-time-fact">
+                          <dt>إلى</dt>
+                          <dd>{formatTime12(b.end_time)}</dd>
+                        </div>
+                        <div className="booking-time-fact booking-duration-fact">
+                          <dt>مدة التصوير</dt>
+                          <dd>{formatDurationMinutes(calculateDurationMinutes(b.start_time, b.end_time))}</dd>
+                        </div>
+                      </dl>
                     </div>
                   ))}
                 </div>

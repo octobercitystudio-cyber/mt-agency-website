@@ -4,7 +4,7 @@ import test from 'node:test';
 import { isClientBookingVisible } from '../src/lib/clientBookingVisibility.js';
 
 test('client dashboard hides cancelled and rejected appointments only', () => {
-  for (const status of ['cancelled', 'canceled', 'rejected', ' CANCELLED ', 'REJECTED']) {
+  for (const status of ['cancelled', 'canceled', 'rejected', ' CANCELLED ', 'REJECTED', 'ملغي', 'ملغى', 'ملغاة', 'ملغية', 'مرفوض', 'مرفوضة']) {
     assert.equal(isClientBookingVisible({ status }), false, status);
   }
 
