@@ -37,6 +37,7 @@ import { adaptClientOfferList, clientOfferServerOffset, normalizeClientOffer } f
 import ClientPostProduction from './ClientPostProduction';
 import ClientSecuritySettings from './ClientSecuritySettings';
 import ClientBookingDialog from './ClientBookingDialog';
+import { isClientBookingVisible } from '../lib/clientBookingVisibility';
 
 const STATUS_META = {
   pending: { label: 'بانتظار التأكيد', tone: 'waiting' },
@@ -260,20 +261,26 @@ export default function ClientDashboard() {
   }, [fetchClientData, isLocalPreview]);
 
   const activePackages = useMemo(() => packages.filter(pkg => effectivePackageStatus(pkg) === 'active'), [packages]);
+  const visibleBookings = useMemo(() => bookings.filter(isClientBookingVisible), [bookings]);
+  const hiddenBookingIds = useMemo(() => new Set(bookings
+    .filter(booking => !isClientBookingVisible(booking))
+    .map(booking => Number(booking.id))), [bookings]);
+  const visibleActiveSessions = useMemo(() => activeSessions
+    .filter(session => !hiddenBookingIds.has(Number(session.booking_id))), [activeSessions, hiddenBookingIds]);
   const bookingsWithSettlements = useMemo(() => {
     const byBooking = new Map(sessionSettlements.map(item => [Number(item.booking_id), item]));
-    return bookings.map(item => ({ ...item, settlement: byBooking.get(Number(item.id)) || null }));
-  }, [bookings, sessionSettlements]);
-  const futureBookings = useMemo(() => bookings
+    return visibleBookings.map(item => ({ ...item, settlement: byBooking.get(Number(item.id)) || null }));
+  }, [visibleBookings, sessionSettlements]);
+  const futureBookings = useMemo(() => visibleBookings
     .filter(item => {
       const startTime = normalizeTime(item.start_time);
-      if (!item.date || !startTime || ['rejected', 'completed', 'cancelled'].includes(item.status)) return false;
+      if (!item.date || !startTime || item.status === 'completed') return false;
       return new Date(`${item.date}T${startTime}:00`) >= new Date();
     })
-    .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`)), [bookings]);
+    .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`)), [visibleBookings]);
   const upcomingBookings = useMemo(
-    () => promoteActiveBookings(futureBookings, activeSessions),
-    [futureBookings, activeSessions],
+    () => promoteActiveBookings(futureBookings, visibleActiveSessions),
+    [futureBookings, visibleActiveSessions],
   );
 
   const orderedBookings = useMemo(() => [...bookingsWithSettlements].sort((a, b) => `${b.date || ''}${b.start_time || ''}`.localeCompare(`${a.date || ''}${a.start_time || ''}`)), [bookingsWithSettlements]);
