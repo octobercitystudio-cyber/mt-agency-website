@@ -165,7 +165,15 @@ const demoClientActiveSession = session => ({
   start_time: session.start_time || null,
   end_time: session.end_time || null,
   booking_status: session.booking_status || 'in_progress',
+  complimentary_seconds: Math.max(0, Number(session.complimentary_seconds || 0)),
 });
+
+const demoSessionGrossSeconds = session => {
+  const started = Date.parse(session?.started_at_iso || `${String(session?.started_at || '').replace(' ', 'T')}Z`);
+  if (!Number.isFinite(started)) return 0;
+  const ended = session?.ended_at ? Date.parse(`${String(session.ended_at).replace(' ', 'T')}Z`) : Date.now();
+  return Math.max(0, Math.floor(((Number.isFinite(ended) ? ended : Date.now()) - started) / 1000));
+};
 
 const demoSettlementMinutes = hours => Math.max(0, Math.round(Number(hours || 0) * 60));
 const demoSettlementHours = minutes => Number((Math.max(0, Number(minutes || 0)) / 60).toFixed(4));
@@ -279,9 +287,9 @@ const demoSettlementPreview = (database, bookingId, actualMinutes) => {
   const eligiblePackages = tableRows(database, 'client_packages').filter(row => Number(row.client_id) === Number(booking.client_id) && Number(row.id) !== Number(pkg?.id) && row.billing_unit === 'hour' && row.status === 'active' && String(row.starts_at).slice(0, 10) <= today && String(row.expires_at).slice(0, 10) >= today).map(row => ({ ...row, free_minutes: Math.max(0, demoPackageMinutes(row, 'purchased') - demoPackageMinutes(row, 'consumed') - demoPackageMinutes(row, 'held')) })).filter(row => row.free_minutes >= excess).map(row => ({ id: row.id, name: row.name, service_id: row.service_id, version: Number(row.version || 1), free_minutes: row.free_minutes, remaining_after_minutes: row.free_minutes - excess, expires_at: row.expires_at }));
   const packageTemplates = tableRows(database, 'services').filter(row => row.billing_unit === 'hour' && Number(row.is_active ?? 1) === 1).map(row => ({ id: row.id, name: row.name, total_minutes: demoSettlementMinutes(row.total_hours), validity_days: row.validity_days, price: centsToMoney(moneyToCents(row.price)), overage_rate: centsToMoney(moneyToCents(row.overage_price)) }));
   const overageRate = centsToMoney(moneyToCents(pkg?.overage_price_snapshot || findById(database, 'services', booking.service_id)?.overage_price || 0));
-  const version = Number(session.settlement_version || 1);
-  const snapshot = { session_id: session.id, session_version: version, actual_minutes: actual, held_minutes: heldMinutes, free_original_minutes: freeOriginal, covered_minutes: covered, excess_minutes: excess, package_id: pkg?.id || 0, package_version: Number(pkg?.version || 1), package_minutes: pkg ? [demoPackageMinutes(pkg, 'purchased'), demoPackageMinutes(pkg, 'consumed'), demoPackageMinutes(pkg, 'held')] : [0, 0, 0], eligible: eligiblePackages.map(row => [row.id, row.version, row.free_minutes]), rate: overageRate };
-  return { actual_minutes: actual, held_for_booking_minutes: heldMinutes, free_unheld_original_minutes: freeOriginal, covered_minutes: covered, excess_minutes: excess, eligible_packages: eligiblePackages, package_templates: packageTemplates, overage_rate: overageRate, default_mode: eligiblePackages.length ? 'existing_package' : Number(overageRate) > 0 ? 'package_overage' : 'custom_invoice', session_version: version, preview_hash: demoSettlementHash(snapshot) };
+  const version = Number(session.settlement_version || 1); const complimentary = Math.max(0, Number(session.complimentary_seconds || 0)); const netSeconds = Math.max(0, demoSessionGrossSeconds(session) - complimentary); const suggested = netSeconds === 0 ? 0 : Math.max(1, Math.round(netSeconds / 60));
+  const snapshot = { session_id: session.id, session_version: version, complimentary_seconds: complimentary, actual_minutes: actual, held_minutes: heldMinutes, free_original_minutes: freeOriginal, covered_minutes: covered, excess_minutes: excess, package_id: pkg?.id || 0, package_version: Number(pkg?.version || 1), package_minutes: pkg ? [demoPackageMinutes(pkg, 'purchased'), demoPackageMinutes(pkg, 'consumed'), demoPackageMinutes(pkg, 'held')] : [0, 0, 0], eligible: eligiblePackages.map(row => [row.id, row.version, row.free_minutes]), rate: overageRate };
+  return { actual_minutes: actual, suggested_actual_minutes: suggested, complimentary_seconds: complimentary, held_for_booking_minutes: heldMinutes, free_unheld_original_minutes: freeOriginal, covered_minutes: covered, excess_minutes: excess, eligible_packages: eligiblePackages, package_templates: packageTemplates, overage_rate: overageRate, default_mode: eligiblePackages.length ? 'existing_package' : Number(overageRate) > 0 ? 'package_overage' : 'custom_invoice', session_version: version, preview_hash: demoSettlementHash(snapshot) };
 };
 
 const createDemoDatabase = () => ({
@@ -619,6 +627,17 @@ const upgradeBookingBlocksDemo = database => {
   return changed;
 };
 
+const upgradeSessionCompensationDemo = database => {
+  let changed = false;
+  tableRows(database, 'booking_sessions').forEach(session => {
+    if (!Number.isSafeInteger(Number(session.complimentary_seconds))) { session.complimentary_seconds = 0; changed = true; }
+    if (!Object.prototype.hasOwnProperty.call(session, 'complimentary_reason')) { session.complimentary_reason = null; changed = true; }
+    if (!Object.prototype.hasOwnProperty.call(session, 'complimentary_updated_by')) { session.complimentary_updated_by = null; changed = true; }
+    if (!Object.prototype.hasOwnProperty.call(session, 'complimentary_updated_at')) { session.complimentary_updated_at = null; changed = true; }
+  });
+  return changed;
+};
+
 const upgradeCredentialResetDemo = database => {
   let changed = false;
   if (!Array.isArray(database.credential_reset_links)) { database.credential_reset_links = []; changed = true; }
@@ -643,7 +662,8 @@ const readDatabase = () => {
       const postProductionChanged = upgradePostProductionDemo(database);
       const bookingBlocksChanged = upgradeBookingBlocksDemo(database);
       const credentialChanged = upgradeCredentialResetDemo(database);
-      if (financeChanged || ownerChanged || postProductionChanged || bookingBlocksChanged || credentialChanged) localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
+      const compensationChanged = upgradeSessionCompensationDemo(database);
+      if (financeChanged || ownerChanged || postProductionChanged || bookingBlocksChanged || credentialChanged || compensationChanged) localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
       return database;
     }
   } catch { /* reset below */ }
@@ -651,6 +671,7 @@ const readDatabase = () => {
   upgradeOwnerControlsDemo(database);
   upgradePostProductionDemo(database);
   upgradeBookingBlocksDemo(database);
+  upgradeSessionCompensationDemo(database);
   upgradeCredentialResetDemo(database);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(database));
   return database;
@@ -1259,8 +1280,9 @@ const demoSettleAndComplete = (database, bookingId, body) => {
     const response = { booking_id: workBooking.id, session_id: session.id, settlement_id: null, post_production_job_id: null, status: 'cancelled', cancelled: true, actual_minutes: 0, covered_minutes: 0, excess_minutes: 0, billable_minutes: 0, released_quantity: held, billing_unit: pkg?.billing_unit || 'hour' }; demoAudit(working, 'session_cancel_zero_duration', 'booking_sessions', session.id, sourceSession, { ...response, client_id: workBooking.client_id, booking_id: workBooking.id }); writeDatabase(working); return clone(response);
   }
   const preview = demoSettlementPreview(database, booking.id, actual);
+  if (Number.isSafeInteger(Number(body.expected_session_version)) && Number(body.expected_session_version) > 0 && Number(body.expected_session_version) !== preview.session_version) throw formationDemoError('تغيّر وقت الجلسة منذ المعاينة. راجع الملخص المحدث.', 'stale_settlement_preview');
   if (preview.excess_minutes > 0 && (!String(body.preview_hash || '').trim() || !Number.isSafeInteger(Number(body.expected_session_version)) || Number(body.expected_session_version) < 1)) throw formationDemoError('يجب معاينة تسوية الوقت الزائد قبل اعتمادها.', 'settlement_preview_required');
-  if (preview.excess_minutes > 0 && (body.preview_hash !== preview.preview_hash || Number(body.expected_session_version) !== preview.session_version)) throw formationDemoError('تغيّر الرصيد منذ المعاينة. راجع الملخص المحدث.', 'stale_settlement_preview');
+  if (preview.excess_minutes > 0 && body.preview_hash !== preview.preview_hash) throw formationDemoError('تغيّر الرصيد منذ المعاينة. راجع الملخص المحدث.', 'stale_settlement_preview');
   if (preview.excess_minutes > 0 && !key) throw formationDemoError('معرّف اعتماد التسوية مطلوب.', 'idempotency_key_required');
   if (preview.excess_minutes > 0 && demoRole === 'operations') throw formationDemoError('اعتماد الوقت الزائد يحتاج المالك أو الإدارة. ما زالت الجلسة نشطة.', 'settlement_owner_required');
   const working = clone(database); const failAt = point => { if (body.__test_fail_at === point) throw formationDemoError(`تعذر حفظ ${point} أثناء التسوية.`, 'settlement_fault_injected'); }; const workBooking = findById(working, 'bookings', booking.id); const session = tableRows(working, 'booking_sessions').find(row => Number(row.booking_id) === Number(booking.id)); const original = workBooking.client_package_id ? findById(working, 'client_packages', workBooking.client_package_id) : null; const unit = original?.billing_unit || session.billing_unit || 'hour'; const reels = unit === 'reel' ? Number(body.actual_reels) : 0; const heldReels = unit === 'reel' ? Number(session.booking_held_quantity || workBooking.requested_quantity || 0) : 0; if (unit === 'reel' && (!Number.isSafeInteger(reels) || reels < 1 || reels > heldReels)) throw formationDemoError('عدد الريلز يجب أن يكون داخل الرصيد المحجوز.', 'invalid_actual_reels');
@@ -1298,7 +1320,7 @@ const demoSettleAndComplete = (database, bookingId, body) => {
   const ended = nowText();
   Object.assign(workBooking, { status: 'completed', timer_ended_at: ended, actual_seconds: actual * 60, actual_hours: demoSettlementHours(actual), actual_reels: reels, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), overage_quantity: demoSettlementHours(excess), overage_amount: mode === 'package_overage' ? centsToMoney(dueCents) : 0 }); Object.assign(session, { status: 'completed', ended_at: ended, actual_seconds: actual * 60, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), adjustment_reason: String(body.reason || '').trim(), settlement_version: Number(session.settlement_version || 1) + 1 });
   const postProductionJob = demoEnsurePostProductionJob(working, workBooking, session);
-  const response = { booking_id: workBooking.id, session_id: session.id, settlement_id: header.id, post_production_job_id: postProductionJob.id, status: 'completed', actual_minutes: actual, covered_minutes: covered, excess_minutes: excess, billable_minutes: billableMinutes, waived_minutes: waived, settlement_mode: mode, target_package_id: targetPackage?.id || null, invoice_id: invoice?.id || null, project_id: project?.id || null, payment_id: payment?.id || null, amount_due: centsToMoney(dueCents), amount_paid: centsToMoney(paidCents), billing_unit: unit }; demoAudit(working, 'session_settle_and_complete', 'booking_sessions', session.id, sourceSession, { ...response, client_id: workBooking.client_id }); header.response = clone(response); writeDatabase(working); return clone(response);
+  const response = { booking_id: workBooking.id, session_id: session.id, settlement_id: header.id, post_production_job_id: postProductionJob.id, status: 'completed', actual_minutes: actual, complimentary_seconds: Math.max(0, Number(sourceSession.complimentary_seconds || 0)), covered_minutes: covered, excess_minutes: excess, billable_minutes: billableMinutes, waived_minutes: waived, settlement_mode: mode, target_package_id: targetPackage?.id || null, invoice_id: invoice?.id || null, project_id: project?.id || null, payment_id: payment?.id || null, amount_due: centsToMoney(dueCents), amount_paid: centsToMoney(paidCents), billing_unit: unit }; demoAudit(working, 'session_settle_and_complete', 'booking_sessions', session.id, sourceSession, { ...response, client_id: workBooking.client_id }); header.response = clone(response); writeDatabase(working); return clone(response);
 };
 
 const deleteDemoBooking = (database, bookingId) => {
@@ -1939,12 +1961,28 @@ const demoRequest = async (path, options = {}) => {
       const error = formationDemoError(`الاستديو مشغول الآن بجلسة ${activeBooking?.client_name || 'عميل آخر'}. أنهِ الجلسة أولًا.`, 'studio_session_conflict'); error.status = 409; throw error;
     }
     const startedAt = nowText(); const startedAtIso = nowIso();
-    const session = addRow(database, 'booking_sessions', { booking_id: booking.id, client_id: booking.client_id, client_package_id: booking.client_package_id, client_name: booking.client_name, service: booking.service, package_name: pkg?.name, billing_unit: pkg?.billing_unit || 'hour', resource_id: booking.resource_id, date: booking.date, start_time: booking.start_time, end_time: booking.end_time, duration_minutes: Number(booking.duration_minutes || demoBookingDurationMinutes(booking)), scheduled_start_at: `${booking.date} ${booking.start_time}`, started_at: startedAt, started_at_iso: startedAtIso, status: 'active', start_source: 'manual', requested_quantity: booking.requested_quantity, booking_held_quantity: bookingHold, purchased_quantity: pkg?.purchased_quantity, consumed_quantity: pkg?.consumed_quantity, held_quantity: pkg?.held_quantity });
+    const session = addRow(database, 'booking_sessions', { booking_id: booking.id, client_id: booking.client_id, client_package_id: booking.client_package_id, client_name: booking.client_name, service: booking.service, package_name: pkg?.name, billing_unit: pkg?.billing_unit || 'hour', resource_id: booking.resource_id, date: booking.date, start_time: booking.start_time, end_time: booking.end_time, duration_minutes: Number(booking.duration_minutes || demoBookingDurationMinutes(booking)), scheduled_start_at: `${booking.date} ${booking.start_time}`, started_at: startedAt, started_at_iso: startedAtIso, status: 'active', start_source: 'manual', requested_quantity: booking.requested_quantity, booking_held_quantity: bookingHold, purchased_quantity: pkg?.purchased_quantity, consumed_quantity: pkg?.consumed_quantity, held_quantity: pkg?.held_quantity, complimentary_seconds: 0, complimentary_reason: null, complimentary_updated_by: null, complimentary_updated_at: null, settlement_version: 1 });
     Object.assign(booking, { status: 'in_progress', timer_started_at: startedAt });
     demoAudit(database, 'session_start', 'booking_sessions', session.id, null, clone(session)); writeDatabase(database); return clone(session);
   }
   if ((match = route.match(/^\/bookings\/(\d+)\/session\/settlement-preview$/))) return clone(demoSettlementPreview(database, match[1], Number(body.actual_minutes)));
   if ((match = route.match(/^\/bookings\/(\d+)\/session\/complete$/))) return demoSettleAndComplete(database, match[1], body);
+  if ((match = route.match(/^\/studio-sessions\/(\d+)\/compensation$/)) && options.method === 'POST') {
+    requireDemoOwner(); const session = database.booking_sessions.find(item => Number(item.id) === Number(match[1]) && belongsToDemoOrganization(item)); if (!session) { const error = formationDemoError('جلسة التصوير غير موجودة.', 'session_not_found'); error.status = 404; throw error; }
+    const target = Number(body.complimentary_seconds); const expected = Number(body.expected_session_version); const reason = String(body.reason || '').trim(); const current = Math.max(0, Number(session.complimentary_seconds || 0)); const version = Math.max(1, Number(session.settlement_version || 1)); const gross = demoSessionGrossSeconds(session);
+    if (!Number.isSafeInteger(target) || target < 0 || target > 604800) throw formationDemoError('وقت التعويض غير صحيح أو يتجاوز الحد الأقصى المسموح.', 'invalid_compensation_total');
+    if (!Number.isSafeInteger(expected) || expected < 1) throw formationDemoError('نسخة الجلسة مطلوبة لاعتماد الوقت بأمان.', 'session_version_required');
+    if (reason.length < 5 || reason.length > 500) throw formationDemoError('اكتب سببًا داخليًا واضحًا من 5 إلى 500 حرف.', 'compensation_reason_required');
+    if (session.status !== 'active') { const error = formationDemoError('جلسة التصوير لم تعد نشطة.', 'invalid_session_state'); error.status = 409; throw error; }
+    if (target === current) return { id: Number(session.id), booking_id: Number(session.booking_id), complimentary_seconds: current, gross_elapsed_seconds: gross, net_elapsed_seconds: Math.max(0, gross - current), settlement_version: version, idempotent_replay: true };
+    if (expected !== version) { const error = formationDemoError('تم تحديث الجلسة من شاشة أخرى. حدّث المؤقت ثم أعد المحاولة.', 'stale_session_version'); error.status = 409; throw error; }
+    if (target < current) throw formationDemoError('لا يمكن خفض الوقت التعويضي المسجل من هذه النافذة.', 'compensation_cannot_decrease');
+    if (target > gross) throw formationDemoError('الوقت التعويضي لا يمكن أن يتجاوز الوقت المنقضي فعليًا.', 'compensation_exceeds_elapsed');
+    const before = clone(session); Object.assign(session, { complimentary_seconds: target, complimentary_reason: reason, complimentary_updated_by: demoUserId, complimentary_updated_at: nowText(), settlement_version: version + 1 });
+    demoAudit(database, 'session_compensation_set', 'booking_sessions', session.id, before, { ...clone(session), delta_seconds: target - current }); addRow(database, 'change_events', { client_id: Number(session.client_id), topic: 'bookings', entity_type: 'booking_sessions', entity_id: Number(session.id), action: 'session_compensation' });
+    demoCreateClientNotification(database, { clientId: Number(session.client_id), type: 'session_compensation_added', title: 'تمت إضافة وقت تعويضي', message: 'أضافت الشركة وقتًا تعويضيًا مجانيًا إلى جلسة التصوير، ولن يُخصم من رصيد باقتك.', entityType: 'booking_sessions', entityId: Number(session.id), actionTab: 'home', severity: 'success', sourceEventKey: `session:${session.id}:compensation:v${version + 1}`, payload: { booking_id: Number(session.booking_id) } });
+    writeDatabase(database); return { id: Number(session.id), booking_id: Number(session.booking_id), complimentary_seconds: target, gross_elapsed_seconds: gross, net_elapsed_seconds: Math.max(0, gross - target), settlement_version: version + 1, updated_at: session.complimentary_updated_at, idempotent_replay: false };
+  }
   if (route === '/studio-sessions/active') {
     const active = database.booking_sessions.filter(item => item.status === 'active').map(item => demoActiveSession(database, item));
     const visible = demoRole === 'client'

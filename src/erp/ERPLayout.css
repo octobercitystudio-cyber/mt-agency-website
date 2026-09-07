@@ -1183,3 +1183,32 @@
     outline: 3px solid rgba(67, 24, 255, .24);
     outline-offset: 2px;
 }
+
+/* Live-session compensation replaces the package-upgrade shortcut in this toolbar only. */
+.erp-live-session__actions>.erp-live-session__compensation {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 44px;
+    padding: 8px 13px;
+    border: 1px solid #1d8f7a;
+    border-radius: 10px;
+    background: #0b6557;
+    color: #eafffa;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.erp-live-session__compensation>svg { width: 17px; flex: 0 0 auto; }
+.erp-live-session__plus { position: absolute; right: 7px; top: 4px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: #d8fff6; color: #075e50; font: 900 11px/1 sans-serif; }
+.erp-live-session__compensation:focus-visible { outline: 3px solid rgba(78, 222, 193, .38); outline-offset: 2px; }
+
+@media(max-width:700px) {
+    .erp-live-session__actions>.erp-live-session__compensation { flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px !important; padding: 0 !important; }
+    .erp-live-session__compensation>svg { margin: 0; }
+}

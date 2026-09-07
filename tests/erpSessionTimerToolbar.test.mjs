@@ -40,14 +40,15 @@ test('phone timer wins the enterprise typography cascade and preserves readable 
   ]);
 
   assert.match(enterprise, /\.erp-layout \.erp-main :where\([\s\S]*button[\s\S]*font-size: var\(--erp-font-size-control\) !important/);
-  assert.match(timer, /aria-label="ترقية الباقة"/);
+  assert.match(timer, /aria-label="إضافة وقت إضافي"/);
+  assert.doesNotMatch(timer, /PackageUpgradeDialog|ترقية الباقة/);
   assert.match(timer, /aria-label="إيقاف التصوير"/);
   assert.match(timer, /erp-live-session__action-label/);
   assert.match(css, /\.erp-layout \.erp-main \.erp-live-session>time\{[^}]*font-family:[^;}]*monospace!important;[^}]*font-size:1\.18rem!important;[^}]*font-weight:800!important;[^}]*font-variant-numeric:tabular-nums/);
   const phoneBreakpoint = css.indexOf('@media(max-width:700px)');
   const hiddenActionLabel = css.indexOf('.erp-live-session__action-label{display:none!important}', phoneBreakpoint);
   assert.ok(phoneBreakpoint >= 0 && hiddenActionLabel > phoneBreakpoint, 'phone action labels must be hidden after the phone breakpoint');
-  assert.match(css, /\.erp-live-session__actions>\.erp-live-session__upgrade,[^{]+\{[^}]*width:44px;[^}]*height:44px;[^}]*min-width:44px!important/);
+  assert.match(css, /\.erp-live-session__actions>\.erp-live-session__compensation\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*min-width:\s*44px\s*!important/);
   assert.match(css, /@media\(max-width:480px\)\{\.erp-live-session\{[^}]*grid-template-columns:11px minmax\(0,1fr\) max-content auto;[^}]*grid-template-areas:"pulse identity clock count";[^}]*column-gap:8px/);
   assert.match(css, /\.erp-layout \.erp-main \.erp-live-session>time\{[^}]*width:8\.5ch;[^}]*white-space:nowrap/);
   assert.match(css, /\.erp-live-session__count\{[^}]*flex:0 0 26px;[^}]*min-width:26px/);

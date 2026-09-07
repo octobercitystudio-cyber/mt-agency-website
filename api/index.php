@@ -709,6 +709,38 @@ function requireBookingBlockSchema(PDO $pdo): void {
     if(!bookingBlockSchemaReady($pdo)&&!installBookingBlockSchema($pdo))fail('يلزم تشغيل تحديث قاعدة بيانات حظر المواعيد رقم 036.',503,'booking_blocks_migration_required');
 }
 
+function sessionCompensationSchemaReadyFresh(PDO $pdo): bool {
+    $columns=$pdo->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
+    $columns->execute(['booking_sessions']);$names=array_map('strval',$columns->fetchAll(PDO::FETCH_COLUMN));
+    foreach(['complimentary_seconds','complimentary_reason','complimentary_updated_by','complimentary_updated_at','settlement_version'] as $column)if(!in_array($column,$names,true))return false;
+    return true;
+}
+
+function installSessionCompensationSchema(PDO $pdo): bool {
+    if(sessionCompensationSchemaReadyFresh($pdo))return true;
+    $lockName='mta_037_session_compensation_schema';$locked=false;
+    try{
+        $lock=$pdo->prepare('SELECT GET_LOCK(?,10)');$lock->execute([$lockName]);$locked=(int)$lock->fetchColumn()===1;if(!$locked)return false;
+        if(sessionCompensationSchemaReadyFresh($pdo))return true;
+        $column=$pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');
+        $definitions=[
+            'complimentary_seconds'=>'INT UNSIGNED NOT NULL DEFAULT 0 AFTER actual_seconds',
+            'complimentary_reason'=>'VARCHAR(500) NULL AFTER adjustment_reason',
+            'complimentary_updated_by'=>'BIGINT UNSIGNED NULL AFTER complimentary_reason',
+            'complimentary_updated_at'=>'DATETIME NULL AFTER complimentary_updated_by',
+        ];
+        foreach($definitions as $name=>$definition){$column->execute(['booking_sessions',$name]);if((int)$column->fetchColumn()===0)$pdo->exec("ALTER TABLE booking_sessions ADD COLUMN $name $definition");}
+        $index=$pdo->prepare('SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=?');$index->execute(['booking_sessions','idx_booking_sessions_compensation_user']);if((int)$index->fetchColumn()===0)$pdo->exec('ALTER TABLE booking_sessions ADD KEY idx_booking_sessions_compensation_user (complimentary_updated_by)');
+        $constraint=$pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME=? AND CONSTRAINT_NAME=?');$constraint->execute(['booking_sessions','fk_booking_sessions_compensation_user']);if((int)$constraint->fetchColumn()===0)$pdo->exec('ALTER TABLE booking_sessions ADD CONSTRAINT fk_booking_sessions_compensation_user FOREIGN KEY (complimentary_updated_by) REFERENCES users(id) ON DELETE SET NULL');
+        return sessionCompensationSchemaReadyFresh($pdo);
+    }catch(Throwable $error){error_log('[ERP API][session-compensation-schema] '.$error->getMessage());return false;}
+    finally{if($locked){try{$release=$pdo->prepare('SELECT RELEASE_LOCK(?)');$release->execute([$lockName]);}catch(Throwable){}}}
+}
+
+function requireSessionCompensationSchema(PDO $pdo): void {
+    if(!sessionCompensationSchemaReadyFresh($pdo)&&!installSessionCompensationSchema($pdo))fail('يلزم تشغيل تحديث قاعدة بيانات الوقت التعويضي رقم 037.',503,'session_compensation_migration_required');
+}
+
 function bookingBlockDate(string $value): ?DateTimeImmutable {
     $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,new DateTimeZone('Africa/Cairo'));
     return $date&&$date->format('Y-m-d')===$value?$date:null;
@@ -1600,6 +1632,12 @@ function socialProfitPayload(array $payload): array {
     return ['platform'=>$platform,'amount_cents'=>$amountCents,'receipt_date'=>$receiptDate,'earning_year'=>$year,'earning_month'=>$month,'channel_name'=>$channel,'payout_reference'=>mb_substr(trim((string)($payload['payout_reference']??'')),0,140),'note'=>mb_substr(trim((string)($payload['note']??'')),0,3000)];
 }
 
+function bookingSessionGrossSeconds(array $session, ?DateTimeImmutable $now=null): int {
+    $zone=new DateTimeZone('Africa/Cairo');$started=trim((string)($session['started_at']??''));if($started==='')return 0;
+    try{$start=new DateTimeImmutable($started,$zone);$end=!empty($session['ended_at'])?new DateTimeImmutable((string)$session['ended_at'],$zone):($now?:cairoNow());return max(0,$end->getTimestamp()-$start->getTimestamp());}
+    catch(Throwable){return 0;}
+}
+
 function normalizeClientColor(mixed $value): ?string {
     $color=strtoupper(trim((string)$value));
     return preg_match('/^#[0-9A-F]{6}$/',$color)?$color:null;
@@ -1630,7 +1668,7 @@ $resources = [
     'resources' => ['org' => true, 'read' => ['owner','admin','operations','staff','client'], 'write' => ['owner','admin'], 'columns' => ['id','organization_id','name','type','is_active','created_at']],
     'client_packages' => ['org' => true, 'clientScoped' => true, 'read' => ['owner','admin','operations','finance','client'], 'write' => [], 'columns' => ['id','organization_id','client_id','service_id','source_invoice_id','name','notes','billing_unit','purchased_quantity','purchased_minutes','held_quantity','held_minutes','consumed_quantity','consumed_minutes','payment_due_quantity','payment_due_minutes','validity_mode_snapshot','validity_days_snapshot','deposit_percent_snapshot','overage_price_snapshot','total_price','overage_amount','paid_amount','starts_at','expires_at','status','archive_reason','archived_by','archived_at','version','created_at','updated_at']],
     'bookings' => ['org' => true, 'clientScoped' => true, 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => [], 'columns' => ['id','organization_id','client_id','client_package_id','project_id','service_id','resource_id','client_name','service','date','start_time','end_time','duration_minutes','requested_quantity','actual_hours','actual_reels','timer_started_at','timer_ended_at','actual_seconds','billable_quantity','overage_quantity','overage_amount','session_version','status','delivery_date','base_price','custom_price','discount','discount_reason','payment','notes','cancellation_charge','cancellation_override_reason','decided_by','decided_at','created_by','created_at','updated_at']],
-    'booking_sessions' => ['org' => true, 'clientScoped' => true, 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => [], 'columns' => ['id','organization_id','booking_id','client_id','scheduled_start_at','started_at','ended_at','actual_seconds','billable_quantity','status','start_source','started_by','ended_by','adjustment_reason','settlement_version','created_at','updated_at']],
+    'booking_sessions' => ['org' => true, 'clientScoped' => true, 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => [], 'columns' => ['id','organization_id','booking_id','client_id','scheduled_start_at','started_at','ended_at','actual_seconds','complimentary_seconds','billable_quantity','status','start_source','started_by','ended_by','adjustment_reason','settlement_version','created_at','updated_at']],
     'session_settlements' => ['org' => true, 'clientScoped' => true, 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => [], 'columns' => ['id','organization_id','booking_session_id','booking_id','client_id','original_client_package_id','actual_minutes','covered_minutes','excess_minutes','billable_minutes','waived_minutes','settlement_mode','amount_due','amount_paid','client_note','created_at','updated_at']],
     'app_notifications' => ['org' => true, 'clientScoped' => true, 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => [], 'columns' => ['id','type','title','message','entity_type','entity_id','severity','action_tab','payload_json','read_at','created_at']],
     'reschedule_requests' => ['org' => true, 'clientScoped' => true, 'read' => ['owner','admin','operations','staff','client'], 'write' => ['owner','admin','operations'], 'columns' => ['id','organization_id','booking_id','client_id','proposed_date','proposed_start_time','proposed_end_time','reason','status','admin_note','decided_by','decided_at','created_at']],
@@ -1701,8 +1739,9 @@ function remainingPackageCalendarDays(?string $expiresAt, ?string $today=null): 
 if ($path === '/health' && $method === 'GET') {
     $pdo->query('SELECT 1');
     $bookingBlocksReady=bookingBlockSchemaReadyFresh($pdo)||installBookingBlockSchema($pdo);
+    $sessionCompensationReady=sessionCompensationSchemaReadyFresh($pdo)||installSessionCompensationSchema($pdo);
     $push=pushConfiguration($config);$pushConfig=is_array($config['push']??null)?$config['push']:[];$serviceAccount=trim((string)($pushConfig['service_account_file']??''));$pushServerReady=trim((string)($pushConfig['worker_key']??''))!==''&&$serviceAccount!==''&&is_file($serviceAccount);$pushReady=$push['enabled']&&$pushServerReady&&schemaTableExists($pdo,'app_push_subscriptions')&&schemaTableExists($pdo,'app_push_jobs');
-    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'push_ready'=>$pushReady]);
+    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'session_compensation_ready'=>$sessionCompensationReady, 'push_ready'=>$pushReady]);
 }
 
 if ($path === '/push/config' && $method === 'GET') {
@@ -1975,6 +2014,29 @@ if ($path === '/studio-sessions/active' && $method === 'GET') {
     $user=requireUser($user);requireRole($user,['owner','admin','operations','finance','staff','client']);$items=$user['role']==='client'?clientSafeBookingSessionRows($pdo,$user):bookingSessionRows($pdo,$user);respond(['items'=>$items,'server_now'=>cairoNow()->format(DATE_ATOM)]);
 }
 
+if (preg_match('#^/studio-sessions/(\d+)/compensation$#',$path,$m) && $method === 'POST') {
+    $user=requireUser($user);requireRole($user,['owner']);requireSessionCompensationSchema($pdo);$payload=body();
+    $target=filter_var($payload['complimentary_seconds']??null,FILTER_VALIDATE_INT);$expected=filter_var($payload['expected_session_version']??null,FILTER_VALIDATE_INT);$reason=trim((string)($payload['reason']??''));
+    if($target===false||$target<0||$target>604800)fail('وقت التعويض غير صحيح أو يتجاوز الحد الأقصى المسموح.',422,'invalid_compensation_total');
+    if($expected===false||$expected<1)fail('نسخة الجلسة مطلوبة لاعتماد الوقت بأمان.',422,'session_version_required');
+    if(mb_strlen($reason)<5||mb_strlen($reason)>500)fail('اكتب سببًا داخليًا واضحًا من 5 إلى 500 حرف.',422,'compensation_reason_required');
+    $pdo->beginTransaction();
+    try{
+        $stmt=$pdo->prepare("SELECT bs.*,b.client_name,b.service,b.client_package_id FROM booking_sessions bs JOIN bookings b ON b.id=bs.booking_id AND b.organization_id=bs.organization_id WHERE bs.id=? AND bs.organization_id=? FOR UPDATE");$stmt->execute([(int)$m[1],(int)$user['organization_id']]);$session=$stmt->fetch();if(!$session)fail('جلسة التصوير غير موجودة.',404,'session_not_found');
+        $current=max(0,(int)($session['complimentary_seconds']??0));$version=max(1,(int)($session['settlement_version']??1));$gross=bookingSessionGrossSeconds($session);if((string)$session['status']!=='active')fail('جلسة التصوير لم تعد نشطة.',409,'invalid_session_state');
+        if((int)$target===$current){$pdo->commit();respond(['id'=>(int)$session['id'],'booking_id'=>(int)$session['booking_id'],'complimentary_seconds'=>$current,'gross_elapsed_seconds'=>$gross,'net_elapsed_seconds'=>max(0,$gross-$current),'settlement_version'=>$version,'idempotent_replay'=>true]);}
+        if((int)$expected!==$version)fail('تم تحديث الجلسة من شاشة أخرى. حدّث المؤقت ثم أعد المحاولة.',409,'stale_session_version');
+        if((int)$target<$current)fail('لا يمكن خفض الوقت التعويضي المسجل من هذه النافذة.',422,'compensation_cannot_decrease');
+        if((int)$target>$gross)fail('الوقت التعويضي لا يمكن أن يتجاوز الوقت المنقضي فعليًا.',422,'compensation_exceeds_elapsed');
+        $updatedAt=cairoNow()->format('Y-m-d H:i:s');$update=$pdo->prepare('UPDATE booking_sessions SET complimentary_seconds=?,complimentary_reason=?,complimentary_updated_by=?,complimentary_updated_at=?,settlement_version=settlement_version+1 WHERE id=? AND organization_id=? AND settlement_version=?');$update->execute([(int)$target,$reason,(int)$user['id'],$updatedAt,(int)$session['id'],(int)$user['organization_id'],$version]);if($update->rowCount()!==1)fail('تم تحديث الجلسة من شاشة أخرى. حدّث المؤقت ثم أعد المحاولة.',409,'stale_session_version');
+        $newVersion=$version+1;$after=['complimentary_seconds'=>(int)$target,'complimentary_reason'=>$reason,'complimentary_updated_by'=>(int)$user['id'],'complimentary_updated_at'=>$updatedAt,'settlement_version'=>$newVersion];
+        audit($pdo,$user,'session_compensation_set','booking_sessions',(int)$session['id'],$session,$after+['client_id'=>(int)$session['client_id'],'booking_id'=>(int)$session['booking_id'],'delta_seconds'=>(int)$target-$current]);
+        $eventId=recordChangeEvent($pdo,(int)$user['organization_id'],(int)$session['client_id'],'bookings','booking_sessions',(int)$session['id'],'session_compensation');
+        appNotification($pdo,(int)$user['organization_id'],(int)$session['client_id'],'client','session_compensation_added','تمت إضافة وقت تعويضي','أضافت الشركة وقتًا تعويضيًا مجانيًا إلى جلسة التصوير، ولن يُخصم من رصيد باقتك.','booking_sessions',(int)$session['id'],'change-event:'.$eventId.':session_compensation','success','home',['booking_id'=>(int)$session['booking_id']]);
+        $response=['id'=>(int)$session['id'],'booking_id'=>(int)$session['booking_id'],'complimentary_seconds'=>(int)$target,'gross_elapsed_seconds'=>$gross,'net_elapsed_seconds'=>max(0,$gross-(int)$target),'settlement_version'=>$newVersion,'updated_at'=>$updatedAt,'idempotent_replay'=>false];$pdo->commit();respond($response);
+    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
+}
+
 function clientSafeBookingSessionRows(PDO $pdo, array $user): array {
     return array_map(static fn(array $row): array => [
         'id'=>(int)$row['id'],
@@ -1987,6 +2049,7 @@ function clientSafeBookingSessionRows(PDO $pdo, array $user): array {
         'start_time'=>(string)($row['start_time']??''),
         'end_time'=>(string)($row['end_time']??''),
         'booking_status'=>(string)($row['booking_status']??'in_progress'),
+        'complimentary_seconds'=>max(0,(int)($row['complimentary_seconds']??0)),
     ],bookingSessionRows($pdo,$user));
 }
 

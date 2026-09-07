@@ -14,6 +14,10 @@ export default function DurationHoursMinutesInput({
   const { hours, minutes, totalMinutes } = splitDurationMinutes(sourceMinutes);
   const maximum = Number.isFinite(Number(maxMinutes)) ? Math.max(0, Math.round(Number(maxMinutes))) : null;
   const minimum = Math.max(0, Math.round(Number(minMinutes) || 0));
+  const titleId = `${idPrefix}-title`;
+  const helpId = `${idPrefix}-help`;
+  const errorId = `${idPrefix}-error`;
+  const describedBy = `${helpId}${error ? ` ${errorId}` : ''}`;
 
   const commit = (nextHours, nextMinutes) => {
     const normalized = Math.max(minimum, (wholeNumber(nextHours) * 60) + wholeNumber(nextMinutes));
@@ -21,14 +25,14 @@ export default function DurationHoursMinutesInput({
     onChange?.(String(valueUnit === 'minutes' ? bounded : durationMinutesToHours(bounded)), bounded);
   };
 
-  return <div className={`duration-hours-minutes ${className}`.trim()}>
-    <span className="duration-hours-minutes__title">{label}{required ? ' *' : ''}</span>
+  return <div className={`duration-hours-minutes ${className}`.trim()} role="group" aria-labelledby={titleId}>
+    <span id={titleId} className="duration-hours-minutes__title">{label}{required ? ' *' : ''}</span>
     <div className="duration-hours-minutes__fields">
-      <label htmlFor={`${idPrefix}-hours`}><span>ساعات</span><input id={`${idPrefix}-hours`} aria-label={`${label} - ساعات`} type="number" inputMode="numeric" min="0" step="1" value={hours} readOnly={readOnly} disabled={disabled} onChange={event => commit(event.target.value, minutes)} /></label>
+      <label htmlFor={`${idPrefix}-hours`}><span>ساعات</span><input id={`${idPrefix}-hours`} aria-label={`${label} - ساعات`} aria-invalid={Boolean(error)} aria-describedby={describedBy} type="number" inputMode="numeric" min="0" step="1" value={hours} readOnly={readOnly} disabled={disabled} onChange={event => commit(event.target.value, minutes)} /></label>
       <b aria-hidden="true">:</b>
-      <label htmlFor={`${idPrefix}-minutes`}><span>دقائق</span><input id={`${idPrefix}-minutes`} aria-label={`${label} - دقائق`} type="number" inputMode="numeric" min="0" step="1" value={minutes} readOnly={readOnly} disabled={disabled} onChange={event => commit(hours, event.target.value)} /></label>
+      <label htmlFor={`${idPrefix}-minutes`}><span>دقائق</span><input id={`${idPrefix}-minutes`} aria-label={`${label} - دقائق`} aria-invalid={Boolean(error)} aria-describedby={describedBy} type="number" inputMode="numeric" min="0" step="1" value={minutes} readOnly={readOnly} disabled={disabled} onChange={event => commit(hours, event.target.value)} /></label>
     </div>
-    <small className="duration-hours-minutes__help">{formatDurationMinutes(totalMinutes)} · كل 60 دقيقة = ساعة واحدة</small>
-    {error && <small className="duration-hours-minutes__error" role="alert">{error}</small>}
+    <small id={helpId} className="duration-hours-minutes__help">{formatDurationMinutes(totalMinutes)} · كل 60 دقيقة = ساعة واحدة</small>
+    {error && <small id={errorId} className="duration-hours-minutes__error" role="alert">{error}</small>}
   </div>;
 }

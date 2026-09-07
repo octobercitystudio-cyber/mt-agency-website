@@ -24,17 +24,27 @@ export default function useModalDialog(isOpen, onClose, { returnFocusRef, isolat
     document.body.style.overflow = 'hidden';
     const isolatedElements = [];
     if (isolateBackground && dialog) {
-      let modalRoot = dialog;
-      while (modalRoot.parentElement && modalRoot.parentElement !== document.body) modalRoot = modalRoot.parentElement;
-      [...document.body.children].forEach(element => {
-        if (element === modalRoot || element.contains(modalRoot)) return;
-        isolatedElements.push({ element, ariaHidden: element.getAttribute('aria-hidden'), inert: element.inert });
-        element.inert = true;
-        element.setAttribute('aria-hidden', 'true');
-      });
+      const isolatedSet = new Set();
+      let activeBranch = dialog;
+      while (activeBranch.parentElement) {
+        const parent = activeBranch.parentElement;
+        [...parent.children].forEach(element => {
+          if (element === activeBranch || element.contains(dialog) || isolatedSet.has(element)) return;
+          isolatedSet.add(element);
+          isolatedElements.push({ element, ariaHidden: element.getAttribute('aria-hidden'), inert: element.inert });
+          element.inert = true;
+          element.setAttribute('aria-hidden', 'true');
+        });
+        if (parent === document.body) break;
+        activeBranch = parent;
+      }
     }
 
     const focusables = () => [...(dialog?.querySelectorAll(focusableSelector) || [])];
+    const focusInside = () => {
+      const target = focusables()[0] || dialog;
+      target?.focus({ preventScroll: true });
+    };
     const handleKeyDown = event => {
       if (openModalStack.at(-1) !== modalToken) return;
       if (event.key === 'Escape') {
@@ -44,10 +54,17 @@ export default function useModalDialog(isOpen, onClose, { returnFocusRef, isolat
       }
       if (event.key !== 'Tab') return;
       const items = focusables();
-      if (!items.length) return;
+      if (!items.length) {
+        event.preventDefault();
+        dialog?.focus({ preventScroll: true });
+        return;
+      }
       const first = items[0];
       const last = items.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
+      if (!dialog?.contains(document.activeElement) || document.activeElement === dialog) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -55,11 +72,17 @@ export default function useModalDialog(isOpen, onClose, { returnFocusRef, isolat
         first.focus();
       }
     };
+    const handleFocusIn = event => {
+      if (openModalStack.at(-1) !== modalToken || !dialog || dialog.contains(event.target)) return;
+      focusInside();
+    };
 
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('focusin', handleFocusIn, true);
     window.requestAnimationFrame(() => (dialog?.querySelector('[data-dialog-initial]:not([disabled])') || focusables()[0])?.focus());
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('focusin', handleFocusIn, true);
       const stackIndex = openModalStack.lastIndexOf(modalToken);
       if (stackIndex !== -1) openModalStack.splice(stackIndex, 1);
       isolatedElements.forEach(({ element, ariaHidden, inert }) => {

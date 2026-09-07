@@ -16,10 +16,15 @@ export const sessionStartedAtMilliseconds = session => {
   return Number.isFinite(fallbackValue) ? fallbackValue : Number.NaN;
 };
 
-export const elapsedSessionSeconds = (session, nowMilliseconds = Date.now(), serverOffset = 0) => {
+export const grossSessionSeconds = (session, nowMilliseconds = Date.now(), serverOffset = 0) => {
   const startedAt = sessionStartedAtMilliseconds(session);
   if (!Number.isFinite(startedAt)) return 0;
   return Math.max(0, Math.floor(((Number(nowMilliseconds) + Number(serverOffset || 0)) - startedAt) / 1000));
+};
+
+export const elapsedSessionSeconds = (session, nowMilliseconds = Date.now(), serverOffset = 0) => {
+  const complimentary = Math.max(0, Math.floor(Number(session?.complimentary_seconds) || 0));
+  return Math.max(0, grossSessionSeconds(session, nowMilliseconds, serverOffset) - complimentary);
 };
 
 export const formatElapsedTime = seconds => {

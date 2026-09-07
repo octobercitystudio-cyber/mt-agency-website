@@ -163,13 +163,13 @@ test('upgrade guards stale source, cross-client source, active/held source and r
   const before = JSON.stringify(database()); const rollback = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify(upgradePayload({ idempotency_key: 'package-upgrade-rollback-0001', __test_fail_at: 'audit' })) }); assert.equal(rollback.error?.code, 'demo_fault_injected'); assert.equal(JSON.stringify(database()), before);
 });
 
-test('upgrade is owner-only and UI exposes both entry points with derived balances', async () => {
+test('upgrade is owner-only and remains in sold-package management with derived balances', async () => {
   activateDemoMode('admin');
   const denied = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify(upgradePayload({ idempotency_key: 'package-upgrade-admin-0001' })) }); assert.equal(denied.error?.code, 'forbidden');
   const [timer, owner, dialog, css, api, demo] = await Promise.all([
     load('src/erp/ERPSessionTimer.jsx'), load('src/erp/OwnerPackageControl.jsx'), load('src/erp/PackageUpgradeDialog.jsx'), load('src/erp/PackageUpgradeDialog.css'), load('api/index.php'), load('src/lib/demoDataClient.js'),
   ]);
-  assert.match(timer, /ترقية الباقة/); assert.match(owner, /ترقية \/ استبدال/); assert.match(dialog, /package-upgrade-comparison/); assert.match(dialog, /المحجوز/); assert.match(dialog, /المتاح/); assert.doesNotMatch(dialog, /target_remaining|setRemaining/); assert.match(css, /min-height:44px/); assert.match(css, /@media\(max-width:360px\)/);
+  assert.doesNotMatch(timer, /ترقية الباقة|PackageUpgradeDialog/); assert.match(timer, /إضافة وقت إضافي/); assert.match(owner, /ترقية \/ استبدال/); assert.match(dialog, /package-upgrade-comparison/); assert.match(dialog, /المحجوز/); assert.match(dialog, /المتاح/); assert.doesNotMatch(dialog, /target_remaining|setRemaining/); assert.match(css, /min-height:44px/); assert.match(css, /@media\(max-width:360px\)/);
   for (const contract of ['upgrade_context', 'stale_package_upgrade_source', 'package_upgrade_source_committed', 'owner_upgrade_package_create', 'package_upgraded']) { assert.match(api, new RegExp(contract)); assert.match(demo, new RegExp(contract)); }
 });
 

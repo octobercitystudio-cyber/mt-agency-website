@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpCircle, StopCircle } from 'lucide-react';
+import { Clock3, StopCircle } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
 import ERPStopSessionDialog from './ERPStopSessionDialog';
-import PackageUpgradeDialog from './PackageUpgradeDialog';
+import ERPSessionCompensationDialog from './ERPSessionCompensationDialog';
 import { canRoleCompleteStudioSession } from './studioSessionPermissions';
 import { elapsedSessionSeconds, formatElapsedTime } from './studioSessionDuration';
 
@@ -12,9 +12,9 @@ export default function ERPSessionTimer({ role }) {
   const [serverOffset, setServerOffset] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [selected, setSelected] = useState(null);
-  const [upgradePackageId, setUpgradePackageId] = useState(null);
+  const [compensationOpen, setCompensationOpen] = useState(false);
   const stopButtonRef = useRef(null);
-  const upgradeButtonRef = useRef(null);
+  const compensationButtonRef = useRef(null);
 
   const loadSessions = useCallback(async () => {
     if (typeof dataClient.request !== 'function') return;
@@ -41,8 +41,8 @@ export default function ERPSessionTimer({ role }) {
 
   const active = sessions[0] || null;
   const canComplete = canRoleCompleteStudioSession(role);
-  const canUpgrade = role === 'owner' && Boolean(active?.client_package_id);
-  const hasActions = canUpgrade || canComplete;
+  const canCompensate = role === 'owner';
+  const hasActions = canCompensate || canComplete;
   const elapsed = useMemo(() => active
     ? elapsedSessionSeconds(active, now, serverOffset)
     : 0, [active, now, serverOffset]);
@@ -60,11 +60,11 @@ export default function ERPSessionTimer({ role }) {
       <time dir="ltr">{formatElapsedTime(elapsed)}</time>
       {sessions.length > 1 && <span className="erp-live-session__count">+{sessions.length - 1}</span>}
       {hasActions && <div className="erp-live-session__actions">
-        {canUpgrade && <button ref={upgradeButtonRef} className="erp-live-session__upgrade" type="button" aria-label="ترقية الباقة" title="ترقية الباقة" onClick={() => setUpgradePackageId(active.client_package_id)}><ArrowUpCircle aria-hidden="true" /><span className="erp-live-session__action-label">ترقية الباقة</span></button>}
+        {canCompensate && <button ref={compensationButtonRef} className="erp-live-session__compensation" type="button" aria-label="إضافة وقت إضافي" title="إضافة وقت إضافي" onClick={() => setCompensationOpen(true)}><Clock3 aria-hidden="true" /><span aria-hidden="true" className="erp-live-session__plus">+</span><span className="erp-live-session__action-label">إضافة وقت إضافي</span></button>}
         {canComplete && <button ref={stopButtonRef} className="erp-live-session__stop" type="button" aria-label="إيقاف التصوير" title="إيقاف التصوير" onClick={() => setSelected(active)}><StopCircle aria-hidden="true" /><span className="erp-live-session__action-label">إيقاف التصوير</span></button>}
       </div>}
     </aside>
     {canComplete && <ERPStopSessionDialog role={role} session={selected} serverOffset={serverOffset} returnFocusRef={stopButtonRef} onClose={() => setSelected(null)} onCompleted={loadSessions} />}
-    {role === 'owner' && upgradePackageId && <PackageUpgradeDialog packageId={upgradePackageId} sessionActive returnFocusRef={upgradeButtonRef} onClose={() => setUpgradePackageId(null)} onCompleted={async () => { await loadSessions(); window.dispatchEvent(new CustomEvent('erpDataChanged', { detail: { topics: ['client_packages', 'clients'] } })); }} />}
+    {canCompensate && compensationOpen && <ERPSessionCompensationDialog session={active} serverOffset={serverOffset} returnFocusRef={compensationButtonRef} onClose={() => setCompensationOpen(false)} onUpdated={loadSessions} />}
   </>;
 }

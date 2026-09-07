@@ -8,7 +8,7 @@ import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
 import { parseStrictMoney, strictMoneyError } from '../lib/strictMoney';
 import useModalDialog from '../hooks/useModalDialog';
 import {
-  durationInputToMinutes, durationLabel, elapsedSessionSeconds, roundedElapsedMinutes,
+  durationInputToMinutes, durationLabel, elapsedSessionSeconds, formatElapsedTime, roundedElapsedMinutes,
 } from './studioSessionDuration';
 import { completeStudioSession } from './studioSessionComplete';
 import {
@@ -99,7 +99,10 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   }, [session, serverOffset]);
 
   useEffect(() => {
-    if (inputMinutes === null || inputMinutes === 0 || session.billing_unit === 'reel') { setPreview(null); setPreviewBusy(false); return undefined; }
+    if (inputMinutes === null || inputMinutes === 0 || session.billing_unit === 'reel') {
+      const timer = window.setTimeout(() => { setPreview(null); setPreviewBusy(false); }, 0);
+      return () => window.clearTimeout(timer);
+    }
     let active = true;
     const timer = window.setTimeout(async () => {
       setPreviewBusy(true); setError('');
@@ -228,6 +231,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
 
         {step === 1 && <>
           <section className="session-stop-live" aria-live="polite"><span className="session-stop-pulse" /><div><small>المدة المحسوبة حتى الآن</small><strong>{durationLabel(liveElapsedMinutes)}</strong></div><Clock3 /></section>
+          {Number(session.complimentary_seconds || 0) > 0 && <section className="session-stop-compensation" aria-label="الوقت التعويضي المجاني"><HandHeart /><div><small>وقت تعويضي مجاني متراكم</small><strong dir="ltr">{formatElapsedTime(session.complimentary_seconds)}</strong><p>المؤقت والمدة المقترحة أعلاه يعرضان وقت التصوير الصافي بعد خصمه.</p></div></section>}
           <fieldset className="session-stop-duration"><legend>المدة التي سيتم حفظها</legend><div className="session-stop-duration-fields"><label><span>الساعات</span><input data-dialog-initial type="number" inputMode="numeric" min="0" step="1" value={hours} onChange={event => { setHours(event.target.value); setError(''); }} /></label><span className="session-stop-colon">:</span><label><span>الدقائق</span><input type="number" inputMode="numeric" min="0" max="59" step="1" value={minutes} onChange={event => { setMinutes(event.target.value); setError(''); }} /></label></div><p>يمكن تعديل الساعات والدقائق يدويًا. سيحسب النظام تلقائيًا الجزء المغطى والجزء الزائد.</p></fieldset>
           {isZeroCancellation && <div className="session-stop-warning"><AlertTriangle /><p><strong>سيُلغى هذا الموعد دون اعتماد الجلسة.</strong> لن يُخصم وقت من الباقة، وسيُعاد كامل الرصيد المحجوز، ولن تُنشأ مهمة مونتاج.</p></div>}
           {session.billing_unit === 'reel' && <label className="session-stop-reels"><span>عدد الريلز التي تم تصويرها</span><input type="number" inputMode="numeric" min="1" step="1" value={actualReels} onChange={event => setActualReels(event.target.value)} /></label>}
