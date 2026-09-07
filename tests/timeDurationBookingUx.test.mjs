@@ -21,7 +21,8 @@ test('booking time control uses a 12-hour clock, defaults to PM, and preserves t
   const component = await load('src/components/BusinessTimeSelect.jsx');
   assert.match(component, /type="text"/);
   assert.match(component, /inputMode="numeric"/);
-  assert.match(component, /placeholder="2:30"/);
+  assert.match(component, /example = '2:30'/);
+  assert.match(component, /placeholder=\{example\}/);
   assert.match(component, /24:00/);
   assert.match(component, /data-default-period="pm"/);
   assert.match(component, />ص<\/button>/);

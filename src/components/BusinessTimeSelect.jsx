@@ -3,15 +3,16 @@ import { time12To24, time24To12Parts, timeToMinutes } from '../lib/businessForma
 import './BusinessTimeSelect.css';
 
 const TIME_PATTERN = '(?:0?[1-9]|1[0-2]):[0-5]\\d';
-const TIME_ERROR = 'اكتب الوقت بنظام 12 ساعة، مثل 2:30، ثم اختر ص أو م. الاختيار الافتراضي مساءً.';
+const timeError = example => `اكتب الوقت بنظام 12 ساعة، مثل ${example}، ثم اختر ص أو م. الاختيار الافتراضي مساءً.`;
 const latinDigits = value => String(value || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
 
-const BusinessTimeSelect = ({ min, max, step = 15, value, defaultPeriod = 'pm', className = '', style, name, onChange, onInvalid, onInput, 'aria-describedby': describedBy, 'aria-invalid': ariaInvalid, ...props }) => {
+const BusinessTimeSelect = ({ min, max, step = 15, value, defaultPeriod = 'pm', example = '2:30', className = '', style, name, onChange, onInvalid, onInput, 'aria-describedby': describedBy, 'aria-invalid': ariaInvalid, ...props }) => {
   const generatedId = useId();
   const initial = time24To12Parts(value, { defaultPeriod });
   const [draft, setDraft] = useState(initial.value);
   const [period, setPeriod] = useState(initial.period);
   const [invalid, setInvalid] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const inputRef = useRef(null);
   const lastValue = useRef(String(value || ''));
   const errorId = `${props.id || `business-time-${generatedId}`}-error`;
@@ -24,11 +25,12 @@ const BusinessTimeSelect = ({ min, max, step = 15, value, defaultPeriod = 'pm', 
     setDraft(next.value);
     setPeriod(next.period);
     setInvalid(false);
+    setErrorMessage('');
   }, [value, defaultPeriod]);
 
   const storedValue = (text = draft, nextPeriod = period) => time12To24(text, nextPeriod, { endOfDay: max === '24:00' });
   const validationMessage = stored => {
-    if (!stored) return TIME_ERROR;
+    if (!stored) return timeError(example);
     const minutes = timeToMinutes(stored, { endOfDay: max === '24:00' });
     const minimum = min ? timeToMinutes(min) : Number.NaN;
     const maximum = max ? timeToMinutes(max, { endOfDay: true }) : Number.NaN;
@@ -45,6 +47,7 @@ const BusinessTimeSelect = ({ min, max, step = 15, value, defaultPeriod = 'pm', 
     const message = validationMessage(stored);
     input?.setCustomValidity?.(message);
     setInvalid(Boolean(message));
+    setErrorMessage(message);
     return !message;
   };
   const handleTextChange = event => {
@@ -53,6 +56,7 @@ const BusinessTimeSelect = ({ min, max, step = 15, value, defaultPeriod = 'pm', 
     if (!nextDraft) {
       event.target.setCustomValidity('');
       setInvalid(false);
+      setErrorMessage('');
       emit(event, '');
       return;
     }
@@ -61,14 +65,17 @@ const BusinessTimeSelect = ({ min, max, step = 15, value, defaultPeriod = 'pm', 
       applyValidity(event.target, stored);
       emit(event, stored);
     } else {
-      event.target.setCustomValidity(TIME_ERROR);
+      const message = timeError(example);
+      event.target.setCustomValidity(message);
       setInvalid(true);
+      setErrorMessage(message);
+      emit(event, '');
     }
   };
   const choosePeriod = (event, nextPeriod) => {
     setPeriod(nextPeriod);
     const stored = storedValue(draft, nextPeriod);
-    if (stored && applyValidity(inputRef.current, stored)) emit(event, stored);
+    if (stored) { applyValidity(inputRef.current, stored); emit(event, stored); }
   };
 
   return <>
@@ -80,9 +87,9 @@ const BusinessTimeSelect = ({ min, max, step = 15, value, defaultPeriod = 'pm', 
         inputMode="numeric"
         dir="ltr"
         value={draft}
-        placeholder="2:30"
+        placeholder={example}
         pattern={TIME_PATTERN}
-        title={TIME_ERROR}
+        title={timeError(example)}
         data-min-time={min}
         data-max-time={max}
         data-step-minutes={step}
@@ -93,7 +100,7 @@ const BusinessTimeSelect = ({ min, max, step = 15, value, defaultPeriod = 'pm', 
         style={{ width: '100%', minWidth: 0, minHeight: 44, boxSizing: 'border-box', textAlign: 'center', fontVariantNumeric: 'tabular-nums', letterSpacing: '.08em', ...style }}
         onChange={handleTextChange}
         onBlur={event => { const stored = storedValue(); if (stored) { const next = time24To12Parts(stored); setDraft(next.value); applyValidity(event.currentTarget, stored); } }}
-        onInvalid={event => { event.preventDefault(); setInvalid(true); onInvalid?.(event); }}
+        onInvalid={event => { event.preventDefault(); setInvalid(true); setErrorMessage(validationMessage(storedValue()) || timeError(example)); onInvalid?.(event); }}
         onInput={event => { if (event.currentTarget.validity.valid) setInvalid(false); onInput?.(event); }}
       />
       <span className="business-time-period" role="group" aria-label="صباحًا أو مساءً">
@@ -102,7 +109,7 @@ const BusinessTimeSelect = ({ min, max, step = 15, value, defaultPeriod = 'pm', 
       </span>
       {name && <input type="hidden" name={name} value={storedValue()} />}
     </span>
-    {invalid && <small id={errorId} className="business-time-error" role="alert">{TIME_ERROR}</small>}
+    {invalid && <small id={errorId} className="business-time-error" role="alert">{errorMessage || timeError(example)}</small>}
   </>;
 };
 

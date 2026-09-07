@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { clientDurationMinutesFromDraft, clientDurationError, normalizeClientMinuteDraft, resolveClientBookingTime } from '../src/pages/clientBookingTime.js';
 
 const root = new URL('../', import.meta.url);
 const load = path => readFile(new URL(path, root), 'utf8');
@@ -27,13 +28,15 @@ test('client availability demo is private, role scoped, bounded, and keeps pendi
     assert.deepEqual(Object.keys(day).sort(), ['available', 'date', 'slots']);
     for (const slot of day.slots) {
       assert.deepEqual(Object.keys(slot).sort(), ['end_time', 'resource_id', 'start_time']);
+      assert.equal(slot.start_time.slice(3, 5), '00', 'client starts are offered on whole hours only');
+      assert.ok(['00', '30'].includes(slot.end_time.slice(3, 5)), 'client ends are offered on the half-hour grid');
       for (const privateKey of ['client_id', 'client_name', 'booking_id', 'block_id', 'title', 'status', 'notes', 'resource_name', 'busy']) assert.equal(privateKey in slot, false);
     }
   }
   const chosenDay = result.data.days.find(day => day.slots.length);
   assert.ok(chosenDay, 'the demo must expose at least one safe slot');
   const chosen = chosenDay.slots[0];
-  const pending = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_id: 999, client_package_id: 201, service_id: 101, resource_id: chosen.resource_id, date: chosenDay.date, start_time: chosen.start_time, end_time: chosen.end_time, status: 'confirmed' }) });
+  const pending = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_id: 999, client_package_id: 201, service_id: 101, resource_id: chosen.resource_id, date: chosenDay.date, start_time: chosen.start_time, end_time: chosen.end_time, duration_minutes: 60, status: 'confirmed' }) });
   assert.equal(pending.error, null);
   assert.equal(pending.data.client_id, 1, 'the authenticated demo client, not a submitted id, owns the request');
   assert.equal(pending.data.status, 'pending');
@@ -103,6 +106,24 @@ test('requested hours must fit one continuous same-day slot and are never split 
   deactivateDemoMode();
 });
 
+test('legacy quarter-hour occupancy blocks overlapping whole-hour client candidates', async () => {
+  installBrowserStubs();
+  const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
+  resetDemoDatabase(); activateDemoMode('client');
+  const baseline = (await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=30&days=21')).data;
+  const target = baseline.days.find(day => day.slots.some(slot => slot.start_time === '12:00'));
+  assert.ok(target, 'the fixture must include a noon candidate before the legacy overlap');
+  const database = JSON.parse(localStorage.getItem('mt_agency_erp_demo_v12'));
+  database.resources.filter(resource => Number(resource.is_active ?? 1) === 1).forEach((resource, index) => database.bookings.push({
+    id: 9900 + index, organization_id: 1, client_id: 2, resource_id: resource.id, date: target.date,
+    start_time: '12:15', end_time: '12:45', status: 'confirmed', client_name: 'محجوب عن العميل',
+  }));
+  localStorage.setItem('mt_agency_erp_demo_v12', JSON.stringify(database));
+  const updated = (await demoClient.request(`/client/booking-availability?client_package_id=201&duration_minutes=30&days=1&start_date=${target.date}`)).data.days[0];
+  assert.equal(updated.slots.some(slot => slot.start_time === '12:00'), false);
+  deactivateDemoMode();
+});
+
 test('final submit rechecks a stale availability snapshot and returns a conflict', async () => {
   installBrowserStubs();
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
@@ -114,7 +135,7 @@ test('final submit rechecks a stale availability snapshot and returns a conflict
   const confirmed = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_id: 2, client_package_id: 203, service_id: 101, resource_id: slot.resource_id, date: day.date, start_time: slot.start_time, end_time: slot.end_time, status: 'confirmed' }) });
   assert.equal(confirmed.error, null);
   activateDemoMode('client');
-  const stale = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_package_id: 201, service_id: 101, resource_id: slot.resource_id, date: day.date, start_time: slot.start_time, end_time: slot.end_time }) });
+  const stale = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_package_id: 201, service_id: 101, resource_id: slot.resource_id, date: day.date, start_time: slot.start_time, end_time: slot.end_time, duration_minutes: 60 }) });
   assert.equal(stale.error?.code, 'booking_conflict');
   assert.equal(stale.error?.status, 409);
   deactivateDemoMode();
@@ -162,5 +183,79 @@ test('production availability route and guided UI enforce the privacy contract w
   assert.match(requests, /calculateDurationMinutes\(start, end\)/);
   assert.match(demo, /demoRole === 'client' \|\| status === 'confirmed'/);
   assert.match(api, /\$user\['role'\]==='client'\|\|\$status==='confirmed'/);
+  assert.match(api, /validateClientBookingTimeGrid/);
+  assert.match(api, /client_booking_start_grid_invalid/);
+  assert.match(api, /client_booking_duration_mismatch/);
+  assert.match(dialog, /<BusinessTimeSelect[^>]+step=\{60\}/);
+  assert.match(dialog, /ينتهي الموعد|النهاية/);
+  assert.match(dialog, /الدقائق ثابتة/);
+  assert.doesNotMatch(dialog, /client-available-slots[^\n]+\.map/);
   assert.doesNotMatch(route, /(?:INSERT|UPDATE|DELETE)\s+/i);
+});
+
+test('manual client time resolves one exact connected slot and supports opening and closing boundaries', () => {
+  const slots = [
+    { start_time: '12:00', end_time: '12:30', resource_id: 1 },
+    { start_time: '23:00', end_time: '24:00', resource_id: 2 },
+    { start_time: '13:00', end_time: '13:30', resource_id: 1 },
+    { start_time: '13:30', end_time: '14:00', resource_id: 1 },
+  ];
+  assert.equal(resolveClientBookingTime({ startTime: '12:00', durationMinutes: 30, slots }).slot?.resource_id, 1);
+  assert.equal(resolveClientBookingTime({ startTime: '23:00', durationMinutes: 60, slots }).endTime, '24:00');
+  assert.equal(resolveClientBookingTime({ startTime: '23:00', durationMinutes: 60, slots }).slot?.resource_id, 2);
+  assert.equal(resolveClientBookingTime({ startTime: '13:00', durationMinutes: 60, slots }).errorCode, 'unavailable', 'separate half-hour suggestions are never composed');
+  assert.equal(resolveClientBookingTime({ startTime: '12:30', durationMinutes: 30, slots }).errorCode, 'start_grid_invalid');
+  assert.equal(resolveClientBookingTime({ startTime: '23:00', durationMinutes: 90, slots }).errorCode, 'after_midnight');
+});
+
+test('duration keeps real typing drafts and commits minutes to zero or thirty', () => {
+  let minuteDraft = '';
+  minuteDraft += '3';
+  assert.equal(clientDurationMinutesFromDraft('0', minuteDraft), 3);
+  assert.equal(clientDurationError(clientDurationMinutesFromDraft('0', minuteDraft)), 'duration_too_short');
+  minuteDraft += '0';
+  assert.equal(clientDurationMinutesFromDraft('0', minuteDraft), 30, 'sequential typing must form 30 rather than normalize the first digit away');
+  assert.equal(clientDurationError(clientDurationMinutesFromDraft('0', minuteDraft)), '');
+  assert.equal(normalizeClientMinuteDraft('3'), '0');
+  assert.equal(normalizeClientMinuteDraft('30'), '30');
+});
+
+test('client manual input clears stale availability and uses truthful whole-hour help with large period controls', async () => {
+  const [dialog, control, css] = await Promise.all([
+    load('src/pages/ClientBookingDialog.jsx'), load('src/components/BusinessTimeSelect.jsx'), load('src/components/BusinessTimeSelect.css'),
+  ]);
+  assert.match(dialog, /example="2:00"/);
+  assert.doesNotMatch(dialog, /example="2:30"|مثال صحيح: 1:30/);
+  assert.match(dialog, /value=\{minutes\} onChange=\{event => updateDurationDraft\(hours, event\.target\.value\)\}/);
+  assert.match(control, /setErrorMessage\(message\);\s*emit\(event, ''\)/);
+  assert.match(dialog, /startTime && bookingTime\.endTime/);
+  assert.match(dialog, /selectedSlot && <section className="client-booking-summary"/);
+  assert.match(dialog, /disabled=\{busy \|\| !selectedSlot\}/);
+  assert.match(css, /business-time-period button\{min-width:44px;min-height:44px/);
+  assert.doesNotMatch(css, /business-time-period button\{min-width:(?:3[0-9]|4[0-3])px/);
+});
+
+test('demo client request independently enforces the whole-hour and half-hour duration contract', async () => {
+  installBrowserStubs();
+  const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
+  resetDemoDatabase(); activateDemoMode('client');
+  const availability = (await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=30&days=21')).data;
+  assert.equal(availability.package.minimum_booking_minutes, 30);
+  assert.equal(availability.package.booking_increment_minutes, 30);
+  const day = availability.days.find(item => item.slots.length); const resourceId = day.slots[0].resource_id;
+  const base = { client_package_id: 201, service_id: 101, resource_id: resourceId, date: day.date };
+  const reject = async (overrides, code) => {
+    const result = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ ...base, start_time: '12:00', end_time: '12:30', duration_minutes: 30, ...overrides }) });
+    assert.equal(result.error?.code, code);
+    assert.equal(result.error?.status, 422);
+  };
+  await reject({ start_time: '12:15', end_time: '12:45' }, 'client_booking_start_grid_invalid');
+  await reject({ start_time: '12:30', end_time: '13:00' }, 'client_booking_start_grid_invalid');
+  await reject({ end_time: '12:15' }, 'client_booking_end_grid_invalid');
+  await reject({ end_time: '12:45', duration_minutes: 60 }, 'client_booking_end_grid_invalid');
+  await reject({ duration_minutes: 15 }, 'client_booking_duration_out_of_range');
+  await reject({ duration_minutes: 45 }, 'client_booking_duration_increment_invalid');
+  await reject({ duration_minutes: 60 }, 'client_booking_duration_mismatch');
+  await reject({ start_time: '23:00', end_time: '01:00', duration_minutes: 120 }, 'client_booking_after_midnight');
+  deactivateDemoMode();
 });

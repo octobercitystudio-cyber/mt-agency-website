@@ -40,7 +40,7 @@ test('opening before initial load adopts only the first response boundary and le
 
 test('every client mutation creates one independently scoped notification for each owner', async () => {
   const packageDate = JSON.parse(storage.get('mt_agency_erp_demo_v12')).client_packages.find(row => Number(row.id) === 201).expires_at;
-  const booking = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_package_id: 201, service_id: 101, resource_id: 1, date: packageDate, start_time: '12:00', end_time: '13:00' }) }); assert.equal(booking.error, null);
+  const booking = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_package_id: 201, service_id: 101, resource_id: 1, date: packageDate, start_time: '12:00', end_time: '13:00', duration_minutes: 60 }) }); assert.equal(booking.error, null);
   assert.equal((await demoClient.request('/reschedule-requests', { method: 'POST', body: JSON.stringify({ booking_id: 301, date: '2026-12-22', start_time: '13:00', end_time: '14:00' }) })).error, null);
   assert.equal((await demoClient.request('/bookings/302/cancel-request', { method: 'POST', body: '{}' })).error, null);
   activateDemoMode('owner', 1); assert.equal((await demoClient.request(`/bookings/${booking.data.id}/decision`, { method: 'POST', body: JSON.stringify({ action: 'alternative', date: packageDate, start_time: '13:00', end_time: '14:00' }) })).error, null);

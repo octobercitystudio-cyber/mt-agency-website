@@ -102,6 +102,22 @@ function bookingDurationMinutes(string $start, string $end): int {
     return $endMinutes - $startMinutes;
 }
 
+/** Fixed time grid used only by new client-created booking requests. */
+function validateClientBookingTimeGrid(string $start, string $end, mixed $rawDuration): int {
+    $durationText=trim((string)$rawDuration);
+    if($durationText===''||!ctype_digit($durationText))fail('أرسل مدة الحجز بالدقائق.',422,'client_booking_duration_required');
+    $duration=(int)$durationText;
+    if($duration<30||$duration>720)fail('مدة حجز العميل يجب أن تكون بين 30 دقيقة و12 ساعة.',422,'client_booking_duration_out_of_range');
+    if($duration%30!==0)fail('مدة حجز العميل يجب أن تزيد كل 30 دقيقة.',422,'client_booking_duration_increment_invalid');
+    $startMinutes=businessTimeMinutes($start);$endMinutes=businessTimeMinutes($end,true);
+    if($startMinutes<720||$startMinutes>=1440||$startMinutes%60!==0)fail('وقت بداية حجز العميل يجب أن يكون عند ساعة كاملة ودقائق :00.',422,'client_booking_start_grid_invalid');
+    if($endMinutes<0||$endMinutes%30!==0)fail('وقت نهاية حجز العميل يجب أن ينتهي عند :00 أو :30.',422,'client_booking_end_grid_invalid');
+    if($endMinutes<=$startMinutes||$endMinutes>1440)fail('لا يمكن أن يمتد حجز العميل لما بعد منتصف الليل.',422,'client_booking_after_midnight');
+    $computed=$endMinutes-$startMinutes;
+    if($computed!==$duration)fail('المدة المرسلة لا تطابق وقت البداية والنهاية المحسوب.',422,'client_booking_duration_mismatch');
+    return $computed;
+}
+
 function validBusinessBooking(string $start, string $end, int $minimumMinutes = 60): bool {
     $duration = bookingDurationMinutes($start, $end);
     return businessTimeMinutes($start) >= 720
@@ -488,13 +504,12 @@ function clientBookingAvailability(PDO $pdo, array $user, int $packageId, int $d
     $today=$now->setTime(0,0);$latestStart=$today->modify('+90 days');
     if($first<$today)$first=$today;
     if($first>$latestStart)fail('يمكن البحث عن المواعيد خلال 90 يومًا فقط.',422,'availability_start_out_of_range');
-    if($durationMinutes<15||$durationMinutes>720)fail('مدة الحجز يجب أن تكون بين 15 دقيقة و12 ساعة.',422,'invalid_booking_duration');
+    if($durationMinutes<30||$durationMinutes>720||$durationMinutes%30!==0)fail('مدة الحجز يجب أن تكون بين 30 دقيقة و12 ساعة، بزيادات 30 دقيقة.',422,'invalid_booking_duration');
 
     $packageStmt=$pdo->prepare("SELECT cp.*,s.name AS service_name,s.minimum_booking_minutes,s.booking_increment_minutes FROM client_packages cp JOIN services s ON s.id=cp.service_id AND s.organization_id=cp.organization_id AND s.is_active=1 WHERE cp.id=? AND cp.client_id=? AND cp.organization_id=? AND cp.status='active' LIMIT 1");
     $packageStmt->execute([$packageId,$clientId,$organizationId]);$package=$packageStmt->fetch();
     if(!$package)fail('الباقة غير فعالة أو لا تخص هذا الحساب.',404,'invalid_package');
-    $minimum=max(15,(int)($package['minimum_booking_minutes']??60));$increment=max(15,(int)($package['booking_increment_minutes']??15));
-    if($durationMinutes<$minimum||$durationMinutes%$increment!==0)fail('المدة المطلوبة يجب ألا تقل عن '.arabicDurationMinutes($minimum).' وتكون بزيادات '.arabicDurationMinutes($increment).'.',422,'invalid_booking_duration');
+    $minimum=30;$increment=30;
     $availableQuantity=packageAvailableQuantity($package);$unit=(string)$package['billing_unit'];
     if($unit==='hour'&&($availableQuantity*60)+.001<$durationMinutes)fail('رصيد الباقة المتاح لا يكفي للمدة المطلوبة.',422,'insufficient_package_balance');
     if($unit==='reel'&&$availableQuantity<1)fail('لا يوجد ريل متاح للحجز في هذه الباقة.',422,'insufficient_package_balance');
@@ -531,7 +546,7 @@ function clientBookingAvailability(PDO $pdo, array $user, int $packageId, int $d
         $dateValue=$first->modify('+'.$offset.' days');$date=$dateValue->format('Y-m-d');$slots=[];$validDate=$dateValue->format('N')!=='5';
         if($validDate&&$starts!==''&&($date<$starts||$date>$expires||(($package['validity_mode_snapshot']??'rolling')==='shooting_day'&&$date!==$starts)))$validDate=false;
         if($validDate){
-            for($candidate=720;$candidate+$durationMinutes<=1440;$candidate+=15){
+            for($candidate=720;$candidate+$durationMinutes<=1440;$candidate+=60){
                 if($date===$now->format('Y-m-d')&&$candidate<($now->format('G')*60+(int)$now->format('i')))continue;
                 foreach($resourceIds as $resourceId){$free=true;for($minute=$candidate;$minute<$candidate+$durationMinutes;$minute+=15)if(!empty($occupied[$date][$resourceId][$minute])){$free=false;break;}
                     if($free){$format=fn(int $value):string=>$value===1440?'24:00':sprintf('%02d:%02d',intdiv($value,60),$value%60);$slots[]=['start_time'=>$format($candidate),'end_time'=>$format($candidate+$durationMinutes),'resource_id'=>$resourceId];break;}
@@ -3346,7 +3361,7 @@ if ($path === '/bookings/request' && $method === 'POST') {
     if ($packageId && $projectId) fail('اختر باقة تصوير أو مشروعًا واحدًا للحجز.',422,'multiple_booking_targets');
     if ($clientId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $start === '' || $end === '') fail('بيانات الموعد غير مكتملة.', 422);
     $startTs = strtotime("$date $start:00");
-    $minutes = bookingDurationMinutes($start, $end);
+    $minutes = $user['role']==='client' ? validateClientBookingTimeGrid($start,$end,$payload['duration_minutes']??null) : bookingDurationMinutes($start, $end);
     if ($startTs < time() - 300) fail('لا يمكن إنشاء حجز في وقت سابق.', 422, 'past_booking');
     $stmt = $pdo->prepare('SELECT id, name FROM clients WHERE id = ? AND organization_id = ? AND status = ?');
     $stmt->execute([$clientId, $user['organization_id'], 'active']); $client = $stmt->fetch();
@@ -3363,6 +3378,7 @@ if ($path === '/bookings/request' && $method === 'POST') {
     if ($projectId) {
         $p=$pdo->prepare("SELECT id,name,service_type,quantity,requires_booking FROM projects WHERE id=? AND client_id=? AND organization_id=? AND status NOT IN ('completed','cancelled')");$p->execute([$projectId,$clientId,$user['organization_id']]);$project=$p->fetch();if(!$project)fail('المشروع غير موجود أو لا يخص هذا العميل.',422,'invalid_booking_project');if(!(int)$project['requires_booking'])fail('هذا المشروع لا يحتاج موعد تصوير.',422,'project_booking_not_required');$serviceName=(string)$project['name'];if($project['service_type']==='reels')$requestedQuantity=max(1,(float)($payload['requested_reels']??$project['quantity']));
     }
+    if($user['role']==='client'){$minimumMinutes=30;$incrementMinutes=30;}
     $status = $user['role'] === 'client' ? 'pending' : (string)($payload['status'] ?? 'pending');
     if (!in_array($status, ['pending','confirmed'], true)) $status = 'pending';
     $pdo->beginTransaction();try{
