@@ -1,0 +1,1 @@
+var e=new Set([`cancelled`,`canceled`,`rejected`]),t=t=>{let n=String(t?.status||``).trim().toLowerCase();return!e.has(n)};export{t};

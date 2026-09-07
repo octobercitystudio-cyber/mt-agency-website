@@ -21,3 +21,10 @@ test('home and booking history are both derived from visible appointments', asyn
   assert.match(dashboard, /promoteActiveBookings\(futureBookings, visibleActiveSessions\)/);
   assert.match(dashboard, /orderedBookings\.map\(booking/);
 });
+
+test('owner dashboard also excludes cancelled and rejected appointments', async () => {
+  const dashboard = await readFile(new URL('../src/erp/ERPDashboard.jsx', import.meta.url), 'utf8');
+  assert.match(dashboard, /isClientBookingVisible as isDashboardBookingVisible/);
+  assert.match(dashboard, /bookings: \(bookingsResult\.data \|\| \[\]\)\.filter\(\(booking\) => isDashboardBookingVisible/);
+  assert.match(dashboard, /'مرفوض': 'rejected'/);
+});

@@ -17,6 +17,7 @@ import ERPStartSessionDialog from './ERPStartSessionDialog';
 import { canRoleStartStudioSession } from './studioSessionStart';
 import { eligibilityMap, studioBookingEligible } from './studioSessionEligibility';
 import { requestDashboardModule } from '../lib/dashboardLoad';
+import { isClientBookingVisible as isDashboardBookingVisible } from '../lib/clientBookingVisibility';
 import './ERPDashboard.css';
 import './ERPDashboardFixes.css';
 
@@ -25,7 +26,7 @@ const cairoDate = (date = new Date()) => new Intl.DateTimeFormat('en-CA', {
 }).format(date);
 const money = (value) => formatEGP(value);
 const roleLabels = { owner: 'مالك', admin: 'مدير', operations: 'تشغيل', finance: 'مالية', staff: 'موظف' };
-const normalizeStatus = (status = '') => ({ 'قيد الانتظار': 'pending', 'مؤكد': 'confirmed', 'ملغي': 'cancelled' }[status] || status);
+const normalizeStatus = (status = '') => ({ 'قيد الانتظار': 'pending', 'مؤكد': 'confirmed', 'ملغي': 'cancelled', 'ملغى': 'cancelled', 'مرفوض': 'rejected' }[status] || status);
 
 const ERPDashboard = () => {
   const { currentUser, isAuthReady } = useData();
@@ -83,7 +84,7 @@ const ERPDashboard = () => {
       setState({
         loading: false,
         error: failedModules.length || partialKpiFailure ? 'تعذر تحميل بعض بيانات التشغيل الآن. يمكنك متابعة الأقسام المتاحة أو إعادة المحاولة.' : '',
-        bookings: (bookingsResult.data || []).filter((booking) => normalizeStatus(booking.status) !== 'cancelled'), actions,
+        bookings: (bookingsResult.data || []).filter((booking) => isDashboardBookingVisible({ status: normalizeStatus(booking.status) })), actions,
         tasks: tasks.data || [],
         packageMap,
         sessionEligibility: eligibilityMap(sessionEligibility.data),
