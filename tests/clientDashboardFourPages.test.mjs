@@ -28,7 +28,9 @@ test('client dashboard owns the requested four simple pages and appointment acti
   assert.match(css, /\.client-topbar-points\{[^}]*background:#f2ebff/);
   assert.match(dashboard, /orderedBookings/); assert.match(dashboard, /تغيير الموعد/); assert.match(dashboard, /إلغاء/);
   assert.match(dashboard, /الوقت من/); assert.match(dashboard, /الوقت إلى/); assert.doesNotMatch(dashboard, /window\.confirm/);
-  assert.ok((dashboard.match(/تم إرسال الطلب/g) || []).length >= 3);
+  assert.equal((dashboard.match(/تم إرسال الطلب/g) || []).length, 2);
+  assert.match(dashboard, /تم تأكيد الموعد البديل/);
+  assert.match(dashboard, /تم إبلاغ الإدارة بطلب موعد آخر/);
   assert.match(finance, /client-pay-now/); assert.match(finance, /إنستاباي/); assert.match(finance, /فودافون كاش/); assert.match(finance, /01114466646/); assert.match(finance, /01094084424/); assert.match(finance, /navigator\.clipboard\.writeText/); assert.match(finance, /accept="image\/jpeg,image\/png,image\/webp,application\/pdf"/);
   assert.match(offers, /ClientPublicPromotions/); assert.match(offers, /اشترك الآن/); assert.match(css, /client-home-focus-grid/); assert.match(css, /client-appointment-cards/);
 });
