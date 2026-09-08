@@ -47,10 +47,10 @@ export default function ERPSessionTimer({ role }) {
     ? elapsedSessionSeconds(active, now, serverOffset)
     : 0, [active, now, serverOffset]);
 
-  if (!active) return null;
+  if (!active && !selected) return null;
 
   return <>
-    <aside className={`erp-live-session ${hasActions ? 'erp-live-session--has-actions' : ''}`} aria-live="polite">
+    {active && <aside className={`erp-live-session ${hasActions ? 'erp-live-session--has-actions' : ''}`} aria-live="polite">
       <span className="erp-live-session__pulse" aria-hidden="true" />
       <div className="erp-live-session__identity">
         <small>تصوير جارٍ الآن</small>
@@ -63,7 +63,7 @@ export default function ERPSessionTimer({ role }) {
         {canCompensate && <button ref={compensationButtonRef} className="erp-live-session__compensation" type="button" aria-label="إضافة وقت إضافي" title="إضافة وقت إضافي" onClick={() => setCompensationOpen(true)}><Clock3 aria-hidden="true" /><span aria-hidden="true" className="erp-live-session__plus">+</span><span className="erp-live-session__action-label">إضافة وقت إضافي</span></button>}
         {canComplete && <button ref={stopButtonRef} className="erp-live-session__stop" type="button" aria-label="إيقاف التصوير" title="إيقاف التصوير" onClick={() => setSelected(active)}><StopCircle aria-hidden="true" /><span className="erp-live-session__action-label">إيقاف التصوير</span></button>}
       </div>}
-    </aside>
+    </aside>}
     {canComplete && <ERPStopSessionDialog role={role} session={selected} serverOffset={serverOffset} returnFocusRef={stopButtonRef} onClose={() => setSelected(null)} onCompleted={loadSessions} />}
     {canCompensate && compensationOpen && <ERPSessionCompensationDialog session={active} serverOffset={serverOffset} returnFocusRef={compensationButtonRef} onClose={() => setCompensationOpen(false)} onUpdated={loadSessions} />}
   </>;

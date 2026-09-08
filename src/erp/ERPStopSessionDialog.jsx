@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, ArrowLeftRight, CheckCircle2, Clock3,
-  HandHeart, PackagePlus, ReceiptText, Save, Square, WalletCards, X,
+  HandHeart, MessageCircle, PackagePlus, ReceiptText, Save, Square, WalletCards, X,
 } from 'lucide-react';
 import { formatBookingDate, formatTime12 } from '../lib/businessFormat';
 import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
@@ -14,6 +14,7 @@ import { completeStudioSession } from './studioSessionComplete';
 import {
   createSettlementIdempotencyKey, moneyLabel, previewStudioSessionSettlement,
 } from './studioSessionSettlement';
+import { buildPackageWhatsAppUrl, formatPackageWhatsAppMessage } from './packageWhatsAppSummary';
 import './ERPStopSessionDialog.css';
 
 const emptyNewPackage = session => ({
@@ -84,6 +85,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   const [clientNote, setClientNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [completion, setCompletion] = useState(null);
   const [idempotencyKey] = useState(() => createSettlementIdempotencyKey(session));
   const close = () => { if (!busy) onClose(); };
   const dialogRef = useModalDialog(true, close, { returnFocusRef });
@@ -181,7 +183,9 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
         idempotencyKey: cancelling ? '' : idempotencyKey, previewHash: cancelling ? '' : preview?.preview_hash || '',
         expectedSessionVersion: cancelling ? null : preview?.session_version || session.settlement_version || session.session_version || 1,
       });
-      await onCompleted?.(result); onClose();
+      await onCompleted?.(result);
+      if (result?.status === 'completed') setCompletion(result);
+      else onClose();
     } catch (requestError) {
       setError(requestError?.message || 'تعذر اعتماد التسوية وإيقاف التصوير. لم يتم إنشاء أي بيانات.');
       if (['stale_settlement_preview', 'settlement_balance_changed'].includes(requestError?.code)) {
@@ -218,6 +222,28 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
     const template = preview?.package_templates?.find(item => String(item.id) === String(serviceId));
     setNewPackage(current => template ? { ...current, service_id: String(template.id), name: template.name, purchased_minutes: String(Math.max(Number(template.total_minutes || 0), Number(preview.excess_minutes || 0))), validity_days: String(template.validity_days || 90), total_price: String(template.price || 0) } : { ...current, service_id: '' });
   };
+
+  if (completion) {
+    const summary = completion.whatsapp_summary || null;
+    const whatsappUrl = summary ? buildPackageWhatsAppUrl(summary) : '';
+    return <div className="session-stop-overlay" onMouseDown={event => event.target === event.currentTarget && close()}>
+      <section ref={dialogRef} className="session-stop-dialog session-stop-dialog--completed" role="dialog" aria-modal="true" aria-labelledby="session-stop-title" aria-describedby="session-stop-description">
+        <header>
+          <div className="session-stop-heading session-stop-heading--completed"><span><CheckCircle2 /> تم اعتماد الجلسة</span><h2 id="session-stop-title">تم حفظ جلسة التصوير بنجاح</h2><p id="session-stop-description">تم تحديث ساعات الباقة والحالة المالية، ويمكنك إرسال الملخص للعميل الآن.</p></div>
+          <button type="button" className="session-stop-close" onClick={close} aria-label="إغلاق نافذة ملخص الجلسة"><X /></button>
+        </header>
+        <div className="session-stop-body">
+          <dl className="session-stop-context"><div><dt>العميل</dt><dd>{session.client_name || '—'}</dd></div><div><dt>الباقة / الخدمة</dt><dd>{session.package_name || session.service || '—'}</dd></div><div><dt>الوقت المصور</dt><dd>{durationLabel(completion.actual_minutes || 0)}</dd></div></dl>
+          {summary ? <section className="session-whatsapp-summary">
+            <div className="session-whatsapp-summary__heading"><span><MessageCircle /></span><div><h3>رسالة واتساب جاهزة</h3><p>تحتوي على الساعات بعد الجلسة والحالة المالية والصلاحية والنقاط.</p></div></div>
+            <pre>{formatPackageWhatsAppMessage(summary)}</pre>
+            {whatsappUrl ? <a data-dialog-initial className="session-whatsapp-send" href={whatsappUrl} target="_blank" rel="noopener noreferrer"><MessageCircle /> إرسال التفاصيل عبر واتساب</a> : <div className="session-stop-error" role="alert"><AlertTriangle /><span>لا يوجد رقم واتساب صالح مسجل لهذا العميل. حدّث رقم العميل ثم أرسل الملخص.</span></div>}
+          </section> : <div className="session-stop-error" role="alert"><AlertTriangle /><span>تم حفظ الجلسة، لكن تعذر تجهيز ملخص الباقة لأن الحجز غير مرتبط بباقة صالحة.</span></div>}
+        </div>
+        <footer className="session-stop-completed-footer"><button data-dialog-initial={!whatsappUrl || undefined} type="button" className="session-stop-secondary" onClick={close}>إغلاق</button></footer>
+      </section>
+    </div>;
+  }
 
   return <div className="session-stop-overlay" onMouseDown={event => event.target === event.currentTarget && close()}>
     <form ref={dialogRef} className="session-stop-dialog session-stop-dialog--settlement" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="session-stop-title" aria-describedby="session-stop-description" noValidate>
