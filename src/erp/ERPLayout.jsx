@@ -74,7 +74,7 @@ const ERPLayout = () => {
 
   const handleLogout = async () => {
     await logoutErp();
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   const handleDemoReset = async () => {
@@ -226,6 +226,12 @@ const ERPLayout = () => {
 
       {/* Main Content Area */}
       <div className="erp-main" style={{marginTop: '0'}}>
+        <div className="erp-account-actions">
+          <button type="button" onClick={handleLogout} className="erp-account-logout">
+            <LogOut size={18} aria-hidden="true" />
+            تسجيل الخروج
+          </button>
+        </div>
         <header className="erp-global-toolbar" aria-label="أدوات التشغيل المباشر">
           {role === 'owner' && <OwnerNotifications userId={currentUser?.id} onNavigate={navigate}/>}
           <ERPSessionTimer role={role} />

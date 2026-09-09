@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag, Sidebar, Menu, X, Search } from 'lucide-react';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag, Search } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import useExternalScripts from '../hooks/useExternalScripts';
 import './AdminLayout.css';
@@ -8,15 +7,12 @@ import './AdminLayout.css';
 const AdminLayout = () => {
   const { logout } = useData();
   const navigate = useNavigate();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const location = useLocation();
 
   useExternalScripts();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    await logout();
+    navigate('/adminmt/login', { replace: true });
   };
 
   return (
@@ -24,7 +20,7 @@ const AdminLayout = () => {
       {/* Sidebar */}
       <aside className="admin-sidebar glass-panel">
         <div className="sidebar-header">
-          <h2>MT Agency</h2>
+          <h2>Multi Task Agency</h2>
           <p>لوحة التحكم</p>
         </div>
         
@@ -83,6 +79,10 @@ const AdminLayout = () => {
       <main className="admin-main">
         <header className="admin-header glass-panel">
           <h1>مرحباً بك في لوحة التحكم</h1>
+          <button type="button" onClick={handleLogout} className="nav-item logout-btn admin-header-logout">
+            <LogOut size={20} aria-hidden="true" />
+            تسجيل الخروج
+          </button>
         </header>
         <div className="admin-content">
           <Outlet />
