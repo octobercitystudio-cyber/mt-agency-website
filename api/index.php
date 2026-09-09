@@ -1481,6 +1481,13 @@ function attendanceLateCharge(int $rawLateMinutes, int $graceMinutes = 15): arra
     return ['units'=>$units, 'billable_minutes'=>$units * 30, 'amount_cents'=>$units * 1000];
 }
 
+function attendanceWorkingWeekdays(mixed $value): array {
+    $decoded=is_array($value)?$value:json_decode((string)$value,true);
+    if(!is_array($decoded))return [0,1,2,3,4];
+    $days=array_values(array_unique(array_filter(array_map('intval',$decoded),fn($day)=>$day>=0&&$day<=6)));
+    return $days?:[0,1,2,3,4];
+}
+
 function attendancePolicy(PDO $pdo, array $user, bool $create = true): ?array {
     if (in_array($user['role'], ['client','owner'], true)) return null;
     $stmt = $pdo->prepare('SELECT * FROM attendance_policies WHERE organization_id=? AND user_id=? LIMIT 1');
@@ -1556,11 +1563,11 @@ function attendanceSummary(PDO $pdo, array $viewer, string $month, ?int $request
         $uid=(int)$person['employee_id'];$r=$pdo->prepare("SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date LIKE ? ORDER BY work_date");$r->execute([$viewer['organization_id'],$uid,$month.'-%']);$records=$r->fetchAll();$byDate=[];$late=0;$lateUnits=0;$lateDeductionCents=0;$early=0;
         $presentRecords=0;$explicitAbsent=0;
         foreach($records as $row){
-            $byDate[$row['work_date']]=true;$rawLate=attendanceRawLateMinutes((string)$row['work_date'],'12:00',$row['check_in_at']?:null);if(!$row['check_in_at'])$rawLate=(int)$row['late_minutes'];$charge=attendanceLateCharge($rawLate,15);$late+=$charge['units']>0?$rawLate:0;$lateUnits+=$charge['units'];$lateDeductionCents+=$charge['amount_cents'];$early+=(int)$row['early_leave_minutes'];
+            $byDate[$row['work_date']]=true;$rawLate=(int)($row['late_minutes']??0);if(!empty($row['check_in_at'])){try{$rawLate=attendanceRawLateMinutes((string)$row['work_date'],'12:00',(string)$row['check_in_at']);}catch(Throwable $ignored){/* Keep the saved value for malformed legacy timestamps. */}}$charge=attendanceLateCharge($rawLate,15);$late+=$charge['units']>0?$rawLate:0;$lateUnits+=$charge['units'];$lateDeductionCents+=$charge['amount_cents'];$early+=(int)($row['early_leave_minutes']??0);
             if((string)$row['status']==='absent')$explicitAbsent++;
             elseif(!in_array((string)$row['status'],['authorized_leave','day_off'],true))$presentRecords++;
         }
-        $track=(int)($person['track_attendance']??1);$weekdays=json_decode((string)($person['working_weekdays']??'[0,1,2,3,4]'),true)?:[0,1,2,3,4];$absent=0;
+        $track=(int)($person['track_attendance']??1);$weekdays=attendanceWorkingWeekdays($person['working_weekdays']??null);$absent=0;
         $absent=$explicitAbsent;if($track && $absenceCutoff >= $monthStart){for($day=$monthStart;$day<=$absenceCutoff;$day=$day->modify('+1 day')){if(in_array((int)$day->format('w'),array_map('intval',$weekdays),true)&&empty($byDate[$day->format('Y-m-d')]))$absent++;}}
         $salary=(float)($person['monthly_salary']??0);$expected=max(1,(int)($person['expected_working_days']??26));$startMin=businessTimeMinutes('12:00');$endMin=businessTimeMinutes((string)($person['scheduled_end']??'24:00'),true);$scheduledMinutes=max(1,$endMin-$startMin);$daily=$salary/$expected;$minute=$daily/$scheduledMinutes;
         $lateDeduction=$lateDeductionCents/100;$earlyDeduction=(int)($person['early_leave_deduction_enabled']??0)?$early*$minute:0;$absenceDeduction=$absent*$daily*(float)($person['absence_multiplier']??1);
@@ -1759,7 +1766,8 @@ if ($path === '/health' && $method === 'GET') {
     $bookingBlocksReady=bookingBlockSchemaReadyFresh($pdo)||installBookingBlockSchema($pdo);
     $sessionCompensationReady=sessionCompensationSchemaReadyFresh($pdo)||installSessionCompensationSchema($pdo);
     $push=pushConfiguration($config);$pushConfig=is_array($config['push']??null)?$config['push']:[];$serviceAccount=trim((string)($pushConfig['service_account_file']??''));$pushServerReady=trim((string)($pushConfig['worker_key']??''))!==''&&$serviceAccount!==''&&is_file($serviceAccount);$pushReady=$push['enabled']&&$pushServerReady&&schemaTableExists($pdo,'app_push_subscriptions')&&schemaTableExists($pdo,'app_push_jobs');
-    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'session_compensation_ready'=>$sessionCompensationReady, 'push_ready'=>$pushReady]);
+    $attendanceRequired=['attendance_policies'=>['organization_id','user_id','track_attendance','scheduled_end','working_weekdays','monthly_salary','expected_working_days','absence_multiplier','early_leave_deduction_enabled'],'attendance_records'=>['organization_id','user_id','work_date','check_in_at','status','late_minutes','early_leave_minutes'],'attendance_adjustments'=>['organization_id','user_id','adjustment_month','amount']];$attendanceMissing=[];foreach($attendanceRequired as $table=>$columns){$available=schemaTableColumns($pdo,$table);foreach($columns as $column)if(!in_array($column,$available,true))$attendanceMissing[]=$table.'.'.$column;}
+    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'session_compensation_ready'=>$sessionCompensationReady, 'push_ready'=>$pushReady,'attendance_schema_ready'=>count($attendanceMissing)===0,'attendance_schema_missing'=>$attendanceMissing]);
 }
 
 if ($path === '/push/config' && $method === 'GET') {

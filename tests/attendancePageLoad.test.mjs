@@ -33,4 +33,7 @@ test('payroll supports pre-void schema and policy joins preserve users without a
   assert.match(summary, /adjustment_month=\?'\.\$activeAdjustmentFilter/);
   assert.doesNotMatch(api, /SELECT u\.id user_id,u\.full_name,u\.role,u\.is_active,p\.\* FROM users u LEFT JOIN attendance_policies/);
   assert.match(api, /SELECT p\.\*,u\.id user_id,u\.full_name,u\.role,u\.is_active FROM users u LEFT JOIN attendance_policies/);
+  assert.match(api, /function attendanceWorkingWeekdays\(mixed \$value\): array/);
+  assert.match(api, /catch\(Throwable \$ignored\).*?Keep the saved value for malformed legacy timestamps/s);
+  assert.match(api, /attendance_schema_ready/);
 });
