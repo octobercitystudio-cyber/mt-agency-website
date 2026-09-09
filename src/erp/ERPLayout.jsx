@@ -218,7 +218,7 @@ const ERPLayout = () => {
           <a href="/" target="_blank" rel="noopener noreferrer" className="erp-nav-link mb-2" style={{color: 'var(--erp-text-muted)'}}>
             <Home size={20} /> عرض الموقع
           </a>
-          <button onClick={handleLogout} className="erp-nav-link" style={{width: '100%', color: '#ef4444', background: 'transparent', border: 'none', justifyContent: 'flex-start'}}>
+          <button type="button" onClick={handleLogout} className="erp-nav-link" style={{width: '100%', color: '#ef4444', background: 'transparent', border: 'none', justifyContent: 'flex-start'}}>
             <LogOut size={20} style={{color: '#ef4444'}} /> تسجيل الخروج
           </button>
         </section>
@@ -226,12 +226,6 @@ const ERPLayout = () => {
 
       {/* Main Content Area */}
       <div className="erp-main" style={{marginTop: '0'}}>
-        <div className="erp-account-actions">
-          <button type="button" onClick={handleLogout} className="erp-account-logout">
-            <LogOut size={18} aria-hidden="true" />
-            تسجيل الخروج
-          </button>
-        </div>
         <header className="erp-global-toolbar" aria-label="أدوات التشغيل المباشر">
           {role === 'owner' && <OwnerNotifications userId={currentUser?.id} onNavigate={navigate}/>}
           <ERPSessionTimer role={role} />

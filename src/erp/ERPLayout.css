@@ -33,6 +33,7 @@
     background: var(--erp-sidebar-bg);
     backdrop-filter: blur(10px);
     height: 100vh;
+    overflow-y: auto;
     position: fixed;
     right: 0;
     top: 0;
@@ -43,32 +44,6 @@
     flex-direction: column;
     z-index: 1040;
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.erp-account-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 16px;
-}
-
-.erp-account-logout {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    padding: 10px 16px;
-    border: 1px solid var(--erp-danger);
-    border-radius: 8px;
-    background: var(--erp-surface);
-    color: var(--erp-danger);
-    font: inherit;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.erp-account-logout:hover {
-    background: var(--erp-danger);
-    color: #fff;
 }
 
 .erp-main {
