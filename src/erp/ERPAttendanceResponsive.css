@@ -197,6 +197,15 @@
   .attendance-filters button { flex: 0 0 auto; }
   .attendance-drawer { width: 100%; max-width: 100%; }
   .daily-records > div { min-width: 0; }
+
+  .attendance-money-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .attendance-money-card { min-height: 102px; }
+  .attendance-lateness-card .waived { color: var(--at-green); }
+  .attendance-lateness-card__net { grid-column: 1 / -1; background: #faf9f5; }
+  .attendance-lateness-card__net dd { font-size: .86rem; }
+  .lateness-ledger-times { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lateness-ledger-times > div:nth-child(2) { border-left: 0; }
+  .lateness-ledger-times > div:nth-child(-n+2) { border-bottom: 1px solid #ece8df; }
 }
 
 @media (max-width: 520px) {
@@ -218,4 +227,23 @@
   .policy-grid { grid-template-columns: 1fr; }
   .weekday-picker { gap: 4px; }
   .weekday-picker span { width: 29px; height: 29px; }
+
+  .attendance-workspace-heading { align-items: flex-start; padding: 15px; }
+  .attendance-workspace-heading p { max-width: 250px; line-height: 1.6; }
+  .attendance-money-card { min-height: 92px; }
+  .attendance-money-card > strong { font-size: 1.2rem; }
+  .drawer-lateness-breakdown { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lateness-ledger-row { margin: 8px; }
+  .lateness-money-flow { grid-template-columns: 1fr 18px 1fr 18px 1fr; }
+  .lateness-money-flow > span { min-height: 58px; padding: 8px; }
+  .lateness-money-flow small { font-size: .51rem; }
+  .lateness-money-flow strong { font-size: .64rem; overflow-wrap: anywhere; }
+  .lateness-money-flow__net strong { font-size: .72rem; }
+  .lateness-ledger-row > footer { align-items: stretch; flex-direction: column; }
+  .lateness-action { width: 100%; }
+  .lateness-decision-summary { grid-template-columns: 1fr; }
+  .lateness-decision-summary > div,
+  .lateness-decision-summary > div:nth-child(even),
+  .lateness-decision-summary > div:nth-last-child(-n+2) { border-left: 0; border-bottom: 1px solid #ece8e1; }
+  .lateness-decision-summary > div:last-child { border-bottom: 0; }
 }

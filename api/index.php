@@ -1547,10 +1547,42 @@ function attendanceCheckOut(PDO $pdo, array $user): ?array {
     $stmt=$pdo->prepare('SELECT * FROM attendance_records WHERE id=?');$stmt->execute([$record['id']]);return $stmt->fetch() ?: null;
 }
 
+function attendanceLatenessBreakdown(array $record): array {
+    $rawLate=max(0,(int)($record['late_minutes']??0));
+    if(!empty($record['check_in_at'])){
+        try{$rawLate=attendanceRawLateMinutes((string)$record['work_date'],'12:00',(string)$record['check_in_at']);}
+        catch(Throwable $ignored){/* Preserve the saved value for malformed legacy timestamps. */}
+    }
+    $charge=attendanceLateCharge($rawLate,15);
+    return ['raw_minutes'=>$charge['units']>0?$rawLate:0,'billable_units'=>(int)$charge['units'],'billable_minutes'=>(int)$charge['units']*30,'gross_cents'=>(int)$charge['amount_cents']];
+}
+
+function attendanceActiveAdjustmentRows(PDO $pdo, int $organizationId, int $userId, string $month): array {
+    $columns=schemaTableColumns($pdo,'attendance_adjustments');
+    $activeFilter=in_array('voided_at',$columns,true)?' AND voided_at IS NULL':'';
+    $stmt=$pdo->prepare('SELECT * FROM attendance_adjustments WHERE organization_id=? AND user_id=? AND adjustment_month=?'.$activeFilter.' ORDER BY created_at DESC');
+    $stmt->execute([$organizationId,$userId,$month]);
+    return $stmt->fetchAll();
+}
+
+function attendanceWaiverNetCents(array $adjustments, ?int $recordId=null): int {
+    $net=0;
+    foreach($adjustments as $adjustment){
+        if(!in_array((string)($adjustment['adjustment_type']??''),['late_waiver','late_waiver_reversal'],true))continue;
+        if($recordId!==null&&(int)($adjustment['attendance_record_id']??0)!==$recordId)continue;
+        $net+=(int)round((float)($adjustment['amount']??0)*100);
+    }
+    return $net;
+}
+
+function attendanceRecordWithLateness(array $record, array $adjustments): array {
+    $lateness=attendanceLatenessBreakdown($record);$waiverNet=attendanceWaiverNetCents($adjustments,(int)$record['id']);$waivedCents=min($lateness['gross_cents'],max(0,-$waiverNet));$netCents=max(0,$lateness['gross_cents']-$waivedCents);$latestDecision=null;
+    foreach($adjustments as $adjustment){if((int)($adjustment['attendance_record_id']??0)===(int)$record['id']&&in_array((string)($adjustment['adjustment_type']??''),['late_waiver','late_waiver_reversal'],true)){if($latestDecision===null||strcmp((string)($adjustment['created_at']??''),(string)($latestDecision['created_at']??''))>0)$latestDecision=$adjustment;}}
+    $record['late_raw_minutes']=$lateness['raw_minutes'];$record['late_billable_half_hours']=$lateness['billable_units'];$record['late_billable_minutes']=$lateness['billable_minutes'];$record['late_cost_gross']=round($lateness['gross_cents']/100,2);$record['late_waiver_amount']=round($waivedCents/100,2);$record['late_cost']=round($netCents/100,2);$record['late_waived']=$lateness['gross_cents']>0&&$netCents===0;$record['late_waiver_reason']=$latestDecision['reason']??null;$record['late_waiver_action']=isset($latestDecision)?((string)$latestDecision['adjustment_type']==='late_waiver'?'waive':'restore'):null;$record['late_waiver_at']=$latestDecision['created_at']??null;$record['late_waiver_by_name']=$latestDecision['created_by_name']??null;
+    return $record;
+}
+
 function attendanceSummary(PDO $pdo, array $viewer, string $month, ?int $requestedUserId): array {
-    // Older attendance schemas have no void metadata; all their adjustments remain active.
-    $adjustmentColumns=schemaTableColumns($pdo,'attendance_adjustments');
-    $activeAdjustmentFilter=in_array('voided_at',$adjustmentColumns,true)?' AND voided_at IS NULL':'';
     $owner = $viewer['role'] === 'owner';
     $targetId = $owner ? $requestedUserId : (int)$viewer['id'];
     $params=[$viewer['organization_id']];
@@ -1560,19 +1592,19 @@ function attendanceSummary(PDO $pdo, array $viewer, string $month, ?int $request
     $monthStart=new DateTimeImmutable($month.'-01',new DateTimeZone('Africa/Cairo'));$monthEnd=$monthStart->modify('last day of this month');$today=cairoNow()->setTime(0,0);$yesterday=$today->modify('-1 day');$absenceCutoff=$monthEnd<$yesterday?$monthEnd:$yesterday;
     $items=[];
     foreach($people as $person){
-        $uid=(int)$person['employee_id'];$r=$pdo->prepare("SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date LIKE ? ORDER BY work_date");$r->execute([$viewer['organization_id'],$uid,$month.'-%']);$records=$r->fetchAll();$byDate=[];$late=0;$lateUnits=0;$lateDeductionCents=0;$early=0;
+        $uid=(int)$person['employee_id'];$r=$pdo->prepare("SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date LIKE ? ORDER BY work_date");$r->execute([$viewer['organization_id'],$uid,$month.'-%']);$records=$r->fetchAll();$adjustments=attendanceActiveAdjustmentRows($pdo,(int)$viewer['organization_id'],$uid,$month);$byDate=[];$late=0;$lateDays=0;$waivedLateDays=0;$lateUnits=0;$lateDeductionGrossCents=0;$lateWaiverCents=0;$early=0;
         $presentRecords=0;$explicitAbsent=0;
         foreach($records as $row){
-            $byDate[$row['work_date']]=true;$rawLate=(int)($row['late_minutes']??0);if(!empty($row['check_in_at'])){try{$rawLate=attendanceRawLateMinutes((string)$row['work_date'],'12:00',(string)$row['check_in_at']);}catch(Throwable $ignored){/* Keep the saved value for malformed legacy timestamps. */}}$charge=attendanceLateCharge($rawLate,15);$late+=$charge['units']>0?$rawLate:0;$lateUnits+=$charge['units'];$lateDeductionCents+=$charge['amount_cents'];$early+=(int)($row['early_leave_minutes']??0);
+            $byDate[$row['work_date']]=true;$lateness=attendanceLatenessBreakdown($row);$recordWaiverCents=min($lateness['gross_cents'],max(0,-attendanceWaiverNetCents($adjustments,(int)$row['id'])));$late+=$lateness['raw_minutes'];$lateUnits+=$lateness['billable_units'];$lateDeductionGrossCents+=$lateness['gross_cents'];$lateWaiverCents+=$recordWaiverCents;if($lateness['gross_cents']>0){$lateDays++;if($recordWaiverCents>=$lateness['gross_cents'])$waivedLateDays++;}$early+=(int)($row['early_leave_minutes']??0);
             if((string)$row['status']==='absent')$explicitAbsent++;
             elseif(!in_array((string)$row['status'],['authorized_leave','day_off'],true))$presentRecords++;
         }
         $track=(int)($person['track_attendance']??1);$weekdays=attendanceWorkingWeekdays($person['working_weekdays']??null);$absent=0;
         $absent=$explicitAbsent;if($track && $absenceCutoff >= $monthStart){for($day=$monthStart;$day<=$absenceCutoff;$day=$day->modify('+1 day')){if(in_array((int)$day->format('w'),array_map('intval',$weekdays),true)&&empty($byDate[$day->format('Y-m-d')]))$absent++;}}
         $salary=(float)($person['monthly_salary']??0);$expected=max(1,(int)($person['expected_working_days']??26));$startMin=businessTimeMinutes('12:00');$endMin=businessTimeMinutes((string)($person['scheduled_end']??'24:00'),true);$scheduledMinutes=max(1,$endMin-$startMin);$daily=$salary/$expected;$minute=$daily/$scheduledMinutes;
-        $lateDeduction=$lateDeductionCents/100;$earlyDeduction=(int)($person['early_leave_deduction_enabled']??0)?$early*$minute:0;$absenceDeduction=$absent*$daily*(float)($person['absence_multiplier']??1);
-        $a=$pdo->prepare('SELECT COALESCE(SUM(amount),0) total FROM attendance_adjustments WHERE organization_id=? AND user_id=? AND adjustment_month=?'.$activeAdjustmentFilter);$a->execute([$viewer['organization_id'],$uid,$month]);$manual=(float)$a->fetchColumn();$deduction=max(0,$lateDeduction+$earlyDeduction+$absenceDeduction+$manual);
-        $items[]=['user_id'=>$uid,'full_name'=>$person['full_name'],'role'=>$person['role'],'track_attendance'=>(bool)$track,'present_days'=>$presentRecords,'late_minutes'=>$late,'late_billable_half_hours'=>$lateUnits,'late_billable_minutes'=>$lateUnits*30,'early_leave_minutes'=>$early,'absent_days'=>$absent,'monthly_salary'=>round($salary,2),'daily_rate'=>round($daily,4),'minute_rate'=>round($minute,6),'late_deduction'=>round($lateDeduction,2),'early_leave_deduction'=>round($earlyDeduction,2),'absence_deduction'=>round($absenceDeduction,2),'manual_adjustment'=>round($manual,2),'total_deduction'=>round($deduction,2),'estimated_net'=>round(max(0,$salary-$deduction),2)];
+        $lateDeductionCents=$lateDeductionGrossCents;$lateDeduction=$lateDeductionCents/100;$lateDeductionGross=$lateDeduction;$lateWaiver=$lateWaiverCents/100;$lateDeduction=max(0,$lateDeductionGross-$lateWaiver);$earlyDeduction=(int)($person['early_leave_deduction_enabled']??0)?$early*$minute:0;$absenceDeduction=$absent*$daily*(float)($person['absence_multiplier']??1);
+        $allAdjustments=array_sum(array_map(fn($adjustment)=>(float)($adjustment['amount']??0),$adjustments));$waiverLedger=attendanceWaiverNetCents($adjustments)/100;$manual=$allAdjustments-$waiverLedger;$deduction=max(0,$lateDeduction+$earlyDeduction+$absenceDeduction+$manual);
+        $items[]=['user_id'=>$uid,'full_name'=>$person['full_name'],'role'=>$person['role'],'track_attendance'=>(bool)$track,'present_days'=>$presentRecords,'late_days'=>$lateDays,'waived_late_days'=>$waivedLateDays,'late_minutes'=>$late,'late_billable_half_hours'=>$lateUnits,'late_billable_minutes'=>$lateUnits*30,'early_leave_minutes'=>$early,'absent_days'=>$absent,'monthly_salary'=>round($salary,2),'daily_rate'=>round($daily,4),'minute_rate'=>round($minute,6),'late_deduction_gross'=>round($lateDeductionGross,2),'late_waiver_amount'=>round($lateWaiver,2),'late_deduction'=>round($lateDeduction,2),'early_leave_deduction'=>round($earlyDeduction,2),'absence_deduction'=>round($absenceDeduction,2),'manual_adjustment'=>round($manual,2),'total_deduction'=>round($deduction,2),'estimated_net'=>round(max(0,$salary-$deduction),2)];
     }
     return ['month'=>$month,'items'=>$items];
 }
@@ -2506,7 +2538,7 @@ if ($path === '/attendance/summary' && $method === 'GET') {
 if ($path === '/attendance/records' && $method === 'GET') {
     $user=requireUser($user);if($user['role']==='client')fail('الحضور غير متاح لحسابات العملاء.',403,'forbidden');$month=validMonth((string)($_GET['month']??cairoNow()->format('Y-m')));$target=isset($_GET['user_id'])?(int)$_GET['user_id']:(int)$user['id'];if($user['role']!=='owner'&&$target!==(int)$user['id'])fail('يمكنك عرض سجل حضورك فقط.',403,'forbidden');
     $stmt=$pdo->prepare("SELECT r.*,u.full_name,u.role FROM attendance_records r JOIN users u ON u.id=r.user_id WHERE r.organization_id=? AND r.user_id=? AND r.work_date LIKE ? AND u.role NOT IN ('client','owner') ORDER BY r.work_date DESC");$stmt->execute([$user['organization_id'],$target,$month.'-%']);$records=$stmt->fetchAll();
-    $a=$pdo->prepare('SELECT a.*,c.full_name created_by_name FROM attendance_adjustments a JOIN users c ON c.id=a.created_by WHERE a.organization_id=? AND a.user_id=? AND a.adjustment_month=? ORDER BY a.created_at DESC');$a->execute([$user['organization_id'],$target,$month]);respond(['month'=>$month,'records'=>$records,'adjustments'=>$a->fetchAll()]);
+    $a=$pdo->prepare('SELECT a.*,c.full_name created_by_name FROM attendance_adjustments a JOIN users c ON c.id=a.created_by WHERE a.organization_id=? AND a.user_id=? AND a.adjustment_month=? ORDER BY a.created_at DESC');$a->execute([$user['organization_id'],$target,$month]);$adjustments=$a->fetchAll();$activeAdjustments=array_values(array_filter($adjustments,fn($adjustment)=>empty($adjustment['voided_at'])));$records=array_map(fn($record)=>attendanceRecordWithLateness($record,$activeAdjustments),$records);respond(['month'=>$month,'records'=>$records,'adjustments'=>$adjustments]);
 }
 
 if ($path === '/attendance/policies' && $method === 'GET') {
@@ -2521,6 +2553,18 @@ if ($path === '/attendance/policies' && $method === 'PUT') {
     $beforeStmt=$pdo->prepare('SELECT * FROM attendance_policies WHERE organization_id=? AND user_id=?');$beforeStmt->execute([$user['organization_id'],$target]);$before=$beforeStmt->fetch()?:null;
     $sql="INSERT INTO attendance_policies (organization_id,user_id,track_attendance,scheduled_start,scheduled_end,working_weekdays,grace_minutes,monthly_salary,expected_working_days,absence_multiplier,late_multiplier,early_leave_deduction_enabled,effective_from,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE track_attendance=VALUES(track_attendance),scheduled_start=VALUES(scheduled_start),scheduled_end=VALUES(scheduled_end),working_weekdays=VALUES(working_weekdays),grace_minutes=VALUES(grace_minutes),monthly_salary=VALUES(monthly_salary),expected_working_days=VALUES(expected_working_days),absence_multiplier=VALUES(absence_multiplier),late_multiplier=VALUES(late_multiplier),early_leave_deduction_enabled=VALUES(early_leave_deduction_enabled),effective_from=VALUES(effective_from)";
     $values=[$user['organization_id'],$target,1,$start,$end,json_encode($weekdays),15,max(0,(float)($payload['monthly_salary']??0)),max(1,(int)($payload['expected_working_days']??26)),max(0,(float)($payload['absence_multiplier']??1)),1,!empty($payload['early_leave_deduction_enabled'])?1:0,(string)($payload['effective_from']??cairoNow()->format('Y-m-d')),$user['id']];$pdo->prepare($sql)->execute($values);audit($pdo,$user,'update','attendance_policy',$target,$before,array_merge($payload,['track_attendance'=>1,'scheduled_start'=>'12:00','grace_minutes'=>15,'late_multiplier'=>1]));respond(['updated'=>true]);
+}
+
+if (preg_match('#^/attendance/records/(\d+)/lateness$#',$path,$m)&&$method==='POST') {
+    $user=requireUser($user);requireRole($user,['owner']);$id=(int)$m[1];$payload=body();$action=trim((string)($payload['action']??''));$reason=trim((string)($payload['reason']??''));if(!in_array($action,['waive','restore'],true))fail('إجراء التأخير غير صحيح.',422,'invalid_lateness_action');if(mb_strlen($reason)<5)fail('سبب الإجراء مطلوب ويجب أن يكون واضحًا.',422,'lateness_reason_required');$organizationId=(int)$user['organization_id'];
+    $pdo->beginTransaction();try{
+        $stmt=$pdo->prepare("SELECT r.*,u.full_name FROM attendance_records r JOIN users u ON u.id=r.user_id AND u.organization_id=r.organization_id WHERE r.id=? AND r.organization_id=? AND u.role NOT IN ('client','owner') FOR UPDATE");$stmt->execute([$id,$organizationId]);$record=$stmt->fetch();if(!$record){$pdo->rollBack();fail('سجل الحضور غير موجود.',404,'attendance_record_not_found');}
+        $month=substr((string)$record['work_date'],0,7);$adjustments=attendanceActiveAdjustmentRows($pdo,$organizationId,(int)$record['user_id'],$month);$lateness=attendanceLatenessBreakdown($record);$waiverNet=attendanceWaiverNetCents($adjustments,$id);
+        if($action==='waive'){$amountCents=-max(0,$lateness['gross_cents']+$waiverNet);$adjustmentType='late_waiver';if($lateness['gross_cents']<=0){$pdo->rollBack();fail('هذا اليوم لا يحتوي على تأخير مستحق للخصم.',422,'lateness_not_chargeable');}}
+        else{$amountCents=max(0,-$waiverNet);$adjustmentType='late_waiver_reversal';}
+        if($amountCents===0){$after=attendanceRecordWithLateness($record,$adjustments);$pdo->commit();respond(['record'=>$after,'idempotent'=>true]);}
+        $amount=number_format($amountCents/100,2,'.','');$minutes=$lateness['billable_minutes'];$insert=$pdo->prepare('INSERT INTO attendance_adjustments (organization_id,user_id,attendance_record_id,adjustment_month,adjustment_type,amount,minutes,reason,created_by) VALUES (?,?,?,?,?,?,?,?,?)');$insert->execute([$organizationId,(int)$record['user_id'],$id,$month,$adjustmentType,$amount,$minutes,$reason,$user['id']]);$adjustmentId=(int)$pdo->lastInsertId();$afterAdjustments=attendanceActiveAdjustmentRows($pdo,$organizationId,(int)$record['user_id'],$month);$after=attendanceRecordWithLateness($record,$afterAdjustments);audit($pdo,$user,$action==='waive'?'waive_lateness':'restore_lateness','attendance_records',$id,$record,['record'=>$after,'adjustment_id'=>$adjustmentId,'reason'=>$reason]);recordChangeEvent($pdo,$organizationId,null,'attendance','attendance_records',$id,$action==='waive'?'lateness_waived':'lateness_restored');$pdo->commit();respond(['record'=>$after,'adjustment_id'=>$adjustmentId,'idempotent'=>false]);
+    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
 if (preg_match('#^/attendance/records/(\d+)$#',$path,$m)&&$method==='PATCH') {

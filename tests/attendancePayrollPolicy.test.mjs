@@ -33,6 +33,10 @@ test('server applies attendance on login to employees only and keeps the fixed r
   assert.match(api, /if \(\$rawLateMinutes <= \$graceMinutes\).*?ceil\(\$rawLateMinutes \/ 30\).*?'amount_cents'=>\$units \* 1000/s);
   assert.match(api, /u\.role NOT IN \('client','owner'\)/);
   assert.match(api, /'late_billable_half_hours'=>\$lateUnits/);
+  assert.match(api, /\/attendance\/records\/\(\\d\+\)\/lateness/);
+  assert.match(api, /requireRole\(\$user,\['owner'\]\)/);
+  assert.match(api, /'late_deduction_gross'=>round\(\$lateDeductionGross,2\)/);
+  assert.match(api, /'late_waiver_amount'=>round\(\$lateWaiver,2\)/);
 });
 
 test('migration enables every active employee and disables owners without changing historical entries', async () => {
@@ -62,6 +66,23 @@ test('demo manual attendance applies the same boundary and rejects the owner', a
   const base = { user_id: 3, work_date: '2026-08-24', check_out_at: '2026-08-24 21:00', status: 'late', correction_reason: 'اختبار حدود التأخير الثابتة' };
   const minute16 = await demoClient.request('/attendance/records/manual', { method: 'PUT', body: JSON.stringify({ ...base, check_in_at: '2026-08-24 12:16' }) });
   assert.equal(minute16.data.record.late_minutes, 16);
+  const waived = await demoClient.request(`/attendance/records/${minute16.data.record.id}/lateness`, { method: 'POST', body: JSON.stringify({ action: 'waive', reason: 'إعفاء معتمد لهذا اليوم' }) });
+  assert.equal(waived.error, null);
+  assert.equal(waived.data.record.late_cost_gross, 10);
+  assert.equal(waived.data.record.late_waiver_amount, 10);
+  assert.equal(waived.data.record.late_cost, 0);
+  assert.equal(waived.data.record.late_waived, true);
+  assert.equal(waived.data.record.check_in_at, '2026-08-24 12:16');
+  const repeated = await demoClient.request(`/attendance/records/${minute16.data.record.id}/lateness`, { method: 'POST', body: JSON.stringify({ action: 'waive', reason: 'إعادة نفس الإعفاء للاختبار' }) });
+  assert.equal(repeated.data.idempotent, true);
+  const restored = await demoClient.request(`/attendance/records/${minute16.data.record.id}/lateness`, { method: 'POST', body: JSON.stringify({ action: 'restore', reason: 'استرجاع الخصم بقرار المالك' }) });
+  assert.equal(restored.error, null);
+  assert.equal(restored.data.record.late_cost, 10);
+  assert.equal(restored.data.record.late_waived, false);
+  activateDemoMode('admin');
+  const deniedWaiver = await demoClient.request(`/attendance/records/${minute16.data.record.id}/lateness`, { method: 'POST', body: JSON.stringify({ action: 'waive', reason: 'محاولة من حساب غير المالك' }) });
+  assert.equal(deniedWaiver.error.code, 'forbidden');
+  activateDemoMode('owner');
   const owner = await demoClient.request('/attendance/records/manual', { method: 'PUT', body: JSON.stringify({ ...base, user_id: 1 }) });
   assert.equal(owner.error.code, 'invalid_manual_attendance');
   deactivateDemoMode();

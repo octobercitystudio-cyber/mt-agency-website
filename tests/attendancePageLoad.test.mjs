@@ -27,13 +27,10 @@ test('employee view still checks in and identifies a failed module with its trac
 
 test('payroll supports pre-void schema and policy joins preserve users without a policy', async () => {
   const api = await readFile(new URL('../api/index.php', import.meta.url), 'utf8');
-  const summary = api.slice(api.indexOf('function attendanceSummary('), api.indexOf('function sendWhatsAppTemplate('));
-  assert.match(summary, /schemaTableColumns\(\$pdo,'attendance_adjustments'\)/);
-  assert.match(summary, /in_array\('voided_at',\$adjustmentColumns,true\)\?' AND voided_at IS NULL':''/);
-  assert.match(summary, /adjustment_month=\?'\.\$activeAdjustmentFilter/);
+  assert.match(api, /function attendanceActiveAdjustmentRows\(PDO \$pdo.*?schemaTableColumns\(\$pdo,'attendance_adjustments'\).*?in_array\('voided_at',\$columns,true\)\?' AND voided_at IS NULL':''.*?adjustment_month=\?'\.\$activeFilter/s);
   assert.doesNotMatch(api, /SELECT u\.id user_id,u\.full_name,u\.role,u\.is_active,p\.\* FROM users u LEFT JOIN attendance_policies/);
   assert.match(api, /SELECT p\.\*,u\.id user_id,u\.full_name,u\.role,u\.is_active FROM users u LEFT JOIN attendance_policies/);
   assert.match(api, /function attendanceWorkingWeekdays\(mixed \$value\): array/);
-  assert.match(api, /catch\(Throwable \$ignored\).*?Keep the saved value for malformed legacy timestamps/s);
+  assert.match(api, /catch\(Throwable \$ignored\).*?malformed legacy timestamps/s);
   assert.match(api, /attendance_schema_ready/);
 });
