@@ -7,8 +7,9 @@ import {
 import { dataClient, dataProvider } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { attendanceApi } from '../lib/attendanceApi';
-import { formatBookingDate, formatBookingStatus, formatDateTime12, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
+import { formatBookingDate, formatBookingStatus, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
 import ERPPageHero from './ERPPageHero';
+import ERPDashboardTasks from './ERPDashboardTasks';
 import ERPAddBookingModal from './ERPAddBookingModal';
 import ERPClientModal from './ERPClientModal';
 import { ERPCreatePromotionDrawer } from './ERPPromotions';
@@ -86,6 +87,7 @@ const ERPDashboard = () => {
         error: failedModules.length || partialKpiFailure ? 'تعذر تحميل بعض بيانات التشغيل الآن. يمكنك متابعة الأقسام المتاحة أو إعادة المحاولة.' : '',
         bookings: (bookingsResult.data || []).filter((booking) => isDashboardBookingVisible({ status: normalizeStatus(booking.status) })), actions,
         tasks: tasks.data || [],
+        tasksError: tasks.error ? 'تحقق من الاتصال ثم أعد المحاولة.' : '',
         packageMap,
         sessionEligibility: eligibilityMap(sessionEligibility.data),
         health: {
@@ -107,7 +109,7 @@ const ERPDashboard = () => {
     } catch (error) {
       if (loadSequence !== loadSequenceRef.current) return;
       console.error('Dashboard load failed:', error);
-      setState((old) => ({ ...old, loading: false, error: 'تعذر تحميل بيانات التشغيل الآن. تحقق من الاتصال ثم أعد المحاولة.' }));
+      setState((old) => ({ ...old, loading: false, tasksError: 'تحقق من الاتصال ثم أعد المحاولة.', error: 'تعذر تحميل بيانات التشغيل الآن. تحقق من الاتصال ثم أعد المحاولة.' }));
     }
   }, [currentUser?.role, isAuthReady]);
 
@@ -206,8 +208,8 @@ const ERPDashboard = () => {
       />
 
       <section className="ops-health" aria-label="صحة العمل" aria-busy={state.loading}>
-        <div><span>مستحقات غير محصلة</span><strong>{state.loading || !state.health.receivablesAvailable ? '—' : money(state.health.outstanding)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.receivablesAvailable ? 'فواتير وباقات وأرصدة عملاء' : unavailableKpiCopy}</small></div>
-        <div><span>صافي التشغيل للشهر</span><strong className={cashNet < 0 ? 'negative' : ''}>{state.loading || !state.health.cashAvailable ? '—' : money(cashNet)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.cashAvailable ? <>إيراد {money(state.health.cashIn)} · مصروف {money(state.health.cashOut)} · دون التحويل الداخلي</> : unavailableKpiCopy}</small></div>
+        <div><span>مستحقات غير محصلة</span><strong>{state.loading || !state.health.receivablesAvailable ? '—' : money(state.health.outstanding)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.receivablesAvailable ? 'المتبقي للدفع من جميع الباقات المباعة' : unavailableKpiCopy}</small></div>
+        <div><span>الأرباح</span><strong className={cashNet < 0 ? 'negative' : ''}>{state.loading || !state.health.cashAvailable ? '—' : money(cashNet)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.cashAvailable ? <>هذا الشهر · إيراد {money(state.health.cashIn)} · مصروف {money(state.health.cashOut)} · دون التحويل الداخلي</> : unavailableKpiCopy}</small></div>
         <div><span>الباقات الفعالة</span><strong>{state.loading || !state.health.packagesAvailable ? '—' : state.health.activePackages}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.packagesAvailable ? <><PackageCheck size={14} aria-hidden="true" /> {state.health.expiringSoon} تنتهي خلال 14 يومًا</> : unavailableKpiCopy}</small></div>
         <div><span>الخدمات النشطة</span><strong>{state.loading || !state.health.servicesAvailable ? '—' : `${state.health.activeProjects} ${activeProjectsUnit}`}</strong><small>{state.loading ? 'جارٍ تحديث المؤشرات…' : state.health.servicesAvailable ? <><FolderKanban size={14} aria-hidden="true" /> {state.health.activeProjects} مشروع · {state.health.activeContent} محتوى{state.health.pausedProjects > 0 ? ` · ${state.health.pausedProjects} متوقف مؤقتًا` : ''}</> : unavailableKpiCopy}</small></div>
       </section>
@@ -261,10 +263,7 @@ const ERPDashboard = () => {
           ) : <><div className="attendance-totals"><span><b>{teamCounts.present}</b> حاضر</span><span><b>{teamCounts.late}</b> متأخر</span><span><b>{teamCounts.absent}</b> لم يسجل</span></div><div className="attendance-mini-list">{teamTracked.map((member) => <div key={member.user_id}><span className={`attendance-dot attendance-dot--${!member.record_id ? 'absent' : Number(member.late_minutes) ? 'late' : 'present'}`} /><strong>{member.full_name}</strong><small>{member.check_in_at ? formatTime12(member.check_in_at) : 'لم يسجل بعد'}</small></div>)}</div></>}
         </article>
 
-        <article className="ops-panel ops-deliveries">
-          <div className="ops-panel__heading"><div><span className="ops-kicker">القادم</span><h2>مهام وتسليمات</h2></div><Link to="/erp/reminders">كل المهام <ArrowLeft size={16} /></Link></div>
-          {state.loading ? <div className="ops-skeleton ops-skeleton--list" /> : state.tasks.length === 0 ? <div className="ops-empty ops-empty--compact"><Check size={27} /><h3>لا توجد مهام قريبة</h3><p>أضف مهمة أو موعد تسليم ليظهر هنا.</p></div> : <div className="delivery-list">{state.tasks.map((task) => <Link to="/erp/reminders" key={task.id}><time>{formatDateTime12(task.due_date, 'دون موعد')}</time><div><strong>{task.title}</strong><small>{task.type || 'مهمة تشغيل'}</small></div><ArrowLeft size={15} /></Link>)}</div>}
-        </article>
+        <ERPDashboardTasks tasks={state.tasks} loading={state.loading} error={state.tasksError} onRetry={load} now={clock} />
       </section>
 
       <button className="ops-refresh" type="button" onClick={() => { load(); loadAttendance(); }} aria-label="تحديث لوحة العمليات"><RefreshCw size={16} /> آخر تحديث بتوقيت القاهرة</button>

@@ -3,6 +3,7 @@ import { AlertTriangle, CalendarClock, ChevronLeft, Clock3, Download, Edit3, Plu
 import { dataProvider } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { attendanceApi } from '../lib/attendanceApi';
+import { loadAttendancePage } from '../lib/attendancePageLoad';
 import { formatDurationMinutes, formatEGP, formatTime12, normalizeTime } from '../lib/businessFormat';
 import BusinessDateTimeInput from '../components/BusinessDateTimeInput';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
@@ -80,9 +81,7 @@ const ERPAttendance = () => {
       const preview = previewPayload(currentUser); setSummary(preview.summary.items); setPolicies(preview.policies); setToday({ self: { tracked: false } }); setLoading(false); return;
     }
     try {
-      // Login is authoritative; this idempotent call also keeps the attendance page current.
-      await attendanceApi.checkIn();
-      const [summaryData, policyData, todayData] = await Promise.all([attendanceApi.summary(month), attendanceApi.policies(), attendanceApi.today()]);
+      const [summaryData, policyData, todayData] = await loadAttendancePage(attendanceApi, month, { isOwner: currentUser?.role === 'owner' });
       setSummary(summaryData.items || []); setPolicies(Array.isArray(policyData) ? policyData : [policyData]); setToday(todayData);
     } catch (requestError) { setError(requestError.message || 'تعذر تحميل بيانات الحضور.'); }
     finally { setLoading(false); }

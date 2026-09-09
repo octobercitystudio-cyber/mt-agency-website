@@ -11,7 +11,7 @@ import {
 
 const load = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('dashboard receivables count invoices once, add direct packages and linked overage, and keep legacy debt', () => {
+test('dashboard receivables use only unpaid package balances regardless of invoices or legacy client debt', () => {
   const summary = calculateDashboardReceivables({
     invoices: [
       { id: 1, client_id: 1, total: '100.00', paid_amount: '20.00', status: 'issued' },
@@ -28,14 +28,27 @@ test('dashboard receivables count invoices once, add direct packages and linked 
       { debt: '-10.00', status: 'active' },
     ],
   });
-  assert.deepEqual(summary, {
-    amount: '135.00',
-    invoice_amount: '80.00',
-    direct_package_and_overage_amount: '48.00',
-    legacy_client_debt_amount: '7.00',
-    legacy_unreconciled_amount: '7.00',
-    legacy_reconciled_excluded_amount: '0.00',
-  });
+  assert.deepEqual(summary, { definition: 'unpaid_sold_packages', amount: '128.00', package_amount: '128.00' });
+});
+
+test('package receivables include expired, completed and suspended sales and do not offset one sale with another', () => {
+  const summary = calculateDashboardReceivables({ packages: [
+    { status: 'active', total_price: '100.00', paid_amount: '150.00' },
+    { status: 'expired', total_price: '100.50', paid_amount: '50.25' },
+    { status: 'completed', total_price: '100.00', paid_amount: '100.00', overage_amount: '20.25' },
+    { status: 'suspended', total_price: '70.00', paid_amount: '20.00' },
+    ...['draft', 'cancelled', 'archived'].map(status => ({ status, total_price: '999.00', paid_amount: '0.00' })),
+  ] });
+  assert.equal(summary.amount, '120.50');
+  assert.equal(calculateDashboardReceivables({ invoices: [{ total: '999' }], clients: [{ debt: '999' }] }).amount, '0.00');
+});
+
+test('dashboard labels explain package receivables and preserve the monthly profit calculation', async () => {
+  const dashboard = await load('src/erp/ERPDashboard.jsx');
+  assert.match(dashboard, /المتبقي للدفع من جميع الباقات المباعة/);
+  assert.match(dashboard, /<span>الأرباح<\/span>/);
+  assert.match(dashboard, /هذا الشهر · إيراد/);
+  assert.doesNotMatch(dashboard, /صافي التشغيل للشهر/);
 });
 
 test('active packages include first-booking null dates and use Cairo calendar expiry', () => {
@@ -89,7 +102,7 @@ test('production and demo expose one dashboard KPI contract with partial failure
   assert.match(api, /\$path === '\/dashboard\/kpis'/);
   assert.match(api, /requireRole\(\$user,\['owner','admin','operations','finance'\]\)/);
   assert.match(api, /organization_id=\?/);
-  assert.match(api, /legacy_client_debt_amount/);
+  assert.match(api, /definition'=>'unpaid_sold_packages'/);
   assert.match(api, /source_invoice_id/);
   assert.match(api, /partial_errors/);
   assert.match(api, /SUM\(status IN \('planning','active','on_hold'\)\) AS active_projects/);

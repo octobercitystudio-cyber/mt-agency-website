@@ -16,7 +16,7 @@ if (!globalThis.CustomEvent) globalThis.CustomEvent = class CustomEvent extends 
 test.beforeEach(() => { storage.clear(); activateDemoMode('owner'); resetDemoDatabase(); });
 test.afterEach(() => deactivateDemoMode());
 
-test('receivables preserve packages whose source invoice is missing or void and reconcile legacy debt per client', () => {
+test('receivables include all package dues without adding invoice or client debt', () => {
   const result = calculateDashboardReceivables({
     invoices: [{ id: 10, client_id: 1, total: '100.00', paid_amount: '40.00', status: 'issued' }, { id: 20, client_id: 2, total: '90.00', paid_amount: 0, status: 'void' }],
     packages: [
@@ -26,7 +26,7 @@ test('receivables preserve packages whose source invoice is missing or void and 
     ],
     clients: [{ id: 1, debt: '60.00', status: 'active' }, { id: 2, debt: '100.00', status: 'active' }, { id: 4, debt: '7.00', status: 'active' }],
   });
-  assert.deepEqual(result, { amount: '222.00', invoice_amount: '60.00', direct_package_and_overage_amount: '135.00', legacy_client_debt_amount: '27.00', legacy_unreconciled_amount: '27.00', legacy_reconciled_excluded_amount: '140.00' });
+  assert.deepEqual(result, { definition: 'unpaid_sold_packages', amount: '195.00', package_amount: '195.00' });
 });
 
 test('cash movement uses one signed active ledger and reversals cancel their source exactly', () => {
