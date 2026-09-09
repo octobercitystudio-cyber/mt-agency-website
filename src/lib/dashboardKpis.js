@@ -30,6 +30,68 @@ export const calculateDashboardReceivables = ({ packages = [] } = {}) => {
       - Math.max(0, moneyToCents(pkg.paid_amount))), 0);
   return { definition: 'unpaid_sold_packages', amount: centsToMoney(totalCents), package_amount: centsToMoney(totalCents) };
 };
+
+const stableIdCompare = (left, right) => String(left ?? '').localeCompare(String(right ?? ''), 'en', { numeric: true });
+
+export const calculateDashboardReceivableDetails = ({ packages = [], clients = [] } = {}) => {
+  const clientNames = new Map(clients.map(client => [Number(client.id), String(client.name || '').trim()]));
+  const items = packages
+    .filter(pkg => !EXCLUDED_PACKAGE_STATUSES.has(String(pkg.status || '')))
+    .map(pkg => {
+      const totalCents = Math.max(0, moneyToCents(pkg.total_price));
+      const overageCents = Math.max(0, moneyToCents(pkg.overage_amount));
+      const paidCents = Math.max(0, moneyToCents(pkg.paid_amount));
+      const outstandingCents = Math.max(0, totalCents + overageCents - paidCents);
+      return {
+        package_id: Number(pkg.package_id ?? pkg.id),
+        client_id: Number(pkg.client_id),
+        client_name: String(pkg.client_name || clientNames.get(Number(pkg.client_id)) || 'عميل غير معروف'),
+        package_name: String(pkg.package_name || pkg.name || `باقة #${pkg.package_id ?? pkg.id}`),
+        status: String(pkg.status || ''),
+        total_price: centsToMoney(totalCents),
+        overage_amount: centsToMoney(overageCents),
+        paid_amount: centsToMoney(paidCents),
+        outstanding_amount: centsToMoney(outstandingCents),
+        starts_at: pkg.starts_at || null,
+        expires_at: pkg.expires_at || null,
+        _cents: { total: totalCents, overage: overageCents, paid: paidCents, outstanding: outstandingCents },
+      };
+    })
+    .filter(item => item._cents.outstanding > 0)
+    .sort((left, right) => right._cents.outstanding - left._cents.outstanding || stableIdCompare(left.package_id, right.package_id));
+
+  const cents = items.reduce((sum, item) => ({
+    total: sum.total + item._cents.total,
+    overage: sum.overage + item._cents.overage,
+    paid: sum.paid + item._cents.paid,
+    outstanding: sum.outstanding + item._cents.outstanding,
+  }), { total: 0, overage: 0, paid: 0, outstanding: 0 });
+
+  return {
+    definition: 'unpaid_sold_packages',
+    amount: centsToMoney(cents.outstanding),
+    item_count: items.length,
+    reconciliation: {
+      total_price: centsToMoney(cents.total),
+      overage_amount: centsToMoney(cents.overage),
+      paid_amount: centsToMoney(cents.paid),
+      outstanding_amount: centsToMoney(cents.outstanding),
+    },
+    items: items.map(item => ({
+      package_id: item.package_id,
+      client_id: item.client_id,
+      client_name: item.client_name,
+      package_name: item.package_name,
+      status: item.status,
+      total_price: item.total_price,
+      overage_amount: item.overage_amount,
+      paid_amount: item.paid_amount,
+      outstanding_amount: item.outstanding_amount,
+      starts_at: item.starts_at,
+      expires_at: item.expires_at,
+    })),
+  };
+};
 export const dashboardPackageScope = (packages = [], services = null) => {
   if (!Array.isArray(services)) return packages;
   const eligibleServiceIds = new Set(services.filter(isSellablePackageTemplate).map(service => Number(service.id)));

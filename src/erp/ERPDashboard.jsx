@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, BadgeDollarSign, CalendarDays, Check, Clock3,
-  Eye, FileCheck2, FolderKanban, PackageCheck, PlayCircle, Plus, RefreshCw, TimerOff, UserPlus, UsersRound,
+  Eye, FileCheck2, FolderKanban, PackageCheck, PlayCircle, Plus, RefreshCw, TimerOff, UserPlus, UsersRound, X,
 } from 'lucide-react';
 import { dataClient, dataProvider } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { attendanceApi } from '../lib/attendanceApi';
-import { formatBookingDate, formatBookingStatus, formatEGP, formatTime12, timeToMinutes } from '../lib/businessFormat';
+import { formatBookingDate, formatBookingStatus, formatEGP, formatPackageStatus, formatTime12, moneyToCents, timeToMinutes } from '../lib/businessFormat';
 import ERPPageHero from './ERPPageHero';
 import ERPDashboardTasks from './ERPDashboardTasks';
 import ERPAddBookingModal from './ERPAddBookingModal';
@@ -19,6 +19,7 @@ import { canRoleStartStudioSession } from './studioSessionStart';
 import { eligibilityMap, studioBookingEligible } from './studioSessionEligibility';
 import { requestDashboardModule } from '../lib/dashboardLoad';
 import { isClientBookingVisible as isDashboardBookingVisible } from '../lib/clientBookingVisibility';
+import useModalDialog from '../hooks/useModalDialog';
 import './ERPDashboard.css';
 import './ERPDashboardFixes.css';
 
@@ -29,6 +30,122 @@ const money = (value) => formatEGP(value);
 const roleLabels = { owner: 'مالك', admin: 'مدير', operations: 'تشغيل', finance: 'مالية', staff: 'موظف' };
 const normalizeStatus = (status = '') => ({ 'قيد الانتظار': 'pending', 'مؤكد': 'confirmed', 'ملغي': 'cancelled', 'ملغى': 'cancelled', 'مرفوض': 'rejected' }[status] || status);
 
+const ledgerDate = value => {
+  if (!value) return 'غير محدد';
+  const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? 'غير محدد' : new Intl.DateTimeFormat('ar-EG-u-nu-latn', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+};
+
+const ReceivablesDialog = ({ open, onClose, returnFocusRef, view, onRetry }) => {
+  const dialogRef = useModalDialog(open, onClose, { returnFocusRef, isolateBackground: true });
+  const groups = useMemo(() => {
+    const byClient = new Map();
+    (view.data?.items || []).forEach(item => {
+      const key = Number(item.client_id);
+      if (!byClient.has(key)) byClient.set(key, { clientId: key, clientName: item.client_name, items: [], totalCents: 0 });
+      const group = byClient.get(key);
+      group.items.push(item);
+      group.totalCents += moneyToCents(item.outstanding_amount);
+    });
+    return [...byClient.values()].sort((left, right) => right.totalCents - left.totalCents || left.clientId - right.clientId);
+  }, [view.data]);
+
+  if (!open) return null;
+  const reconciliation = view.data?.reconciliation || {};
+  const closeOnBackdrop = event => { if (event.target === event.currentTarget) onClose(); };
+
+  return (
+    <div className="receivables-backdrop" onMouseDown={closeOnBackdrop}>
+      <section ref={dialogRef} className="receivables-dialog" role="dialog" aria-modal="true" aria-labelledby="receivables-title" aria-describedby="receivables-note" tabIndex={-1}>
+        <header className="receivables-dialog__header">
+          <div>
+            <span className="ops-kicker">كشف مراجع بالقرش</span>
+            <h2 id="receivables-title">تفصيل المستحقات غير المحصلة</h2>
+            <p id="receivables-note">كل بند هو رصيد باقة مباعة لم يُحصّل بالكامل.</p>
+          </div>
+          <button type="button" className="receivables-dialog__close" onClick={onClose} aria-label="إغلاق تفصيل المستحقات" data-dialog-initial><X aria-hidden="true" /></button>
+        </header>
+
+        {view.loading ? (
+          <div className="receivables-state" role="status" aria-live="polite">
+            <RefreshCw className="receivables-state__spinner" aria-hidden="true" />
+            <strong>جارٍ تجميع أرصدة الباقات…</strong>
+            <span>نراجع القيمة والمدفوع والزيادات لكل باقة.</span>
+          </div>
+        ) : view.error ? (
+          <div className="receivables-state receivables-state--error" role="alert">
+            <AlertTriangle aria-hidden="true" />
+            <strong>تعذر تحميل تفاصيل المبلغ</strong>
+            <span>{view.error}</span>
+            <button type="button" onClick={onRetry}>إعادة المحاولة</button>
+          </div>
+        ) : !view.data?.items?.length ? (
+          <div className="receivables-state">
+            <Check aria-hidden="true" />
+            <strong>لا توجد مستحقات غير محصلة</strong>
+            <span>جميع أرصدة الباقات المباعة مسددة حاليًا.</span>
+            <Link to="/erp/packages" onClick={onClose}>فتح الباقات المباعة</Link>
+          </div>
+        ) : (
+          <div className="receivables-dialog__body">
+            <div className="receivables-headline">
+              <div><span>إجمالي المستحق الحالي</span><strong>{money(view.data.amount)}</strong></div>
+              <div><span>الباقات التي عليها رصيد</span><strong>{view.data.item_count} {Number(view.data.item_count) === 1 ? 'باقة' : 'باقات'}</strong></div>
+            </div>
+
+            <div className="receivables-equation" aria-label="مطابقة إجمالي المستحقات">
+              <div><span>قيمة الباقات</span><strong>{money(reconciliation.total_price)}</strong></div>
+              <b aria-hidden="true">+</b>
+              <div><span>الزيادات</span><strong>{money(reconciliation.overage_amount)}</strong></div>
+              <b aria-hidden="true">−</b>
+              <div className="receivables-equation__paid"><span>المدفوع</span><strong>{money(reconciliation.paid_amount)}</strong></div>
+              <b aria-hidden="true">=</b>
+              <div className="receivables-equation__due"><span>المستحق</span><strong>{money(reconciliation.outstanding_amount)}</strong></div>
+            </div>
+            <p className="receivables-formula-note">الحساب من الباقات الظاهرة فقط: قيمة الباقة + الزيادات − المدفوع. لا تُضاف الفواتير أو أرصدة العملاء القديمة.</p>
+
+            <div className="receivables-ledger">
+              {groups.map(group => (
+                <section className="receivables-client" key={group.clientId} aria-labelledby={`receivables-client-${group.clientId}`}>
+                  <header className="receivables-client__header">
+                    <div><span>العميل</span><h3 id={`receivables-client-${group.clientId}`}>{group.clientName}</h3></div>
+                    <div><span>{group.items.length} {group.items.length === 1 ? 'باقة' : 'باقات'}</span><strong>{money(group.totalCents / 100)}</strong></div>
+                  </header>
+                  <div className="receivables-ledger__table" role="table" aria-label={`باقات ${group.clientName}`}>
+                    <div className="receivables-ledger__columns" role="row">
+                      <span role="columnheader">الباقة والحالة</span><span role="columnheader">القيمة</span><span role="columnheader">الزيادات</span><span role="columnheader">المدفوع</span><span role="columnheader">المستحق</span>
+                    </div>
+                    <div role="rowgroup">
+                      {group.items.map(item => (
+                        <div className="receivables-row" role="row" key={item.package_id}>
+                          <div className="receivables-row__identity" role="cell">
+                            <strong>{item.package_name}</strong>
+                            <span><em data-status={item.status}>{formatPackageStatus(item.status)}</em> · رقم <bdi>#{item.package_id}</bdi></span>
+                            <small>من {ledgerDate(item.starts_at)} إلى {ledgerDate(item.expires_at)}</small>
+                          </div>
+                          <div role="cell" data-label="القيمة"><bdi>{money(item.total_price)}</bdi></div>
+                          <div role="cell" data-label="الزيادات" className="receivables-row__overage"><bdi>{money(item.overage_amount)}</bdi></div>
+                          <div role="cell" data-label="المدفوع" className="receivables-row__paid"><bdi>{money(item.paid_amount)}</bdi></div>
+                          <div role="cell" data-label="المستحق" className="receivables-row__due"><bdi>{money(item.outstanding_amount)}</bdi></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <footer className="receivables-dialog__footer">
+          <span>هذا الكشف للقراءة والمراجعة فقط.</span>
+          <Link to="/erp/packages" onClick={onClose}>إدارة الباقات <ArrowLeft aria-hidden="true" /></Link>
+        </footer>
+      </section>
+    </div>
+  );
+};
+
 const ERPDashboard = () => {
   const { currentUser, isAuthReady } = useData();
   const navigate = useNavigate();
@@ -38,8 +155,11 @@ const ERPDashboard = () => {
   const [createAction, setCreateAction] = useState('');
   const [quickActionNotice, setQuickActionNotice] = useState('');
   const [sessionStart, setSessionStart] = useState({ open: false, booking: null });
+  const [receivablesDialog, setReceivablesDialog] = useState({ open: false, loading: false, error: '', data: null });
   const sessionTriggerRef = useRef(null);
   const bookingTriggerRef = useRef(null);
+  const receivablesTriggerRef = useRef(null);
+  const receivablesLoadRef = useRef(0);
   const loadSequenceRef = useRef(0);
   const openBookingCreate = event => { bookingTriggerRef.current = event?.currentTarget || null; setCreateAction('booking'); };
 
@@ -170,6 +290,29 @@ const ERPDashboard = () => {
     await load();
   };
 
+  const loadReceivables = useCallback(async () => {
+    const sequence = ++receivablesLoadRef.current;
+    setReceivablesDialog(current => ({ ...current, loading: true, error: '', data: null }));
+    const result = await requestDashboardModule(() => dataClient.request('/dashboard/receivables'));
+    if (sequence !== receivablesLoadRef.current) return;
+    if (result.error) {
+      setReceivablesDialog(current => ({ ...current, loading: false, error: result.error.message || 'تحقق من الاتصال ثم أعد المحاولة.', data: null }));
+      return;
+    }
+    setReceivablesDialog(current => ({ ...current, loading: false, error: '', data: result.data }));
+    setState(current => ({ ...current, health: { ...current.health, outstanding: Number(result.data?.amount || 0) } }));
+  }, []);
+
+  const openReceivables = event => {
+    receivablesTriggerRef.current = event.currentTarget;
+    setReceivablesDialog(current => ({ ...current, open: true }));
+    loadReceivables();
+  };
+  const closeReceivables = () => {
+    receivablesLoadRef.current += 1;
+    setReceivablesDialog(current => ({ ...current, open: false, loading: false }));
+  };
+
   const currentMarker = useMemo(() => {
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(clock).map((part) => [part.type, part.value]));
     const minutes = (Number(parts.hour) * 60) + Number(parts.minute);
@@ -208,10 +351,14 @@ const ERPDashboard = () => {
       />
 
       <section className="ops-health" aria-label="صحة العمل" aria-busy={state.loading}>
-        <div><span>مستحقات غير محصلة</span><strong>{state.loading || !state.health.receivablesAvailable ? '—' : money(state.health.outstanding)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.receivablesAvailable ? 'المتبقي للدفع من جميع الباقات المباعة' : unavailableKpiCopy}</small></div>
-        <div><span>الأرباح</span><strong className={cashNet < 0 ? 'negative' : ''}>{state.loading || !state.health.cashAvailable ? '—' : money(cashNet)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.cashAvailable ? <>هذا الشهر · إيراد {money(state.health.cashIn)} · مصروف {money(state.health.cashOut)} · دون التحويل الداخلي</> : unavailableKpiCopy}</small></div>
-        <div><span>الباقات الفعالة</span><strong>{state.loading || !state.health.packagesAvailable ? '—' : state.health.activePackages}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.packagesAvailable ? <><PackageCheck size={14} aria-hidden="true" /> {state.health.expiringSoon} تنتهي خلال 14 يومًا</> : unavailableKpiCopy}</small></div>
-        <div><span>الخدمات النشطة</span><strong>{state.loading || !state.health.servicesAvailable ? '—' : `${state.health.activeProjects} ${activeProjectsUnit}`}</strong><small>{state.loading ? 'جارٍ تحديث المؤشرات…' : state.health.servicesAvailable ? <><FolderKanban size={14} aria-hidden="true" /> {state.health.activeProjects} مشروع · {state.health.activeContent} محتوى{state.health.pausedProjects > 0 ? ` · ${state.health.pausedProjects} متوقف مؤقتًا` : ''}</> : unavailableKpiCopy}</small></div>
+        {!state.loading && state.health.receivablesAvailable ? (
+          <button type="button" className="ops-health__cell ops-health__cell--interactive" onClick={openReceivables} aria-label={`عرض تفاصيل المستحقات غير المحصلة بقيمة ${money(state.health.outstanding)}`}>
+            <span>مستحقات غير محصلة</span><strong>{money(state.health.outstanding)}</strong><small>المتبقي للدفع من جميع الباقات المباعة</small><em>عرض التفاصيل <ArrowLeft aria-hidden="true" /></em>
+          </button>
+        ) : <div className="ops-health__cell"><span>مستحقات غير محصلة</span><strong>{state.loading || !state.health.receivablesAvailable ? '—' : money(state.health.outstanding)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : unavailableKpiCopy}</small></div>}
+        <div className="ops-health__cell"><span>الأرباح</span><strong className={cashNet < 0 ? 'negative' : ''}>{state.loading || !state.health.cashAvailable ? '—' : money(cashNet)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.cashAvailable ? <>هذا الشهر · إيراد {money(state.health.cashIn)} · مصروف {money(state.health.cashOut)} · دون التحويل الداخلي</> : unavailableKpiCopy}</small></div>
+        <div className="ops-health__cell"><span>الباقات الفعالة</span><strong>{state.loading || !state.health.packagesAvailable ? '—' : state.health.activePackages}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.packagesAvailable ? <><PackageCheck size={14} aria-hidden="true" /> {state.health.expiringSoon} تنتهي خلال 14 يومًا</> : unavailableKpiCopy}</small></div>
+        <div className="ops-health__cell"><span>الخدمات النشطة</span><strong>{state.loading || !state.health.servicesAvailable ? '—' : `${state.health.activeProjects} ${activeProjectsUnit}`}</strong><small>{state.loading ? 'جارٍ تحديث المؤشرات…' : state.health.servicesAvailable ? <><FolderKanban size={14} aria-hidden="true" /> {state.health.activeProjects} مشروع · {state.health.activeContent} محتوى{state.health.pausedProjects > 0 ? ` · ${state.health.pausedProjects} متوقف مؤقتًا` : ''}</> : unavailableKpiCopy}</small></div>
       </section>
 
       {state.error && <div className="ops-state ops-state--error" role="alert"><AlertTriangle size={18} /> {state.error}<button onClick={load}>إعادة المحاولة</button></div>}
@@ -284,6 +431,7 @@ const ERPDashboard = () => {
         onClose={() => setCreateAction('')}
         onSuccess={() => setQuickActionNotice('تم إنشاء العرض الحصري بنجاح.')}
       />
+      <ReceivablesDialog open={receivablesDialog.open} onClose={closeReceivables} returnFocusRef={receivablesTriggerRef} view={receivablesDialog} onRetry={loadReceivables} />
       <ERPStartSessionDialog open={sessionStart.open} bookings={sessionStart.booking ? [sessionStart.booking] : []} clientName={sessionStart.booking?.client_name} contextName={state.packageMap[Number(sessionStart.booking?.client_package_id)]?.name || sessionStart.booking?.service} returnFocusRef={sessionTriggerRef} onClose={() => setSessionStart({ open: false, booking: null })} onStarted={handleSessionStarted} onCreateBooking={() => navigate('/erp/bookings')}/>
     </main>
   );

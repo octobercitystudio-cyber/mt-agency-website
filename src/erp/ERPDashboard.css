@@ -38,3 +38,117 @@
   .ops-health>div:nth-child(n){border-left:0;border-bottom:1px solid #31384f}
   .ops-health>div:last-child{border-bottom:0}
 }
+
+/* Receivables audit drawer */
+.ops-health>.ops-health__cell{min-width:0;padding:17px 20px;border:0;border-left:1px solid #31384f;background:transparent;color:inherit;text-align:right;font:inherit;display:grid;gap:3px}
+.ops-health>.ops-health__cell:last-child{border-left:0}
+.ops-health__cell--interactive{position:relative;cursor:pointer;transition:background .16s ease}
+.ops-health__cell--interactive:hover{background:#191f35}
+.ops-health__cell--interactive:focus-visible{outline:3px solid #a78bfa!important;outline-offset:-3px}
+.ops-health__cell--interactive em{min-height:24px;margin-top:5px;display:flex;align-items:center;gap:5px;color:#c4b5fd;font-size:.65rem;font-style:normal;font-weight:900}
+.ops-health__cell--interactive em svg{width:13px}
+
+.receivables-backdrop{position:fixed;inset:0;z-index:1400;display:flex;justify-content:flex-start;padding:24px;background:rgba(8,12,25,.68);backdrop-filter:blur(2px);animation:receivables-fade .15s ease-out}
+.receivables-dialog{width:min(1180px,calc(100vw - 48px));height:min(880px,calc(100dvh - 48px));margin-inline-start:0;background:var(--ops-canvas);color:#191c2b;border:1px solid #d6d1c6;border-radius:12px;box-shadow:0 26px 70px rgba(6,9,19,.34);display:flex;flex-direction:column;overflow:hidden;outline:0;animation:receivables-enter .2s ease-out}
+.receivables-dialog__header{min-height:95px;padding:20px 24px;border-bottom:1px solid var(--ops-border);background:var(--ops-panel);display:flex;align-items:center;justify-content:space-between;gap:18px}
+.receivables-dialog__header h2{margin:3px 0 4px;font-size:1.22rem;font-weight:950;color:var(--ops-ink)}
+.receivables-dialog__header p{margin:0;color:#666a78;font-size:.72rem}
+.receivables-dialog__close{width:44px;height:44px;flex:none;display:grid;place-items:center;border:1px solid #d8d4cb;border-radius:7px;background:#f8f6f0;color:#323746;cursor:pointer}
+.receivables-dialog__close:hover{background:#eee9df}
+.receivables-dialog__close svg{width:20px}
+.receivables-dialog__body{padding:20px 24px 28px;overflow:auto;overscroll-behavior:contain}
+.receivables-headline{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(210px,.65fr);border:1px solid #222a43;background:var(--ops-ink);color:#fff}
+.receivables-headline>div{min-height:86px;padding:17px 20px;display:grid;align-content:center;gap:4px;border-left:1px solid #333b55}
+.receivables-headline>div:last-child{border-left:0}
+.receivables-headline span{font-size:.67rem;color:#aeb6cc}
+.receivables-headline strong{font-size:1.55rem;font-weight:950;letter-spacing:-.02em}
+.receivables-headline>div:last-child strong{font-size:1rem}
+.receivables-equation{margin-top:14px;display:grid;grid-template-columns:minmax(130px,1fr) auto minmax(110px,.8fr) auto minmax(130px,1fr) auto minmax(145px,1.05fr);align-items:stretch;border:1px solid #d9d4ca;background:#fffefa}
+.receivables-equation>div{min-height:72px;padding:13px 16px;display:grid;align-content:center;gap:3px}
+.receivables-equation>div+div{border-inline-start:1px solid #e8e3da}
+.receivables-equation>b{align-self:center;color:#8a8491;font-size:1rem}
+.receivables-equation span{color:#6b6d78;font-size:.64rem}
+.receivables-equation strong{font-size:.9rem;color:#2c3040}
+.receivables-equation__paid strong{color:var(--ops-green)}
+.receivables-equation__due{background:#fff4e2}
+.receivables-equation__due strong{color:#9a4f00;font-size:1.05rem}
+.receivables-formula-note{margin:8px 2px 18px;color:#656875;font-size:.65rem;line-height:1.8}
+.receivables-ledger{display:grid;gap:14px}
+.receivables-client{border:1px solid #d9d5cc;background:var(--ops-panel);box-shadow:0 3px 12px rgba(24,27,41,.035)}
+.receivables-client__header{min-height:67px;padding:12px 17px;background:#f1eee7;border-bottom:1px solid #ddd8cf;display:flex;align-items:center;justify-content:space-between;gap:15px}
+.receivables-client__header>div{display:grid;gap:2px}
+.receivables-client__header>div:last-child{text-align:left}
+.receivables-client__header span{font-size:.61rem;color:#696b76}
+.receivables-client__header h3{margin:0;font-size:.9rem;color:var(--ops-ink)}
+.receivables-client__header strong{font-size:1.03rem;color:#a25000}
+.receivables-ledger__columns,.receivables-row{display:grid;grid-template-columns:minmax(250px,1.5fr) repeat(4,minmax(100px,.62fr));align-items:center}
+.receivables-ledger__columns{min-height:38px;background:#faf8f3;border-bottom:1px solid #e7e2d9;color:#676976;font-size:.61rem;font-weight:800}
+.receivables-ledger__columns>span,.receivables-row>div{padding-inline:14px}
+.receivables-row{min-height:88px;border-bottom:1px solid #ebe7df}
+.receivables-row:last-child{border-bottom:0}
+.receivables-row>div:not(:first-child){direction:ltr;text-align:left;font-size:.7rem;font-weight:750;color:#444856}
+.receivables-row__identity{min-width:0;display:grid;gap:3px;padding-block:12px}
+.receivables-row__identity>strong{overflow-wrap:anywhere;font-size:.76rem;color:var(--ops-ink)}
+.receivables-row__identity>span,.receivables-row__identity>small{color:#70727e;font-size:.61rem;line-height:1.6}
+.receivables-row__identity em{display:inline-block;padding:1px 6px;border:1px solid #d4c9e6;background:#f4effa;color:#65408d;border-radius:4px;font-style:normal;font-weight:850}
+.receivables-row__identity em[data-status="active"]{border-color:#c4dfd2;background:#edf7f2;color:#176f50}
+.receivables-row__identity em[data-status="expired"],.receivables-row__identity em[data-status="suspended"]{border-color:#ead8ae;background:#fff7e3;color:#87600e}
+.receivables-row__paid bdi{color:var(--ops-green)}
+.receivables-row__overage bdi{color:#8b5d14}
+.receivables-row__due bdi{color:#a33a28;font-size:.84rem;font-weight:950}
+.receivables-dialog__footer{min-height:68px;padding:11px 24px;border-top:1px solid var(--ops-border);background:var(--ops-panel);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.receivables-dialog__footer>span{font-size:.66rem;color:#686b77}
+.receivables-dialog__footer>a,.receivables-state>a,.receivables-state>button{min-height:44px;padding:8px 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #d4c7e6;border-radius:6px;background:#f4effa;color:#5f2b9b;text-decoration:none;font:inherit;font-size:.7rem;font-weight:900;cursor:pointer}
+.receivables-dialog__footer svg{width:15px}
+.receivables-state{min-height:360px;padding:35px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#6f7280}
+.receivables-state>svg{width:32px;height:32px;color:var(--ops-violet);margin-bottom:12px}
+.receivables-state strong{color:var(--ops-ink);font-size:.94rem;margin-bottom:4px}
+.receivables-state span{font-size:.7rem;margin-bottom:15px}
+.receivables-state--error>svg{color:var(--ops-red)}
+.receivables-state--error strong{color:#9d2934}
+.receivables-state__spinner{animation:receivables-spin .9s linear infinite}
+@keyframes receivables-fade{from{opacity:0}}
+@keyframes receivables-enter{from{opacity:.6;transform:translateX(-16px)}}
+@keyframes receivables-spin{to{transform:rotate(360deg)}}
+@media(max-width:1100px){
+  .ops-health>.ops-health__cell{border-bottom:1px solid #31384f}
+  .ops-health>.ops-health__cell:nth-child(even){border-left:0}
+  .ops-health>.ops-health__cell:nth-child(n+3){border-bottom:0}
+  .receivables-ledger__columns,.receivables-row{grid-template-columns:minmax(220px,1.35fr) repeat(4,minmax(90px,.58fr))}
+}
+@media(max-width:760px){
+  .ops-health>.ops-health__cell:nth-child(n){border-left:0;border-bottom:1px solid #31384f}
+  .ops-health>.ops-health__cell:last-child{border-bottom:0}
+  .receivables-backdrop{padding:0;align-items:stretch}
+  .receivables-dialog{width:100vw;height:100dvh;border:0;border-radius:0}
+  .receivables-dialog__header{min-height:86px;padding:15px 16px}
+  .receivables-dialog__header h2{font-size:1.04rem}
+  .receivables-dialog__body{padding:14px 12px 22px}
+  .receivables-headline{grid-template-columns:1fr}
+  .receivables-headline>div{min-height:74px;border-left:0;border-bottom:1px solid #333b55}
+  .receivables-headline>div:last-child{border-bottom:0}
+  .receivables-headline strong{font-size:1.28rem}
+  .receivables-equation{grid-template-columns:1fr 1fr}
+  .receivables-equation>b{display:none}
+  .receivables-equation>div{min-height:66px;border-bottom:1px solid #e8e3da}
+  .receivables-equation>div:nth-of-type(even){border-inline-start:1px solid #e8e3da}
+  .receivables-equation>div:nth-last-of-type(-n+2){border-bottom:0}
+  .receivables-client__header{padding-inline:13px}
+  .receivables-ledger__columns{display:none}
+  .receivables-row{margin:0 11px;padding:12px 0;grid-template-columns:1fr 1fr;gap:9px 12px;min-height:0}
+  .receivables-row__identity{grid-column:1/-1;padding:0 2px 8px;border-bottom:1px dashed #ded9cf}
+  .receivables-row>div:not(:first-child){min-height:36px;padding:0 2px;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:initial}
+  .receivables-row>div[data-label]::before{content:attr(data-label);direction:rtl;color:#70727e;font-size:.61rem;font-weight:700}
+  .receivables-row__due bdi{font-size:.78rem}
+  .receivables-dialog__footer{padding:10px 14px}
+  .receivables-dialog__footer>span{display:none}
+  .receivables-dialog__footer>a{width:100%}
+}
+@media(max-width:430px){
+  .receivables-equation{grid-template-columns:1fr}
+  .receivables-equation>div:nth-child(n){border-inline-start:0;border-bottom:1px solid #e8e3da}
+  .receivables-equation>div:last-child{border-bottom:0}
+  .receivables-row{grid-template-columns:1fr}
+  .receivables-row__identity{grid-column:1}
+}
+@media(prefers-reduced-motion:reduce){.receivables-backdrop,.receivables-dialog,.receivables-state__spinner{animation:none}}

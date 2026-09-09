@@ -1817,6 +1817,22 @@ if ($path === '/push/subscriptions' && $method === 'DELETE') {
     $user=requireUser($user);if(!schemaTableExists($pdo,'app_push_subscriptions'))respond(['unregistered'=>true,'changed'=>false]);$payload=body();$token=trim((string)($payload['token']??''));if($token==='')fail('رمز جهاز الإشعارات مطلوب.',422,'push_token_required');$sql='UPDATE app_push_subscriptions SET is_active=0,last_seen_at=NOW() WHERE organization_id=? AND token_hash=?';$params=[(int)$user['organization_id'],hash('sha256',$token)];if($user['role']==='client'){$sql.=' AND client_id=?';$params[]=(int)$user['client_id'];}else{$sql.=' AND user_id=?';$params[]=(int)$user['id'];}$stmt=$pdo->prepare($sql);$stmt->execute($params);respond(['unregistered'=>true,'changed'=>$stmt->rowCount()>0]);
 }
 
+if ($path === '/dashboard/receivables' && $method === 'GET') {
+    $user=requireUser($user);requireRole($user,['owner','admin','finance']);$organizationId=(int)$user['organization_id'];
+    $stmt=$pdo->prepare("SELECT cp.id AS package_id,cp.client_id,COALESCE(NULLIF(TRIM(c.name),''),CONCAT('عميل #',cp.client_id)) AS client_name,cp.name AS package_name,cp.status,cp.total_price,COALESCE(cp.overage_amount,0) AS overage_amount,cp.paid_amount,cp.starts_at,cp.expires_at
+      FROM client_packages cp
+      LEFT JOIN clients c ON c.id=cp.client_id AND c.organization_id=cp.organization_id
+      WHERE cp.organization_id=? AND cp.status NOT IN ('archived','cancelled','draft')");
+    $stmt->execute([$organizationId]);$items=[];$totalCents=0;$overageCents=0;$paidCents=0;$outstandingCents=0;
+    foreach($stmt->fetchAll() as $row){
+        $rowTotalCents=max(0,packageMoneyCents($row['total_price']??0));$rowOverageCents=max(0,packageMoneyCents($row['overage_amount']??0));$rowPaidCents=max(0,packageMoneyCents($row['paid_amount']??0));$rowOutstandingCents=max(0,$rowTotalCents+$rowOverageCents-$rowPaidCents);if($rowOutstandingCents<=0)continue;
+        $totalCents+=$rowTotalCents;$overageCents+=$rowOverageCents;$paidCents+=$rowPaidCents;$outstandingCents+=$rowOutstandingCents;
+        $items[]=['package_id'=>(int)$row['package_id'],'client_id'=>(int)$row['client_id'],'client_name'=>(string)$row['client_name'],'package_name'=>(string)$row['package_name'],'status'=>(string)$row['status'],'total_price'=>packageMoney($rowTotalCents),'overage_amount'=>packageMoney($rowOverageCents),'paid_amount'=>packageMoney($rowPaidCents),'outstanding_amount'=>packageMoney($rowOutstandingCents),'starts_at'=>($row['starts_at']??null)?:null,'expires_at'=>($row['expires_at']??null)?:null];
+    }
+    usort($items,fn($left,$right)=>packageMoneyCents($right['outstanding_amount'])<=>packageMoneyCents($left['outstanding_amount'])?:((int)$left['package_id']<=>(int)$right['package_id']));
+    respond(['definition'=>'unpaid_sold_packages','amount'=>packageMoney($outstandingCents),'item_count'=>count($items),'reconciliation'=>['total_price'=>packageMoney($totalCents),'overage_amount'=>packageMoney($overageCents),'paid_amount'=>packageMoney($paidCents),'outstanding_amount'=>packageMoney($outstandingCents)],'items'=>$items]);
+}
+
 if ($path === '/dashboard/kpis' && $method === 'GET') {
     $user=requireUser($user);requireRole($user,['owner','admin','operations','finance']);
     $organizationId=(int)$user['organization_id'];$role=(string)$user['role'];$today=cairoNow()->format('Y-m-d');$month=substr($today,0,7);
@@ -1825,7 +1841,7 @@ if ($path === '/dashboard/kpis' && $method === 'GET') {
 
     if($canViewFinance){try{
         // Package balances are authoritative here; invoices and legacy client balances are not additional sales.
-        $stmt=$pdo->prepare("SELECT COALESCE(SUM(GREATEST(GREATEST(ROUND(total_price*100),0)+GREATEST(ROUND(COALESCE(overage_amount,0)*100),0)-GREATEST(ROUND(paid_amount*100),0),0)),0) due_cents FROM client_packages WHERE organization_id=? AND status NOT IN ('archived','cancelled','draft')");
+        $stmt=$pdo->prepare("SELECT COALESCE(SUM(GREATEST(GREATEST(ROUND(COALESCE(total_price,0)*100),0)+GREATEST(ROUND(COALESCE(overage_amount,0)*100),0)-GREATEST(ROUND(COALESCE(paid_amount,0)*100),0),0)),0) due_cents FROM client_packages WHERE organization_id=? AND status NOT IN ('archived','cancelled','draft')");
         $stmt->execute([$organizationId]);$packageCents=(int)$stmt->fetchColumn();
         $receivables=['available'=>true,'definition'=>'unpaid_sold_packages','amount'=>packageMoney($packageCents),'package_amount'=>packageMoney($packageCents)];
         $stmt=$pdo->prepare("SELECT COALESCE(SUM(CASE WHEN entry_kind='reversal' AND REPLACE(category,'reversal_','') IN ('income','advance_in') THEN -ROUND(amount*100) WHEN entry_kind IN ('income','advance_in') THEN ROUND(amount*100) WHEN (entry_kind IS NULL OR entry_kind='') AND type IN ('إيراد','سداد سلفة','income') THEN ROUND(amount*100) ELSE 0 END),0) cash_in_cents,COALESCE(SUM(CASE WHEN entry_kind='reversal' AND REPLACE(category,'reversal_','') IN ('expense','advance_out') THEN -ROUND(amount*100) WHEN entry_kind IN ('expense','advance_out') THEN ROUND(amount*100) WHEN (entry_kind IS NULL OR entry_kind='') AND type IN ('مصروف','expense','سحب سلفة') THEN ROUND(amount*100) ELSE 0 END),0) cash_out_cents FROM finance WHERE organization_id=? AND date>=? AND date<?");$monthStart=$month.'-01';$monthEnd=(new DateTimeImmutable($monthStart,new DateTimeZone('Africa/Cairo')))->modify('+1 month')->format('Y-m-d');$stmt->execute([$organizationId,$monthStart,$monthEnd]);$movement=$stmt->fetch()?:[];$cashInCents=(int)($movement['cash_in_cents']??0);$cashOutCents=(int)($movement['cash_out_cents']??0);

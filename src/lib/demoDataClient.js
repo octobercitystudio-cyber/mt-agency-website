@@ -9,7 +9,7 @@ import { FIXED_SERVICE_CATEGORIES, RETIRED_SERVICE_CATEGORIES, isFixedServiceCat
 import { isValidClientPassword } from './clientPasswordPolicy.js';
 import { isSellablePackageTemplate, normalizedPackageUnit, validatePackageDraft } from './clientPackageDraft.js';
 import { appointmentStartIsPast, cairoAppointmentNowKey } from './packageSaleAppointments.js';
-import { buildDashboardKpis } from './dashboardKpis.js';
+import { buildDashboardKpis, calculateDashboardReceivableDetails } from './dashboardKpis.js';
 import { parseStrictMoney, strictMoneyError } from './strictMoney.js';
 import { calculateAttendanceLateCharge } from './attendancePayrollPolicy.js';
 import { nextClientColor, normalizeClientColor } from './clientColors.js';
@@ -1384,6 +1384,11 @@ const demoRequest = async (path, options = {}) => {
 
   if (route === '/dashboard/kpis' && (options.method || 'GET') === 'GET') {
     return buildDashboardKpis(database, demoRole, cairoDateKey());
+  }
+
+  if (route === '/dashboard/receivables' && (options.method || 'GET') === 'GET') {
+    if (!['owner', 'admin', 'finance'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض تفاصيل المستحقات.', 'forbidden');
+    return calculateDashboardReceivableDetails({ packages: database.client_packages, clients: database.clients });
   }
 
   if (route === '/attendance/employee-accounts' && (options.method || 'GET') === 'GET') {

@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   buildDashboardKpis,
   calculateDashboardPackageCounts,
+  calculateDashboardReceivableDetails,
   calculateDashboardReceivables,
   calculateDashboardServiceCounts,
 } from '../src/lib/dashboardKpis.js';
@@ -41,6 +42,27 @@ test('package receivables include expired, completed and suspended sales and do 
   ] });
   assert.equal(summary.amount, '120.50');
   assert.equal(calculateDashboardReceivables({ invoices: [{ total: '999' }], clients: [{ debt: '999' }] }).amount, '0.00');
+});
+
+test('receivables detail reconciles exactly to visible package rows and sorts the largest balance first', () => {
+  const detail = calculateDashboardReceivableDetails({
+    clients: [{ id: 1, name: 'عميل أول' }, { id: 2, name: 'عميل ثان' }],
+    packages: [
+      { id: 3, client_id: 1, name: 'باقة صغيرة', status: 'suspended', total_price: '10.25', overage_amount: '-8.00', paid_amount: '0.25' },
+      { id: 11, client_id: 2, name: 'باقة كبيرة', status: 'active', total_price: '100.05', overage_amount: '1.10', paid_amount: '40.00' },
+      { id: 2, client_id: 1, name: 'باقة منتهية', status: 'expired', total_price: '30.00', overage_amount: '0.00', paid_amount: '5.00' },
+      { id: 4, client_id: 1, name: 'مسددة', status: 'completed', total_price: '20.00', paid_amount: '20.00' },
+      { id: 5, client_id: 1, name: 'ملغاة', status: 'cancelled', total_price: '900.00', paid_amount: '0.00' },
+    ],
+  });
+  assert.equal(detail.amount, '96.15');
+  assert.equal(detail.item_count, 3);
+  assert.deepEqual(detail.items.map(item => item.package_id), [11, 2, 3]);
+  assert.deepEqual(detail.items.map(item => item.client_name), ['عميل ثان', 'عميل أول', 'عميل أول']);
+  assert.deepEqual(detail.reconciliation, {
+    total_price: '140.30', overage_amount: '1.10', paid_amount: '45.25', outstanding_amount: '96.15',
+  });
+  assert.equal(detail.items.reduce((sum, item) => sum + Number(item.outstanding_amount), 0).toFixed(2), detail.amount);
 });
 
 test('dashboard labels explain package receivables and preserve the monthly profit calculation', async () => {
@@ -113,11 +135,48 @@ test('production and demo expose one dashboard KPI contract with partial failure
   assert.match(await load('src/lib/dashboardKpis.js'), /partial_errors: \[\]/);
 });
 
+test('receivables breakdown is read-only, organization scoped, role redacted and shared with demo', async () => {
+  const [api, demo] = await Promise.all([load('api/index.php'), load('src/lib/demoDataClient.js')]);
+  const start = api.indexOf("$path === '/dashboard/receivables'");
+  const end = api.indexOf("$path === '/dashboard/kpis'", start);
+  const endpoint = api.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.match(endpoint, /\$method === 'GET'/);
+  assert.match(endpoint, /requireRole\(\$user,\['owner','admin','finance'\]\)/);
+  assert.match(endpoint, /LEFT JOIN clients c ON c\.id=cp\.client_id AND c\.organization_id=cp\.organization_id/);
+  assert.match(endpoint, /COALESCE\(NULLIF\(TRIM\(c\.name\),''\),CONCAT\('عميل #',cp\.client_id\)\) AS client_name/);
+  assert.match(endpoint, /WHERE cp\.organization_id=\?/);
+  assert.match(endpoint, /status NOT IN \('archived','cancelled','draft'\)/);
+  assert.match(endpoint, /packageMoneyCents/);
+  assert.doesNotMatch(endpoint, /invoices|client.*debt/i);
+  assert.match(demo, /route === '\/dashboard\/receivables'/);
+  assert.match(demo, /\['owner', 'admin', 'finance'\]\.includes\(demoRole\)/);
+  assert.match(demo, /calculateDashboardReceivableDetails\(\{ packages: database\.client_packages, clients: database\.clients \}\)/);
+});
+
+test('receivables card opens an accessible responsive audit dialog with all required states', async () => {
+  const [dashboard, css] = await Promise.all([load('src/erp/ERPDashboard.jsx'), load('src/erp/ERPDashboard.css')]);
+  assert.match(dashboard, /dataClient\.request\('\/dashboard\/receivables'\)/);
+  assert.match(dashboard, /useModalDialog\(open, onClose, \{ returnFocusRef, isolateBackground: true \}\)/);
+  assert.match(dashboard, /role="dialog" aria-modal="true" aria-labelledby="receivables-title"/);
+  assert.match(dashboard, /عرض التفاصيل/);
+  assert.match(dashboard, /قيمة الباقات/);
+  assert.match(dashboard, /Number\(view\.data\.item_count\) === 1 \? 'باقة' : 'باقات'/);
+  assert.match(dashboard, /لا تُضاف الفواتير أو أرصدة العملاء القديمة/);
+  assert.match(dashboard, /view\.loading/);
+  assert.match(dashboard, /view\.error/);
+  assert.match(dashboard, /!view\.data\?\.items\?\.length/);
+  assert.match(dashboard, /to="\/erp\/packages"/);
+  assert.match(css, /\.receivables-backdrop\{/);
+  assert.match(css, /@media\(max-width:760px\)[\s\S]*?\.receivables-row\{[^}]*grid-template-columns:1fr 1fr/);
+});
+
 test('owner dashboard renders four responsive KPI cells and never turns unavailable values into zero', async () => {
   const [dashboard, css] = await Promise.all([load('src/erp/ERPDashboard.jsx'), load('src/erp/ERPDashboard.css')]);
   assert.match(dashboard, /dataClient\.request\('\/dashboard\/kpis'\)/);
   const strip = dashboard.slice(dashboard.indexOf('<section className="ops-health"'), dashboard.indexOf('</section>', dashboard.indexOf('<section className="ops-health"')));
-  assert.equal((strip.match(/<div>/g) || []).length, 4);
+  assert.equal((strip.match(/className="ops-health__cell/g) || []).length, 5);
+  assert.match(strip, /ops-health__cell--interactive/);
   assert.match(strip, /!state\.health\.receivablesAvailable \? '—'/);
   assert.match(strip, /!state\.health\.packagesAvailable \? '—'/);
   assert.match(strip, /الخدمات النشطة/);
