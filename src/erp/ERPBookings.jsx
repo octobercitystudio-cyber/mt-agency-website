@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { dataClient } from '../dataClient';
-import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send, CalendarClock, LockKeyhole } from 'lucide-react';
+import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send, CalendarClock, LockKeyhole, MoveHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar as arDateLocale } from 'date-fns/locale';
 import arCalendarLocale from '@fullcalendar/core/locales/ar';
@@ -60,8 +60,10 @@ const applyCalendarEventColors = info => {
   info.el.querySelector('.fc-event-main')?.style.setProperty('color', foreground, 'important');
   const clientName = info.event.extendedProps.client_name || info.event.title;
   const startTime = formatTime12(info.event.extendedProps.start_time, '');
-  info.el.setAttribute('aria-label', `حجز ${clientName}، الساعة ${startTime}`);
-  info.el.setAttribute('title', `${clientName} — ${startTime}`);
+  const endTime = formatTime12(info.event.extendedProps.end_time, '');
+  const timeRange = `من ${startTime} إلى ${endTime}`;
+  info.el.setAttribute('aria-label', `حجز ${clientName}، ${timeRange}`);
+  info.el.setAttribute('title', `${clientName} — ${timeRange}`);
 };
 
 const calendarDateTime = (date, time, endOfDay = false) => {
@@ -240,6 +242,7 @@ const ERPBookings = () => {
       service: b.service,
       client_name: b.client_name,
       start_time: b.start_time,
+      end_time: b.end_time,
       original_end_time: normalizeTime(b.end_time || '13:00', { endOfDay: true }),
       reschedule_eligible: isAdmin && b.status === 'confirmed',
       client_color: clientColor,
@@ -661,6 +664,9 @@ const ERPBookings = () => {
         .bookings-calendar-legend { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; color: var(--erp-text-muted); font-size: .78rem; font-weight: 800; }
         .bookings-calendar-legend span { display: inline-flex; align-items: center; gap: 5px; }
         .bookings-calendar-legend i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .booking-calendar-scroll-hint { display: none; }
+        .erp-bookings-calendar { max-width: 100%; overflow-x: auto; overflow-y: visible; scrollbar-color: var(--erp-primary) var(--erp-bg); scrollbar-gutter: stable; }
+        .erp-bookings-calendar:focus-visible { outline: 3px solid rgba(67, 24, 255, .24); outline-offset: 3px; }
         .erp-bookings-calendar .fc-daygrid-day-frame { min-height: 118px; }
         .erp-bookings-calendar .fc-daygrid-day-events { position: relative; z-index: 1; margin: 0 3px 4px; }
         .fc-event { border: 1px solid var(--fc-event-border-color, currentColor) !important; border-radius: 6px !important; padding: 4px 6px; margin-bottom: 4px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -669,13 +675,15 @@ const ERPBookings = () => {
         .fc-daygrid-event .fc-event-main, .fc-timegrid-event .fc-event-main { color: inherit !important; }
         .fc-event:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); filter: brightness(1.1); }
         .fc-event .fc-event-main { color: var(--fc-event-text-color) !important; }
-        .booking-calendar-ticket { display: grid; gap: 3px; min-width: 0; width: 100%; overflow: hidden; line-height: 1.25; }
-        .booking-calendar-ticket__client { min-width: 0; overflow: hidden; color: inherit; font-size: .72rem; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
-        .booking-calendar-ticket__meta { display: flex; align-items: center; justify-content: space-between; gap: 5px; min-width: 0; font-size: .58rem; font-weight: 800; }
-        .booking-calendar-ticket__time, .booking-calendar-ticket__status { display: inline-flex; align-items: center; min-width: 0; white-space: nowrap; }
-        .booking-calendar-ticket__time { gap: 3px; direction: rtl; font-variant-numeric: tabular-nums; }
+        .erp-bookings-calendar .is-calendar-booking, .erp-bookings-calendar .is-calendar-booking .fc-event-main, .erp-bookings-calendar .is-calendar-booking .fc-event-main-frame { white-space: normal; }
+        .booking-calendar-ticket { display: grid; gap: 3px; min-width: 0; width: 100%; max-width: 100%; overflow: hidden; line-height: 1.3; }
+        .booking-calendar-ticket__client { min-width: 0; color: inherit; font-size: .74rem; font-weight: 900; line-height: 1.4; overflow-wrap: break-word; word-break: normal; white-space: normal; }
+        .booking-calendar-ticket__time, .booking-calendar-ticket__status { display: flex; align-items: flex-start; min-width: 0; font-weight: 800; line-height: 1.4; white-space: normal; }
+        .booking-calendar-ticket__time { flex-wrap: wrap; column-gap: 6px; row-gap: 2px; direction: rtl; font-size: .61rem; font-variant-numeric: tabular-nums; white-space: normal; }
+        .booking-calendar-ticket__time-segment { display: inline-flex; align-items: baseline; gap: 3px; min-width: 0; white-space: nowrap; }
+        .booking-calendar-ticket__time-value { direction: rtl; unicode-bidi: isolate; white-space: nowrap; }
         .booking-calendar-ticket__time svg { width: 11px; height: 11px; flex: none; }
-        .booking-calendar-ticket__status { gap: 3px; overflow: hidden; text-overflow: ellipsis; }
+        .booking-calendar-ticket__status { align-items: center; gap: 3px; font-size: .56rem; }
         .booking-calendar-ticket__status i { width: 6px; height: 6px; flex: none; border-radius: 50%; }
         .erp-bookings-calendar .fc-more-link { color: var(--erp-primary); font-size: .66rem; font-weight: 900; text-decoration: none; }
 
@@ -757,15 +765,18 @@ const ERPBookings = () => {
           .pending-request-actions button { flex: 1; justify-content: center; }
           .erp-bookings-calendar-card { padding: 10px 5px !important; }
           .bookings-calendar-legend { justify-content: center; gap: 6px 10px; padding-inline: 5px; font-size: .67rem; }
+          .booking-calendar-scroll-hint { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0 5px 8px; padding: 7px 9px; color: var(--erp-primary); background: var(--erp-primary-soft); border: 1px solid rgba(67, 24, 255, .15); border-radius: 8px; font-size: .68rem; font-weight: 800; }
+          .booking-calendar-scroll-hint svg { width: 15px; height: 15px; flex: none; }
+          .erp-bookings-calendar { padding-bottom: 8px; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; }
+          .erp-bookings-calendar .fc { min-width: 760px; }
           .erp-bookings-calendar .fc-daygrid-day-frame { min-height: 98px; }
           .erp-bookings-calendar .fc-daygrid-day-events { margin-inline: 1px; }
           .erp-bookings-calendar .fc-event { min-width: 0 !important; min-height: 38px !important; padding: 4px 3px !important; margin-bottom: 3px; }
           .booking-calendar-ticket { gap: 2px; }
-          .booking-calendar-ticket__client { font-size: .6rem; }
-          .booking-calendar-ticket__meta { font-size: .5rem; }
-          .booking-calendar-ticket__time { gap: 2px; }
+          .booking-calendar-ticket__client { font-size: .6rem; line-height: 1.3; }
+          .booking-calendar-ticket__time { column-gap: 5px; row-gap: 1px; font-size: .52rem; line-height: 1.35; }
           .booking-calendar-ticket__time svg { width: 9px; height: 9px; }
-          .booking-calendar-ticket__status { display: none; }
+          .booking-calendar-ticket__status { font-size: .5rem; line-height: 1.3; }
           .erp-daily-bookings-head { padding: 15px 12px 0; }
           .erp-daily-bookings-list { padding: 12px; }
           .booking-block-calendar-event { gap: 2px; }
@@ -815,7 +826,8 @@ const ERPBookings = () => {
               <span style={{ color: 'var(--erp-text-muted)' }}><i aria-hidden="true" />يوم الجمعة (إجازة)</span>
             </div>
 
-            <div className="erp-bookings-calendar">
+            <p className="booking-calendar-scroll-hint"><MoveHorizontal aria-hidden="true" />مرّر يمينًا ويسارًا لرؤية باقي الأيام</p>
+            <div className="erp-bookings-calendar" role="region" aria-label="تقويم الحجوزات الشهري، يمكن تمريره أفقيًا على الشاشات الصغيرة" tabIndex={0}>
               <FullCalendar
               key={`bookings-calendar-${clientColorsHydrated ? clientColorSignature : 'loading-colors'}`}
               plugins={[ dayGridPlugin, interactionPlugin, timeGridPlugin ]}
@@ -849,10 +861,8 @@ const ERPBookings = () => {
               eventContent={(arg) => arg.event.extendedProps.kind === 'booking_block' ? <div className="booking-block-calendar-event"><LockKeyhole/><span><strong><b className="booking-block-label-full">الحجز مغلق</b><b className="booking-block-label-compact">مغلق</b></strong><small>{arg.timeText}</small></span></div> : (
                 <div className="booking-calendar-ticket" style={{ color: arg.event.extendedProps.text_color }}>
                   <strong className="booking-calendar-ticket__client">{arg.event.extendedProps.client_name}</strong>
-                  <span className="booking-calendar-ticket__meta">
-                    <span className="booking-calendar-ticket__time"><Clock aria-hidden="true" />{formatTime12(arg.event.extendedProps.start_time, '')}</span>
-                    <span className="booking-calendar-ticket__status"><i aria-hidden="true" style={{ background: getStatusMeta(arg.event.extendedProps.status).color, border: `1px solid ${arg.event.extendedProps.text_color}` }} />{getStatusMeta(arg.event.extendedProps.status).label}</span>
-                  </span>
+                  <span className="booking-calendar-ticket__time"><Clock aria-hidden="true" /><span className="booking-calendar-ticket__time-segment">من <bdi className="booking-calendar-ticket__time-value">{formatTime12(arg.event.extendedProps.start_time, '')}</bdi></span><span className="booking-calendar-ticket__time-segment">إلى <bdi className="booking-calendar-ticket__time-value">{formatTime12(arg.event.extendedProps.end_time, '')}</bdi></span></span>
+                  <span className="booking-calendar-ticket__status"><i aria-hidden="true" style={{ background: getStatusMeta(arg.event.extendedProps.status).color, border: `1px solid ${arg.event.extendedProps.text_color}` }} />{getStatusMeta(arg.event.extendedProps.status).label}</span>
                 </div>
               )}
               dayMaxEvents={4}
