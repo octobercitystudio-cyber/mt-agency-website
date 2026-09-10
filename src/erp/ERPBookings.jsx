@@ -58,6 +58,10 @@ const applyCalendarEventColors = info => {
   info.el.style.setProperty('border-color', background, 'important');
   info.el.style.setProperty('color', foreground, 'important');
   info.el.querySelector('.fc-event-main')?.style.setProperty('color', foreground, 'important');
+  const clientName = info.event.extendedProps.client_name || info.event.title;
+  const startTime = formatTime12(info.event.extendedProps.start_time, '');
+  info.el.setAttribute('aria-label', `حجز ${clientName}، الساعة ${startTime}`);
+  info.el.setAttribute('title', `${clientName} — ${startTime}`);
 };
 
 const calendarDateTime = (date, time, endOfDay = false) => {
@@ -234,6 +238,8 @@ const ERPBookings = () => {
       time: `${formatTime12(b.start_time)} - ${formatTime12(b.end_time)}`,
       status: b.status || 'مؤكد',
       service: b.service,
+      client_name: b.client_name,
+      start_time: b.start_time,
       original_end_time: normalizeTime(b.end_time || '13:00', { endOfDay: true }),
       reschedule_eligible: isAdmin && b.status === 'confirmed',
       client_color: clientColor,
@@ -648,12 +654,52 @@ const ERPBookings = () => {
         td.fc-day-fri:hover { background-color: rgba(0,0,0,0.06) !important; }
         td.fc-day-fri .fc-daygrid-day-frame::before { content: "إجازة رسمية"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 1.4rem; font-weight: 900; color: rgba(0,0,0, 0.05); pointer-events: none; z-index: 0; white-space: nowrap; }
 
-        .fc-daygrid-day-events { position: relative; z-index: 1; }
+        .erp-bookings-layout { flex-wrap: nowrap; align-items: stretch; gap: 18px; }
+        .erp-bookings-layout .erp-calendar-container { flex: 1 1 auto; min-width: 0; }
+        .erp-bookings-layout .erp-daily-bookings-container { flex: 0 0 clamp(260px, 21vw, 292px); min-width: 260px; max-width: 292px; }
+        .erp-bookings-calendar-card { padding: 20px; }
+        .bookings-calendar-legend { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; color: var(--erp-text-muted); font-size: .78rem; font-weight: 800; }
+        .bookings-calendar-legend span { display: inline-flex; align-items: center; gap: 5px; }
+        .bookings-calendar-legend i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .erp-bookings-calendar .fc-daygrid-day-frame { min-height: 118px; }
+        .erp-bookings-calendar .fc-daygrid-day-events { position: relative; z-index: 1; margin: 0 3px 4px; }
         .fc-event { border: 1px solid var(--fc-event-border-color, currentColor) !important; border-radius: 6px !important; padding: 4px 6px; margin-bottom: 4px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .erp-bookings-calendar .fc-event { border-radius: 7px !important; padding: 5px 7px; }
         .fc-daygrid-event, .fc-timegrid-event { opacity: 1 !important; filter: none; background-color: var(--fc-event-bg-color) !important; border-color: var(--fc-event-border-color) !important; }
         .fc-daygrid-event .fc-event-main, .fc-timegrid-event .fc-event-main { color: inherit !important; }
         .fc-event:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); filter: brightness(1.1); }
         .fc-event .fc-event-main { color: var(--fc-event-text-color) !important; }
+        .booking-calendar-ticket { display: grid; gap: 3px; min-width: 0; width: 100%; overflow: hidden; line-height: 1.25; }
+        .booking-calendar-ticket__client { min-width: 0; overflow: hidden; color: inherit; font-size: .72rem; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+        .booking-calendar-ticket__meta { display: flex; align-items: center; justify-content: space-between; gap: 5px; min-width: 0; font-size: .58rem; font-weight: 800; }
+        .booking-calendar-ticket__time, .booking-calendar-ticket__status { display: inline-flex; align-items: center; min-width: 0; white-space: nowrap; }
+        .booking-calendar-ticket__time { gap: 3px; direction: rtl; font-variant-numeric: tabular-nums; }
+        .booking-calendar-ticket__time svg { width: 11px; height: 11px; flex: none; }
+        .booking-calendar-ticket__status { gap: 3px; overflow: hidden; text-overflow: ellipsis; }
+        .booking-calendar-ticket__status i { width: 6px; height: 6px; flex: none; border-radius: 50%; }
+        .erp-bookings-calendar .fc-more-link { color: var(--erp-primary); font-size: .66rem; font-weight: 900; text-decoration: none; }
+
+        .erp-daily-bookings-card { height: 100%; display: flex; flex-direction: column; background: var(--erp-surface); border-top: 4px solid #1e293b; border-radius: 16px; box-shadow: var(--erp-shadow); }
+        .erp-daily-bookings-head { padding: 17px 16px 0; text-align: center; }
+        .erp-selected-day-label { display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; padding: 8px 10px; margin-bottom: 11px; color: var(--erp-primary); background: rgba(67, 24, 255, .08); border: 1px solid rgba(67, 24, 255, .12); border-radius: 9px; font-size: .72rem; line-height: 1.55; }
+        .erp-selected-day-label span { font-weight: 900; font-variant-numeric: tabular-nums; }
+        .erp-daily-bookings-head h5 { margin: 0; color: var(--erp-text-main); font-size: .92rem; font-weight: 900; }
+        .erp-daily-bookings-head hr { margin: 14px 0 0; opacity: .1; }
+        .erp-daily-bookings-list { flex-grow: 1; max-height: 720px; overflow-y: auto; padding: 14px; }
+        .erp-daily-bookings-list-content { display: flex; flex-direction: column; gap: 11px; }
+        .erp-daily-bookings-list .timeline-card { padding: 12px !important; }
+        .erp-daily-bookings-list .timeline-card > div:first-child { flex-wrap: wrap; gap: 8px; }
+        .erp-daily-bookings-list .timeline-time, .erp-daily-bookings-list .timeline-client { font-size: .92rem; }
+        .erp-daily-bookings-list .booking-time-fact { padding-inline: 6px; }
+        .erp-daily-bookings-list .booking-time-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .erp-daily-bookings-list .booking-duration-fact { grid-column: 1 / -1; padding-top: 7px; margin-top: 7px; border-inline-start: 0; border-top: 1px solid var(--erp-border); }
+
+        @media (max-width: 1180px) {
+          .erp-bookings-layout { flex-wrap: wrap; }
+          .erp-bookings-layout .erp-calendar-container, .erp-bookings-layout .erp-daily-bookings-container { flex: 1 1 100%; width: 100%; min-width: 0; max-width: none; }
+          .erp-bookings-layout .erp-daily-bookings-container { min-width: 0; }
+          .erp-daily-bookings-list { max-height: 520px; }
+        }
 
         .fc-toolbar-title { font-weight: 800 !important; color: var(--erp-text-main) !important; font-size: 1.5rem !important; }
         .fc .fc-button-primary { background-color: var(--erp-surface); border: 1px solid var(--erp-border); color: var(--erp-text-muted); font-weight: 700; border-radius: 8px; text-transform: capitalize; transition: 0.2s; }
@@ -705,7 +751,30 @@ const ERPBookings = () => {
         .booking-block-timeline small { color: #8d2f3d; font-size: .72rem; font-weight: 800; }
         .booking-block-timeline em { color: #64748b; font-size: .65rem; font-style: normal; }
         #bookingDetailsModal { display: none !important; }
-        @media (max-width: 600px) { .pending-requests-panel { padding: 15px; } .pending-requests-list { grid-template-columns: 1fr; } .pending-request-actions button { flex: 1; justify-content: center; } .booking-block-calendar-event { gap: 2px; } .booking-block-calendar-event > svg { width: 10px; } .booking-block-calendar-event strong { font-size: .6rem; } .booking-block-calendar-event small { font-size: .5rem; } .booking-block-label-full { display: none; } .booking-block-label-compact { display: inline; } }
+        @media (max-width: 600px) {
+          .pending-requests-panel { padding: 15px; }
+          .pending-requests-list { grid-template-columns: 1fr; }
+          .pending-request-actions button { flex: 1; justify-content: center; }
+          .erp-bookings-calendar-card { padding: 10px 5px !important; }
+          .bookings-calendar-legend { justify-content: center; gap: 6px 10px; padding-inline: 5px; font-size: .67rem; }
+          .erp-bookings-calendar .fc-daygrid-day-frame { min-height: 98px; }
+          .erp-bookings-calendar .fc-daygrid-day-events { margin-inline: 1px; }
+          .erp-bookings-calendar .fc-event { min-width: 0 !important; min-height: 38px !important; padding: 4px 3px !important; margin-bottom: 3px; }
+          .booking-calendar-ticket { gap: 2px; }
+          .booking-calendar-ticket__client { font-size: .6rem; }
+          .booking-calendar-ticket__meta { font-size: .5rem; }
+          .booking-calendar-ticket__time { gap: 2px; }
+          .booking-calendar-ticket__time svg { width: 9px; height: 9px; }
+          .booking-calendar-ticket__status { display: none; }
+          .erp-daily-bookings-head { padding: 15px 12px 0; }
+          .erp-daily-bookings-list { padding: 12px; }
+          .booking-block-calendar-event { gap: 2px; }
+          .booking-block-calendar-event > svg { width: 10px; }
+          .booking-block-calendar-event strong { font-size: .6rem; }
+          .booking-block-calendar-event small { font-size: .5rem; }
+          .booking-block-label-full { display: none; }
+          .booking-block-label-compact { display: inline; }
+        }
       `}</style>
 
       {/* Header */}
@@ -739,14 +808,15 @@ const ERPBookings = () => {
         
         {/* FullCalendar Box */}
         <div className="erp-calendar-container">
-          <div className="erp-calendar-inner" style={{ background: 'var(--erp-surface)', borderRadius: '20px', padding: '25px', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid var(--erp-primary)', minHeight: '600px' }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', marginBottom: '10px', fontSize: '0.85rem', fontWeight: 'bold' }}>
-              <span style={{ color: 'var(--erp-primary)' }}>● مجدول</span>
-              <span style={{ color: 'var(--erp-success)' }}>● منتهي</span>
-              <span style={{ color: 'var(--erp-text-muted)' }}>● يوم الجمعة (إجازة)</span>
+          <div className="erp-calendar-inner erp-bookings-calendar-card" style={{ minHeight: '600px' }}>
+            <div className="bookings-calendar-legend" aria-label="دليل ألوان التقويم">
+              <span style={{ color: 'var(--erp-primary)' }}><i aria-hidden="true" />مجدول</span>
+              <span style={{ color: 'var(--erp-success)' }}><i aria-hidden="true" />منتهي</span>
+              <span style={{ color: 'var(--erp-text-muted)' }}><i aria-hidden="true" />يوم الجمعة (إجازة)</span>
             </div>
-            
-            <FullCalendar
+
+            <div className="erp-bookings-calendar">
+              <FullCalendar
               key={`bookings-calendar-${clientColorsHydrated ? clientColorSignature : 'loading-colors'}`}
               plugins={[ dayGridPlugin, interactionPlugin, timeGridPlugin ]}
               initialView="dayGridMonth"
@@ -769,7 +839,7 @@ const ERPBookings = () => {
               eventDrop={handleCalendarRescheduleProposal}
               eventResize={handleCalendarRescheduleProposal}
               eventAllow={(dropInfo, draggedEvent) => Boolean(draggedEvent.extendedProps.reschedule_eligible) && dropInfo.start.getDay() !== 5}
-              eventClassNames={arg => arg.event.extendedProps.kind === 'booking_block' ? ['is-booking-block'] : arg.event.extendedProps.reschedule_eligible ? ['is-reschedule-eligible'] : []}
+              eventClassNames={arg => arg.event.extendedProps.kind === 'booking_block' ? ['is-booking-block'] : ['is-calendar-booking', ...(arg.event.extendedProps.reschedule_eligible ? ['is-reschedule-eligible'] : [])]}
               slotMinTime="12:00:00"
               slotMaxTime="24:00:00"
               allDaySlot={false}
@@ -777,11 +847,16 @@ const ERPBookings = () => {
               eventTimeFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
               slotLabelFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
               eventContent={(arg) => arg.event.extendedProps.kind === 'booking_block' ? <div className="booking-block-calendar-event"><LockKeyhole/><span><strong><b className="booking-block-label-full">الحجز مغلق</b><b className="booking-block-label-compact">مغلق</b></strong><small>{arg.timeText}</small></span></div> : (
-                <div style={{ overflow: 'hidden', lineHeight: 1.35, color: arg.event.extendedProps.text_color }}>
-                  <div style={{ fontSize: '.72rem', fontWeight: 900, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{arg.event.title}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '.59rem', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><i aria-hidden="true" style={{ width: '7px', height: '7px', flex: '0 0 auto', borderRadius: '50%', background: getStatusMeta(arg.event.extendedProps.status).color, border: `1px solid ${arg.event.extendedProps.text_color}` }} />{getStatusMeta(arg.event.extendedProps.status).label}</div>
+                <div className="booking-calendar-ticket" style={{ color: arg.event.extendedProps.text_color }}>
+                  <strong className="booking-calendar-ticket__client">{arg.event.extendedProps.client_name}</strong>
+                  <span className="booking-calendar-ticket__meta">
+                    <span className="booking-calendar-ticket__time"><Clock aria-hidden="true" />{formatTime12(arg.event.extendedProps.start_time, '')}</span>
+                    <span className="booking-calendar-ticket__status"><i aria-hidden="true" style={{ background: getStatusMeta(arg.event.extendedProps.status).color, border: `1px solid ${arg.event.extendedProps.text_color}` }} />{getStatusMeta(arg.event.extendedProps.status).label}</span>
+                  </span>
                 </div>
               )}
+              dayMaxEvents={4}
+              moreLinkText={num => `+${num} أخرى`}
               height="auto"
               headerToolbar={{
                 right: 'dayGridMonth,timeGridWeek',
@@ -794,23 +869,24 @@ const ERPBookings = () => {
                 if (format(arg.date, 'yyyy-MM-dd') === selectedDate) classes.push('selected-day-highlight');
                 return classes;
               }}
-            />
+              />
+            </div>
           </div>
         </div>
 
         {/* Daily Bookings Sidebar */}
         <div className="erp-daily-bookings-container">
-          <div style={{ background: 'var(--erp-surface)', borderRadius: '20px', display: 'flex', flexDirection: 'column', boxShadow: 'var(--erp-shadow)', borderTop: '4px solid #1e293b', height: '100%' }}>
+          <div className="erp-daily-bookings-card">
             
-            <div style={{ padding: '25px 25px 0 25px', textAlign: 'center' }}>
-              <div style={{ background: 'rgba(67, 24, 255, 0.1)', color: 'var(--erp-primary)', display: 'inline-block', borderRadius: '50px', padding: '8px 25px', marginBottom: '15px', boxShadow: '0 2px 5px rgba(67,24,255,0.05)' }}>
-                <i className="fas fa-calendar-day me-1"></i> جدول يوم: <span style={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{format(new Date(selectedDate), 'EEEE, d MMMM yyyy', { locale: arDateLocale })}</span>
+            <div className="erp-daily-bookings-head">
+              <div className="erp-selected-day-label">
+                <CalendarIcon size={14} aria-hidden="true" /> جدول يوم: <span>{format(new Date(selectedDate), 'EEEE، d MMMM yyyy', { locale: arDateLocale })}</span>
               </div>
-              <h5 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', margin: 0 }}>قائمة جلسات التصوير</h5>
-              <hr style={{ opacity: 0.1, marginTop: '20px', marginBottom: 0 }} />
+              <h5>قائمة جلسات التصوير</h5>
+              <hr />
             </div>
 
-            <div style={{ padding: '25px', overflowY: 'auto', flexGrow: 1, maxHeight: '600px' }}>
+            <div className="erp-daily-bookings-list">
               {dailyBookings.length === 0 && dailyBlocks.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0' }}>
                   <div style={{ background: 'var(--erp-bg)', borderRadius: '50%', display: 'inline-flex', justifyContent: 'center', alignItems: 'center', width: '80px', height: '80px', marginBottom: '15px' }}>
@@ -820,7 +896,7 @@ const ERPBookings = () => {
                   <p style={{ color: 'var(--erp-text-muted)', fontSize: '0.85rem' }}>لا توجد جلسات تصوير مجدولة.</p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div className="erp-daily-bookings-list-content">
                   {dailyBlocks.map(block => <button type="button" key={`block-${block.id}`} className="timeline-card booking-block-timeline" onClick={event => { blockDetailsTriggerRef.current = event.currentTarget; setBlockError(''); setSelectedBlock(block); }}>
                     <span className="booking-block-timeline-icon"><LockKeyhole/></span><span><strong>الحجز مغلق</strong><small>{formatTime12(block.start_time)} — {formatTime12(block.end_time)}</small><em>{block.resource_name || 'مورد الحجز'}</em></span>
                   </button>)}
