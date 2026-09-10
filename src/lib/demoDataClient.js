@@ -1242,6 +1242,72 @@ const employeeFinanceDemoSnapshot = (database, month) => {
   return { month: selectedMonth, accounts, unlinked_legacy_count: unlinkedLegacy };
 };
 
+const demoProjectCascadeScope = (database, project) => {
+  const projectId = Number(project.id);
+  const invoiceRows = tableRows(database, 'invoices').filter(row => Number(row.project_id) === projectId || Number(row.id) === Number(project.invoice_id));
+  const invoiceIds = [...new Set(invoiceRows.map(row => Number(row.id)))];
+  if (tableRows(database, 'projects').some(row => Number(row.id) !== projectId && invoiceIds.includes(Number(row.invoice_id)))) throw formationDemoError('لا يمكن حذف هذه الباقة لأن فاتورتها مشتركة مع مشروع آخر. افصل الفاتورة أولًا.', 'shared_project_invoice');
+  if (tableRows(database, 'client_packages').some(row => invoiceIds.includes(Number(row.source_invoice_id)))) throw formationDemoError('لا يمكن حذف هذه الباقة لأن الفاتورة نفسها مرتبطة بباقة تصوير مباعة.', 'shared_package_invoice');
+  const allocations = tableRows(database, 'payment_allocations').filter(row => invoiceIds.includes(Number(row.invoice_id)));
+  if (allocations.some(row => row.client_package_id)) throw formationDemoError('لا يمكن حذف السجل لأن إحدى دفعات الفاتورة موزعة أيضًا على باقة تصوير.', 'shared_project_allocation');
+  let paymentIds = [...new Set(allocations.map(row => Number(row.payment_id)).filter(Boolean))];
+  let proofRows = tableRows(database, 'payment_proofs').filter(row => invoiceIds.includes(Number(row.invoice_id)) || paymentIds.includes(Number(row.payment_id)));
+  paymentIds = [...new Set([...paymentIds, ...proofRows.map(row => Number(row.payment_id)).filter(Boolean)])];
+  proofRows = tableRows(database, 'payment_proofs').filter(row => invoiceIds.includes(Number(row.invoice_id)) || paymentIds.includes(Number(row.payment_id)));
+  if (tableRows(database, 'payment_allocations').some(row => paymentIds.includes(Number(row.payment_id)) && !invoiceIds.includes(Number(row.invoice_id)))) throw formationDemoError('لا يمكن حذف السجل لأن إحدى دفعاته موزعة على فاتورة أو باقة أخرى.', 'shared_project_payment');
+  if (proofRows.some(row => row.client_package_id || (row.invoice_id && !invoiceIds.includes(Number(row.invoice_id))))) throw formationDemoError('لا يمكن حذف إثبات دفع مرتبط أيضًا بباقة أو فاتورة أخرى.', 'shared_project_payment_proof');
+  const proofIds = [...new Set([
+    ...allocations.map(row => Number(row.payment_proof_id)).filter(Boolean),
+    ...proofRows.map(row => Number(row.id)),
+  ])];
+  if (tableRows(database, 'payment_allocations').some(row => proofIds.includes(Number(row.payment_proof_id)) && !invoiceIds.includes(Number(row.invoice_id)))) throw formationDemoError('لا يمكن حذف إثبات دفع مشترك مع فاتورة أخرى.', 'shared_project_payment_proof');
+  const financeIds = tableRows(database, 'finance').filter(row =>
+    (row.source_type === 'payment' && paymentIds.includes(Number(row.source_id)))
+    || (row.source_type === 'payment_proof' && proofIds.includes(Number(row.source_id)))
+    || (['invoice', 'invoices'].includes(row.source_type) && invoiceIds.includes(Number(row.source_id)))
+    || (['project', 'projects', 'client_project'].includes(row.source_type) && Number(row.source_id) === projectId)
+  ).map(row => Number(row.id));
+  const bookingRows = tableRows(database, 'bookings').filter(row => Number(row.project_id) === projectId);
+  return { invoiceRows, invoiceIds, allocations, allocationIds: allocations.map(row => Number(row.id)), paymentIds, proofIds, financeIds, bookingRows, bookingIds: bookingRows.map(row => Number(row.id)) };
+};
+
+const demoDeleteProjectCascade = (database, project, reason) => {
+  const scope = demoProjectCascadeScope(database, project); const projectId = Number(project.id);
+  if (scope.bookingRows.some(row => row.client_package_id)) throw formationDemoError('لا يمكن حذف موعد مرتبط أيضًا بباقة تصوير مباعة.', 'shared_project_booking');
+  const filterTable = (table, predicate) => { if (Array.isArray(database[table])) database[table] = database[table].filter(row => !predicate(row)); };
+  const sessionIds = tableRows(database, 'booking_sessions').filter(row => scope.bookingIds.includes(Number(row.booking_id))).map(row => Number(row.id));
+  const settlementIds = tableRows(database, 'session_settlements').filter(row => scope.bookingIds.includes(Number(row.booking_id)) || sessionIds.includes(Number(row.booking_session_id))).map(row => Number(row.id));
+  const jobIds = tableRows(database, 'post_production_jobs').filter(row => scope.bookingIds.includes(Number(row.booking_id)) || sessionIds.includes(Number(row.booking_session_id))).map(row => Number(row.id));
+  filterTable('video_delivery_links', row => jobIds.includes(Number(row.post_production_job_id)));
+  filterTable('post_production_status_history', row => jobIds.includes(Number(row.post_production_job_id)));
+  filterTable('post_production_jobs', row => jobIds.includes(Number(row.id)));
+  filterTable('session_settlement_allocations', row => settlementIds.includes(Number(row.settlement_id)) || Number(row.project_id) === projectId || scope.invoiceIds.includes(Number(row.invoice_id)) || scope.paymentIds.includes(Number(row.payment_id)));
+  filterTable('session_settlements', row => settlementIds.includes(Number(row.id)));
+  for (const table of ['booking_slots', 'booking_status_history', 'reschedule_requests', 'booking_archives']) filterTable(table, row => scope.bookingIds.includes(Number(row.booking_id)));
+  filterTable('booking_sessions', row => sessionIds.includes(Number(row.id)));
+  filterTable('bookings', row => scope.bookingIds.includes(Number(row.id)));
+  filterTable('finance', row => scope.financeIds.includes(Number(row.id)));
+  filterTable('payment_allocations', row => scope.allocationIds.includes(Number(row.id)));
+  filterTable('payment_proofs', row => scope.proofIds.includes(Number(row.id)));
+  filterTable('payments', row => scope.paymentIds.includes(Number(row.id)));
+  filterTable('invoice_items', row => scope.invoiceIds.includes(Number(row.invoice_id)));
+  filterTable('invoices', row => scope.invoiceIds.includes(Number(row.id)));
+  for (const table of ['project_tasks', 'project_items', 'project_milestones', 'content_items']) filterTable(table, row => Number(row.project_id) === projectId);
+  filterTable('app_notifications', row => (['project', 'projects'].includes(row.entity_type) && Number(row.entity_id) === projectId) || (['booking', 'bookings'].includes(row.entity_type) && scope.bookingIds.includes(Number(row.entity_id))));
+  filterTable('change_events', row => (['project', 'projects'].includes(row.entity_type) && Number(row.entity_id) === projectId) || (['booking', 'bookings'].includes(row.entity_type) && scope.bookingIds.includes(Number(row.entity_id))));
+  filterTable('custom_service_requests', row => {
+    let response = row.response_json;
+    if (typeof response === 'string') {
+      try { response = JSON.parse(response); } catch { response = null; }
+    }
+    return Number(response?.id) === projectId;
+  });
+  filterTable('projects', row => Number(row.id) === projectId);
+  const offerIds = [...new Set(scope.invoiceRows.map(row => Number(row.offer_id)).filter(Boolean))];
+  tableRows(database, 'offers').filter(row => offerIds.includes(Number(row.id))).forEach(row => Object.assign(row, { status: 'cancelled', cancellation_reason: reason, cancelled_by: 1, cancelled_at: row.cancelled_at || nowText(), version: Number(row.version || 1) + 1 }));
+  return { bookings: scope.bookingIds.length, invoices: scope.invoiceIds.length, payments: scope.paymentIds.length, payment_proofs: scope.proofIds.length, payment_allocations: scope.allocationIds.length, finance: scope.financeIds.length };
+};
+
 const demoOwnerImpact = (database, entity, id) => {
   requireDemoOwner();
   if (entity === 'bookings') throw formationDemoError('استخدم مسار حذف الموعد الآمن المخصص.', 'booking_owner_action_retired');
@@ -1252,7 +1318,7 @@ const demoOwnerImpact = (database, entity, id) => {
   let links = {}; let action = 'archive'; let explanation = 'سيتم حفظ السجل وكل تاريخه مع إخفائه من العمل النشط.';
   if (entity === 'clients') { links = { bookings: count('bookings', row => Number(row.client_id) === Number(id)), packages: count('client_packages', row => Number(row.client_id) === Number(id)), projects: count('projects', row => Number(row.client_id) === Number(id)), offers: count('offers', row => Number(row.client_id) === Number(id)), invoices: count('invoices', row => Number(row.client_id) === Number(id)), payments: count('payments', row => Number(row.client_id) === Number(id)), finance: count('finance', row => Number(row.client_id) === Number(id)), requests: count('reschedule_requests', row => Number(row.client_id) === Number(id)), notifications: count('app_notifications', row => Number(row.client_id) === Number(id)) }; action = Object.values(links).reduce((a, b) => a + b, 0) ? 'archive' : 'hard_delete'; explanation = action === 'hard_delete' ? 'لا توجد معاملات مرتبطة؛ يمكن حذف الملف وحساب دخوله بأمان.' : 'للعميل معاملات مرتبطة، لذلك ستتم أرشفته وتعطيل دخوله مع بقاء كل الباقات والحجوزات والحسابات.'; }
   else if (entity === 'client_packages') { links = { bookings: count('bookings', row => Number(row.client_package_id) === Number(id)), ledger: count('package_usage_ledger', row => Number(row.client_package_id) === Number(id)), payments: count('payment_allocations', row => Number(row.client_package_id) === Number(id)), projects: count('projects', row => Number(row.client_package_id) === Number(id)) }; action = record.status === 'draft' && !Object.values(links).some(Boolean) ? 'hard_delete' : 'archive'; explanation = action === 'hard_delete' ? 'الباقة مسودة غير مستخدمة ويمكن حذفها.' : 'ستُؤرشف الباقة مع تثبيت الساعات والمدفوع والمتبقي والسجل.'; }
-  else if (entity === 'projects') { links = { invoices: count('invoices', row => Number(row.project_id) === Number(id)), bookings: count('bookings', row => Number(row.project_id) === Number(id)), completed_stages: count('project_milestones', row => Number(row.project_id) === Number(id) && row.status === 'completed'), published_content: count('content_items', row => Number(row.project_id) === Number(id) && row.status === 'published') }; action = record.status === 'planning' && !record.client_package_id && !record.invoice_id && !Object.values(links).some(Boolean) ? 'hard_delete' : 'archive'; explanation = action === 'hard_delete' ? 'المشروع تخطيط بلا روابط ويمكن حذفه.' : 'سيُؤرشف المشروع مع الحفاظ على المراحل والمهام والمحتوى والمالية.'; }
+  else if (entity === 'projects') { const scope = demoProjectCascadeScope(database, record); links = { bookings: scope.bookingIds.length, tasks: count('project_tasks', row => Number(row.project_id) === Number(id)), items: count('project_items', row => Number(row.project_id) === Number(id)), milestones: count('project_milestones', row => Number(row.project_id) === Number(id)), content: count('content_items', row => Number(row.project_id) === Number(id)), invoices: scope.invoiceIds.length, payments: scope.paymentIds.length, proofs: scope.proofIds.length, finance: scope.financeIds.length }; action = 'cascade_delete'; explanation = 'سيُحذف المشروع نهائيًا مع مواعيده ومهامه ومراحله ومحتواه، وكذلك فواتيره ودفعاته وإثباتات الدفع وقيوده المالية المرتبطة به فقط.'; }
   else if (['project_tasks', 'project_items', 'project_milestones', 'content_items'].includes(entity)) { if (entity === 'project_milestones') links = { other_stages: count('project_milestones', row => Number(row.project_id) === Number(record.project_id) && Number(row.id) !== Number(id)) }; const safe = entity === 'content_items' ? ['idea', 'draft'].includes(record.status) && !record.published_at && !record.client_approved_at : entity === 'project_tasks' ? record.status === 'todo' && !record.completed_at : entity === 'project_milestones' ? record.status === 'pending' && !record.completed_at && Number(record.progress_percent || 0) === 0 && links.other_stages >= 2 : ['draft', 'planning'].includes(record.status || 'draft'); action = safe ? 'hard_delete' : 'archive'; explanation = safe ? 'هذا العنصر مسودة غير مكتملة ويمكن حذفه.' : 'العنصر دخل دورة العمل أو يجب الاحتفاظ بحد أدنى من المراحل؛ سيُؤرشف لحماية تاريخ التنفيذ.'; }
   else if (entity === 'reminders') { action = ['financial', 'finance', 'compliance', 'tax', 'تحصيل', 'مصروف دوري'].includes(record.type) ? 'archive' : 'hard_delete'; explanation = action === 'archive' ? 'هذا تذكير مالي/رقابي؛ سيُؤرشف مع السبب.' : 'تذكير عادي ويمكن حذفه.'; }
   else if (entity === 'offers') { links = { invoices: count('invoices', row => Number(row.offer_id) === Number(id)), items: count('offer_items', row => Number(row.offer_id) === Number(id)) }; action = record.status === 'draft' && links.invoices === 0 ? 'hard_delete' : 'cancel'; explanation = action === 'hard_delete' ? 'عرض مسودة لم ينشئ فاتورة ويمكن حذفه.' : 'سيُلغى العرض مع بقاء النسخة والروابط الناتجة.'; }
@@ -1260,18 +1326,20 @@ const demoOwnerImpact = (database, entity, id) => {
   else if (entity === 'users') { links = { attendance: count('attendance_records', row => Number(row.user_id) === Number(id)), tasks: count('project_tasks', row => Number(row.assigned_to) === Number(id)), audit: count('audit_logs', row => Number(row.user_id) === Number(id)) }; action = 'deactivate'; explanation = 'سيُعطّل الحساب مع بقاء الحضور والمهام والتدقيق.'; }
   else if (entity === 'resources') { links = { bookings: count('bookings', row => Number(row.resource_id) === Number(id)) }; action = 'deactivate'; explanation = 'سيُعطّل المورد للحجوزات الجديدة مع بقاء مواعيده السابقة.'; }
   else if (entity === 'services') { links = { packages: count('client_packages', row => Number(row.service_id) === Number(id)), bookings: count('bookings', row => Number(row.service_id) === Number(id)), invoices: count('invoice_items', row => Number(row.service_id) === Number(id)), offers: count('offer_items', row => Number(row.service_id) === Number(id)), settlements: count('session_settlement_allocations', row => Number(row.service_id) === Number(id)) }; action = !Object.values(links).some(Boolean) ? 'hard_delete' : 'archive'; explanation = action === 'hard_delete' ? 'الخدمة غير مستخدمة ويمكن حذفها نهائيًا.' : 'ستُؤرشف الخدمة ويظل التاريخ التجاري والباقات المباعة محفوظًا.'; }
-  const labels = { bookings: 'الحجوزات', packages: 'الباقات', projects: 'المشروعات', offers: 'العروض', invoices: 'الفواتير', payments: 'الدفعات', finance: 'الحسابات', requests: 'الطلبات', notifications: 'الإشعارات', sessions: 'جلسات التصوير', settlements: 'توزيعات تسوية الجلسات', ledger: 'حركات الساعات', history: 'تاريخ الحالة', completed_stages: 'مراحل مكتملة', published_content: 'محتوى منشور', other_stages: 'مراحل أخرى', items: 'البنود', attendance: 'سجلات الحضور', tasks: 'المهام', audit: 'سجل التدقيق' };
-  return { entity, id: Number(id), record_name: record[definition[1]] || `#${id}`, record, action, result_title: ({ hard_delete: 'السجل مؤهل للحذف النهائي', archive: 'أرشفة آمنة تحفظ التاريخ', cancel: 'إلغاء موثق يحفظ الروابط', deactivate: 'تعطيل الوصول مع حفظ السجل' })[action], explanation, links, link_labels: labels, total_links: Object.values(links).reduce((a, b) => a + b, 0), requires_confirmation: action === 'hard_delete' };
+  const labels = { bookings: 'الحجوزات', packages: 'الباقات', projects: 'المشروعات', offers: 'العروض', invoices: 'الفواتير', payments: 'الدفعات', proofs: 'إثباتات الدفع', finance: 'القيود المالية', requests: 'الطلبات', notifications: 'الإشعارات', sessions: 'جلسات التصوير', settlements: 'توزيعات تسوية الجلسات', ledger: 'حركات الساعات', history: 'تاريخ الحالة', completed_stages: 'مراحل مكتملة', published_content: 'محتوى منشور', content: 'عناصر المحتوى', milestones: 'مراحل المشروع', other_stages: 'مراحل أخرى', items: 'بنود التسليم', attendance: 'سجلات الحضور', tasks: 'المهام', audit: 'سجل التدقيق' };
+  return { entity, id: Number(id), record_name: record[definition[1]] || `#${id}`, record, action, result_title: ({ hard_delete: 'السجل مؤهل للحذف النهائي', cascade_delete: 'حذف كامل للمشروع وسجلاته', archive: 'أرشفة آمنة تحفظ التاريخ', cancel: 'إلغاء موثق يحفظ الروابط', deactivate: 'تعطيل الوصول مع حفظ السجل' })[action], explanation, links, link_labels: labels, total_links: Object.values(links).reduce((a, b) => a + b, 0), requires_confirmation: ['hard_delete', 'cascade_delete'].includes(action) };
 };
 
 const demoOwnerAction = (database, entity, id, body) => {
   if (entity === 'bookings') { if (Object.prototype.hasOwnProperty.call(body, 'reason') || Object.prototype.hasOwnProperty.call(body, 'charge')) throw formationDemoError('حذف الموعد لا يقبل سببًا أو خصمًا.', 'cancellation_reason_not_supported'); throw formationDemoError('استخدم DELETE /bookings/{id} لمسار الحذف الآمن.', 'booking_owner_action_retired'); }
   const impact = demoOwnerImpact(database, entity, id); const reason = demoReason(body); const record = impact.record;
   if (body.expected_action && body.expected_action !== impact.action) throw formationDemoError('تغيّرت الروابط المرتبطة بالسجل. راجع التأثير مرة أخرى.', 'stale_owner_impact');
-  if (impact.action === 'hard_delete' && body.confirmation !== 'حذف') throw formationDemoError('اكتب كلمة حذف لتأكيد الحذف النهائي.', 'hard_delete_confirmation_required');
+  if (['hard_delete', 'cascade_delete'].includes(impact.action) && body.confirmation !== 'حذف') throw formationDemoError('اكتب كلمة حذف لتأكيد الحذف النهائي.', 'hard_delete_confirmation_required');
   if (body.version != null && Number(body.version) !== Number(record.version || 1)) throw formationDemoError('تم تعديل السجل بواسطة مستخدم آخر.', 'stale_record');
   const table = ({ clients: 'clients', client_packages: 'client_packages', projects: 'projects', project_tasks: 'project_tasks', project_items: 'project_items', project_milestones: 'project_milestones', content_items: 'content_items', reminders: 'reminders', offers: 'offers', invoices: 'invoices', users: 'users', resources: 'resources', services: 'services' })[entity]; const before = clone(record);
-  if (impact.action === 'hard_delete') { database[table] = tableRows(database, table).filter(row => Number(row.id) !== Number(id)); if (entity === 'clients') database.users = database.users.filter(row => Number(row.client_id) !== Number(id)); if (entity === 'offers') database.offer_items = database.offer_items.filter(row => Number(row.offer_id) !== Number(id)); if (entity === 'projects') { ['project_tasks', 'project_items', 'project_milestones', 'content_items'].forEach(child => { database[child] = tableRows(database, child).filter(row => Number(row.project_id) !== Number(id)); }); } }
+  let deletedRecords = null;
+  if (impact.action === 'cascade_delete' && entity === 'projects') deletedRecords = demoDeleteProjectCascade(database, record, reason);
+  else if (impact.action === 'hard_delete') { database[table] = tableRows(database, table).filter(row => Number(row.id) !== Number(id)); if (entity === 'clients') database.users = database.users.filter(row => Number(row.client_id) !== Number(id)); if (entity === 'offers') database.offer_items = database.offer_items.filter(row => Number(row.offer_id) !== Number(id)); if (entity === 'projects') { ['project_tasks', 'project_items', 'project_milestones', 'content_items'].forEach(child => { database[child] = tableRows(database, child).filter(row => Number(row.project_id) !== Number(id)); }); } }
   else if (entity === 'clients') { Object.assign(record, { status: 'archived', archive_reason: reason, archived_by: 1, archived_at: record.archived_at || nowText(), version: Number(record.version || 1) + 1 }); database.users.filter(row => Number(row.client_id) === Number(id)).forEach(row => Object.assign(row, { is_active: 0, deactivation_reason: reason, deactivated_at: nowText() })); }
   else if (['client_packages', 'services'].includes(entity)) Object.assign(record, entity === 'client_packages' ? { status: 'archived' } : { is_active: 0 }, { archive_reason: reason, archived_by: 1, archived_at: record.archived_at || nowText(), version: Number(record.version || 1) + 1 });
   else if (entity === 'projects') Object.assign(record, { status: record.status === 'completed' ? 'completed' : 'cancelled', archive_reason: reason, archived_by: 1, archived_at: record.archived_at || nowText(), version: Number(record.version || 1) + 1 });
@@ -1279,7 +1347,7 @@ const demoOwnerAction = (database, entity, id, body) => {
   else if (['offers', 'invoices'].includes(entity)) Object.assign(record, { status: 'cancelled', cancellation_reason: reason, cancelled_by: 1, cancelled_at: record.cancelled_at || nowText(), version: Number(record.version || 1) + 1 });
   else if (entity === 'users') { if (record.role === 'owner' && Number(record.is_active ?? 1) === 1 && database.users.filter(row => row.role === 'owner' && Number(row.is_active ?? 1) === 1 && Number(row.id) !== Number(record.id)).length < 1) throw formationDemoError('لا يمكن تعطيل آخر مالك نشط في النظام.', 'last_owner_protected'); Object.assign(record, { is_active: 0, deactivation_reason: reason, deactivated_by: 1, deactivated_at: nowText(), version: Number(record.version || 1) + 1 }); }
   else if (entity === 'resources') Object.assign(record, { is_active: 0, deactivation_reason: reason, deactivated_by: 1, deactivated_at: nowText(), version: Number(record.version || 1) + 1 });
-  const projectProgress = entity === 'project_milestones' ? recalculateDemoProjectProgress(database, before.project_id) : null; demoAudit(database, `owner_${impact.action}`, entity, id, before, { action: impact.action, reason, impact: { ...impact, record: undefined }, ...(projectProgress == null ? {} : { project_progress_percent: projectProgress }) }); writeDatabase(database); return { id: Number(id), entity, action: impact.action, message: 'تم تنفيذ الإجراء وتوثيقه بنجاح.', impact: { ...impact, record: undefined }, ...(projectProgress == null ? {} : { project_progress_percent: projectProgress }) };
+  const projectProgress = entity === 'project_milestones' ? recalculateDemoProjectProgress(database, before.project_id) : null; demoAudit(database, `owner_${impact.action}`, entity, id, before, { action: impact.action, reason, impact: { ...impact, record: undefined }, ...(deletedRecords ? { deleted_records: deletedRecords } : {}), ...(projectProgress == null ? {} : { project_progress_percent: projectProgress }) }); writeDatabase(database); return { id: Number(id), entity, action: impact.action, message: 'تم تنفيذ الإجراء وتوثيقه بنجاح.', impact: { ...impact, record: undefined }, ...(deletedRecords ? { deleted_records: deletedRecords } : {}), ...(projectProgress == null ? {} : { project_progress_percent: projectProgress }) };
 };
 
 const demoSessionPackageWhatsAppSummary = (database, booking, pkg, actualMinutes, actualReels) => {

@@ -6,6 +6,7 @@ import './OwnerRecordActions.css';
 
 const actionMeta = {
   hard_delete: { label: 'حذف نهائي', Icon: Trash2, tone: 'danger' },
+  cascade_delete: { label: 'حذف المشروع وسجلاته', Icon: Trash2, tone: 'danger' },
   archive: { label: 'أرشفة', Icon: Archive, tone: 'archive' },
   deactivate: { label: 'تعطيل', Icon: Ban, tone: 'archive' },
   cancel: { label: 'إلغاء', Icon: Ban, tone: 'danger' },
