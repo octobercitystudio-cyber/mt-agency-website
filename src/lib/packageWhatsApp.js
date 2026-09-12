@@ -1,4 +1,14 @@
-import { formatClientPoints, formatDurationMinutes, formatEGP, formatPackageQuantity } from './businessFormat.js';
+import { calculateDurationMinutes, formatBookingStatus, formatClientPoints, formatDurationMinutes, formatEGP, formatPackageQuantity, formatTime12 } from './businessFormat.js';
+
+const APPOINTMENTS_EMPTY_MESSAGE = 'لا توجد مواعيد تصوير قادمة مرتبطة بهذه الباقة.';
+const APPOINTMENTS_POLICY_NOTE = 'حرصًا منا على تنظيم جدول التصوير وتقديم أفضل مستوى من الخدمة، نرجو التكرم بإبلاغنا بأي طلب لتأجيل الموعد أو إلغائه قبل الموعد المحدد بمدة لا تقل عن *48 ساعة*. شاكرين تفهمكم وحسن تعاونكم.';
+const dateOnlyPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+const appointmentDateFormatters = {
+  weekday: new Intl.DateTimeFormat('ar-EG-u-nu-latn', { weekday: 'long', timeZone: 'Africa/Cairo' }),
+  date: new Intl.DateTimeFormat('ar-EG-u-nu-latn', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Cairo' }),
+};
+
+export { APPOINTMENTS_EMPTY_MESSAGE };
 
 export function whatsappPhone(value) {
   let phone = String(value || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/[\s()+.-]/g, '');
@@ -35,4 +45,66 @@ export function buildPackageWhatsApp(details, client, config = {}) {
   }
   lines.push('', 'نتشرف دائماً بوجودك معنا، ونتمنى لك يوماً سعيداً! 🌟');
   return lines.join('\n');
+}
+
+const appointmentDate = value => {
+  const match = String(value || '').slice(0, 10).match(dateOnlyPattern);
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12));
+  if (date.getUTCFullYear() !== Number(match[1]) || date.getUTCMonth() !== Number(match[2]) - 1 || date.getUTCDate() !== Number(match[3])) return null;
+  return date;
+};
+
+const appointmentDuration = booking => {
+  const authoritative = Number(booking?.duration_minutes);
+  if (Number.isFinite(authoritative) && authoritative > 0) return Math.round(authoritative);
+  return calculateDurationMinutes(booking?.start_time, booking?.end_time);
+};
+
+export function sortPackageAppointments(appointments = []) {
+  return [...appointments].sort((left, right) => (
+    String(left?.date || '').localeCompare(String(right?.date || ''))
+    || String(left?.start_time || '').localeCompare(String(right?.start_time || ''))
+    || String(left?.id ?? '').localeCompare(String(right?.id ?? ''), 'en', { numeric: true })
+  ));
+}
+
+export function buildPackageAppointmentsWhatsApp(details, client) {
+  const appointments = sortPackageAppointments(details?.upcoming_bookings || []);
+  if (!appointments.length) return '';
+
+  const pkg = details?.package || {};
+  const clientName = client?.name || pkg.client?.name || 'عميلنا الكريم';
+  const packageName = pkg.name || 'باقة التصوير';
+  const appointmentBlocks = appointments.map((booking, index) => {
+    const date = appointmentDate(booking.date);
+    const lines = [
+      `*الموعد رقم ${index + 1}*`,
+      `- اليوم: ${date ? appointmentDateFormatters.weekday.format(date) : '—'}`,
+      `- التاريخ: ${date ? appointmentDateFormatters.date.format(date) : '—'}`,
+      `- من: ${formatTime12(booking.start_time)}`,
+      `- إلى: ${formatTime12(booking.end_time)}`,
+      `- مدة التصوير: ${formatDurationMinutes(appointmentDuration(booking))}`,
+    ];
+    if (booking.status !== 'confirmed') lines.push(`- حالة الموعد: ${formatBookingStatus(booking.status)}`);
+    return lines.join('\n');
+  });
+
+  return [
+    `مرحبًا أستاذ/ة *${clientName}*،`,
+    'تحية طيبة من فريق *Multi Task Agency* 📸',
+    '',
+    `يسعدنا تأكيد مواعيد التصوير المسجلة ضمن *${packageName}*:`,
+    '',
+    '📅 *مواعيد التصوير:*',
+    '',
+    appointmentBlocks.join('\n\n'),
+    '',
+    '📌 *تنويه مهم:*',
+    APPOINTMENTS_POLICY_NOTE,
+    '',
+    'نتطلع إلى استقبالكم، ونتمنى لكم تجربة تصوير مميزة.',
+    'مع خالص التحية،',
+    '*Multi Task Agency*',
+  ].join('\n');
 }
