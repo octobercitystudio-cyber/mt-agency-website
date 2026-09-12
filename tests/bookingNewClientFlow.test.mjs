@@ -8,9 +8,10 @@ const load = path => readFile(new URL(path, root), 'utf8');
 test('booking modal offers new-client registration without replacing the booking draft', async () => {
   const source = await load('src/erp/ERPAddBookingModal.jsx');
 
-  assert.match(source, /const NEW_CLIENT_OPTION = '__create_new_client__'/);
-  assert.match(source, /＋ تسجيل عميل جديد/);
-  assert.match(source, /if \(value === NEW_CLIENT_OPTION\) \{\s*setIsClientModalOpen\(true\);\s*return;/);
+  assert.match(source, /import ClientCombobox from '\.\.\/components\/ClientCombobox'/);
+  assert.match(source, /<ClientCombobox[^>]*value=\{newBooking\.client_id \? String\(newBooking\.client_id\) : ''\}/);
+  assert.match(source, /onChange=\{handleClientChange\}/);
+  assert.match(source, /onCreateClient=\{\(\) => setIsClientModalOpen\(true\)\}/);
   assert.match(source, /<ERPClientModal/);
   assert.match(source, /onClose=\{\(\) => setIsClientModalOpen\(false\)\}/);
   assert.doesNotMatch(source, /onClose=\{\(\) => \{[^}]*setNewBooking/);

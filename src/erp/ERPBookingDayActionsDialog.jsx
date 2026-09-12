@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarClock, Camera, Clock3, LockKeyhole, RefreshCw, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
+import ClientCombobox from '../components/ClientCombobox';
 import useModalDialog from '../hooks/useModalDialog';
 import { formatBookingDate, formatTime12 } from '../lib/businessFormat';
 import { safeUiError } from '../lib/uiError';
@@ -173,20 +174,7 @@ export function ERPDirectSessionDialog({
           </button>
         </header>
         <div className="booking-block-fields">
-          <label>
-            العميل
-            <select
-              data-dialog-initial
-              required
-              value={draft.client_id}
-              onChange={event => update('client_id', event.target.value)}
-            >
-              <option value="">اختر العميل</option>
-              {clients.filter(client => client.status === 'active').map(client => (
-                <option key={client.id} value={client.id}>{client.name}</option>
-              ))}
-            </select>
-          </label>
+          <ClientCombobox clients={clients} value={draft.client_id} onChange={clientId => update('client_id', clientId)} label="العميل" required inputProps={{ 'data-dialog-initial': true }} />
           <label>
             الاستديو
             <select

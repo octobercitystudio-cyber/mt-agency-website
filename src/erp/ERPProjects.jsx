@@ -42,7 +42,7 @@ export default function ERPProjects(){
   const dialogRef=useRef(null),triggerRef=useRef(null);
   const fetchData=useCallback(async()=>{
     setLoading(true);setError('');
-    const calls=[dataClient.from('projects').select('*').order('updated_at',{ascending:false}),dataClient.from('project_tasks').select('*').order('due_at',{ascending:true}),dataClient.from('content_items').select('*').order('scheduled_at',{ascending:true}),dataClient.from('clients').select('id,name,company_name,color').order('name')];
+    const calls=[dataClient.from('projects').select('*').order('updated_at',{ascending:false}),dataClient.from('project_tasks').select('*').order('due_at',{ascending:true}),dataClient.from('content_items').select('*').order('scheduled_at',{ascending:true}),dataClient.from('clients').select('id,name,company_name,color,phone1,phone2,status').order('name')];
     const results=await Promise.all(calls);const failed=results.find(result=>result.error);
     if(failed?.error)setError(safeUiError(failed.error,'تعذر تحميل مساحة المشروعات الآن.'));else{setProjects(results[0].data||[]);setTasks(results[1].data||[]);setContent(results[2].data||[]);setClients(results[3].data||[])}
     const extras=await Promise.all([dataClient.from('project_items').select('*').order('sort_order',{ascending:true}),dataClient.from('project_milestones').select('*').order('sort_order',{ascending:true}),dataClient.from('bookings').select('*').order('date',{ascending:true}),dataClient.from('invoices').select('*').order('issued_at',{ascending:false})]);

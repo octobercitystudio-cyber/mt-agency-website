@@ -7,6 +7,7 @@ import { useData } from '../store/DataContext';
 import { formatBookingDate, formatDateTime12, formatTime12 } from '../lib/businessFormat';
 import BusinessDateTimeInput from '../components/BusinessDateTimeInput';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
+import ClientCombobox from '../components/ClientCombobox';
 import { ACTIVE_POST_PRODUCTION_STATUSES, POST_PRODUCTION_STATUS, postProductionDuration, postProductionMeta, postProductionSessionLabel } from '../lib/postProduction';
 import './ERPPostProduction.css';
 
@@ -16,7 +17,7 @@ const defaultExpiry = () => { const date = new Date(); date.setDate(date.getDate
 const toLocalInput = value => { const date = new Date(value); if (Number.isNaN(date.getTime())) return defaultExpiry(); const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return local.toISOString().slice(0, 16); };
 
 export default function ERPPostProduction() {
-  const { currentUser } = useData(); const [jobs, setJobs] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
+  const { currentUser } = useData(); const [jobs, setJobs] = useState([]); const [clients, setClients] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); const [clientFilter, setClientFilter] = useState('all'); const [search, setSearch] = useState(''); const [selected, setSelected] = useState(null); const [busy, setBusy] = useState(''); const [dialogError, setDialogError] = useState(''); const [pendingStatus, setPendingStatus] = useState(''); const [links, setLinks] = useState([]);
   const [statusCorrection, setStatusCorrection] = useState({ status: '', reason: '' });
   const [pickup, setPickup] = useState({ revision: 0, expires_at: null, windows: [] }); const [pickupExpiry, setPickupExpiry] = useState(defaultExpiry); const [pickupWindows, setPickupWindows] = useState([]); const [pickupError, setPickupError] = useState(''); const [pickupBusy, setPickupBusy] = useState(false); const [pickupLoading, setPickupLoading] = useState(false); const pickupRequestRef = useRef(0); const dialogTriggerRef = useRef(null);
@@ -25,9 +26,9 @@ export default function ERPPostProduction() {
   const closeDialog = useCallback(() => { setSelected(null); setPendingStatus(''); setStatusCorrection({ status: '', reason: '' }); setDialogError(''); resetPickupEditor(); }, [resetPickupEditor]); const dialogRef = useModalDialog(Boolean(selected), closeDialog, { returnFocusRef: dialogTriggerRef });
 
   const loadJobs = useCallback(async (quiet = false) => {
-    if (!quiet) setLoading(true); setError(''); const { data, error: requestError } = await dataClient.request('/post-production?status=all', { method: 'GET' });
+    if (!quiet) setLoading(true); setError(''); const [{ data, error: requestError }, clientsResult] = await Promise.all([dataClient.request('/post-production?status=all', { method: 'GET' }), dataClient.from('clients').select('id,name,phone1,phone2,status').order('name')]);
     if (requestError) setError(requestError.message || 'تعذر تحميل مركز المونتاج.');
-    else { const items = Array.isArray(data?.items) ? data.items : []; setJobs(items); setSelected(current => current ? items.find(item => Number(item.id) === Number(current.id)) || null : null); }
+    else { const items = Array.isArray(data?.items) ? data.items : []; const fetchedClients = clientsResult.data || [...new Map(items.map(job => [Number(job.client_id), { id: Number(job.client_id), name: job.client_name, status: 'active' }])).values()]; setJobs(items); setClients(fetchedClients.filter(client => items.some(job => Number(job.client_id) === Number(client.id)))); setSelected(current => current ? items.find(item => Number(item.id) === Number(current.id)) || null : null); }
     if (!quiet) setLoading(false);
   }, []);
   const loadPickup = useCallback(async jobId => {
@@ -45,7 +46,6 @@ export default function ERPPostProduction() {
   useEffect(() => { if (selected) setLinks((selected.delivery_links || []).map(link => ({ title: link.title, link_kind: link.link_kind, url: link.url, is_active: Number(link.is_active) }))); }, [selected, selectedId, selectedVersion]);
   useChangeSync(useCallback(topics => { if (topics.includes('post_production')) loadJobs(true); }, [loadJobs]), !currentUser?.is_local_preview);
 
-  const clients = useMemo(() => [...new Map(jobs.map(job => [Number(job.client_id), job.client_name])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'ar')), [jobs]);
   const filtered = useMemo(() => jobs.filter(job => {
     if (statusFilter === 'active' && !ACTIVE_POST_PRODUCTION_STATUSES.includes(job.status)) return false; if (statusFilter !== 'all' && statusFilter !== 'active' && job.status !== statusFilter) return false;
     if (clientFilter !== 'all' && Number(job.client_id) !== Number(clientFilter)) return false; const needle = search.trim().toLocaleLowerCase('ar'); return !needle || `${job.client_name} ${job.service} ${job.package_name || ''} ${job.booking_id}`.toLocaleLowerCase('ar').includes(needle);
@@ -81,7 +81,7 @@ export default function ERPPostProduction() {
     <header className="post-production-head"><div><span>الخدمات والعمل</span><h1>المونتاج والتسليم</h1><p>تابع كل جلسة مكتملة من المونتاج حتى رفع الفيديو أو استلامه من الشركة.</p></div><button type="button" onClick={() => loadJobs()} aria-label="تحديث مركز المونتاج"><RefreshCw className={loading ? 'is-spinning' : ''} /></button></header>
     {notice && <div className="post-production-notice" role="status"><Check /> {notice}</div>}
     <section className="post-production-kpis" aria-label="ملخص حالات المونتاج">{[['editing', Clapperboard, 'قيد المونتاج'], ['upload', CloudUpload, 'الرفع والجاهز رقميًا'], ['pickup', MapPin, 'جاهز للاستلام'], ['delivered', Check, 'تم التسليم']].map(([key, Icon, label]) => <article key={key}><Icon /><span>{label}</span><strong>{error ? '—' : kpis[key]}</strong></article>)}</section>
-    <section className="post-production-toolbar" aria-label="تصفية جلسات المونتاج"><label className="post-production-search"><Search /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث بالعميل أو الخدمة أو رقم الحجز" /></label><label><span>الحالة</span><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="active">العمل النشط</option><option value="all">كل الحالات</option>{Object.entries(POST_PRODUCTION_STATUS).map(([value, meta]) => <option value={value} key={value}>{meta.label}</option>)}</select></label><label><span>العميل</span><select value={clientFilter} onChange={event => setClientFilter(event.target.value)}><option value="all">كل العملاء</option>{clients.map(([id, name]) => <option value={id} key={id}>{name}</option>)}</select></label></section>
+    <section className="post-production-toolbar" aria-label="تصفية جلسات المونتاج"><label className="post-production-search"><Search /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث بالعميل أو الخدمة أو رقم الحجز" /></label><label><span>الحالة</span><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="active">العمل النشط</option><option value="all">كل الحالات</option>{Object.entries(POST_PRODUCTION_STATUS).map(([value, meta]) => <option value={value} key={value}>{meta.label}</option>)}</select></label><ClientCombobox clients={clients} value={clientFilter} onChange={setClientFilter} label="العميل" allowAll allValue="all" allLabel="كل العملاء" allowedStatuses={client => client.status !== 'archived'}/></section>
     {loading && <CenterState icon={RefreshCw} spinning title="جارٍ تجهيز مركز المونتاج" text="نجمع الجلسات والتاريخ وروابط التسليم…" />}
     {!loading && error && <CenterState icon={Film} title="تعذر تحميل مركز المونتاج" text={error} action="إعادة المحاولة" onAction={() => loadJobs()} error />}
     {!loading && !error && !filtered.length && <CenterState icon={Clapperboard} title="لا توجد جلسات تطابق الفلتر" text="غيّر الحالة أو العميل، أو انتظر اكتمال جلسة تصوير جديدة." />}

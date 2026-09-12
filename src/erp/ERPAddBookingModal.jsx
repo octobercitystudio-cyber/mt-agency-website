@@ -7,6 +7,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
+import ClientCombobox from '../components/ClientCombobox';
 import { calculateDurationMinutes, cairoDateKey, centsToMoney, effectivePackageStatus, formatBookingDate, formatDurationMinutes, formatEGP, formatPackageQuantity, formatTime12, isValidBusinessBooking } from '../lib/businessFormat';
 import useModalDialog from '../hooks/useModalDialog';
 import ERPClientModal from './ERPClientModal';
@@ -18,7 +19,6 @@ import { activeServiceCategories, isProjectServiceCategory } from '../lib/servic
 import { packageBookingAvailability, packageBookingSnapshot, packagesForBookingClient, validatePackageBookingDraft } from './packageBookingSelection';
 import { getBookingAvailability } from './bookingAvailability';
 
-const NEW_CLIENT_OPTION = '__create_new_client__';
 export const CUSTOM_SERVICE_OPTION = '__custom_service__';
 
 const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = '', initialClientId = '', initialPackageId = '', returnFocusRef }) => {
@@ -58,7 +58,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     setLoading(true);
     const [{ data: bData }, { data: cData }, { data: sData }, { data: pData }, blocksResult] = await Promise.all([
       dataClient.from('bookings').select('*'),
-      dataClient.from('clients').select('id,name,color'),
+      dataClient.from('clients').select('id,name,color,phone1,phone2,status'),
       dataClient.from('services').select('*'),
       dataClient.from('client_packages').select('*').order('expires_at', { ascending: true }),
       dataClient.request('/booking-blocks', { method: 'GET' }),
@@ -112,18 +112,13 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     return client?.color || '#4318ff';
   };
 
-  const handleClientChange = (e) => {
-    const value = e.target.value;
-    if (value === NEW_CLIENT_OPTION) {
-      setIsClientModalOpen(true);
-      return;
-    }
-    const client = clients.find(item => String(item.id) === value);
+  const handleClientChange = value => {
+    const client = clients.find(item => String(item.id) === String(value));
     setNewBooking(current => ({ ...applyBookingClientToDraft(current, client), client_package_id: '', category: '', service: '', base_price: 0, schedule_extra: false }));
   };
 
   const handleClientCreated = async savedClient => {
-    const { data: refreshedClients, error } = await dataClient.from('clients').select('id,name,color');
+    const { data: refreshedClients, error } = await dataClient.from('clients').select('id,name,color,phone1,phone2,status');
     const nextClients = error ? clients : (refreshedClients || []);
     const createdClient = resolveCreatedBookingClient(nextClients, savedClient);
     if (!createdClient?.id) throw new Error('تم إنشاء العميل لكن تعذر تحديد سجله الجديد.');
@@ -342,14 +337,8 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
             
             <div className="erp-booking-primary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '25px' }}>
               <div className="erp-booking-client-field">
-                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>اسم العميل</label>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <select ref={clientSelectRef} aria-label="اسم العميل" value={newBooking.client_id ? String(newBooking.client_id) : ''} onChange={handleClientChange} required style={{ flex: 1, minHeight: '48px', background: 'var(--erp-bg)', border: '1px solid var(--erp-border)', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
-                    <option value="" disabled>-- اختر العميل --</option>
-                    <option value={NEW_CLIENT_OPTION}>＋ تسجيل عميل جديد</option>
-                    <option disabled>──────────</option>
-                    {clients.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
-                  </select>
+                  <ClientCombobox ref={clientSelectRef} clients={clients} value={newBooking.client_id ? String(newBooking.client_id) : ''} onChange={handleClientChange} onCreateClient={() => setIsClientModalOpen(true)} label="اسم العميل" required className="erp-booking-client-combobox" />
                   <span className="erp-booking-client-color"><span data-testid="booking-client-color" aria-label="لون العميل المحفوظ" title="لون العميل المحفوظ في قاعدة العملاء" className="erp-booking-client-color__swatch" style={{ ...bookingClientIndicatorStyle(newBooking.color) }}/><small>لون العميل</small></span>
                 </div>
               </div>

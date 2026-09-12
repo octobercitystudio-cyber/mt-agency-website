@@ -100,12 +100,14 @@ test('demo client create normalizes phone and rejects an organization duplicate 
   assert.equal(saved.phone1, '01088889999'); deactivateDemoMode();
 });
 
-test('sale UI uses native grouped/name-only pickers and stacked ERPClientModal without resetting the draft', async () => {
+test('sale UI uses the shared searchable client picker and stacked ERPClientModal without resetting the draft', async () => {
   const [view, modal, hook, css] = await Promise.all([
     load('src/erp/ERPPackages.jsx'), load('src/erp/ERPClientModal.jsx'), load('src/hooks/useModalDialog.js'), load('src/erp/ERPPackages.css'),
   ]);
+  assert.match(view, /import ClientCombobox from '\.\.\/components\/ClientCombobox'/);
+  assert.match(view, /<ClientCombobox[^>]*clients=\{clients\}[^>]*value=\{form\.client_id\}/);
+  assert.match(view, /onChange=\{onSelectClient\}/); assert.match(view, /onCreateClient=\{onOpenClient\}/);
   assert.match(view, /<optgroup key=\{group\.key\} label=\{group\.label\}>/);
-  assert.match(view, /البحث باسم العميل/); assert.match(view, /＋ عميل جديد/);
   assert.doesNotMatch(view, /\{item\.name\} — \{item\.phone1\}/);
   assert.match(view, /useModalDialog\(formOpen, closeAddDialog/);
   assert.match(view, /<ERPClientModal isOpen=\{clientModalOpen\} nested returnFocusRef=/);

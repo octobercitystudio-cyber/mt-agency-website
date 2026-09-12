@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowLeftRight, CalendarCheck2, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, Clock3, Edit3, Eye, Filter, History, MoreVertical, MessageCircle, PackageCheck, PackagePlus, PlayCircle, Plus, ReceiptText, RefreshCw, Search, ShieldAlert, TimerReset, Trash2, UserPlus, WalletCards, X } from 'lucide-react';
+import { Archive, ArrowLeftRight, CalendarCheck2, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, Clock3, Edit3, Eye, Filter, History, MoreVertical, MessageCircle, PackageCheck, PackagePlus, PlayCircle, Plus, ReceiptText, RefreshCw, Search, ShieldAlert, TimerReset, Trash2, WalletCards, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
@@ -16,13 +16,14 @@ import ERPStartSessionDialog from './ERPStartSessionDialog';
 import { eligibilityMap, studioBookingEligible } from './studioSessionEligibility';
 import ERPClientModal from './ERPClientModal';
 import useModalDialog from '../hooks/useModalDialog';
-import { buildPackageServiceGroups, filterClientsByName, mergeCreatedClient } from '../lib/packageBookingPicker';
+import { buildPackageServiceGroups, mergeCreatedClient } from '../lib/packageBookingPicker';
 import { appointmentDurationMinutes, normalizePackageSaleAppointments, packageAppointmentUsage, packageCalendarWeek, partitionPackageAppointments, shiftPackageCalendarDate, validatePackageAppointment } from '../lib/packageSaleAppointments';
 import ERPAddBookingModal from './ERPAddBookingModal';
 import { packageBookingAvailability } from './packageBookingSelection';
 import OwnerPackageControl from './OwnerPackageControl';
 import PackagePaymentModal from './PackagePaymentModal';
 import PackageWhatsAppDialog from './PackageWhatsAppDialog';
+import ClientCombobox from '../components/ClientCombobox';
 
 const today = () => cairoDateKey();
 const initialForm = { client_id: '', service_id: '', name: '', billing_unit: 'hour', validity_mode_snapshot: 'rolling', starts_at: '', shooting_date: '', expires_at: '', quantity: '', validity_days: 90, payment_due_quantity: 0, deposit_percent_snapshot: 0, overage_price_snapshot: 0, total_price: '', paid_amount: 0, payment_method: 'cash', notes: '' };
@@ -63,7 +64,6 @@ export default function ERPPackages() {
   const [appointmentErrors, setAppointmentErrors] = useState({});
   const [editingAppointment, setEditingAppointment] = useState(-1);
   const [templateResetNotice, setTemplateResetNotice] = useState('');
-  const [clientSearch, setClientSearch] = useState('');
   const [clientModalOpen, setClientModalOpen] = useState(false);
   const [modal, setModal] = useState(initialModal);
   const [ownerRefreshToken, setOwnerRefreshToken] = useState(0);
@@ -213,7 +213,7 @@ export default function ERPPackages() {
   const openAddDialog = event => {
     dialogTriggerRef.current = event.currentTarget;
     packageRequestKeyRef.current = globalThis.crypto?.randomUUID?.() || `package-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setForm(initialForm); setFormErrors({}); setSaleBookings([]); setAppointment(initialAppointment()); setAppointmentErrors({}); setEditingAppointment(-1); setTemplateResetNotice(''); setClientSearch(''); setClientModalOpen(false); setError('');
+    setForm(initialForm); setFormErrors({}); setSaleBookings([]); setAppointment(initialAppointment()); setAppointmentErrors({}); setEditingAppointment(-1); setTemplateResetNotice(''); setClientModalOpen(false); setError('');
     setFormOpen(true);
   };
 
@@ -262,19 +262,17 @@ export default function ERPPackages() {
 
   const selectedTemplate = useMemo(() => services.find(item => String(item.id) === String(form.service_id)), [services, form.service_id]);
   const serviceGroups = useMemo(() => buildPackageServiceGroups(services), [services]);
-  const visibleClients = useMemo(() => filterClientsByName(clients, clientSearch, form.client_id), [clients, clientSearch, form.client_id]);
   const anchoredDraft = useMemo(() => anchorPackageDraftToBookings(form, saleBookings), [form, saleBookings]);
   const expiryPreview = anchoredDraft.expires_at || '—';
   const formDirty = useMemo(() => selectedTemplate ? packageDraftIsDirty(form, selectedTemplate) : false, [form, selectedTemplate]);
   const updateFormField = (field, value) => { setForm(current => ({ ...current, [field]: value })); setFormErrors(current => ({ ...current, [field]: undefined })); };
   const resetFormTemplate = () => { if (selectedTemplate) { const next=anchorPackageDraftToBookings(resetPackageDraftToTemplate(form, selectedTemplate, { startsAt: '' }), saleBookings); const { invalid }=partitionPackageAppointments(saleBookings,next,packageDraftExpiry(next)); setForm(next); setFormErrors({}); setTemplateResetNotice(invalid.length ? `تمت استعادة شروط القالب ولم نحذف أي موعد. عدّل ${invalid.length} موعد خارج الصلاحية قبل الحفظ.` : saleBookings.length ? 'تمت استعادة شروط القالب مع الاحتفاظ بكل المواعيد.' : 'تمت استعادة شروط القالب.'); setAppointmentErrors(invalid.length ? { date: 'توجد مواعيد خارج صلاحية القالب المستعاد. عدّلها أو احذفها يدويًا.' } : {}); } };
-  const selectClient = clientId => { updateFormField('client_id', clientId); setClientSearch(''); };
+  const selectClient = clientId => updateFormField('client_id', clientId);
   const handleClientCreated = createdClient => {
     if (!createdClient?.id) return;
     setClients(current => mergeCreatedClient(current, createdClient));
     setForm(current => ({ ...current, client_id: String(createdClient.id) }));
     setFormErrors(current => ({ ...current, client_id: undefined }));
-    setClientSearch('');
     Promise.resolve(dataClient.from('clients').select('id,name,phone1').order('name', { ascending: true }))
       .then(result => { if (!result.error) setClients(mergeCreatedClient(result.data || [], createdClient)); })
       .catch(() => {});
@@ -322,7 +320,7 @@ export default function ERPPackages() {
     {whatsappPackage && <PackageWhatsAppDialog key={whatsappPackage.id} pkg={whatsappPackage} onClose={() => setWhatsappPackage(null)} />}
     {loading ? <Empty icon={RefreshCw} title="جارٍ تحميل الباقات" text="نسترجع أرصدة الباقات المباعة من الخادم." spin/> : filtered.length ? <><div className="packages-table-wrap"><table><thead><tr><th>العميل والباقة</th><th>الرصيد</th><th>فترة الصلاحية</th><th>الحالة المالية</th><th>الحالة والإجراءات</th></tr></thead><tbody>{filtered.map(pkg => { const person = client(pkg.client_id); const sessionBookings = sessionBookingsFor(pkg); const pkgStatus=effectiveStatus(pkg); const canPay=canAssign&&packageFinancialSummary(pkg).outstandingCents>0&&['active','expired','suspended','completed'].includes(pkgStatus); return <PackageRow key={pkg.id} pkg={pkg} person={person} canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canAssign && packageBookingAvailability(pkg, today()).bookable} canPay={canPay} canStart={canAssign && packageCanStartToday(pkg)} running={sessionBookings.some(booking => booking.status === 'in_progress')} status={pkgStatus} onBook={event => openPackageBooking(pkg, event)} onPay={event => openPackagePayment(pkg, event)} onStart={event => openSessionStart(pkg, person, event)} onShare={() => setWhatsappPackage(pkg)} onDetails={event => openDetailsDialog(pkg, event)} onOwner={event => openPackageDialog('details', pkg, event)}/>; })}</tbody></table></div><div className="packages-mobile-list">{filtered.map(pkg => { const person = client(pkg.client_id); const sessionBookings = sessionBookingsFor(pkg); const pkgStatus=effectiveStatus(pkg); const canPay=canAssign&&packageFinancialSummary(pkg).outstandingCents>0&&['active','expired','suspended','completed'].includes(pkgStatus); return <PackageCard key={pkg.id} pkg={pkg} person={person} canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canAssign && packageBookingAvailability(pkg, today()).bookable} canPay={canPay} canStart={canAssign && packageCanStartToday(pkg)} running={sessionBookings.some(booking => booking.status === 'in_progress')} status={pkgStatus} onBook={event => openPackageBooking(pkg, event)} onPay={event => openPackagePayment(pkg, event)} onStart={event => openSessionStart(pkg, person, event)} onShare={() => setWhatsappPackage(pkg)} onDetails={event => openDetailsDialog(pkg, event)} onOwner={event => openPackageDialog('details', pkg, event)}/>; })}</div></> : <Empty icon={Archive} title="لا توجد باقات مطابقة" text="غيّر عوامل البحث أو أضف أول باقة مباعة."/>}
 
-    {formOpen && <AddPackageDialog dialogRef={addDialogRef} form={form} errors={formErrors} clients={visibleClients} serviceGroups={serviceGroups} selectedTemplate={selectedTemplate} dirty={formDirty} expiry={expiryPreview} busy={formBusy} clientSearch={clientSearch} childOpen={clientModalOpen} clientPickerTriggerRef={clientPickerTriggerRef} onClientSearch={setClientSearch} onOpenClient={() => setClientModalOpen(true)} onSelectClient={selectClient} onClose={closeAddDialog} onSubmit={submitPackage} onSelectService={selectService} onField={updateFormField} onReset={resetFormTemplate} resetNotice={templateResetNotice} resources={resources} calendarBookings={calendarBookings} appointments={saleBookings} appointment={appointment} appointmentErrors={appointmentErrors} editingAppointment={editingAppointment} usage={appointmentUsage} onAppointment={setAppointment} onSaveAppointment={saveAppointment} onEditAppointment={editAppointment} onRemoveAppointment={removeAppointment}/>}
+    {formOpen && <AddPackageDialog dialogRef={addDialogRef} form={form} errors={formErrors} clients={clients} serviceGroups={serviceGroups} selectedTemplate={selectedTemplate} dirty={formDirty} expiry={expiryPreview} busy={formBusy} childOpen={clientModalOpen} clientPickerTriggerRef={clientPickerTriggerRef} onOpenClient={() => setClientModalOpen(true)} onSelectClient={selectClient} onClose={closeAddDialog} onSubmit={submitPackage} onSelectService={selectService} onField={updateFormField} onReset={resetFormTemplate} resetNotice={templateResetNotice} resources={resources} calendarBookings={calendarBookings} appointments={saleBookings} appointment={appointment} appointmentErrors={appointmentErrors} editingAppointment={editingAppointment} usage={appointmentUsage} onAppointment={setAppointment} onSaveAppointment={saveAppointment} onEditAppointment={editAppointment} onRemoveAppointment={removeAppointment}/>}
     <ERPClientModal isOpen={clientModalOpen} nested returnFocusRef={clientPickerTriggerRef} onClose={() => setClientModalOpen(false)} onSuccess={handleClientCreated}/>
 
     {modal.open && <OwnerPackageControl pkg={modal.pkg} person={client(modal.pkg?.client_id)} resources={resources} returnFocusRef={dialogTriggerRef} childOpen={bookingPackage.open || paymentPackage.open} refreshToken={ownerRefreshToken} onClose={closeActionDialog} onChanged={fetchData} onNewBooking={event => openPackageBooking(modal.pkg, event)} onNewPayment={event => openPackagePayment(modal.pkg, event)}/>}
@@ -333,7 +331,7 @@ export default function ERPPackages() {
   </div>;
 }
 
-function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, selectedTemplate, dirty, expiry, busy, clientSearch, childOpen, clientPickerTriggerRef, onClientSearch, onOpenClient, onSelectClient, onClose, onSubmit, onSelectService, onField, onReset, resetNotice, resources, calendarBookings, appointments, appointment, appointmentErrors, editingAppointment, usage, onAppointment, onSaveAppointment, onEditAppointment, onRemoveAppointment }) {
+function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, selectedTemplate, dirty, expiry, busy, childOpen, clientPickerTriggerRef, onOpenClient, onSelectClient, onClose, onSubmit, onSelectService, onField, onReset, resetNotice, resources, calendarBookings, appointments, appointment, appointmentErrors, editingAppointment, usage, onAppointment, onSaveAppointment, onEditAppointment, onRemoveAppointment }) {
   const errorFor = field => errors[field] ? <small className="packages-field-error" role="alert">{errors[field]}</small> : null;
   const anchoredDraft = anchorPackageDraftToBookings(form, appointments);
   const original = selectedTemplate ? templateToPackageDraft(selectedTemplate, { clientId: form.client_id, startsAt: form.starts_at }) : null;
@@ -356,9 +354,8 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
       <p id="add-package-description">اختر العميل والقالب؛ ستظهر شروطه كاملة ويمكن مراجعتها أو تعديلها قبل إنشاء الرصيد والدفعة.</p>
       <div className="packages-form-grid packages-sale-selectors">
         <div className="packages-client-picker">
-          <div className="packages-client-picker-heading"><span>العميل</span><button ref={clientPickerTriggerRef} type="button" className="packages-new-client" onClick={onOpenClient}><UserPlus/>＋ عميل جديد</button></div>
-          <label className="packages-client-search"><span>البحث باسم العميل</span><span className="packages-client-search-control"><Search/><input data-dialog-initial type="search" value={clientSearch} onChange={event => onClientSearch(event.target.value)} placeholder="اكتب اسم العميل" autoComplete="off"/></span></label>
-          <label className="packages-client-select"><span className="sr-only">اختر العميل</span><select aria-label="اختر العميل" aria-invalid={Boolean(errors.client_id)} value={form.client_id} onChange={event => onSelectClient(event.target.value)}><option value="">اختر العميل</option>{clients.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{errorFor('client_id')}</label>
+          <ClientCombobox ref={clientPickerTriggerRef} clients={clients} value={form.client_id} onChange={onSelectClient} onCreateClient={onOpenClient} label="العميل" required invalid={Boolean(errors.client_id)} inputProps={{ 'data-dialog-initial': true }} />
+          {errorFor('client_id')}
         </div>
         <label>قالب الخدمة<select aria-invalid={Boolean(errors.service_id)} value={form.service_id} onChange={event => onSelectService(event.target.value)}><option value="">اختر الخدمة</option>{serviceGroups.map(group => <optgroup key={group.key} label={group.label}>{group.services.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</optgroup>)}</select>{errorFor('service_id')}</label>
       </div>

@@ -5,6 +5,7 @@ import { CUSTOM_SERVICES, serviceMeta } from './customServices';
 import { getProjectStageTemplate } from '../lib/projectStageTemplates';
 import CustomServiceSchedule from './CustomServiceSchedule';
 import { customSlotValidation } from './customServiceSlot';
+import ClientCombobox from '../components/ClientCombobox';
 
 const PRICING_LABELS = { per_reel: 'لكل ريل', custom: 'تسعير مخصص', equipment: 'حسب التجهيزات', project: 'سعر ثابت للمشروع', hourly: 'لكل ساعة', monthly: 'شهري', per_video: 'لكل فيديو' };
 const STATUS_LABELS = { planning: 'تخطيط', active: 'قيد التنفيذ', on_hold: 'معلق' };
@@ -102,7 +103,7 @@ export default function CustomServiceForm({ clients = [], initialService = 'cust
     <div className="custom-form-intro"><span className="dialog-kicker">خدمة جديدة</span><h2 id="project-modal-title">إضافة خدمة للعميل</h2><p>أكمل البيانات الأساسية واحفظ، أو افتح الخيارات المتقدمة عند الحاجة.</p></div>
 
     <fieldset className="custom-form-section"><legend><b>01</b><span>الخدمة والعميل</span></legend><div className="form-grid">
-      <label>العميل<select required value={form.client_id} onChange={event => set({ client_id: event.target.value })}><option value="">اختر العميل</option>{clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+      <ClientCombobox clients={clients} value={form.client_id} onChange={clientId => set({ client_id: clientId })} label="العميل" required />
       <label>نوع الخدمة<select value={form.service_type} onChange={event => setService(event.target.value)}>{Object.entries(CUSTOM_SERVICES).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}</select></label>
       <label className="wide-field">اسم الخدمة<input required value={form.name} onChange={event => setBasicName(event.target.value)} placeholder="مثال: إطلاق حملة منتج جديد"/></label>
       <label className="wide-field">وصف مختصر<textarea rows="3" value={form.description} onChange={event => set({ description: event.target.value })} placeholder="ما الذي سيتم تنفيذه وتسليمه؟"/></label>
