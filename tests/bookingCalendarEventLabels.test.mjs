@@ -37,8 +37,9 @@ test('375px month calendar keeps readable day columns inside an accessible horiz
   assert.match(timeValueRule, /unicode-bidi:\s*isolate/);
   assert.match(scrollerRule, /overflow-x:\s*auto/);
   assert.match(bookings, /className="erp-bookings-calendar" role="region"[^>]*tabIndex=\{0\}/);
-  assert.match(mobileRules, /\.erp-bookings-calendar \.fc\s*\{[^}]*min-width:\s*760px/);
-  assert.match(mobileRules, /\.booking-calendar-scroll-hint\s*\{[^}]*display:\s*flex/);
+  assert.match(bookings, /\.erp-bookings-calendar \.fc\s*\{[^}]*min-width:\s*0/);
+  assert.match(bookings, /\.erp-bookings-calendar \.fc-view-harness\s*\{[^}]*min-width:\s*760px/);
+  assert.match(bookings, /\.booking-calendar-scroll-hint\s*\{[^}]*display:\s*flex/);
   assert.doesNotMatch(mobileRules, /\.booking-calendar-ticket__status\s*\{[^}]*display:\s*none/);
-  assert.match(mobileRules, /\.booking-calendar-ticket__time\s*\{[^}]*font-size:/);
+  assert.match(bookings, /\.booking-calendar-ticket__time\s*\{[^}]*font-size:/);
 });

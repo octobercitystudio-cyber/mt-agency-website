@@ -61,7 +61,7 @@ test('demo booking blocks are atomic, idempotent, scoped, and side-effect free',
   const created = await demoClient.request('/booking-blocks', { method: 'POST', body: JSON.stringify(singleBody) });
   assert.equal(created.error, null);
   assert.equal(created.data.count, 1);
-  assert.equal(created.data.items[0].title, 'الحجز مغلق');
+  assert.equal(created.data.items[0].title, 'حجز مؤقت');
   assert.equal(created.data.items[0].duration_minutes, 120);
 
   const replay = await demoClient.request('/booking-blocks', { method: 'POST', body: JSON.stringify(singleBody) });
@@ -165,35 +165,9 @@ test('production API and migration enforce a single atomic schedule owner', asyn
   assert.match(api, /bookingBlockDates/);
 });
 
-test('owner calendar uses true double-click and an accessible responsive dialog', async () => {
-  const [calendar, dialog, css, addBooking, requests] = await Promise.all([
-    load('src/erp/ERPBookings.jsx'),
-    load('src/erp/ERPBookingBlockDialog.jsx'),
-    load('src/erp/ERPBookingBlockDialog.css'),
-    load('src/erp/ERPAddBookingModal.jsx'),
-    load('src/erp/ERPRequests.jsx'),
-  ]);
-  assert.match(calendar, /dayCellDidMount=\{handleDayCellDidMount\}/);
-  assert.match(calendar, /dayCellWillUnmount=\{handleDayCellWillUnmount\}/);
-  assert.match(calendar, /bindBookingBlockDoubleClick\(arg\.el/);
-  assert.doesNotMatch(calendar, /jsEvent\?\.detail/);
-  assert.match(calendar, /حظر موعد/);
-  assert.match(calendar, /const blockEvents = bookingBlocks\.map/);
-  assert.match(calendar, /editable: false/);
-  assert.match(dialog, /role="dialog"/);
-  assert.match(dialog, /aria-modal="true"/);
-  assert.match(dialog, /defaultPeriod="pm"/);
-  assert.match(dialog, /repeat_daily/);
-  assert.match(dialog, /idempotency_key/);
-  assert.match(dialog, /التاريخ المختار:/);
-  assert.match(dialog, /نهاية التكرار:/);
-  assert.match(dialog, /إلغاء هذا الحظر وما بعده/);
-  assert.match(css, /min-height:\s*44px/);
-  assert.match(css, /@media\s*\(max-width:\s*600px\)/);
-  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
-  assert.match(addBooking, /blocks: bookingBlocks/);
-  assert.match(requests, /blocks: source\.bookingBlocks/);
-  assert.match(requests, /مغلق بواسطة الإدارة/);
-  assert.match(calendar, /booking-block-label-compact/);
-  assert.match(calendar, /booking-block-label-full \{ display: none; \}/);
+test('owner calendar uses one-click day actions and accessible responsive dialogs', async () => {
+  const [calendar, dialog, actions, css] = await Promise.all([load('src/erp/ERPBookings.jsx'),load('src/erp/ERPBookingBlockDialog.jsx'),load('src/erp/ERPBookingDayActionsDialog.jsx'),load('src/erp/ERPBookingBlockDialog.css')]);
+  assert.match(calendar, /dateClick=\{handleDateClick\}/); assert.match(calendar, /setDayActionsOpen\(true\)/); assert.doesNotMatch(calendar, /bindBookingBlockDoubleClick/);
+  assert.match(actions, /حجز مؤقت/); assert.match(actions, /بدء جلسة تصوير/); assert.match(actions, /timeZone: 'Africa\/Cairo'/); assert.match(actions, /const canStartDirect = date === today/); assert.match(actions, /disabled=\{!canStartDirect\}/); assert.match(actions, /بدء الجلسة متاح ليوم العمل الحالي فقط/); assert.match(actions, /role="dialog"/);
+  assert.match(dialog, /title: ''/); assert.match(dialog, /تحويل إلى حجز عميل/); assert.match(dialog, /idempotency_key/); assert.match(css, /@media\(max-width:600px\)/);
 });

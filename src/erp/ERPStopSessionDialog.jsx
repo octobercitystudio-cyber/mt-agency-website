@@ -33,9 +33,10 @@ function CoverageBar({ preview, destinationLabel, destinationTone = 'excess' }) 
   const actual = Math.max(1, Number(preview?.actual_minutes || 0));
   const covered = Math.min(100, (Number(preview?.covered_minutes || 0) / actual) * 100);
   const excess = Math.max(0, 100 - covered);
+  const isUnassigned = Boolean(preview?.requires_package_assignment);
   return <section className="session-coverage" aria-label="توزيع وقت جلسة التصوير">
-    <div className="session-coverage__labels"><span><i className="covered" /> مغطى من الباقة</span><span><i className={destinationTone} /> {destinationLabel || 'وقت يحتاج تسوية'}</span></div>
-    <div className="session-coverage__bar" role="img" aria-label={`${durationLabel(preview?.covered_minutes)} مغطى و${durationLabel(preview?.excess_minutes)} زائد`}>
+    <div className="session-coverage__labels"><span><i className="covered" /> {isUnassigned ? 'مسند حاليًا إلى باقة' : 'مغطى من الباقة'}</span><span><i className={destinationTone} /> {destinationLabel || (isUnassigned ? 'وقت غير مسند' : 'وقت يحتاج تسوية')}</span></div>
+    <div className="session-coverage__bar" role="img" aria-label={isUnassigned ? `${durationLabel(preview?.unassigned_minutes)} غير مسند إلى باقة` : `${durationLabel(preview?.covered_minutes)} مغطى و${durationLabel(preview?.excess_minutes)} زائد`}>
       <span className="session-coverage__covered" style={{ width: `${covered}%` }} />
       {excess > 0 && <span className={`session-coverage__excess session-coverage__excess--${destinationTone}`} style={{ width: `${excess}%` }} />}
     </div>
@@ -44,10 +45,11 @@ function CoverageBar({ preview, destinationLabel, destinationTone = 'excess' }) 
 }
 
 function SummaryCards({ preview }) {
+  const isUnassigned = Boolean(preview?.requires_package_assignment);
   return <div className="session-stop-summary" aria-live="polite">
     <div><span>الوقت الفعلي</span><strong>{durationLabel(preview.actual_minutes)}</strong></div>
-    <div className="covered"><span>المغطى من الباقة الحالية</span><strong>{durationLabel(preview.covered_minutes)}</strong></div>
-    <div className={preview.excess_minutes ? 'excess' : 'covered'}><span>الوقت الزائد</span><strong>{durationLabel(preview.excess_minutes)}</strong></div>
+    <div className="covered"><span>{isUnassigned ? 'المسند حاليًا' : 'المغطى من الباقة الحالية'}</span><strong>{durationLabel(preview.covered_minutes)}</strong></div>
+    <div className={preview.excess_minutes ? 'excess' : 'covered'}><span>{isUnassigned ? 'وقت غير مسند' : 'الوقت الزائد'}</span><strong>{durationLabel(isUnassigned ? preview.unassigned_minutes : preview.excess_minutes)}</strong></div>
   </div>;
 }
 
@@ -91,6 +93,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   const dialogRef = useModalDialog(true, close, { returnFocusRef });
   const inputMinutes = useMemo(() => minutesFromInputs(hours, minutes), [hours, minutes]);
   const hasExcess = Number(preview?.excess_minutes || 0) > 0;
+  const isUnassigned = Boolean(preview?.requires_package_assignment || !session.client_package_id);
   const isZeroCancellation = inputMinutes === 0;
   const isOwner = role === 'owner';
   const isOperations = role === 'operations';
@@ -113,8 +116,9 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
         if (!active) return;
         setPreview(result);
         const suggested = result.default_mode || (result.eligible_packages?.length ? 'existing_package' : result.overage_rate ? 'package_overage' : 'custom_invoice');
-        if (result.excess_minutes > 0) setFamily(current => current || (suggested === 'new_package' ? 'new_package' : suggested === 'package_overage' ? 'package_overage' : 'advanced'));
-        if (suggested !== 'new_package') setOtherMode(current => current || suggested);
+        if (result.requires_package_assignment) { setFamily('advanced'); setOtherMode('existing_package'); }
+        else if (result.excess_minutes > 0) setFamily(current => current || (suggested === 'new_package' ? 'new_package' : suggested === 'package_overage' ? 'package_overage' : 'advanced'));
+        if (!result.requires_package_assignment && suggested !== 'new_package') setOtherMode(current => current || suggested);
         if (result.eligible_packages?.[0]) setExistingPackageId(current => current || String(result.eligible_packages[0].id));
         setNewPackage(current => ({ ...current, purchased_minutes: String(Math.max(60, result.excess_minutes || 0)), service_id: current.service_id || String(result.package_templates?.[0]?.id || '') }));
       } catch (requestError) {
@@ -124,7 +128,8 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
     return () => { active = false; window.clearTimeout(timer); };
   }, [inputMinutes, session]);
 
-  const destinationLabel = family === 'waive' ? 'وقت تم التغاضي عنه'
+  const destinationLabel = isUnassigned ? (existingPackageId ? 'سيُسند إلى الباقة المختارة' : 'وقت غير مسند')
+    : family === 'waive' ? 'وقت تم التغاضي عنه'
     : family === 'new_package' ? 'مخصص لباقة جديدة'
       : family === 'advanced' && otherMode === 'existing_package' ? 'منقول لباقة أخرى'
         : 'وقت إضافي مستحق';
@@ -141,6 +146,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
 
   const selectedSettlement = () => {
     if (!hasExcess) return null;
+    if (isUnassigned) { const target = preview?.eligible_packages?.find(item => String(item.id) === String(existingPackageId)); return { mode: 'existing_package', target_package_id: Number(existingPackageId), target_package_version: Number(target?.version || 1) }; }
     if (family === 'new_package') return { mode: 'new_package', ...newPackage, purchased_minutes: Number(newPackage.purchased_minutes), validity_days: Number(newPackage.validity_days), total_price: newPackage.total_price, initial_paid: newPackage.initial_paid };
     if (family === 'package_overage') return { mode: 'package_overage', hourly_rate: custom.hourly_rate || preview?.overage_rate };
     if (family === 'waive') return { mode: 'waive', internal_reason: waiverReason.trim(), client_note: clientNote.trim() };
@@ -152,7 +158,11 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
 
   const validateSettlement = settlement => {
     if (!hasExcess) return;
-    if (isOperations) throw new Error('صلاحية التشغيل لا تسمح باعتماد الوقت الزائد. أرسل التسوية للمالك واترك الجلسة جارية.');
+    if (isOperations) throw new Error(isUnassigned ? 'صلاحية التشغيل لا تسمح بإسناد وقت الجلسة. أرسلها للمالك واترك الجلسة جارية.' : 'صلاحية التشغيل لا تسمح باعتماد الوقت الزائد. أرسل التسوية للمالك واترك الجلسة جارية.');
+    if (isUnassigned) {
+      if (settlement?.mode !== 'existing_package' || !settlement.target_package_id) throw new Error('اختر باقة ساعات مؤهلة لإسناد كامل وقت الجلسة.');
+      return;
+    }
     if (!settlement) throw new Error('اختر طريقة تسوية الوقت الزائد.');
     if (settlement.mode === 'new_package') {
       if (!settlement.service_id || !settlement.name.trim()) throw new Error('اختر نموذج الباقة واكتب اسم الباقة الجديدة.');
@@ -208,16 +218,19 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   const fallbackCustomRate = custom.hourly_rate === '' ? null : parseStrictMoney(custom.hourly_rate);
   const customAmountCents = directCustomAmount ? (directCustomAmount.valid ? directCustomAmount.cents : null) : fallbackCustomRate?.valid ? Math.round((fallbackCustomRate.cents * Number(preview?.excess_minutes || 0)) / 60) : 0;
   const customAmount = customAmountCents === null ? null : customAmountCents / 100;
-  const finalPreviewLines = [
+  const finalPreviewLines = isUnassigned ? [
+    `وقت غير مسند: ${durationLabel(preview?.unassigned_minutes || 0)}.`,
+    selectedTargetPackage ? `سيُسند كامل الوقت إلى باقة «${selectedTargetPackage.name}»: المتاح قبل ${durationLabel(selectedTargetPackage.free_minutes || 0)}، والمتبقي بعدها ${durationLabel(selectedTargetPackage.remaining_after_minutes || 0)}.` : 'اختر باقة ساعات مؤهلة قبل اعتماد الجلسة.',
+  ] : [
     `الباقة الأصلية «${session.package_name || session.service || 'الباقة الحالية'}»: متاح قبل الإنهاء ${durationLabel(sourceBeforeMinutes)}، سيُستهلك ${durationLabel(preview?.covered_minutes || 0)}، ويصبح المتاح ${durationLabel(Math.max(0, sourceBeforeMinutes - Number(preview?.covered_minutes || 0)))}.`,
     releasedMinutes > 0 ? `سيُعاد ${durationLabel(releasedMinutes)} من حجز هذا الموعد غير المستخدم إلى الرصيد الحر.` : 'لن يوجد وقت محجوز غير مستخدم لإعادته.',
   ];
-  if (family === 'new_package') finalPreviewLines.push(`إنشاء باقة «${newPackage.name || 'الباقة الجديدة'}» برصيد ${durationLabel(Number(newPackage.purchased_minutes || 0))}؛ يُخصص منها ${durationLabel(preview?.excess_minutes || 0)} ويتبقى ${durationLabel(packageAfter)}.`, newPackageTotal.valid && newPackagePaid.valid ? `إجمالي الباقة ${moneyLabel(newPackageTotal.cents / 100)}؛ المدفوع الآن ${moneyLabel(newPackagePaid.cents / 100)}؛ المتبقي ${moneyLabel(Math.max(0, newPackageTotal.cents - newPackagePaid.cents) / 100)}. ستُنشأ فاتورة الباقة، ويُسجل إيراد فقط بقيمة المدفوع.` : 'صحح قيم السعر والمدفوع لتظهر المعاينة المالية المطابقة للحفظ.');
-  else if (otherMode === 'existing_package') finalPreviewLines.push(`نقل الوقت الزائد إلى باقة «${selectedTargetPackage?.name || 'الباقة المختارة'}»: المتاح قبل ${durationLabel(selectedTargetPackage?.free_minutes || 0)}، المستهلك الآن ${durationLabel(preview?.excess_minutes || 0)}، والمتاح بعدها ${durationLabel(selectedTargetPackage?.remaining_after_minutes || 0)}.`, 'لا فاتورة ولا مديونية جديدة لهذه التسوية.');
-  else if (family === 'package_overage' || otherMode === 'package_overage') finalPreviewLines.push(overageRate.valid ? `احتساب ${durationLabel(preview?.excess_minutes || 0)} بسعر ${moneyLabel(overageRate.cents / 100)} للساعة.` : 'صحح سعر الساعة لتظهر معاينة المستحق.', overageAmount !== null ? `المستحق ${moneyLabel(overageAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(overageAmount)} على الباقة الأصلية دون خصم رصيد إضافي.` : 'لن يعتمد النظام قيمة لا تطابق صيغة القروش المعتمدة.');
-  else if (otherMode === 'custom_project') finalPreviewLines.push(`إنشاء مشروع «${custom.project_name || 'خدمة وقت تصوير إضافي'}» ووصفه «${custom.description || 'وقت تصوير إضافي'}»، مرتبط بهذه الجلسة.`, customAmount !== null ? `قيمة المشروع والفاتورة ${moneyLabel(customAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(customAmount)}. لن تُسجل إيرادات قبل اعتماد الدفع.` : 'صحح تكلفة المشروع لتظهر المعاينة المالية المطابقة للحفظ.');
-  else if (family === 'waive') finalPreviewLines.push(`التغاضي عن ${durationLabel(preview?.excess_minutes || 0)} بالكامل دون خصم أو فاتورة أو مديونية. ستظهر للعميل ملاحظة التسوية الآمنة فقط.`);
-  else finalPreviewLines.push(customAmount !== null ? `إنشاء فاتورة «${custom.description || 'وقت تصوير إضافي'}» بقيمة ${moneyLabel(customAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(customAmount)}. لا يُسجل إيراد حتى اعتماد الدفع.` : 'صحح مبلغ الفاتورة لتظهر المعاينة المالية المطابقة للحفظ.');
+  if (!isUnassigned && family === 'new_package') finalPreviewLines.push(`إنشاء باقة «${newPackage.name || 'الباقة الجديدة'}» برصيد ${durationLabel(Number(newPackage.purchased_minutes || 0))}؛ يُخصص منها ${durationLabel(preview?.excess_minutes || 0)} ويتبقى ${durationLabel(packageAfter)}.`, newPackageTotal.valid && newPackagePaid.valid ? `إجمالي الباقة ${moneyLabel(newPackageTotal.cents / 100)}؛ المدفوع الآن ${moneyLabel(newPackagePaid.cents / 100)}؛ المتبقي ${moneyLabel(Math.max(0, newPackageTotal.cents - newPackagePaid.cents) / 100)}. ستُنشأ فاتورة الباقة، ويُسجل إيراد فقط بقيمة المدفوع.` : 'صحح قيم السعر والمدفوع لتظهر المعاينة المالية المطابقة للحفظ.');
+  else if (!isUnassigned && otherMode === 'existing_package') finalPreviewLines.push(`نقل الوقت الزائد إلى باقة «${selectedTargetPackage?.name || 'الباقة المختارة'}»: المتاح قبل ${durationLabel(selectedTargetPackage?.free_minutes || 0)}، المستهلك الآن ${durationLabel(preview?.excess_minutes || 0)}، والمتاح بعدها ${durationLabel(selectedTargetPackage?.remaining_after_minutes || 0)}.`, 'لا فاتورة ولا مديونية جديدة لهذه التسوية.');
+  else if (!isUnassigned && (family === 'package_overage' || otherMode === 'package_overage')) finalPreviewLines.push(overageRate.valid ? `احتساب ${durationLabel(preview?.excess_minutes || 0)} بسعر ${moneyLabel(overageRate.cents / 100)} للساعة.` : 'صحح سعر الساعة لتظهر معاينة المستحق.', overageAmount !== null ? `المستحق ${moneyLabel(overageAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(overageAmount)} على الباقة الأصلية دون خصم رصيد إضافي.` : 'لن يعتمد النظام قيمة لا تطابق صيغة القروش المعتمدة.');
+  else if (!isUnassigned && otherMode === 'custom_project') finalPreviewLines.push(`إنشاء مشروع «${custom.project_name || 'خدمة وقت تصوير إضافي'}» ووصفه «${custom.description || 'وقت تصوير إضافي'}»، مرتبط بهذه الجلسة.`, customAmount !== null ? `قيمة المشروع والفاتورة ${moneyLabel(customAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(customAmount)}. لن تُسجل إيرادات قبل اعتماد الدفع.` : 'صحح تكلفة المشروع لتظهر المعاينة المالية المطابقة للحفظ.');
+  else if (!isUnassigned && family === 'waive') finalPreviewLines.push(`التغاضي عن ${durationLabel(preview?.excess_minutes || 0)} بالكامل دون خصم أو فاتورة أو مديونية. ستظهر للعميل ملاحظة التسوية الآمنة فقط.`);
+  else if (!isUnassigned) finalPreviewLines.push(customAmount !== null ? `إنشاء فاتورة «${custom.description || 'وقت تصوير إضافي'}» بقيمة ${moneyLabel(customAmount)}؛ المدفوع الآن ${moneyLabel(0)}؛ المتبقي ${moneyLabel(customAmount)}. لا يُسجل إيراد حتى اعتماد الدفع.` : 'صحح مبلغ الفاتورة لتظهر المعاينة المالية المطابقة للحفظ.');
   const chooseTemplate = serviceId => {
     const template = preview?.package_templates?.find(item => String(item.id) === String(serviceId));
     setNewPackage(current => template ? { ...current, service_id: String(template.id), name: template.name, purchased_minutes: String(Math.max(Number(template.total_minutes || 0), Number(preview.excess_minutes || 0))), validity_days: String(template.validity_days || 90), total_price: String(template.price || 0) } : { ...current, service_id: '' });
@@ -233,7 +246,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
           <button type="button" className="session-stop-close" onClick={close} aria-label="إغلاق نافذة ملخص الجلسة"><X /></button>
         </header>
         <div className="session-stop-body">
-          <dl className="session-stop-context"><div><dt>العميل</dt><dd>{session.client_name || '—'}</dd></div><div><dt>الباقة / الخدمة</dt><dd>{session.package_name || session.service || '—'}</dd></div><div><dt>الوقت المصور</dt><dd>{durationLabel(completion.actual_minutes || 0)}</dd></div></dl>
+          <dl className="session-stop-context"><div><dt>العميل</dt><dd>{session.client_name || '—'}</dd></div><div><dt>الباقة / الخدمة</dt><dd>{summary?.package_name || session.package_name || session.service || '—'}</dd></div><div><dt>الوقت المصور</dt><dd>{durationLabel(completion.actual_minutes || 0)}</dd></div></dl>
           {summary ? <section className="session-whatsapp-summary">
             <div className="session-whatsapp-summary__heading"><span><MessageCircle /></span><div><h3>رسالة واتساب جاهزة</h3><p>تحتوي على الساعات بعد الجلسة والحالة المالية والصلاحية والنقاط.</p></div></div>
             <pre>{formatPackageWhatsAppMessage(summary)}</pre>
@@ -248,7 +261,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   return <div className="session-stop-overlay" onMouseDown={event => event.target === event.currentTarget && close()}>
     <form ref={dialogRef} className="session-stop-dialog session-stop-dialog--settlement" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="session-stop-title" aria-describedby="session-stop-description" noValidate>
       <header>
-        <div className="session-stop-heading"><span><Square /> {step === 1 ? 'إيقاف وحفظ المدة' : 'تسوية الوقت الزائد'}</span><h2 id="session-stop-title">{step === 1 ? 'إيقاف التصوير' : 'كيف تريد احتساب الوقت الزائد؟'}</h2><p id="session-stop-description">{step === 1 ? 'راجع وقت التصوير الفعلي قبل خصمه من الباقة.' : 'سيتم حفظ كل الاختيارات مع الجلسة في عملية واحدة.'}</p></div>
+        <div className="session-stop-heading"><span><Square /> {step === 1 ? 'إيقاف وحفظ المدة' : isUnassigned ? 'إسناد وقت الجلسة' : 'تسوية الوقت الزائد'}</span><h2 id="session-stop-title">{step === 1 ? 'إيقاف التصوير' : isUnassigned ? 'اختر الباقة التي ستسجل فيها الجلسة' : 'كيف تريد احتساب الوقت الزائد؟'}</h2><p id="session-stop-description">{step === 1 ? (isUnassigned ? 'راجع الوقت الفعلي؛ سيظل غير مسند حتى تختار باقة ساعات.' : 'راجع وقت التصوير الفعلي قبل خصمه من الباقة.') : 'سيتم حفظ الاختيار وربط الجلسة بالباقة في عملية واحدة.'}</p></div>
         <button type="button" className="session-stop-close" onClick={close} disabled={busy} aria-label="إغلاق نافذة إيقاف التصوير"><X /></button>
       </header>
 
@@ -258,21 +271,29 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
         {step === 1 && <>
           <section className="session-stop-live" aria-live="polite"><span className="session-stop-pulse" /><div><small>المدة المحسوبة حتى الآن</small><strong>{durationLabel(liveElapsedMinutes)}</strong></div><Clock3 /></section>
           {Number(session.complimentary_seconds || 0) > 0 && <section className="session-stop-compensation" aria-label="الوقت التعويضي المجاني"><HandHeart /><div><small>وقت تعويضي مجاني متراكم</small><strong dir="ltr">{formatElapsedTime(session.complimentary_seconds)}</strong><p>المؤقت والمدة المقترحة أعلاه يعرضان وقت التصوير الصافي بعد خصمه.</p></div></section>}
-          <fieldset className="session-stop-duration"><legend>المدة التي سيتم حفظها</legend><div className="session-stop-duration-fields"><label><span>الساعات</span><input data-dialog-initial type="number" inputMode="numeric" min="0" step="1" value={hours} onChange={event => { setHours(event.target.value); setError(''); }} /></label><span className="session-stop-colon">:</span><label><span>الدقائق</span><input type="number" inputMode="numeric" min="0" max="59" step="1" value={minutes} onChange={event => { setMinutes(event.target.value); setError(''); }} /></label></div><p>يمكن تعديل الساعات والدقائق يدويًا. سيحسب النظام تلقائيًا الجزء المغطى والجزء الزائد.</p></fieldset>
+          <fieldset className="session-stop-duration"><legend>المدة التي سيتم حفظها</legend><div className="session-stop-duration-fields"><label><span>الساعات</span><input data-dialog-initial type="number" inputMode="numeric" min="0" step="1" value={hours} onChange={event => { setHours(event.target.value); setError(''); }} /></label><span className="session-stop-colon">:</span><label><span>الدقائق</span><input type="number" inputMode="numeric" min="0" max="59" step="1" value={minutes} onChange={event => { setMinutes(event.target.value); setError(''); }} /></label></div><p>{isUnassigned ? 'يمكن تعديل المدة يدويًا. أي مدة أكبر من صفر يجب إسنادها كاملة إلى باقة ساعات.' : 'يمكن تعديل الساعات والدقائق يدويًا. سيحسب النظام تلقائيًا الجزء المغطى والجزء الزائد.'}</p></fieldset>
           {isZeroCancellation && <div className="session-stop-warning"><AlertTriangle /><p><strong>سيُلغى هذا الموعد دون اعتماد الجلسة.</strong> لن يُخصم وقت من الباقة، وسيُعاد كامل الرصيد المحجوز، ولن تُنشأ مهمة مونتاج.</p></div>}
           {session.billing_unit === 'reel' && <label className="session-stop-reels"><span>عدد الريلز التي تم تصويرها</span><input type="number" inputMode="numeric" min="1" step="1" value={actualReels} onChange={event => setActualReels(event.target.value)} /></label>}
           <label className="session-stop-reason"><span>سبب تعديل الوقت <small>(اختياري)</small></span><textarea rows="2" value={reason} onChange={event => setReason(event.target.value)} placeholder="يُحفظ في سجل المراجعة" /></label>
           {previewBusy && <div className="session-stop-preview-loading"><Clock3 /> جارٍ حساب الرصيد المتاح…</div>}
           {preview && <><SummaryCards preview={preview} /><CoverageBar preview={preview} /></>}
-          {hasExcess && <div className="session-stop-warning"><AlertTriangle /><p><strong>الجلسة أطول من الوقت المتاح في الباقة الحالية.</strong> يمكنك المتابعة؛ لن يخصم النظام أكثر من رصيدها ولن يستخدم رصيدًا محجوزًا لموعد آخر.</p></div>}
+          {hasExcess && <div className="session-stop-warning"><AlertTriangle /><p><strong>{isUnassigned?'هذه الجلسة غير مرتبطة بباقة.':'الجلسة أطول من الوقت المتاح في الباقة الحالية.'}</strong> {isUnassigned?'سيتم خصم كامل المدة الفعلية من الباقة التي تختارها.':'لن يخصم النظام رصيدًا محجوزًا لموعد آخر.'}</p></div>}
         </>}
 
         {step === 2 && preview && <>
           <SummaryCards preview={preview} /><CoverageBar preview={preview} destinationLabel={destinationLabel} destinationTone={destinationTone} />
-          {isOperations ? <div className="session-operations-handoff"><AlertTriangle /><div><strong>يلزم اعتماد المالك</strong><p>أرسل المدة للمالك للتسوية. ستظل جلسة التصوير نشطة ولن يتم خصم أو إنشاء أي فاتورة.</p></div></div> : <>
-            <fieldset className="session-settlement-choices session-settlement-choices--primary"><legend>اختر كيفية حساب الوقت الزائد</legend>
+          {isOperations ? <div className="session-operations-handoff"><AlertTriangle /><div><strong>يلزم اعتماد المالك</strong><p>{isUnassigned ? 'أرسل المدة للمالك لإسنادها إلى باقة ساعات. ستظل جلسة التصوير نشطة.' : 'أرسل المدة للمالك للتسوية. ستظل جلسة التصوير نشطة ولن يتم خصم أو إنشاء أي فاتورة.'}</p></div></div> : isUnassigned ? <>
+            <section className="session-settlement-panel session-settlement-panel--assignment" data-unassigned-package-only>
+              <h3><WalletCards /> إسناد كامل الوقت إلى باقة ساعات</h3>
+              <p className="session-settlement-result">لا يمكن إنهاء الجلسة بوقت غير مسند. اختر باقة نشطة تخص العميل وتغطي {durationLabel(preview.unassigned_minutes)} كاملة.</p>
+              {preview.eligible_packages?.length > 0 ? <label className="session-settlement-note"><span>الباقة المستهدفة</span><select required value={existingPackageId} onChange={event => setExistingPackageId(event.target.value)}><option value="">اختر الباقة</option>{preview.eligible_packages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name} — متاح {durationLabel(pkg.free_minutes)}</option>)}</select></label> : <div className="session-stop-error" role="alert"><AlertTriangle /><span>لا توجد باقة ساعات مؤهلة تغطي كامل وقت الجلسة. أضف رصيدًا مناسبًا ثم أعد المحاولة.</span></div>}
+            </section>
+            <section className={`session-final-preview session-final-preview--${destinationTone}`}><h3><ReceiptText /> ملخص الإسناد النهائي</h3><ul>{finalPreviewLines.map((line, index) => <li key={`${destinationTone}-${index}`}>{line}</li>)}</ul><p>بعد الاعتماد ستُربط الجلسة بالباقة المختارة ويُخصم كامل الوقت منها.</p></section>
+          </> : <>
+            <fieldset className="session-settlement-choices session-settlement-choices--primary"><legend>{isUnassigned?'اختر الباقة التي ستسجل فيها الجلسة':'اختر كيفية حساب الوقت الزائد'}</legend>
+              {isUnassigned&&preview.eligible_packages?.length>0&&<SettlementChoice value="existing_package" selected={family==='advanced'&&otherMode==='existing_package'} onChange={()=>{setFamily('advanced');setOtherMode('existing_package')}} icon={WalletCards} title="خصم المدة من باقة موجودة" description="سترتبط الجلسة بالباقة وتظهر في سجلها"/>}
               <SettlementChoice value="new_package" selected={family === 'new_package'} onChange={setFamily} icon={PackagePlus} title="فتح باقة جديدة وتحميل الوقت عليها" description="إنشاء باقة مستقلة واستهلاك الزيادة من رصيدها الآن" />
-              <SettlementChoice value="package_overage" selected={family === 'package_overage'} onChange={setFamily} icon={WalletCards} title="احتسابه بسعر الباقة الحالية" description={overageRate.valid && overageRate.cents > 0 ? `يضاف ${moneyLabel(overageAmount)} مستحقًا بسعر ${moneyLabel(overageRate.cents / 100)} للساعة` : 'سعر الساعة يحتاج تصحيحًا قبل الاعتماد'} disabled={!overageRate.valid || overageRate.cents <= 0} />
+              {!isUnassigned&&<SettlementChoice value="package_overage" selected={family === 'package_overage'} onChange={setFamily} icon={WalletCards} title="احتسابه بسعر الباقة الحالية" description={overageRate.valid && overageRate.cents > 0 ? `يضاف ${moneyLabel(overageAmount)} مستحقًا بسعر ${moneyLabel(overageRate.cents / 100)} للساعة` : 'سعر الساعة يحتاج تصحيحًا قبل الاعتماد'} disabled={!overageRate.valid || overageRate.cents <= 0} />}
             </fieldset>
 
             {family === 'new_package' && <section className="session-settlement-panel"><h3><PackagePlus /> تفاصيل الباقة الجديدة</h3><div className="session-settlement-grid">
@@ -314,7 +335,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
 
       <footer>
         {step === 2 && !busy ? <button type="button" className="session-stop-secondary" onClick={() => setStep(1)}><ArrowLeft /> رجوع للمدة</button> : <button type="button" className="session-stop-secondary" onClick={close} disabled={busy}>إلغاء</button>}
-        {step === 2 && isOperations ? <button type="button" className="session-stop-primary session-stop-primary--handoff" onClick={close}>إرسال للمالك للتسوية</button> : <button type="submit" className="session-stop-primary" disabled={busy || previewBusy || inputMinutes === null || (inputMinutes > 0 && session.billing_unit !== 'reel' && !preview)}><Save /> {busy ? 'جارٍ الاعتماد…' : isZeroCancellation ? 'إلغاء الجلسة دون احتساب' : hasExcess && step === 1 ? 'متابعة لتسوية الوقت الزائد' : hasExcess ? 'اعتماد التسوية وإيقاف التصوير' : 'حفظ وإيقاف التصوير'}</button>}
+        {step === 2 && isOperations ? <button type="button" className="session-stop-primary session-stop-primary--handoff" onClick={close}>إرسال للمالك</button> : <button type="submit" className="session-stop-primary" disabled={busy || previewBusy || inputMinutes === null || (inputMinutes > 0 && session.billing_unit !== 'reel' && !preview) || (step === 2 && isUnassigned && !existingPackageId)}><Save /> {busy ? 'جارٍ الاعتماد…' : isZeroCancellation ? 'إلغاء الجلسة دون احتساب' : hasExcess && step === 1 ? (isUnassigned ? 'متابعة لإسناد الوقت' : 'متابعة لتسوية الوقت الزائد') : hasExcess ? (isUnassigned ? 'إسناد الوقت وإيقاف التصوير' : 'اعتماد التسوية وإيقاف التصوير') : 'حفظ وإيقاف التصوير'}</button>}
       </footer>
     </form>
   </div>;
