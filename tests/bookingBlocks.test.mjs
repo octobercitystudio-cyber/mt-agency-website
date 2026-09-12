@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { bookingBlockCalendarItem, getBookingAvailability } from '../src/erp/bookingAvailability.js';
-import { bindBookingBlockDoubleClick } from '../src/erp/bookingBlockInteraction.js';
+import { bindBookingBlockDoubleClick, bookingBlockDayCellFromEvent, shouldIgnoreBookingBlockDoubleClick } from '../src/erp/bookingBlockInteraction.js';
 
 const root = new URL('../', import.meta.url);
 const load = path => readFile(new URL(path, root), 'utf8');
@@ -27,7 +27,7 @@ test('administrative blocks occupy availability without exposing a client', () =
   assert.deepEqual(bookingBlockCalendarItem(block), { ...block, date: block.block_date, title: 'الحجز مغلق', kind: 'booking_block', owner_label: 'مغلق بواسطة الإدارة' });
 });
 
-test('native day-cell DOM dblclick opens once and cleans up independently of click detail', () => {
+test('native day-cell DOM dblclick opens once, ignores conflicting origins, and cleans up independently of click detail', () => {
   const dayCell = new EventTarget();
   const received = [];
   const cleanup = bindBookingBlockDoubleClick(dayCell, event => received.push(event.type));
@@ -38,9 +38,47 @@ test('native day-cell DOM dblclick opens once and cleans up independently of cli
   assert.deepEqual(received, ['dblclick']);
   const secondary = new Event('dblclick'); Object.defineProperty(secondary, 'button', { value: 2 }); dayCell.dispatchEvent(secondary);
   assert.deepEqual(received, ['dblclick'], 'secondary-button double click must be ignored');
+  assert.equal(shouldIgnoreBookingBlockDoubleClick({ button: 0, target: { closest: selector => selector.includes('.fc-event') ? {} : null } }), true, 'calendar events must keep their own double-click behavior');
+  assert.equal(shouldIgnoreBookingBlockDoubleClick({ button: 0, target: { closest: selector => selector.includes('button') ? {} : null } }), true, 'controls inside a day cell must be ignored');
+  assert.equal(shouldIgnoreBookingBlockDoubleClick({ button: 0, target: { closest: () => null } }), false, 'empty cell space must open day actions');
+  const mountedDayCell = { getAttribute: name => name === 'data-date' ? '2027-02-01' : null };
+  const calendarRoot = { contains: node => node === mountedDayCell };
+  assert.equal(bookingBlockDayCellFromEvent({ target: { closest: () => mountedDayCell } }, calendarRoot), mountedDayCell, 'delegated listener resolves the current mounted day cell');
+  assert.equal(bookingBlockDayCellFromEvent({ target: { closest: () => ({}) } }, calendarRoot), null, 'a day cell outside the main calendar is ignored');
   cleanup();
   dayCell.dispatchEvent(new Event('dblclick'));
   assert.deepEqual(received, ['dblclick'], 'unmounted FullCalendar cells must release their listener');
+});
+
+test('delegated calendar dblclick survives replacement of the selected day cell', () => {
+  const listeners = new Map();
+  let mountedCells = [];
+  const calendarRoot = {
+    addEventListener: (type, listener) => listeners.set(type, listener),
+    removeEventListener: (type, listener) => { if (listeners.get(type) === listener) listeners.delete(type); },
+    contains: cell => mountedCells.includes(cell),
+  };
+  const targetFor = (cell, conflict = false) => ({ closest: selector => {
+    if (selector.includes('.fc-event')) return conflict ? {} : null;
+    return selector === '.fc-day[data-date]' ? cell : null;
+  } });
+  const opened = [];
+  const cleanup = bindBookingBlockDoubleClick(calendarRoot, event => {
+    const cell = bookingBlockDayCellFromEvent(event, calendarRoot);
+    if (cell) opened.push(cell.getAttribute('data-date'));
+  });
+
+  const originalCell = { getAttribute: () => '2027-02-01' };
+  mountedCells = [originalCell];
+  listeners.get('dblclick')({ button: 0, target: targetFor(originalCell) });
+  const replacementCell = { getAttribute: () => '2027-02-01' };
+  mountedCells = [replacementCell];
+  listeners.get('dblclick')({ button: 0, target: targetFor(replacementCell) });
+  listeners.get('dblclick')({ button: 0, target: targetFor(replacementCell, true) });
+
+  assert.deepEqual(opened, ['2027-02-01', '2027-02-01']);
+  cleanup();
+  assert.equal(listeners.has('dblclick'), false);
 });
 
 test('demo booking blocks are atomic, idempotent, scoped, and side-effect free', async () => {
@@ -165,9 +203,21 @@ test('production API and migration enforce a single atomic schedule owner', asyn
   assert.match(api, /bookingBlockDates/);
 });
 
-test('owner calendar uses one-click day actions and accessible responsive dialogs', async () => {
+test('owner calendar selects on one click and opens day actions only from an empty-cell double click', async () => {
   const [calendar, dialog, conversion, actions, css] = await Promise.all([load('src/erp/ERPBookings.jsx'),load('src/erp/ERPBookingBlockDialog.jsx'),load('src/erp/BookingBlockConversionForm.jsx'),load('src/erp/ERPBookingDayActionsDialog.jsx'),load('src/erp/ERPBookingBlockDialog.css')]);
-  assert.match(calendar, /dateClick=\{handleDateClick\}/); assert.match(calendar, /setDayActionsOpen\(true\)/); assert.doesNotMatch(calendar, /bindBookingBlockDoubleClick/);
+  assert.match(calendar, /import \{ bindBookingBlockDoubleClick, bookingBlockDayCellFromEvent \} from '\.\/bookingBlockInteraction'/);
+  assert.match(calendar, /dateClick=\{handleDateClick\}/); assert.match(calendar, /ref=\{bookingCalendarRef\} className="erp-bookings-calendar"/); assert.doesNotMatch(calendar, /dayCellDidMount|dayCellWillUnmount|new WeakMap/); assert.match(calendar, /const dateSelectionTimerRef = useRef\(null\)/);
+  assert.match(calendar, /useEffect\(\(\) => \(\) => \{\s*if \(dateSelectionTimerRef\.current !== null\) window\.clearTimeout\(dateSelectionTimerRef\.current\);\s*\}, \[\]\)/);
+  const singleClick = calendar.slice(calendar.indexOf('const handleDateClick'), calendar.indexOf('const openDayActionsForSelectedDate'));
+  assert.match(singleClick, /window\.clearTimeout\(dateSelectionTimerRef\.current\)/); assert.match(singleClick, /dateSelectionTimerRef\.current = window\.setTimeout/); assert.match(singleClick, /\}, 240\)/); assert.match(singleClick, /setSelectedDate/); assert.doesNotMatch(singleClick, /setDayActionsOpen|setBlockDialogOpen/);
+  const delegatedDoubleClick = calendar.slice(calendar.indexOf('return bindBookingBlockDoubleClick(calendarRoot'), calendar.indexOf('}, [isAdmin])'));
+  assert.match(delegatedDoubleClick, /bookingBlockDayCellFromEvent\(event, calendarRoot\)/); assert.match(delegatedDoubleClick, /getAttribute\?\.\('data-date'\)/); assert.match(delegatedDoubleClick, /window\.clearTimeout\(dateSelectionTimerRef\.current\)/); assert.match(delegatedDoubleClick, /dateSelectionTimerRef\.current = window\.setTimeout/); assert.match(delegatedDoubleClick, /\}, 0\)/); assert.match(delegatedDoubleClick, /dayActionTriggerRef\.current = calendarRoot/); assert.match(delegatedDoubleClick, /setDayActionsOpen\(true\)/); assert.doesNotMatch(delegatedDoubleClick, /setBlockDialogOpen/);
+  const explicitDayAction = calendar.slice(calendar.indexOf('const openDayActionsForSelectedDate'), calendar.indexOf('const openBlockDialogForSelectedDate'));
+  assert.match(explicitDayAction, /dayActionTriggerRef\.current = trigger/); assert.match(explicitDayAction, /setDayActionsOpen\(true\)/);
+  assert.match(calendar, /data-variant="secondary" onClick=\{event => openDayActionsForSelectedDate\(event\.currentTarget\)\}><CalendarClock size=\{18\}\/>إجراءات اليوم<\/button>/);
+  assert.equal((calendar.match(/إجراءات اليوم/g) || []).length, 1, 'touch and keyboard fallback is one explicit hero action');
+  assert.match(calendar, /ERPBookingDayActionsDialog date=\{selectedDate\}[^>]*returnFocusRef=\{dayActionTriggerRef\}/);
+  assert.match(calendar, /انقر مرتين على مساحة فارغة داخل اليوم لفتح خيارات الحجز المؤقت أو بدء جلسة تصوير/);
   assert.match(actions, /حجز مؤقت/); assert.match(actions, /بدء جلسة تصوير/); assert.match(actions, /timeZone: 'Africa\/Cairo'/); assert.match(actions, /const canStartDirect = date === today/); assert.match(actions, /disabled=\{!canStartDirect\}/); assert.match(actions, /بدء الجلسة متاح ليوم العمل الحالي فقط/); assert.match(actions, /role="dialog"/);
   assert.match(dialog, /title: ''/); assert.match(dialog, /BookingBlockConversionForm/); assert.match(conversion, /تحويل إلى حجز عميل/); assert.match(conversion, /requestKeyRef\.current/); assert.match(css, /@media\(max-width:600px\)/);
 });

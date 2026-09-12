@@ -17,6 +17,7 @@ import { activeServiceCategories, isProjectServiceCategory } from '../lib/servic
 import useChangeSync from '../hooks/useChangeSync';
 import { ERPBookingBlockDetailsDialog, ERPBookingBlockDialog } from './ERPBookingBlockDialog';
 import { ERPBookingDayActionsDialog, ERPDirectSessionDialog } from './ERPBookingDayActionsDialog';
+import { bindBookingBlockDoubleClick, bookingBlockDayCellFromEvent } from './bookingBlockInteraction';
 import { isClientBookingVisible } from '../lib/clientBookingVisibility';
 
 // FullCalendar Imports
@@ -123,9 +124,32 @@ const ERPBookings = () => {
   const blockTriggerRef = useRef(null);
   const blockDetailsTriggerRef = useRef(null);
   const dayActionTriggerRef = useRef(null);
+  const bookingCalendarRef = useRef(null);
+  const dateSelectionTimerRef = useRef(null);
   const directSessionTriggerRef = useRef(null);
 
   const isAdmin = ['owner', 'admin', 'operations'].includes(currentUser?.role);
+
+  useEffect(() => () => {
+    if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    const calendarRoot = bookingCalendarRef.current;
+    if (!isAdmin || !calendarRoot) return undefined;
+    return bindBookingBlockDoubleClick(calendarRoot, event => {
+      const dayCell = bookingBlockDayCellFromEvent(event, calendarRoot);
+      const clickedDate = String(dayCell?.getAttribute?.('data-date') || '').slice(0, 10);
+      if (!dayCell || !/^\d{4}-\d{2}-\d{2}$/.test(clickedDate)) return;
+      if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
+      dateSelectionTimerRef.current = window.setTimeout(() => {
+        setSelectedDate(clickedDate);
+        dayActionTriggerRef.current = calendarRoot;
+        setDayActionsOpen(true);
+        dateSelectionTimerRef.current = null;
+      }, 0);
+    });
+  }, [isAdmin]);
   const isOwner = currentUser?.role === 'owner';
   const [newBooking, setNewBooking] = useState({
     client_name: '',
@@ -296,8 +320,18 @@ const ERPBookings = () => {
   };
 
   const handleDateClick = (arg) => {
-    const clickedDate = String(arg.dateStr || '').slice(0, 10); setSelectedDate(clickedDate);
-    if (isAdmin) { dayActionTriggerRef.current = arg.dayEl || null; setDayActionsOpen(true); }
+    const clickedDate = String(arg.dateStr || '').slice(0, 10);
+    if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
+    dateSelectionTimerRef.current = window.setTimeout(() => {
+      setSelectedDate(clickedDate);
+      dateSelectionTimerRef.current = null;
+    }, 240);
+  };
+
+  const openDayActionsForSelectedDate = trigger => {
+    if (!isAdmin) return;
+    dayActionTriggerRef.current = trigger;
+    setDayActionsOpen(true);
   };
 
   const openBlockDialogForSelectedDate = trigger => { if (!isAdmin) return; blockTriggerRef.current = trigger; setDayActionsOpen(false); setBlockError(''); setBlockDialogOpen(true); };
@@ -765,8 +799,8 @@ const ERPBookings = () => {
         icon={CalendarIcon}
         eyebrow="جدول الاستديو"
         title="إدارة المواعيد والتقويم"
-        description={<>{'اضغط على اليوم لإضافة حجز مؤقت أو بدء جلسة تصوير مباشرة.'}{isAdmin && <> · يمكنك تعديل الموعد أو إلغاؤه مع الاحتفاظ بالسجل.</>}</>}
-        actions={<><button data-variant="primary" onClick={event => { bookingTriggerRef.current = event.currentTarget; setIsModalOpen(true); }}><CalendarPlus size={18} /> حجز موعد / إضافة خدمة</button>{isAdmin && <button data-variant="secondary" onClick={event => openBlockDialogForSelectedDate(event.currentTarget)}><LockKeyhole size={18}/>حظر موعد</button>}</>}
+        description={<>انقر مرة على اليوم لعرض جدوله.{isAdmin && <> انقر مرتين على مساحة فارغة داخل اليوم لفتح خيارات الحجز المؤقت أو بدء جلسة تصوير. · يمكنك تعديل الموعد أو إلغاؤه مع الاحتفاظ بالسجل.</>}</>}
+        actions={<><button data-variant="primary" onClick={event => { bookingTriggerRef.current = event.currentTarget; setIsModalOpen(true); }}><CalendarPlus size={18} /> حجز موعد / إضافة خدمة</button>{isAdmin && <button data-variant="secondary" onClick={event => openDayActionsForSelectedDate(event.currentTarget)}><CalendarClock size={18}/>إجراءات اليوم</button>}</>}
       />
 
       {rescheduleNotice && <div className="booking-reschedule-notice" role="status"><CheckCircle size={17} />{rescheduleNotice}<button type="button" onClick={() => setRescheduleNotice('')} style={{ marginRight: 'auto', border: 0, background: 'transparent', color: 'inherit' }} aria-label="إخفاء الرسالة"><X size={16}/></button></div>}
@@ -799,7 +833,7 @@ const ERPBookings = () => {
             </div>
 
             <p className="booking-calendar-scroll-hint"><MoveHorizontal aria-hidden="true" />مرّر يمينًا ويسارًا لرؤية باقي الأيام</p>
-            <div className="erp-bookings-calendar" role="region" aria-label="تقويم الحجوزات الشهري، يمكن تمريره أفقيًا على الشاشات الصغيرة" tabIndex={0}>
+            <div ref={bookingCalendarRef} className="erp-bookings-calendar" role="region" aria-label="تقويم الحجوزات الشهري، يمكن تمريره أفقيًا على الشاشات الصغيرة" tabIndex={0}>
               <FullCalendar
               key={`bookings-calendar-${clientColorsHydrated ? clientColorSignature : 'loading-colors'}`}
               plugins={[ dayGridPlugin, interactionPlugin, timeGridPlugin ]}
