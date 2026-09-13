@@ -1,6 +1,7 @@
 import { effectivePackageStatus, packageFinancialSummary, packageQuantitySummary } from '../lib/businessFormat.js';
 
 const dateKey = value => String(value || '').slice(0, 10);
+const expiryPriority = pkg => dateKey(pkg?.expires_at) || '9999-12-31';
 
 export const packageBookingAvailability = (pkg, todayKey) => {
   if (!pkg) return { bookable: false, reason: 'الباقة غير موجودة.' };
@@ -18,8 +19,19 @@ export const packagesForBookingClient = (packages, clientId, todayKey) => (
     .map(pkg => ({ ...pkg, availability: packageBookingAvailability(pkg, todayKey) }))
     .sort((left, right) => {
       if (left.availability.bookable !== right.availability.bookable) return left.availability.bookable ? -1 : 1;
-      return dateKey(left.expires_at).localeCompare(dateKey(right.expires_at));
+      const expiryOrder = expiryPriority(left).localeCompare(expiryPriority(right));
+      if (expiryOrder) return expiryOrder;
+      return Number(right.id || 0) - Number(left.id || 0);
     })
+    .map((pkg, index, sorted) => ({
+      ...pkg,
+      availability: {
+        ...pkg.availability,
+        priority: pkg.availability.bookable
+          ? sorted.slice(0, index + 1).filter(item => item.availability.bookable).length
+          : null,
+      },
+    }))
 );
 
 export const packageBookingSnapshot = (pkg, service) => {

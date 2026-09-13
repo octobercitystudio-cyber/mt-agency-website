@@ -27,8 +27,16 @@ export default function BookingBlockConversionForm({ block, clients, packages, s
   const templates = useMemo(() => sellableHourTemplates(services), [services]);
   const templateGroups = useMemo(() => buildPackageServiceGroups(templates), [templates]);
   const serviceById = id => services.find(service => String(service.id) === String(id));
-  const packageOptions = clientPackages.map(pkg => ({ pkg, state: bookingBlockPackageEligibility(pkg, block, serviceById(pkg.service_id)) }));
+  const packageOptions = clientPackages
+    .map(pkg => ({ pkg, state: bookingBlockPackageEligibility(pkg, block, serviceById(pkg.service_id)) }))
+    .sort((left, right) => {
+      if (left.state.eligible !== right.state.eligible) return left.state.eligible ? -1 : 1;
+      const leftExpiry = String(left.pkg.expires_at || '9999-12-31').slice(0, 10);
+      const rightExpiry = String(right.pkg.expires_at || '9999-12-31').slice(0, 10);
+      return leftExpiry.localeCompare(rightExpiry) || Number(right.pkg.id || 0) - Number(left.pkg.id || 0);
+    });
   const eligiblePackages = packageOptions.filter(option => option.state.eligible);
+  const eligibleRankById = new Map(eligiblePackages.map((option, index) => [String(option.pkg.id), index + 1]));
   const selectedPackage = packageOptions.find(option => String(option.pkg.id) === String(packageId));
   const selectedTemplate = templates.find(service => String(service.id) === String(draft?.service_id));
 
@@ -68,7 +76,7 @@ export default function BookingBlockConversionForm({ block, clients, packages, s
       {mode === 'existing_package' ? <div className="booking-existing-packages">
         {!packageOptions.length && <div className="booking-convert-empty"><PackagePlus/><strong>هذا العميل ليس لديه باقات بعد.</strong><button type="button" onClick={() => setMode('new_package')}>أنشئ باقة جديدة الآن</button></div>}
         {packageOptions.map(({ pkg, state }) => <button type="button" key={pkg.id} disabled={!state.eligible} className={String(pkg.id) === String(packageId) ? 'selected' : ''} onClick={() => { setPackageId(String(pkg.id)); setErrors({}); }}>
-          <span><strong>{pkg.name}</strong><small>{state.eligible ? `متاح ${formatDurationMinutes(state.availableMinutes)}` : state.reason}</small></span>
+          <span><strong>{pkg.name}</strong><small>{state.eligible ? `${eligibleRankById.get(String(pkg.id)) === 1 ? 'الأولوية الآن' : 'باقة تالية'} · متاح ${formatDurationMinutes(state.availableMinutes)} · ${pkg.expires_at ? `حتى ${formatBookingDate(pkg.expires_at)}` : 'تبدأ من أول حجز'}` : state.reason}</small></span>
           <b>{state.eligible ? `يتبقى ${formatDurationMinutes(state.remainingMinutes)}` : 'غير مؤهلة'}</b>
         </button>)}
         {errorFor('existing')}

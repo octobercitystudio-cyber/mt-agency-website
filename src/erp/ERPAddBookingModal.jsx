@@ -297,6 +297,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     ? services.find(service => String(service.id) === String(selectedPackage.service_id))
     : services.find(service => service.name === newBooking.service);
   const clientPackageOptions = packagesForBookingClient(clientPackages, newBooking.client_id, cairoDateKey());
+  const bookablePackageCount = clientPackageOptions.filter(pkg => pkg.availability.bookable).length;
   const packageSnapshot = packageBookingSnapshot(selectedPackage, selectedService);
   const calendarValidRange = packageBookingValidRange(selectedPackage, cairoDateKey());
   const projectOrReel = ['reel', 'project'].includes(String(selectedService?.billing_unit || '')) || isProjectServiceCategory(newBooking.category);
@@ -351,11 +352,12 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                   <option value="">{newBooking.client_id ? 'اختر باقة من رصيد العميل' : 'اختر العميل أولًا'}</option>
                   {clientPackageOptions.map(pkg => (
                     <option key={pkg.id} value={String(pkg.id)} disabled={!pkg.availability.bookable}>
-                      {pkg.name} · {formatPackageQuantity(packageBookingSnapshot(pkg)?.quantity.available, pkg.billing_unit)} متاح{pkg.availability.bookable ? '' : ` — ${pkg.availability.reason}`}
+                      {pkg.availability.priority === 1 ? 'الأولوية الآن' : pkg.availability.bookable ? 'الباقة التالية' : 'غير متاحة'} — {pkg.name} · {formatPackageQuantity(packageBookingSnapshot(pkg)?.quantity.available, pkg.billing_unit)} متاح · {pkg.expires_at ? `حتى ${formatBookingDate(pkg.expires_at)}` : 'تبدأ من أول حجز'}{pkg.availability.bookable ? '' : ` — ${pkg.availability.reason}`}
                     </option>
                   ))}
                 </select>
                 {newBooking.client_id && !clientPackageOptions.length && <small className="erp-booking-package-empty">لا توجد باقات مباعة لهذا العميل؛ يمكنك متابعة حجز خدمة عادية.</small>}
+                {bookablePackageCount > 1 && <small className="erp-booking-package-priority">رتبنا الباقات حسب أولوية الاستخدام: الأقرب انتهاءً أولًا، ثم الباقة التالية.</small>}
               </div>
               
               <div>

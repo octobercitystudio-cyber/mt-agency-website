@@ -72,7 +72,7 @@ export default function PackageUpgradeDialog({ packageId, sessionActive = false,
     if (detailsResult.error) return setError(safeUiError(detailsResult.error, 'تعذر تحميل بيانات الباقة الحالية.'));
     const templates = (servicesResult.data || []).filter(item => Number(item.is_active ?? 1) === 1 && ['hour', 'reel'].includes(String(item.billing_unit)));
     setSource(detailsResult.data); setServices(templates);
-    const preferred = templates.find(item => Number(item.id) !== Number(detailsResult.data.package.service?.id)) || templates[0];
+    const preferred = templates.find(item => Number(item.id) === Number(detailsResult.data.package.service?.id)) || templates[0];
     if (preferred) {
       setDraft(current => ({
         ...current, serviceId: String(preferred.id), name: preferred.name, quantity: templateQuantity(preferred),
@@ -111,7 +111,7 @@ export default function PackageUpgradeDialog({ packageId, sessionActive = false,
     if (!overageMoney.valid) return strictMoneyError(draft.overagePrice, 'سعر الساعة الإضافية');
     if (paidCents > totalCents) return 'المدفوع الآن لا يجوز أن يتجاوز سعر الباقة.';
     if (!Number.isFinite(Number(draft.paymentDue)) || Number(draft.paymentDue) < 0 || Number(draft.paymentDue) > Number(draft.quantity)) return 'حد السداد يجب أن يكون داخل رصيد الباقة.';
-    if (draft.reason.trim().length < 5) return 'اكتب سبب الترقية لسجل المراجعة.';
+    if (draft.reason.trim().length < 5) return 'اكتب سبب التجديد أو الاستكمال لسجل المراجعة.';
     if (draft.closeSource && !canCloseSource) return 'لا يمكن إغلاق الباقة الحالية مع جلسة جارية أو وقت محجوز.';
     return '';
   }, [canCloseSource, draft, overageMoney.valid, paidCents, paidMoney.valid, totalCents, totalMoney.valid, unit]);
@@ -144,14 +144,14 @@ export default function PackageUpgradeDialog({ packageId, sessionActive = false,
     const { data, error: requestError } = await dataClient.request('/client-packages', { method: 'POST', body: JSON.stringify(payload) });
     setBusy(false);
     if (requestError) return setError(safeUiError(requestError, 'تعذر إنشاء الباقة البديلة. لم يتم تغيير الباقة القديمة.'));
-    setNotice(`تم إنشاء الباقة البديلة #${data.id} وحفظ تاريخ الباقة الأصلية.`);
+    setNotice(`تم إنشاء الباقة التالية #${data.id} وربطها تنظيميًا بسجل العميل مع حفظ تاريخ الباقة الأصلية.`);
     await onCompleted?.(data);
   };
 
   if (!packageId) return null;
   return <div className="package-upgrade-overlay" onMouseDown={event => event.target === event.currentTarget && close()}>
     <form ref={dialogRef} className="package-upgrade-dialog" role="dialog" aria-modal="true" aria-labelledby="package-upgrade-title" aria-describedby="package-upgrade-description" onSubmit={submit} noValidate>
-      <header><div><span><ArrowUpCircle /> ترقية موثقة للباقة</span><h2 id="package-upgrade-title">استبدال الباقة بدون مسح التاريخ</h2><p id="package-upgrade-description">تُنشأ باقة جديدة مستقلة، وتبقى الجلسات والدفعات والاستهلاك في الباقة الأصلية.</p></div><button data-dialog-initial type="button" onClick={close} disabled={busy} aria-label="إغلاق نافذة ترقية الباقة"><X /></button></header>
+      <header><div><span><ArrowUpCircle /> تجديد أو استكمال موثق</span><h2 id="package-upgrade-title">إنشاء الباقة التالية بدون خلط السجلات</h2><p id="package-upgrade-description">تُنشأ باقة جديدة داخل ملف العميل نفسه، وتبقى جلسات ودفعات واستهلاك كل باقة مستقلة.</p></div><button data-dialog-initial type="button" onClick={close} disabled={busy} aria-label="إغلاق نافذة تجديد الباقة"><X /></button></header>
       {loading ? <div className="package-upgrade-state"><RefreshCw /><strong>جارٍ تحميل الرصيد ونماذج الباقات…</strong></div> : source && <div className="package-upgrade-body">
         {(activeSession || held > 0) && <div className="package-upgrade-guard" role="note"><AlertTriangle /><div><strong>{activeSession ? 'جلسة تصوير جارية على الباقة الحالية' : 'توجد مواعيد تحجز رصيدًا من الباقة الحالية'}</strong><p>يمكنك إنشاء الباقة البديلة الآن، لكن لن ننقل الجلسة أو المواعيد إليها ولن نغلق الباقة القديمة.</p></div></div>}
         <section className="package-upgrade-comparison" aria-label="مقارنة الباقة الحالية والجديدة">
@@ -174,13 +174,13 @@ export default function PackageUpgradeDialog({ packageId, sessionActive = false,
             ? <label><span>حد السداد من الرصيد</span><input type="number" min="0" max={draft.quantity || '0'} step="1" value={draft.paymentDue} onChange={event => setDraft({ ...draft, paymentDue: event.target.value })} /></label>
             : <DurationHoursMinutesInput idPrefix="package-upgrade-payment-due" label="حد السداد من الرصيد" value={draft.paymentDue} maxMinutes={Number(draft.quantity || 0) * 60} onChange={value => setDraft({ ...draft, paymentDue: value })}/>}
           <label><span>بداية الصلاحية</span><select value={draft.activationMode} onChange={event => setDraft({ ...draft, activationMode: event.target.value })}><option value="first_booking">من أول حجز على الباقة</option><option value="immediate">فور الاعتماد</option></select></label>
-        </div><label className="package-upgrade-wide"><span>ملاحظات الباقة <small>(اختياري)</small></span><textarea rows="2" value={draft.notes} onChange={event => setDraft({ ...draft, notes: event.target.value })} /></label><label className="package-upgrade-wide"><span>سبب الترقية <b>مطلوب</b></span><textarea rows="2" minLength="5" value={draft.reason} onChange={event => setDraft({ ...draft, reason: event.target.value })} placeholder="مثال: طلب العميل الترقية لباقة أعلى" /></label></section>
+        </div><label className="package-upgrade-wide"><span>ملاحظات الباقة <small>(اختياري)</small></span><textarea rows="2" value={draft.notes} onChange={event => setDraft({ ...draft, notes: event.target.value })} /></label><label className="package-upgrade-wide"><span>سبب التجديد أو الاستكمال <b>مطلوب</b></span><textarea rows="2" minLength="5" value={draft.reason} onChange={event => setDraft({ ...draft, reason: event.target.value })} placeholder="مثال: استكمال مواعيد العميل بعد انتهاء صلاحية الباقة الحالية" /></label></section>
         <section className="package-upgrade-policy"><ShieldCheck /><div><strong>ماذا سيحدث للباقة الحالية؟</strong><label><input type="checkbox" checked={draft.closeSource} disabled={!canCloseSource} onChange={event => setDraft({ ...draft, closeSource: event.target.checked })} /> إغلاقها كباقة مكتملة بعد إنشاء البديلة</label><p>{canCloseSource ? 'الإغلاق اختياري وموثق؛ لا يحذف الاستهلاك أو الدفعات.' : 'أنهِ الجلسة وسوِّ الوقت، أو عدّل المواعيد المحجوزة قبل إغلاقها.'}</p>{oldCredit > 0 && <p className="package-upgrade-credit">يوجد رصيد دائن {formatEGP(oldCredit)} على الباقة القديمة. لن يُنقل أو يُكرر تلقائيًا؛ عالجه كتصحيح مالي موثق.</p>}</div></section>
         {validation && <p className="package-upgrade-inline-hint"><Clock3 /> {validation}</p>}
         {error && <div className="package-upgrade-message error" role="alert"><AlertTriangle />{error}</div>}
         {notice && <div className="package-upgrade-message success" role="status"><CheckCircle2 />{notice}</div>}
       </div>}
-      <footer>{notice ? <button type="button" className="package-upgrade-submit package-upgrade-finish" onClick={close}>إغلاق بعد نجاح الترقية</button> : <><button type="button" className="package-upgrade-cancel" onClick={close} disabled={busy}>إلغاء</button><button type="submit" className="package-upgrade-submit" disabled={loading || busy || Boolean(validation)}>{busy ? <RefreshCw /> : <Save />}{busy ? 'جارٍ إنشاء الباقة…' : 'اعتماد الترقية'}</button></>}</footer>
+      <footer>{notice ? <button type="button" className="package-upgrade-submit package-upgrade-finish" onClick={close}>إغلاق بعد نجاح التجديد</button> : <><button type="button" className="package-upgrade-cancel" onClick={close} disabled={busy}>إلغاء</button><button type="submit" className="package-upgrade-submit" disabled={loading || busy || Boolean(validation)}>{busy ? <RefreshCw /> : <Save />}{busy ? 'جارٍ إنشاء الباقة…' : 'اعتماد الباقة التالية'}</button></>}</footer>
     </form>
   </div>;
 }

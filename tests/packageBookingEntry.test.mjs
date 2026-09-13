@@ -19,11 +19,15 @@ const activePackage = {
 test('package booking picker keeps packages scoped to the selected client and puts eligible balance first', () => {
   const exhausted = { ...activePackage, id: 202, purchased_quantity: 3, consumed_quantity: 2, held_quantity: 1 };
   const otherClient = { ...activePackage, id: 203, client_id: 9 };
-  const result = packagesForBookingClient([exhausted, otherClient, activePackage], 7, '2026-08-10');
-  assert.deepEqual(result.map(item => item.id), [201, 202]);
+  const pendingActivation = { ...activePackage, id: 204, starts_at: null, expires_at: null };
+  const result = packagesForBookingClient([pendingActivation, exhausted, otherClient, activePackage], 7, '2026-08-10');
+  assert.deepEqual(result.map(item => item.id), [201, 204, 202]);
   assert.equal(result[0].availability.bookable, true);
-  assert.equal(result[1].availability.bookable, false);
-  assert.match(result[1].availability.reason, /رصيد/);
+  assert.equal(result[0].availability.priority, 1);
+  assert.equal(result[1].availability.priority, 2);
+  assert.equal(result[2].availability.bookable, false);
+  assert.equal(result[2].availability.priority, null);
+  assert.match(result[2].availability.reason, /رصيد/);
 });
 
 test('expired and zero-balance packages cannot be booked', () => {

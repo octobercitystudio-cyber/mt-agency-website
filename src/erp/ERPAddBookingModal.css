@@ -109,6 +109,19 @@
   line-height: 1.55;
 }
 
+.erp-booking-package-priority {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-inline-start: 3px solid #16a36f;
+  border-radius: 7px;
+  background: #ecfdf3;
+  color: #08734d;
+  font-size: .7rem;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
 .erp-booking-package-summary {
   overflow: hidden;
   margin: 4px 0 24px;

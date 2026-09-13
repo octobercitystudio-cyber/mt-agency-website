@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ArrowLeftRight, CalendarCheck2, CalendarClock, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, Clock3, Edit3, Eye, Filter, History, MoreVertical, MessageCircle, PackageCheck, PackagePlus, PlayCircle, Plus, ReceiptText, RefreshCw, Search, ShieldAlert, TimerReset, Trash2, WalletCards, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dataClient } from '../dataClient';
@@ -24,6 +24,7 @@ import OwnerPackageControl from './OwnerPackageControl';
 import PackagePaymentModal from './PackagePaymentModal';
 import PackageWhatsAppDialog from './PackageWhatsAppDialog';
 import ClientCombobox from '../components/ClientCombobox';
+import { organizeClientPackageGroups, packageContinuityTag } from './packageContinuity';
 
 const today = () => cairoDateKey();
 const initialForm = { client_id: '', service_id: '', name: '', billing_unit: 'hour', validity_mode_snapshot: 'rolling', starts_at: '', shooting_date: '', expires_at: '', quantity: '', validity_days: 90, payment_due_quantity: 0, deposit_percent_snapshot: 0, overage_price_snapshot: 0, total_price: '', paid_amount: 0, payment_method: 'cash', notes: '' };
@@ -56,6 +57,7 @@ export default function ERPPackages() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [serviceFilter, setServiceFilter] = useState('all');
+  const [expandedClientIds, setExpandedClientIds] = useState([]);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [formErrors, setFormErrors] = useState({});
@@ -90,7 +92,7 @@ export default function ERPPackages() {
       dataClient.from('bookings').select('*').eq('date', today()).order('start_time', { ascending: true }),
       dataClient.request(`/studio-session-eligibility?date=${today()}`),
       dataClient.from('resources').select('id,name,type,is_active').eq('is_active', 1).order('name', { ascending: true }),
-      dataClient.from('bookings').select('id,resource_id,date,start_time,end_time,status,client_name').gte('date', today()).order('date', { ascending: true }),
+      dataClient.from('bookings').select('id,client_id,client_package_id,resource_id,date,start_time,end_time,duration_minutes,requested_quantity,status,client_name').gte('date', today()).order('date', { ascending: true }),
     ]);
     const failed = [packageResult, clientsResult, servicesResult, bookingsResult, eligibilityResult, resourcesResult, calendarResult].find(result => result.error);
     if (failed?.error) setError(safeUiError(failed.error, 'تعذر تحميل الباقات المباعة الآن.'));
@@ -185,19 +187,35 @@ export default function ERPPackages() {
   const remainingReels = activePackages.filter(pkg => pkg.billing_unit === 'reel').reduce((sum, pkg) => sum + available(pkg), 0);
   const outstandingCents = activePackages.reduce((sum, pkg) => sum + packageFinancialSummary(pkg).outstandingCents, 0);
 
-  const filtered = useMemo(() => packages.filter(pkg => {
+  const scopedPackages = useMemo(() => packages.filter(pkg => {
     const person = clients.find(item => Number(item.id) === Number(pkg.client_id));
     const haystack = `${person?.name || ''} ${person?.phone1 || ''} ${pkg.name}`.toLowerCase();
     if (search && !haystack.includes(search.toLowerCase())) return false;
+    if (serviceFilter !== 'all' && String(pkg.service_id) !== serviceFilter) return false;
+    return true;
+  }), [packages, clients, search, serviceFilter]);
+
+  const filtered = useMemo(() => scopedPackages.filter(pkg => {
     const expiryDays = daysToExpiry(pkg);
     const displayedStatus = effectiveStatus(pkg);
     if (statusFilter !== 'all' && displayedStatus !== statusFilter) return false;
-    if (serviceFilter !== 'all' && String(pkg.service_id) !== serviceFilter) return false;
     const days = expiryDays;
     if (expiryFilter === '14' && !(displayedStatus === 'active' && pkg.expires_at && days >= 0 && days <= 14)) return false;
     if (expiryFilter === 'expired' && displayedStatus !== 'expired') return false;
     return true;
-  }), [packages, clients, search, statusFilter, serviceFilter, expiryFilter]);
+  }), [scopedPackages, statusFilter, expiryFilter]);
+
+  const packageGroups = useMemo(() => organizeClientPackageGroups({
+    packages: scopedPackages,
+    visiblePackages: filtered,
+    clients,
+    expandedClientIds,
+    todayKey: today(),
+  }), [scopedPackages, filtered, clients, expandedClientIds]);
+
+  const toggleClientHistory = clientId => setExpandedClientIds(current => (
+    current.includes(String(clientId)) ? current.filter(id => id !== String(clientId)) : [...current, String(clientId)]
+  ));
 
   const selectService = serviceId => {
     const service = services.find(item => String(item.id) === String(serviceId));
@@ -318,13 +336,47 @@ export default function ERPPackages() {
     window.setTimeout(() => setNotice(''), 4000); await fetchData();
   };
 
+  const packageViewProps = (pkg, group) => {
+    const person = client(pkg.client_id);
+    const sessionBookings = sessionBookingsFor(pkg);
+    const pkgStatus = effectiveStatus(pkg);
+    const upcomingBookings = calendarBookings.filter(booking => Number(booking.client_package_id) === Number(pkg.id) && !['cancelled', 'completed', 'rejected'].includes(String(booking.status)));
+    return {
+      pkg,
+      person,
+      continuity: packageContinuityTag(pkg, group, today()),
+      upcomingCount: upcomingBookings.length,
+      canAdjust,
+      canViewDetails,
+      canBook: canAssign && packageBookingAvailability(pkg, today()).bookable,
+      canPay: canAssign && packageFinancialSummary(pkg).outstandingCents > 0 && ['active', 'expired', 'suspended', 'completed'].includes(pkgStatus),
+      canStart: canAssign && packageCanStartToday(pkg),
+      running: sessionBookings.some(booking => booking.status === 'in_progress'),
+      status: pkgStatus,
+      onBook: event => openPackageBooking(pkg, event),
+      onPay: event => openPackagePayment(pkg, event),
+      onStart: event => openSessionStart(pkg, person, event),
+      onShare: () => { setWhatsappMode('summary'); setWhatsappPackage(pkg); },
+      onShareAppointments: () => { setWhatsappMode('appointments'); setWhatsappPackage(pkg); },
+      onDetails: event => openDetailsDialog(pkg, event),
+      onOwner: event => openPackageDialog('details', pkg, event),
+    };
+  };
+
   return <div className="sold-packages" dir="rtl">
     <ERPPageHero icon={WalletCards} eyebrow="إدارة المبيعات والرصيد" title="الباقات المباعة" description="الرصيد الحقيقي من قاعدة البيانات، مستقل تمامًا عن تجميع الحجوزات." actions={canAssign && <button data-variant="primary" onClick={openAddDialog}><PackagePlus/> إضافة باقة لعميل</button>}/>
     <section className="packages-summary"><Metric icon={CheckCircle2} label="الباقات النشطة" value={activePackages.length}/><Metric icon={CalendarClock} label="تنتهي خلال 14 يومًا تقويميًا" value={expiring.length} warning/><Metric icon={Clock3} label="متاح لحجز جديد" value={`${formatDurationMinutes(remainingHours * 60, { compact: true })} / ${remainingReels.toLocaleString('ar-EG')} ر`}/><Metric icon={CircleDollarSign} label="قيمة مستحقة" value={money(centsToMoney(outstandingCents))} danger/></section>
     {notice && <div className="packages-notice success" role="status"><CheckCircle2/> {notice}</div>}{error && <div className="packages-notice error" role="alert"><ShieldAlert/><span>{error}</span><button onClick={fetchData}>إعادة المحاولة</button></div>}
     <section className="packages-filters"><label className="packages-search"><Search/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث باسم العميل أو الهاتف أو الباقة"/></label><label><Filter/> الحالة<select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">كل الحالات</option>{Object.entries(STATUS).map(([key, [label]]) => <option value={key} key={key}>{label}</option>)}</select></label><label>الخدمة<select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)}><option value="all">كل الخدمات</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label><label>الانتهاء<select value={expiryFilter} onChange={event => setExpiryFilter(event.target.value)}><option value="all">كل التواريخ</option><option value="14">خلال 14 يومًا</option><option value="expired">منتهية التاريخ</option></select></label><button className="packages-refresh" onClick={fetchData}><RefreshCw className={loading ? 'packages-spin' : ''}/></button></section>
     {whatsappPackage && <PackageWhatsAppDialog key={`${whatsappPackage.id}-${whatsappMode}`} pkg={whatsappPackage} mode={whatsappMode} onClose={() => setWhatsappPackage(null)} />}
-    {loading ? <Empty icon={RefreshCw} title="جارٍ تحميل الباقات" text="نسترجع أرصدة الباقات المباعة من الخادم." spin/> : filtered.length ? <><div className="packages-table-wrap"><table><thead><tr><th>العميل والباقة</th><th>الرصيد</th><th>فترة الصلاحية</th><th>الحالة المالية</th><th>الحالة والإجراءات</th></tr></thead><tbody>{filtered.map(pkg => { const person = client(pkg.client_id); const sessionBookings = sessionBookingsFor(pkg); const pkgStatus=effectiveStatus(pkg); const canPay=canAssign&&packageFinancialSummary(pkg).outstandingCents>0&&['active','expired','suspended','completed'].includes(pkgStatus); return <PackageRow key={pkg.id} pkg={pkg} person={person} canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canAssign && packageBookingAvailability(pkg, today()).bookable} canPay={canPay} canStart={canAssign && packageCanStartToday(pkg)} running={sessionBookings.some(booking => booking.status === 'in_progress')} status={pkgStatus} onBook={event => openPackageBooking(pkg, event)} onPay={event => openPackagePayment(pkg, event)} onStart={event => openSessionStart(pkg, person, event)} onShare={() => { setWhatsappMode('summary'); setWhatsappPackage(pkg); }} onShareAppointments={() => { setWhatsappMode('appointments'); setWhatsappPackage(pkg); }} onDetails={event => openDetailsDialog(pkg, event)} onOwner={event => openPackageDialog('details', pkg, event)}/>; })}</tbody></table></div><div className="packages-mobile-list">{filtered.map(pkg => { const person = client(pkg.client_id); const sessionBookings = sessionBookingsFor(pkg); const pkgStatus=effectiveStatus(pkg); const canPay=canAssign&&packageFinancialSummary(pkg).outstandingCents>0&&['active','expired','suspended','completed'].includes(pkgStatus); return <PackageCard key={pkg.id} pkg={pkg} person={person} canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canAssign && packageBookingAvailability(pkg, today()).bookable} canPay={canPay} canStart={canAssign && packageCanStartToday(pkg)} running={sessionBookings.some(booking => booking.status === 'in_progress')} status={pkgStatus} onBook={event => openPackageBooking(pkg, event)} onPay={event => openPackagePayment(pkg, event)} onStart={event => openSessionStart(pkg, person, event)} onShare={() => { setWhatsappMode('summary'); setWhatsappPackage(pkg); }} onShareAppointments={() => { setWhatsappMode('appointments'); setWhatsappPackage(pkg); }} onDetails={event => openDetailsDialog(pkg, event)} onOwner={event => openPackageDialog('details', pkg, event)}/>; })}</div></> : <Empty icon={Archive} title="لا توجد باقات مطابقة" text="غيّر عوامل البحث أو أضف أول باقة مباعة."/>}
+    {!loading && packageGroups.some(group => group.totalCount > 1) && <div className="packages-continuity-guide" role="note"><PackageCheck/><div><strong>الباقات مرتبة داخل ملف واحد لكل عميل</strong><span>أولوية الحجز للباقة النشطة الأقرب انتهاءً ولها رصيد. كل موعد ورصيد ودفعة يظل مسجلًا على باقته فقط.</span></div></div>}
+    {loading ? <Empty icon={RefreshCw} title="جارٍ تحميل الباقات" text="نسترجع أرصدة الباقات المباعة من الخادم." spin/> : filtered.length ? <>
+      <div className="packages-table-wrap"><table><thead><tr><th>الباقة داخل ملف العميل</th><th>الرصيد</th><th>فترة الصلاحية</th><th>الحالة المالية</th><th>الحالة والإجراءات</th></tr></thead><tbody>{packageGroups.map(group => <Fragment key={group.clientId}>
+        <ClientPackageGroupRow group={group} onToggle={() => toggleClientHistory(group.clientId)}/>
+        {group.packages.map(pkg => <PackageRow key={pkg.id} {...packageViewProps(pkg, group)}/>) }
+      </Fragment>)}</tbody></table></div>
+      <div className="packages-mobile-list">{packageGroups.map(group => <ClientPackageGroupCard key={group.clientId} group={group} onToggle={() => toggleClientHistory(group.clientId)}>{group.packages.map(pkg => <PackageCard key={pkg.id} {...packageViewProps(pkg, group)}/>)}</ClientPackageGroupCard>)}</div>
+    </> : <Empty icon={Archive} title="لا توجد باقات مطابقة" text="غيّر عوامل البحث أو أضف أول باقة مباعة."/>}
 
     {formOpen && <AddPackageDialog dialogRef={addDialogRef} form={form} errors={formErrors} clients={clients} serviceGroups={serviceGroups} selectedTemplate={selectedTemplate} dirty={formDirty} expiry={expiryPreview} busy={formBusy} childOpen={clientModalOpen} clientPickerTriggerRef={clientPickerTriggerRef} onOpenClient={() => setClientModalOpen(true)} onSelectClient={selectClient} onClose={closeAddDialog} onSubmit={submitPackage} onSelectService={selectService} onField={updateFormField} onReset={resetFormTemplate} resetNotice={templateResetNotice} resources={resources} calendarBookings={calendarBookings} appointments={saleBookings} appointment={appointment} appointmentErrors={appointmentErrors} editingAppointment={editingAppointment} usage={appointmentUsage} onAppointment={setAppointment} onSaveAppointment={saveAppointment} onEditAppointment={editAppointment} onRemoveAppointment={removeAppointment}/>}
     <ERPClientModal isOpen={clientModalOpen} nested returnFocusRef={clientPickerTriggerRef} onClose={() => setClientModalOpen(false)} onSuccess={handleClientCreated}/>
@@ -446,8 +498,12 @@ function StatusBadge({status}){return <span className={`package-status ${STATUS[
 function BalanceBar({pkg}){const summary=packageQuantitySummary(pkg);const total=Math.max(1,summary.purchased);return <div className="package-balance"><div className="package-balance-labels"><span>مستخدم <b>{formatPackageQuantity(summary.consumed,pkg.billing_unit)}</b></span><span>محجوز قادمًا <b>{formatPackageQuantity(summary.held,pkg.billing_unit)}</b></span><span>متاح جديد <b>{formatPackageQuantity(summary.available,pkg.billing_unit)}</b></span></div><div className="package-balance-bar" aria-label={`مستخدم ${formatPackageQuantity(summary.consumed,pkg.billing_unit)}، محجوز ${formatPackageQuantity(summary.held,pkg.billing_unit)}، متاح ${formatPackageQuantity(summary.available,pkg.billing_unit)}`}><i className="consumed" style={{width:`${Math.min(100,summary.consumed/total*100)}%`}}/><i className="held" style={{width:`${Math.min(100,summary.held/total*100)}%`}}/><i className="available" style={{width:`${Math.min(100,summary.available/total*100)}%`}}/></div><small>إجمالي الباقة {formatPackageQuantity(summary.purchased,pkg.billing_unit)} · المتبقي غير المستهلك {formatPackageQuantity(summary.remaining,pkg.billing_unit)}</small></div>}
 function FinancialStack({pkg}){const financial=packageFinancialSummary(pkg);return <dl className="package-financial-stack"><div><dt>إجمالي سعر الباقة</dt><dd>{money(centsToMoney(financial.totalCents))}</dd></div><div><dt>المدفوع</dt><dd>{money(centsToMoney(financial.paidCents))}</dd></div><div className={financial.outstandingCents>0?'due':'settled'}><dt>المتبقي</dt><dd>{money(centsToMoney(financial.outstandingCents))}</dd></div>{financial.creditCents>0&&<div className="credit"><dt>رصيد دائن للعميل</dt><dd>{money(centsToMoney(financial.creditCents))}</dd></div>}{financial.overageCents>0&&<p>يشمل المتبقي قيمة تجاوز قدرها <strong>{money(centsToMoney(financial.overageCents))}</strong></p>}</dl>}
 function Actions({canAdjust,canViewDetails,canBook,canPay,canStart,running,onBook,onPay,onStart,onDetails,onShare,onShareAppointments,onOwner,sessionLabel}){return <div className="package-actions-wrap">{canViewDetails&&<button type="button" className="package-whatsapp-button" onClick={onShare} aria-label={`إرسال تفاصيل ${sessionLabel || 'الباقة'}`}><MessageCircle aria-hidden="true"/> إرسال التفاصيل</button>}{canViewDetails&&<button type="button" className="package-appointments-whatsapp-button" onClick={onShareAppointments} aria-label={`إرسال مواعيد التصوير الخاصة بـ ${sessionLabel || 'الباقة'}`}><CalendarDays aria-hidden="true"/> إرسال المواعيد</button>}{canBook&&<button type="button" className="package-booking-button" onClick={onBook} aria-label={`حجز موعد من ${sessionLabel || 'الباقة'}`}><CalendarCheck2 aria-hidden="true"/> حجز موعد</button>}{canPay&&<button type="button" className="package-payment-button" onClick={onPay} aria-label={`تسجيل دفعة على ${sessionLabel || 'الباقة'}`}><CircleDollarSign aria-hidden="true"/> تسجيل دفعة</button>}{running?<div className="package-session-running" role="status"><span/> التصوير جارٍ</div>:canStart?<button type="button" className="package-session-start" onClick={onStart} aria-label={`ابدأ التصوير وحساب ساعات ${sessionLabel || 'الباقة'}`}><PlayCircle aria-hidden="true"/> ابدأ التصوير</button>:null}{canViewDetails&&<button className="package-details-button" onClick={onDetails}><Eye/> عرض التفاصيل</button>}{canAdjust?<button className="package-owner-button" onClick={onOwner}><MoreVertical/> تحكم المالك</button>:<small className="packages-readonly">إجراءات التصحيح للمالك فقط</small>}</div>}
-function PackageRow({pkg,person,canAdjust,canViewDetails,canBook,canPay,canStart,running,status,onBook,onPay,onStart,onDetails,onShare,onShareAppointments,onOwner}){const days=remainingCalendarDays(pkg.expires_at);return <tr><td><strong>{person?.name||'عميل'}</strong><span>{person?.phone1}</span><b>{pkg.name}</b><small>#{pkg.id}</small></td><td><BalanceBar pkg={pkg}/></td><td><strong>{pkg.starts_at?formatBookingDate(pkg.starts_at):'تبدأ عند أول حجز'}</strong><span>{pkg.expires_at?`حتى ${formatBookingDate(pkg.expires_at)}`:'الانتهاء يُحسب تلقائيًا'}</span><small>{status==='expired'?'انتهت الصلاحية':pkg.expires_at?`${days.toLocaleString('ar-EG-u-nu-latn')} يوم تقويمي متبقٍ · الجمعة محسوبة`:'بانتظار أول حجز تصوير'}</small></td><td><FinancialStack pkg={pkg}/></td><td><StatusBadge status={status}/><Actions canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canBook} canPay={canPay} canStart={canStart} running={running} onBook={onBook} onPay={onPay} onStart={onStart} onShare={onShare} onShareAppointments={onShareAppointments} onDetails={onDetails} onOwner={onOwner} sessionLabel={`${pkg.name} للعميل ${person?.name||'عميل'}`}/></td></tr>}
-function PackageCard({pkg,person,canAdjust,canViewDetails,canBook,canPay,canStart,running,status,onBook,onPay,onStart,onDetails,onShare,onShareAppointments,onOwner}){const days=remainingCalendarDays(pkg.expires_at);return <article className="package-mobile-card"><header><div><strong>{person?.name||'عميل'}</strong><span>{pkg.name} · #{pkg.id}</span></div><StatusBadge status={status}/></header><BalanceBar pkg={pkg}/><FinancialStack pkg={pkg}/><dl className="package-validity-inline"><div><dt>بداية الصلاحية</dt><dd>{pkg.starts_at?formatBookingDate(pkg.starts_at):'عند أول حجز تصوير'}</dd></div><div><dt>نهاية الصلاحية</dt><dd>{pkg.expires_at?formatBookingDate(pkg.expires_at):'تُحسب تلقائيًا'}</dd></div><div><dt>الأيام التقويمية المتبقية</dt><dd>{pkg.expires_at?(status==='expired'?'0':days.toLocaleString('ar-EG-u-nu-latn')):'—'} <small>الجمعة محسوبة</small></dd></div></dl><Actions canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canBook} canPay={canPay} canStart={canStart} running={running} onBook={onBook} onPay={onPay} onStart={onStart} onShare={onShare} onShareAppointments={onShareAppointments} onDetails={onDetails} onOwner={onOwner} sessionLabel={`${pkg.name} للعميل ${person?.name||'عميل'}`}/></article>}
+function ClientPackageGroupSummary({group}){return <div className="package-client-summary"><div><strong>{group.client?.name||'عميل'}</strong><span>{group.client?.phone1||`عميل #${group.clientId}`}</span></div><div className="package-client-summary__counts"><b>{group.totalCount.toLocaleString('ar-EG')} باقة</b><span>{group.activeCount.toLocaleString('ar-EG')} نشطة</span></div></div>}
+function ClientPackageGroupRow({group,onToggle}){return <tr className="package-client-group-row"><td colSpan="5"><div className="package-client-group-heading"><ClientPackageGroupSummary group={group}/>{group.relatedCount>0&&<button type="button" onClick={onToggle}>{group.expanded?'إخفاء باقي سجل العميل':`عرض ${group.relatedCount.toLocaleString('ar-EG')} باقة سابقة أو أخرى`}<ChevronLeft aria-hidden="true"/></button>}</div></td></tr>}
+function ClientPackageGroupCard({group,onToggle,children}){return <section className="package-client-group-card"><header><ClientPackageGroupSummary group={group}/>{group.relatedCount>0&&<button type="button" onClick={onToggle}>{group.expanded?'إخفاء باقي السجل':`عرض باقي الباقات (${group.relatedCount.toLocaleString('ar-EG')})`}<ChevronLeft aria-hidden="true"/></button>}</header><div className="package-client-group-card__packages">{children}</div></section>}
+function ContinuityBadge({continuity}){return <span className={`package-continuity-badge package-continuity-badge--${continuity.tone}`}>{continuity.label}</span>}
+function PackageRow({pkg,person,continuity,upcomingCount,canAdjust,canViewDetails,canBook,canPay,canStart,running,status,onBook,onPay,onStart,onDetails,onShare,onShareAppointments,onOwner}){const days=remainingCalendarDays(pkg.expires_at);return <tr className={`package-continuity-row package-continuity-row--${continuity.tone}`}><td><ContinuityBadge continuity={continuity}/><strong>{pkg.name}</strong><span>الباقة #{pkg.id}</span><small>{upcomingCount?`${upcomingCount.toLocaleString('ar-EG')} موعد قادم مرتبط بهذه الباقة`:'لا توجد مواعيد قادمة على هذه الباقة'}</small></td><td><BalanceBar pkg={pkg}/></td><td><strong>{pkg.starts_at?formatBookingDate(pkg.starts_at):'تبدأ عند أول حجز'}</strong><span>{pkg.expires_at?`حتى ${formatBookingDate(pkg.expires_at)}`:'الانتهاء يُحسب تلقائيًا'}</span><small>{status==='expired'?'انتهت الصلاحية':pkg.expires_at?`${days.toLocaleString('ar-EG-u-nu-latn')} يوم تقويمي متبقٍ · الجمعة محسوبة`:'بانتظار أول حجز تصوير'}</small></td><td><FinancialStack pkg={pkg}/></td><td><StatusBadge status={status}/><Actions canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canBook} canPay={canPay} canStart={canStart} running={running} onBook={onBook} onPay={onPay} onStart={onStart} onShare={onShare} onShareAppointments={onShareAppointments} onDetails={onDetails} onOwner={onOwner} sessionLabel={`${pkg.name} للعميل ${person?.name||'عميل'}`}/></td></tr>}
+function PackageCard({pkg,person,continuity,upcomingCount,canAdjust,canViewDetails,canBook,canPay,canStart,running,status,onBook,onPay,onStart,onDetails,onShare,onShareAppointments,onOwner}){const days=remainingCalendarDays(pkg.expires_at);return <article className={`package-mobile-card package-continuity-card--${continuity.tone}`}><header><div><ContinuityBadge continuity={continuity}/><strong>{pkg.name}</strong><span>الباقة #{pkg.id} · {upcomingCount?`${upcomingCount.toLocaleString('ar-EG')} موعد قادم`:'دون مواعيد قادمة'}</span></div><StatusBadge status={status}/></header><BalanceBar pkg={pkg}/><FinancialStack pkg={pkg}/><dl className="package-validity-inline"><div><dt>بداية الصلاحية</dt><dd>{pkg.starts_at?formatBookingDate(pkg.starts_at):'عند أول حجز تصوير'}</dd></div><div><dt>نهاية الصلاحية</dt><dd>{pkg.expires_at?formatBookingDate(pkg.expires_at):'تُحسب تلقائيًا'}</dd></div><div><dt>الأيام التقويمية المتبقية</dt><dd>{pkg.expires_at?(status==='expired'?'0':days.toLocaleString('ar-EG-u-nu-latn')):'—'} <small>الجمعة محسوبة</small></dd></div></dl><Actions canAdjust={canAdjust} canViewDetails={canViewDetails} canBook={canBook} canPay={canPay} canStart={canStart} running={running} onBook={onBook} onPay={onPay} onStart={onStart} onShare={onShare} onShareAppointments={onShareAppointments} onDetails={onDetails} onOwner={onOwner} sessionLabel={`${pkg.name} للعميل ${person?.name||'عميل'}`}/></article>}
 
 function PackageDetailsDialog({dialogRef,details,onClose,onRetry,onTab}){
   const data=details.data;const tab=details.tab;const packageInfo=data?.package;const financial=data?.financial;const quantities=data?.quantities;const validity=data?.validity;

@@ -169,7 +169,7 @@ test('upgrade is owner-only and remains in sold-package management with derived 
   const [timer, owner, dialog, css, api, demo] = await Promise.all([
     load('src/erp/ERPSessionTimer.jsx'), load('src/erp/OwnerPackageControl.jsx'), load('src/erp/PackageUpgradeDialog.jsx'), load('src/erp/PackageUpgradeDialog.css'), load('api/index.php'), load('src/lib/demoDataClient.js'),
   ]);
-  assert.doesNotMatch(timer, /ترقية الباقة|PackageUpgradeDialog/); assert.match(timer, /إضافة وقت إضافي/); assert.match(owner, /ترقية \/ استبدال/); assert.match(dialog, /package-upgrade-comparison/); assert.match(dialog, /المحجوز/); assert.match(dialog, /المتاح/); assert.doesNotMatch(dialog, /target_remaining|setRemaining/); assert.match(css, /min-height:44px/); assert.match(css, /@media\(max-width:360px\)/);
+  assert.doesNotMatch(timer, /ترقية الباقة|PackageUpgradeDialog/); assert.match(timer, /إضافة وقت إضافي/); assert.match(owner, /تجديد \/ استكمال/); assert.match(dialog, /package-upgrade-comparison/); assert.match(dialog, /إنشاء الباقة التالية بدون خلط السجلات/); assert.match(dialog, /المحجوز/); assert.match(dialog, /المتاح/); assert.doesNotMatch(dialog, /target_remaining|setRemaining/); assert.match(css, /min-height:44px/); assert.match(css, /@media\(max-width:360px\)/);
   for (const contract of ['upgrade_context', 'stale_package_upgrade_source', 'package_upgrade_source_committed', 'owner_upgrade_package_create', 'package_upgraded']) { assert.match(api, new RegExp(contract)); assert.match(demo, new RegExp(contract)); }
 });
 
