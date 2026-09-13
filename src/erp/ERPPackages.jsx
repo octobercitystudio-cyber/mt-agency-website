@@ -183,7 +183,7 @@ export default function ERPPackages() {
   const expiring = activePackages.filter(pkg => daysToExpiry(pkg) >= 0 && daysToExpiry(pkg) <= 14);
   const remainingHours = activePackages.filter(pkg => pkg.billing_unit !== 'reel').reduce((sum, pkg) => sum + available(pkg), 0);
   const remainingReels = activePackages.filter(pkg => pkg.billing_unit === 'reel').reduce((sum, pkg) => sum + available(pkg), 0);
-  const outstandingCents = packages.reduce((sum, pkg) => sum + packageFinancialSummary(pkg).outstandingCents, 0);
+  const outstandingCents = activePackages.reduce((sum, pkg) => sum + packageFinancialSummary(pkg).outstandingCents, 0);
 
   const filtered = useMemo(() => packages.filter(pkg => {
     const person = clients.find(item => Number(item.id) === Number(pkg.client_id));
@@ -260,6 +260,11 @@ export default function ERPPackages() {
     window.setTimeout(() => setNotice(''), 5000);
     await fetchData();
   };
+  const handlePackageDeleted = async response => {
+    setNotice(`تم حذف الباقة نهائيًا وتنظيف ${Number(response?.deleted_records?.payment_allocations || 0).toLocaleString('ar-EG')} تخصيص دفع والسجلات المرتبطة بها.`);
+    window.setTimeout(() => setNotice(''), 5000);
+    await fetchData();
+  };
 
   const selectedTemplate = useMemo(() => services.find(item => String(item.id) === String(form.service_id)), [services, form.service_id]);
   const serviceGroups = useMemo(() => buildPackageServiceGroups(services), [services]);
@@ -324,7 +329,7 @@ export default function ERPPackages() {
     {formOpen && <AddPackageDialog dialogRef={addDialogRef} form={form} errors={formErrors} clients={clients} serviceGroups={serviceGroups} selectedTemplate={selectedTemplate} dirty={formDirty} expiry={expiryPreview} busy={formBusy} childOpen={clientModalOpen} clientPickerTriggerRef={clientPickerTriggerRef} onOpenClient={() => setClientModalOpen(true)} onSelectClient={selectClient} onClose={closeAddDialog} onSubmit={submitPackage} onSelectService={selectService} onField={updateFormField} onReset={resetFormTemplate} resetNotice={templateResetNotice} resources={resources} calendarBookings={calendarBookings} appointments={saleBookings} appointment={appointment} appointmentErrors={appointmentErrors} editingAppointment={editingAppointment} usage={appointmentUsage} onAppointment={setAppointment} onSaveAppointment={saveAppointment} onEditAppointment={editAppointment} onRemoveAppointment={removeAppointment}/>}
     <ERPClientModal isOpen={clientModalOpen} nested returnFocusRef={clientPickerTriggerRef} onClose={() => setClientModalOpen(false)} onSuccess={handleClientCreated}/>
 
-    {modal.open && <OwnerPackageControl pkg={modal.pkg} person={client(modal.pkg?.client_id)} resources={resources} returnFocusRef={dialogTriggerRef} childOpen={bookingPackage.open || paymentPackage.open} refreshToken={ownerRefreshToken} onClose={closeActionDialog} onChanged={fetchData} onNewBooking={event => openPackageBooking(modal.pkg, event)} onNewPayment={event => openPackagePayment(modal.pkg, event)}/>}
+    {modal.open && <OwnerPackageControl pkg={modal.pkg} person={client(modal.pkg?.client_id)} resources={resources} returnFocusRef={dialogTriggerRef} childOpen={bookingPackage.open || paymentPackage.open} refreshToken={ownerRefreshToken} onClose={closeActionDialog} onChanged={fetchData} onDeleted={handlePackageDeleted} onNewBooking={event => openPackageBooking(modal.pkg, event)} onNewPayment={event => openPackagePayment(modal.pkg, event)}/>}
     {details.open && <PackageDetailsDialog dialogRef={detailsDialogRef} details={details} onClose={closeDetailsDialog} onRetry={() => fetchDetails(details.pkg.id)} onTab={tab => setDetails(current => ({ ...current, tab }))}/>}
     <ERPAddBookingModal isOpen={bookingPackage.open} initialClientId={bookingPackage.pkg?.client_id} initialPackageId={bookingPackage.pkg?.id} returnFocusRef={bookingTriggerRef} onClose={() => setBookingPackage({ open: false, pkg: null })} onSuccess={handlePackageBookingCreated}/>
     <PackagePaymentModal isOpen={paymentPackage.open} pkg={paymentPackage.pkg} person={client(paymentPackage.pkg?.client_id)} returnFocusRef={paymentTriggerRef} onClose={() => setPaymentPackage({ open: false, pkg: null })} onSuccess={handlePackagePaymentCreated}/>

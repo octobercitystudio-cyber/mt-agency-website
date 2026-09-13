@@ -11,9 +11,6 @@ export const DASHBOARD_KPI_ROLES = Object.freeze({
 const ACTIVE_PROJECT_STATUSES = new Set(['planning', 'active', 'on_hold']);
 const OPEN_PROJECT_STATUSES = new Set(['planning', 'active', 'on_hold']);
 const ACTIVE_CONTENT_STATUSES = new Set(['idea', 'draft', 'editing', 'in_progress', 'in_review', 'approved', 'scheduled']);
-const EXCLUDED_PACKAGE_STATUSES = new Set(['archived', 'cancelled', 'draft']);
-
-
 const dateOnlyUtc = value => {
   const match = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
@@ -21,9 +18,16 @@ const dateOnlyUtc = value => {
   return Number.isNaN(result.getTime()) ? null : result;
 };
 
-export const calculateDashboardReceivables = ({ packages = [] } = {}) => {
+export const isCurrentReceivablePackage = (pkg, todayKey = cairoDateKey()) => {
+  if (String(pkg?.status || '') !== 'active') return false;
+  const today = dateOnlyUtc(todayKey);
+  const expiresAt = dateOnlyUtc(pkg?.expires_at);
+  return !today || !expiresAt || expiresAt >= today;
+};
+
+export const calculateDashboardReceivables = ({ packages = [], todayKey = cairoDateKey() } = {}) => {
   const totalCents = packages
-    .filter(pkg => !EXCLUDED_PACKAGE_STATUSES.has(String(pkg.status || '')))
+    .filter(pkg => isCurrentReceivablePackage(pkg, todayKey))
     .reduce((sum, pkg) => sum + Math.max(0,
       Math.max(0, moneyToCents(pkg.total_price))
       + Math.max(0, moneyToCents(pkg.overage_amount))
@@ -33,10 +37,10 @@ export const calculateDashboardReceivables = ({ packages = [] } = {}) => {
 
 const stableIdCompare = (left, right) => String(left ?? '').localeCompare(String(right ?? ''), 'en', { numeric: true });
 
-export const calculateDashboardReceivableDetails = ({ packages = [], clients = [] } = {}) => {
+export const calculateDashboardReceivableDetails = ({ packages = [], clients = [], todayKey = cairoDateKey() } = {}) => {
   const clientNames = new Map(clients.map(client => [Number(client.id), String(client.name || '').trim()]));
   const items = packages
-    .filter(pkg => !EXCLUDED_PACKAGE_STATUSES.has(String(pkg.status || '')))
+    .filter(pkg => isCurrentReceivablePackage(pkg, todayKey))
     .map(pkg => {
       const totalCents = Math.max(0, moneyToCents(pkg.total_price));
       const overageCents = Math.max(0, moneyToCents(pkg.overage_amount));
@@ -151,7 +155,7 @@ export const buildDashboardKpis = (database, role, todayKey = cairoDateKey()) =>
   return {
     as_of: todayKey,
     partial_errors: [],
-    receivables: canFinance ? { available: true, ...calculateDashboardReceivables({ packages }) } : { available: false },
+    receivables: canFinance ? { available: true, ...calculateDashboardReceivables({ packages, todayKey }) } : { available: false },
     cash_movement: canFinance ? { available: true, ...calculateDashboardCashMovement(database.finance || [], todayKey.slice(0, 7)) } : { available: false },
     active_packages: canPackages ? { available: true, ...calculateDashboardPackageCounts(packages, todayKey, database.services || null) } : { available: false },
     active_services: canServices ? { available: true, ...calculateDashboardServiceCounts(database.projects || [], contentItems) } : { available: false },

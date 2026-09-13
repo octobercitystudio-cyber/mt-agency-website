@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { calculateDashboardCashMovement, calculateDashboardReceivables } from '../src/lib/dashboardKpis.js';
+import { calculateDashboardCashMovement, calculateDashboardReceivableDetails, calculateDashboardReceivables } from '../src/lib/dashboardKpis.js';
 import { buildDemoClientServiceHistory } from '../src/lib/clientServiceHistory.js';
 import { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } from '../src/lib/demoDataClient.js';
 
@@ -27,6 +27,49 @@ test('receivables include all package dues without adding invoice or client debt
     clients: [{ id: 1, debt: '60.00', status: 'active' }, { id: 2, debt: '100.00', status: 'active' }, { id: 4, debt: '7.00', status: 'active' }],
   });
   assert.deepEqual(result, { definition: 'unpaid_sold_packages', amount: '195.00', package_amount: '195.00' });
+});
+
+test('dashboard receivables include only packages active on the current date', () => {
+  const packages = [
+    { id: 1, client_id: 1, name: 'نشطة', total_price: '1000.00', paid_amount: '250.00', overage_amount: '50.00', status: 'active', expires_at: '2026-09-30' },
+    { id: 2, client_id: 1, name: 'انتهى تاريخها', total_price: '9000.00', paid_amount: 0, status: 'active', expires_at: '2026-09-12' },
+    { id: 3, client_id: 2, name: 'مكتملة', total_price: '8000.00', paid_amount: 0, status: 'completed', expires_at: '2026-10-01' },
+    { id: 4, client_id: 2, name: 'موقوفة', total_price: '7000.00', paid_amount: 0, status: 'suspended', expires_at: null },
+    { id: 5, client_id: 3, name: 'بانتظار أول حجز', total_price: '500.00', paid_amount: '100.00', status: 'active', expires_at: null },
+  ];
+  assert.deepEqual(calculateDashboardReceivables({ packages, todayKey: '2026-09-13' }), { definition: 'unpaid_sold_packages', amount: '1200.00', package_amount: '1200.00' });
+  const details = calculateDashboardReceivableDetails({ packages, clients: [{ id: 1, name: 'أحمد' }, { id: 3, name: 'سارة' }], todayKey: '2026-09-13' });
+  assert.equal(details.amount, '1200.00');
+  assert.deepEqual(details.items.map(item => item.package_id), [1, 5]);
+});
+
+test('owner permanently deletes a sold package and its dedicated financial records', async () => {
+  const sale = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify({ client_id: 6, service_id: 101, name: 'باقة للحذف', billing_unit: 'hour', quantity: 5, payment_due_quantity: 2, deposit_percent_snapshot: 30, overage_price_snapshot: '1200.00', total_price: '5000.00', paid_amount: '1000.00', payment_method: 'cash', notes: '', starts_at: '', expires_at: '', validity_days: 30, bookings: [], idempotency_key: 'delete-sold-package-0001' }) });
+  assert.equal(sale.error, null);
+  let database = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const pkg = database.client_packages.find(row => Number(row.id) === Number(sale.data.id));
+  const paymentIds = database.payment_allocations.filter(row => Number(row.client_package_id) === Number(pkg.id)).map(row => Number(row.payment_id));
+  assert.ok(paymentIds.length > 0); assert.ok(database.finance.some(row => paymentIds.includes(Number(row.source_id))));
+  const denied = await demoClient.request(`/client-packages/${pkg.id}`, { method: 'DELETE', body: JSON.stringify({ reason: 'تنظيف باقة مدخلة بالخطأ', confirmation: 'خطأ', expected_version: pkg.version }) });
+  assert.equal(denied.error?.code, 'hard_delete_confirmation_required');
+  const removed = await demoClient.request(`/client-packages/${pkg.id}`, { method: 'DELETE', body: JSON.stringify({ reason: 'تنظيف باقة مدخلة بالخطأ', confirmation: 'حذف', expected_version: pkg.version }) });
+  assert.equal(removed.error, null); assert.equal(removed.data.deleted, true);
+  database = JSON.parse(storage.get('mt_agency_erp_demo_v12'));
+  assert.equal(database.client_packages.some(row => Number(row.id) === Number(pkg.id)), false);
+  assert.equal(database.package_usage_ledger.some(row => Number(row.client_package_id) === Number(pkg.id)), false);
+  assert.equal(database.payment_allocations.some(row => Number(row.client_package_id) === Number(pkg.id)), false);
+  assert.equal(database.payments.some(row => paymentIds.includes(Number(row.id))), false);
+  assert.equal(database.finance.some(row => paymentIds.includes(Number(row.source_id))), false);
+});
+
+test('dashboard and sold-package owner control expose the active-only and delete contracts', async () => {
+  const [api, dashboard, ownerControl] = await Promise.all([load('api/index.php'), load('src/erp/ERPDashboard.jsx'), load('src/erp/OwnerPackageControl.jsx')]);
+  assert.match(api, /cp\.status='active' AND \(cp\.expires_at IS NULL OR cp\.expires_at>=\?\)/);
+  assert.match(api, /ownerDeletePackageCascade/);
+  assert.match(api, /client_package_payment_requests/);
+  assert.match(dashboard, /المتبقي للدفع من الباقات النشطة حاليًا فقط/);
+  assert.match(ownerControl, /حذف الباقة نهائيًا/);
+  assert.match(ownerControl, /confirmation: archive\.deleteConfirmation\.trim\(\)/);
+  assert.match(ownerControl, /method: 'DELETE'/);
 });
 
 test('cash movement uses one signed active ledger and reversals cancel their source exactly', () => {

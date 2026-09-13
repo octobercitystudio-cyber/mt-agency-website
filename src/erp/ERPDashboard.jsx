@@ -61,7 +61,7 @@ const ReceivablesDialog = ({ open, onClose, returnFocusRef, view, onRetry }) => 
           <div>
             <span className="ops-kicker">كشف مراجع بالقرش</span>
             <h2 id="receivables-title">تفصيل المستحقات غير المحصلة</h2>
-            <p id="receivables-note">كل بند هو رصيد باقة مباعة لم يُحصّل بالكامل.</p>
+            <p id="receivables-note">كل بند هو رصيد باقة نشطة حاليًا لم يُحصّل بالكامل.</p>
           </div>
           <button type="button" className="receivables-dialog__close" onClick={onClose} aria-label="إغلاق تفصيل المستحقات" data-dialog-initial><X aria-hidden="true" /></button>
         </header>
@@ -83,7 +83,7 @@ const ReceivablesDialog = ({ open, onClose, returnFocusRef, view, onRetry }) => 
           <div className="receivables-state">
             <Check aria-hidden="true" />
             <strong>لا توجد مستحقات غير محصلة</strong>
-            <span>جميع أرصدة الباقات المباعة مسددة حاليًا.</span>
+            <span>لا توجد أرصدة مستحقة على الباقات النشطة حاليًا.</span>
             <Link to="/erp/packages" onClick={onClose}>فتح الباقات المباعة</Link>
           </div>
         ) : (
@@ -102,7 +102,7 @@ const ReceivablesDialog = ({ open, onClose, returnFocusRef, view, onRetry }) => 
               <b aria-hidden="true">=</b>
               <div className="receivables-equation__due"><span>المستحق</span><strong>{money(reconciliation.outstanding_amount)}</strong></div>
             </div>
-            <p className="receivables-formula-note">الحساب من الباقات الظاهرة فقط: قيمة الباقة + الزيادات − المدفوع. لا تُضاف الفواتير أو أرصدة العملاء القديمة.</p>
+            <p className="receivables-formula-note">الحساب من الباقات النشطة الظاهرة فقط: قيمة الباقة + الزيادات − المدفوع. لا تُضاف الباقات المنتهية أو المكتملة أو الموقوفة، ولا الفواتير أو أرصدة العملاء القديمة.</p>
 
             <div className="receivables-ledger">
               {groups.map(group => (
@@ -138,7 +138,7 @@ const ReceivablesDialog = ({ open, onClose, returnFocusRef, view, onRetry }) => 
         )}
 
         <footer className="receivables-dialog__footer">
-          <span>هذا الكشف للقراءة والمراجعة فقط.</span>
+          <span>يمكن حذف أي باقة من «إدارة الباقات ← تحكم المالك».</span>
           <Link to="/erp/packages" onClick={onClose}>إدارة الباقات <ArrowLeft aria-hidden="true" /></Link>
         </footer>
       </section>
@@ -353,7 +353,7 @@ const ERPDashboard = () => {
       <section className="ops-health" aria-label="صحة العمل" aria-busy={state.loading}>
         {!state.loading && state.health.receivablesAvailable ? (
           <button type="button" className="ops-health__cell ops-health__cell--interactive" onClick={openReceivables} aria-label={`عرض تفاصيل المستحقات غير المحصلة بقيمة ${money(state.health.outstanding)}`}>
-            <span>مستحقات غير محصلة</span><strong>{money(state.health.outstanding)}</strong><small>المتبقي للدفع من جميع الباقات المباعة</small><em>عرض التفاصيل <ArrowLeft aria-hidden="true" /></em>
+            <span>مستحقات غير محصلة</span><strong>{money(state.health.outstanding)}</strong><small>المتبقي للدفع من الباقات النشطة حاليًا فقط</small><em>عرض التفاصيل <ArrowLeft aria-hidden="true" /></em>
           </button>
         ) : <div className="ops-health__cell"><span>مستحقات غير محصلة</span><strong>{state.loading || !state.health.receivablesAvailable ? '—' : money(state.health.outstanding)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : unavailableKpiCopy}</small></div>}
         <div className="ops-health__cell"><span>الأرباح</span><strong className={cashNet < 0 ? 'negative' : ''}>{state.loading || !state.health.cashAvailable ? '—' : money(cashNet)}</strong><small>{state.loading ? 'جارٍ تحديث المؤشات…' : state.health.cashAvailable ? <>هذا الشهر · إيراد {money(state.health.cashIn)} · مصروف {money(state.health.cashOut)} · دون التحويل الداخلي</> : unavailableKpiCopy}</small></div>

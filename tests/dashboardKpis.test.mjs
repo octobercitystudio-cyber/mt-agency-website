@@ -32,15 +32,17 @@ test('dashboard receivables use only unpaid package balances regardless of invoi
   assert.deepEqual(summary, { definition: 'unpaid_sold_packages', amount: '128.00', package_amount: '128.00' });
 });
 
-test('package receivables include expired, completed and suspended sales and do not offset one sale with another', () => {
+test('package receivables include only currently active sales and do not offset one sale with another', () => {
   const summary = calculateDashboardReceivables({ packages: [
     { status: 'active', total_price: '100.00', paid_amount: '150.00' },
+    { status: 'active', total_price: '80.00', paid_amount: '20.00', expires_at: '2026-12-31' },
+    { status: 'active', total_price: '90.00', paid_amount: '0.00', expires_at: '2026-01-01' },
     { status: 'expired', total_price: '100.50', paid_amount: '50.25' },
     { status: 'completed', total_price: '100.00', paid_amount: '100.00', overage_amount: '20.25' },
     { status: 'suspended', total_price: '70.00', paid_amount: '20.00' },
     ...['draft', 'cancelled', 'archived'].map(status => ({ status, total_price: '999.00', paid_amount: '0.00' })),
-  ] });
-  assert.equal(summary.amount, '120.50');
+  ], todayKey: '2026-09-13' });
+  assert.equal(summary.amount, '60.00');
   assert.equal(calculateDashboardReceivables({ invoices: [{ total: '999' }], clients: [{ debt: '999' }] }).amount, '0.00');
 });
 
@@ -55,19 +57,19 @@ test('receivables detail reconciles exactly to visible package rows and sorts th
       { id: 5, client_id: 1, name: 'ملغاة', status: 'cancelled', total_price: '900.00', paid_amount: '0.00' },
     ],
   });
-  assert.equal(detail.amount, '96.15');
-  assert.equal(detail.item_count, 3);
-  assert.deepEqual(detail.items.map(item => item.package_id), [11, 2, 3]);
-  assert.deepEqual(detail.items.map(item => item.client_name), ['عميل ثان', 'عميل أول', 'عميل أول']);
+  assert.equal(detail.amount, '61.15');
+  assert.equal(detail.item_count, 1);
+  assert.deepEqual(detail.items.map(item => item.package_id), [11]);
+  assert.deepEqual(detail.items.map(item => item.client_name), ['عميل ثان']);
   assert.deepEqual(detail.reconciliation, {
-    total_price: '140.30', overage_amount: '1.10', paid_amount: '45.25', outstanding_amount: '96.15',
+    total_price: '100.05', overage_amount: '1.10', paid_amount: '40.00', outstanding_amount: '61.15',
   });
   assert.equal(detail.items.reduce((sum, item) => sum + Number(item.outstanding_amount), 0).toFixed(2), detail.amount);
 });
 
 test('dashboard labels explain package receivables and preserve the monthly profit calculation', async () => {
   const dashboard = await load('src/erp/ERPDashboard.jsx');
-  assert.match(dashboard, /المتبقي للدفع من جميع الباقات المباعة/);
+  assert.match(dashboard, /المتبقي للدفع من الباقات النشطة حاليًا فقط/);
   assert.match(dashboard, /<span>الأرباح<\/span>/);
   assert.match(dashboard, /هذا الشهر · إيراد/);
   assert.doesNotMatch(dashboard, /صافي التشغيل للشهر/);
@@ -146,12 +148,13 @@ test('receivables breakdown is read-only, organization scoped, role redacted and
   assert.match(endpoint, /LEFT JOIN clients c ON c\.id=cp\.client_id AND c\.organization_id=cp\.organization_id/);
   assert.match(endpoint, /COALESCE\(NULLIF\(TRIM\(c\.name\),''\),CONCAT\('عميل #',cp\.client_id\)\) AS client_name/);
   assert.match(endpoint, /WHERE cp\.organization_id=\?/);
-  assert.match(endpoint, /status NOT IN \('archived','cancelled','draft'\)/);
+  assert.match(endpoint, /cp\.status='active'/);
+  assert.match(endpoint, /cp\.expires_at IS NULL OR cp\.expires_at>=\?/);
   assert.match(endpoint, /packageMoneyCents/);
   assert.doesNotMatch(endpoint, /invoices|client.*debt/i);
   assert.match(demo, /route === '\/dashboard\/receivables'/);
   assert.match(demo, /\['owner', 'admin', 'finance'\]\.includes\(demoRole\)/);
-  assert.match(demo, /calculateDashboardReceivableDetails\(\{ packages: database\.client_packages, clients: database\.clients \}\)/);
+  assert.match(demo, /calculateDashboardReceivableDetails\(\{ packages: database\.client_packages, clients: database\.clients, todayKey: cairoDateKey\(\) \}\)/);
 });
 
 test('receivables card opens an accessible responsive audit dialog with all required states', async () => {
@@ -162,7 +165,7 @@ test('receivables card opens an accessible responsive audit dialog with all requ
   assert.match(dashboard, /عرض التفاصيل/);
   assert.match(dashboard, /قيمة الباقات/);
   assert.match(dashboard, /Number\(view\.data\.item_count\) === 1 \? 'باقة' : 'باقات'/);
-  assert.match(dashboard, /لا تُضاف الفواتير أو أرصدة العملاء القديمة/);
+  assert.match(dashboard, /لا تُضاف الباقات المنتهية أو المكتملة أو الموقوفة، ولا الفواتير أو أرصدة العملاء القديمة/);
   assert.match(dashboard, /view\.loading/);
   assert.match(dashboard, /view\.error/);
   assert.match(dashboard, /!view\.data\?\.items\?\.length/);
