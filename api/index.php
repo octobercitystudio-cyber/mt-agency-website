@@ -501,9 +501,8 @@ function clientBookingAvailability(PDO $pdo, array $user, int $packageId, int $d
     $minimumWindow=1;$maximumWindow=31;$windowDays=max($minimumWindow,min($maximumWindow,$windowDays));
     $first=DateTimeImmutable::createFromFormat('!Y-m-d',$startDate,$zone);
     if(!$first||$first->format('Y-m-d')!==$startDate)fail('تاريخ بداية البحث غير صحيح.',422,'invalid_availability_start');
-    $today=$now->setTime(0,0);$latestStart=$today->modify('+90 days');
+    $today=$now->setTime(0,0);
     if($first<$today)$first=$today;
-    if($first>$latestStart)fail('يمكن البحث عن المواعيد خلال 90 يومًا فقط.',422,'availability_start_out_of_range');
     if($durationMinutes<30||$durationMinutes>720||$durationMinutes%30!==0)fail('مدة الحجز يجب أن تكون بين 30 دقيقة و12 ساعة، بزيادات 30 دقيقة.',422,'invalid_booking_duration');
 
     $packageStmt=$pdo->prepare("SELECT cp.*,s.name AS service_name,s.minimum_booking_minutes,s.booking_increment_minutes FROM client_packages cp JOIN services s ON s.id=cp.service_id AND s.organization_id=cp.organization_id AND s.is_active=1 WHERE cp.id=? AND cp.client_id=? AND cp.organization_id=? AND cp.status='active' LIMIT 1");

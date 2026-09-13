@@ -538,3 +538,28 @@
   }
 }
 .erp-booking-overlay { z-index: 2000; }
+
+.erp-booking-package-calendar-note {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(67, 24, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(67, 24, 255, 0.06);
+  color: var(--erp-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.erp-booking-package-calendar-note svg {
+  width: 18px;
+  flex: 0 0 auto;
+  color: var(--erp-primary);
+}
+
+.erp-booking-package-calendar-note strong {
+  color: var(--erp-primary);
+}

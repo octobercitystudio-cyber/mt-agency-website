@@ -18,6 +18,7 @@ import './ERPAddBookingModal.css';
 import { activeServiceCategories, isProjectServiceCategory } from '../lib/serviceCategories';
 import { packageBookingAvailability, packageBookingSnapshot, packagesForBookingClient, validatePackageBookingDraft } from './packageBookingSelection';
 import { getBookingAvailability } from './bookingAvailability';
+import { packageBookingValidRange } from '../lib/packageBookingCalendar';
 
 export const CUSTOM_SERVICE_OPTION = '__custom_service__';
 
@@ -297,6 +298,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     : services.find(service => service.name === newBooking.service);
   const clientPackageOptions = packagesForBookingClient(clientPackages, newBooking.client_id, cairoDateKey());
   const packageSnapshot = packageBookingSnapshot(selectedPackage, selectedService);
+  const calendarValidRange = packageBookingValidRange(selectedPackage, cairoDateKey());
   const projectOrReel = ['reel', 'project'].includes(String(selectedService?.billing_unit || '')) || isProjectServiceCategory(newBooking.category);
   const showCalendar = Boolean(selectedPackage) || !projectOrReel || newBooking.schedule_extra;
   const showDelivery = projectOrReel;
@@ -395,11 +397,15 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                     <Pointer size={14} style={{ display: 'inline', marginLeft: '5px' }} /> اضغط على اليوم في التقويم لإضافته
                   </label>
                 </div>
+                {selectedPackage && <p className="erp-booking-package-calendar-note"><CalendarPlus/> يمكنك الانتقال لأي شهر {selectedPackage.expires_at ? `حتى ${formatBookingDate(selectedPackage.expires_at)}` : 'وسيبدأ احتساب الصلاحية مع أول حجز مؤكد'}، بشرط ألا يتجاوز مجموع المواعيد الرصيد المتاح وهو <strong>{formatPackageQuantity(packageSnapshot.quantity.available, selectedPackage.billing_unit)}</strong>.</p>}
                 
                 <div style={{ border: '1px solid var(--erp-border)', borderRadius: '15px', padding: '10px', background: 'var(--erp-surface)', marginBottom: '20px' }}>
                   <FullCalendar
+                    key={`package-calendar-${selectedPackage?.id || 'service'}-${calendarValidRange.start || 'today'}-${calendarValidRange.end || 'open'}`}
                     plugins={[ dayGridPlugin, interactionPlugin ]}
                     initialView="dayGridMonth"
+                    initialDate={calendarValidRange.start}
+                    validRange={calendarValidRange}
                     locale={arCalendarLocale}
                     direction="rtl"
                     firstDay={6}
@@ -424,7 +430,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                     <div key={idx} className="erp-booking-date-row" style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', background: 'var(--erp-surface)', padding: '15px', borderRadius: '15px', border: '1px solid var(--erp-border)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
                       <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>تاريخ الجلسة</label>
-                        <input type="date" min={selectedPackage?.starts_at?.slice(0, 10)} max={selectedPackage?.expires_at?.slice(0, 10)} value={dRow.date} onChange={(e) => updateDateRow(idx, 'date', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', color: 'var(--erp-primary)', fontWeight: 'bold' }} />
+                        <input type="date" min={calendarValidRange.start} max={selectedPackage?.expires_at?.slice(0, 10)} value={dRow.date} onChange={(e) => updateDateRow(idx, 'date', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', color: 'var(--erp-primary)', fontWeight: 'bold' }} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>من الساعة</label>
