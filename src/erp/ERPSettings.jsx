@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Cropper from 'cropperjs';
-import { Settings } from 'lucide-react';
+import { AlertTriangle, CloudCog, DatabaseBackup, Download, RefreshCw, Settings, ShieldCheck, Upload } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
@@ -8,7 +8,10 @@ import OwnerRecordActions from './OwnerRecordActions';
 import { CUSTOM_CATEGORY_VALUE, FIXED_SERVICE_CATEGORIES, applyCategoryDefaults, buildServiceCategoryGroups, categoryCustomValue, categoryEditorValue, resolveServiceCategory, serviceUsesProjectFields } from '../lib/serviceCategories';
 import useModalDialog from '../hooks/useModalDialog';
 import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
-import { formatDurationMinutes, formatPackageQuantity } from '../lib/businessFormat';
+import { formatDateTime12, formatDurationMinutes, formatPackageQuantity } from '../lib/businessFormat';
+import { safeUiError } from '../lib/uiError';
+import { SYSTEM_BACKUP_CONFIRMATION, downloadSystemBackup, readSystemBackupFile } from './systemBackupFile';
+import './ERPSettingsBackup.css';
 
 const ROLE_DETAILS = {
   owner: { label: 'مالك', note: 'صلاحيات كاملة وإدارة الحسابات.' },
@@ -41,8 +44,12 @@ const ERPSettings = () => {
     points_discount_egp: 20,
     points_validity_months: 6
   });
-  const [backupFreq, setBackupFreq] = useState('يوميا');
   const [currentLogo, setCurrentLogo] = useState('https://via.placeholder.com/150?text=No+Logo');
+  const backupInputRef = useRef(null);
+  const [backupFile, setBackupFile] = useState(null);
+  const [backupPreview, setBackupPreview] = useState(null);
+  const [restoreConfirmation, setRestoreConfirmation] = useState('');
+  const [backupState, setBackupState] = useState({ busy: '', type: '', message: '' });
 
   // Form states
   const emptyService = { name: '', category: 'باقة شهرية', categorySelection: 'باقة شهرية', customCategory: '', billing_unit: 'hour', price: '', total_hours: 0, payment_due_hours: 0, deposit_percent: 0, overage_price: 0, validity_days: 90, total_reels: 0, minimum_booking_minutes: 60, booking_increment_minutes: 15, auto_start_timer: 1, reason: '' };
@@ -66,7 +73,6 @@ const ERPSettings = () => {
       let cfgObj = { ...p_cfg };
       cfgData.forEach(item => {
         if (item.key.startsWith('points_')) cfgObj[item.key] = Number(item.value);
-        if (item.key === 'backup_freq') setBackupFreq(item.value);
         if (item.key === 'system_logo') setCurrentLogo(item.value);
       });
       setP_cfg(cfgObj);
@@ -104,12 +110,50 @@ const ERPSettings = () => {
     }, 500);
   };
 
-  const handleSaveBackupFreq = async (e) => {
-    e.preventDefault();
-    const { data } = await dataClient.from('app_config').select('id').eq('key', 'backup_freq').single();
-    if (data) await dataClient.from('app_config').update({ value: backupFreq }).eq('key', 'backup_freq');
-    else await dataClient.from('app_config').insert([{ key: 'backup_freq', value: backupFreq }]);
-    alert('تم تحديث إعدادات النسخ الاحتياطي بنجاح');
+  const fetchAndDownloadBackup = async prefix => {
+    const { data, error } = await dataClient.request('/system-backups/export', { method: 'GET' });
+    if (error) throw error;
+    downloadSystemBackup(data, prefix);
+    return data;
+  };
+
+  const handleDownloadBackup = async () => {
+    if (!isOwner || backupState.busy) return;
+    setBackupState({ busy: 'download', type: '', message: '' });
+    try {
+      const backup = await fetchAndDownloadBackup();
+      setBackupState({ busy: '', type: 'success', message: `تم تنزيل نسخة كاملة تضم ${Number(backup.row_count || 0).toLocaleString('ar-EG')} سجلًا.` });
+    } catch (error) {
+      setBackupState({ busy: '', type: 'error', message: safeUiError(error, 'تعذر إنشاء النسخة الاحتياطية الآن.') });
+    }
+  };
+
+  const handleBackupFileChange = async event => {
+    const file = event.target.files?.[0] || null;
+    setBackupFile(null);setBackupPreview(null);setRestoreConfirmation('');setBackupState({ busy: '', type: '', message: '' });
+    if (!file) return;
+    try {
+      const { summary } = await readSystemBackupFile(file);
+      setBackupFile(file);setBackupPreview(summary);
+    } catch (error) {
+      if (backupInputRef.current) backupInputRef.current.value = '';
+      setBackupState({ busy: '', type: 'error', message: error.message || 'ملف النسخة غير صالح.' });
+    }
+  };
+
+  const handleRestoreBackup = async () => {
+    if (!isOwner || !backupFile || backupState.busy || restoreConfirmation.trim() !== SYSTEM_BACKUP_CONFIRMATION) return;
+    setBackupState({ busy: 'restore', type: '', message: '' });
+    try {
+      await fetchAndDownloadBackup('نسخة-قبل-الاستعادة');
+      const formData = new FormData();formData.append('backup', backupFile);formData.append('confirmation', restoreConfirmation.trim());
+      const { data, error } = await dataClient.request('/system-backups/restore', { method: 'POST', body: formData });
+      if (error) throw error;
+      setBackupState({ busy: '', type: 'success', message: `تمت استعادة ${Number(data.restored_rows || 0).toLocaleString('ar-EG')} سجلًا. سيتم تحديث الصفحة الآن.` });
+      window.setTimeout(() => window.location.reload(), 1600);
+    } catch (error) {
+      setBackupState({ busy: '', type: 'error', message: safeUiError(error, 'تعذرت استعادة النسخة ولم يتم اعتماد تغيير غير مكتمل.') });
+    }
   };
 
   const handleAddService = async (e) => {
@@ -571,33 +615,23 @@ const ERPSettings = () => {
         </div>
         
         <div className="col-md-6">
-          <div className="setting-section h-100 mb-0">
-            <h5 className="fw-bold text-dark mb-4"><i className="fas fa-database text-success me-2"></i> قاعدة البيانات والنسخ الاحتياطي</h5>
-            
-            <form onSubmit={handleSaveBackupFreq} className="mb-4">
-              <label className="small fw-bold text-muted mb-2">وتيرة النسخ التلقائي:</label>
-              <div className="input-group shadow-sm rounded-pill overflow-hidden">
-                <select name="backup_freq" className="form-select bg-light border-0 py-2 fw-bold" value={backupFreq} onChange={e => setBackupFreq(e.target.value)}>
-                  <option value="مغلق">مغلق</option>
-                  <option value="يوميا">يومياً</option>
-                  <option value="اسبوعيا">أسبوعياً</option>
-                </select>
-                <button type="submit" className="btn btn-success fw-bold px-4"><i className="fas fa-save"></i> حفظ</button>
-              </div>
-            </form>
-            <hr className="opacity-10 my-4" />
-            <div className="d-flex gap-2">
-              <button className="btn btn-primary rounded-pill flex-grow-1 py-2 fw-bold" onClick={() => {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({services, p_cfg, users}));
-                const a = document.createElement('a'); a.href = dataStr; a.download = "erp_backup.json"; a.click();
-              }}><i className="fas fa-download me-1"></i> تحميل نسخة (JSON)</button>
+          <div className="setting-section h-100 mb-0 system-backup-card">
+            <div className="system-backup-card__heading"><div><DatabaseBackup aria-hidden="true"/><div><h5 className="fw-bold text-dark">نسخة بيانات البرنامج</h5><p>تنزيل واستعادة العملاء والباقات والحجوزات والماليات والمشروعات والإعدادات وكل السجلات المترابطة.</p></div></div><span className="system-backup-owner-badge">للمالك فقط</span></div>
+            <div className="system-backup-layers">
+              <article className="system-backup-layer"><ShieldCheck aria-hidden="true"/><div><strong>نسخة داخلية عند الطلب</strong><span>ملف JSON كامل ببصمة تحقق، مع استبعاد جلسات الدخول وروابط إعادة كلمة المرور المؤقتة.</span></div></article>
+              <article className="system-backup-layer"><CloudCog aria-hidden="true"/><div><strong>نسخة Hostinger اليومية</strong><span>طبقة منفصلة تشمل ملفات الموقع وقاعدة البيانات، وتُدار من لوحة استضافة الموقع.</span></div></article>
             </div>
-            <div className="mt-3 p-3 bg-primary-subtle rounded-4 border border-primary border-opacity-25">
-              <label className="small fw-bold text-primary mb-2"><i className="fas fa-cloud"></i> النسخ الاحتياطي التلقائي (Cloud)</label>
-              <p className="small mb-0 text-dark">
-                قاعدة بيانات النظام الآن سحابية وموزعة عبر عدة خوادم (Supabase)، مما يعني أن بياناتك في أمان تام ولا يمكن فقدانها حتى لو تعطل جهازك. لم تعد بحاجة لرفع أو استعادة ملفات .db يدوياً.
-              </p>
+            <div className="system-backup-actions">
+              <button type="button" className="system-backup-action system-backup-action--download" onClick={handleDownloadBackup} disabled={Boolean(backupState.busy)}>{backupState.busy === 'download' ? <RefreshCw className="packages-spin" aria-hidden="true"/> : <Download aria-hidden="true"/>}{backupState.busy === 'download' ? 'جارٍ تجهيز النسخة…' : 'تنزيل نسخة كاملة الآن'}</button>
+              <button type="button" className="system-backup-action" onClick={() => backupInputRef.current?.click()} disabled={Boolean(backupState.busy)}><Upload aria-hidden="true"/> اختيار نسخة للاستعادة</button>
             </div>
+            <div className="system-backup-upload">
+              <label htmlFor="system-backup-file">ملف النسخة الاحتياطية</label>
+              <input ref={backupInputRef} id="system-backup-file" type="file" accept="application/json,.json" onChange={handleBackupFileChange}/>
+            </div>
+            {backupPreview && <section className="system-backup-preview" aria-label="بيانات ملف النسخة المحدد"><header><ShieldCheck aria-hidden="true"/><h6>تم فحص تركيب ملف النسخة</h6></header><div className="system-backup-metrics"><div><span>تاريخ النسخة</span><strong>{backupPreview.exportedAt ? formatDateTime12(backupPreview.exportedAt) : 'غير مسجل'}</strong></div><div><span>الجداول</span><strong>{backupPreview.tableCount.toLocaleString('ar-EG')}</strong></div><div><span>السجلات</span><strong>{backupPreview.rowCount.toLocaleString('ar-EG')}</strong></div></div><label className="system-backup-confirm"><span>للاستعادة اكتب <code>{SYSTEM_BACKUP_CONFIRMATION}</code></span><input value={restoreConfirmation} onChange={event => setRestoreConfirmation(event.target.value)} autoComplete="off" placeholder={SYSTEM_BACKUP_CONFIRMATION}/></label><button type="button" className="system-backup-action system-backup-action--restore" onClick={handleRestoreBackup} disabled={backupState.busy === 'restore' || restoreConfirmation.trim() !== SYSTEM_BACKUP_CONFIRMATION}>{backupState.busy === 'restore' ? <RefreshCw className="packages-spin" aria-hidden="true"/> : <DatabaseBackup aria-hidden="true"/>}{backupState.busy === 'restore' ? 'جارٍ إنشاء نسخة أمان ثم الاستعادة…' : 'إنشاء نسخة أمان واستعادة البيانات'}</button></section>}
+            {backupState.message && <p className={`system-backup-message system-backup-message--${backupState.type}`} role={backupState.type === 'error' ? 'alert' : 'status'}>{backupState.type === 'error' ? <AlertTriangle aria-hidden="true"/> : <ShieldCheck aria-hidden="true"/>}{backupState.message}</p>}
+            <div className="system-backup-note"><AlertTriangle aria-hidden="true"/><span>قبل أي استعادة ينزّل النظام تلقائيًا نسخة من البيانات الحالية. احتفظ بملف النسخة في مكان آمن لأنه يحتوي على بيانات الشركة والحسابات. ملفات إثبات الدفع نفسها تُحمى ضمن نسخة Hostinger للملفات، بينما يسجل ملف البرنامج بياناتها وروابطها.</span></div>
           </div>
         </div>
 

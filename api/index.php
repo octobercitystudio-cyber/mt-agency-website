@@ -1733,6 +1733,109 @@ function nextClientColor(PDO $pdo,int $organizationId): string {
     return automaticClientColor($stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
+function systemBackupExcludedTables(): array {
+    return ['api_sessions','auth_rate_limits','password_reset_tokens'];
+}
+
+function systemBackupChildQueries(): array {
+    return [
+        'booking_status_history'=>'SELECT child.* FROM booking_status_history child JOIN bookings parent ON parent.id=child.booking_id WHERE parent.organization_id=? ORDER BY child.id',
+        'package_usage_ledger'=>'SELECT child.* FROM package_usage_ledger child JOIN client_packages parent ON parent.id=child.client_package_id WHERE parent.organization_id=? ORDER BY child.id',
+        'offer_items'=>'SELECT child.* FROM offer_items child JOIN offers parent ON parent.id=child.offer_id WHERE parent.organization_id=? ORDER BY child.id',
+        'invoice_items'=>'SELECT child.* FROM invoice_items child JOIN invoices parent ON parent.id=child.invoice_id WHERE parent.organization_id=? ORDER BY child.id',
+        'session_settlement_allocations'=>'SELECT child.* FROM session_settlement_allocations child JOIN session_settlements parent ON parent.id=child.settlement_id WHERE parent.organization_id=? ORDER BY child.id',
+    ];
+}
+
+function systemBackupDirectTables(PDO $pdo): array {
+    $stmt=$pdo->query("SELECT DISTINCT TABLE_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='organization_id' ORDER BY TABLE_NAME");
+    $excluded=array_flip(systemBackupExcludedTables());
+    return array_values(array_filter(array_map('strval',$stmt->fetchAll(PDO::FETCH_COLUMN)),fn($table)=>preg_match('/^[a-z_]+$/',$table)&&!isset($excluded[$table])));
+}
+
+function systemBackupRows(PDO $pdo,int $organizationId): array {
+    $tables=[];$organization=$pdo->prepare('SELECT * FROM organizations WHERE id=? LIMIT 1');$organization->execute([$organizationId]);$tables['organizations']=$organization->fetchAll();
+    foreach(systemBackupDirectTables($pdo) as $table){
+        $order=in_array('id',schemaTableColumns($pdo,$table),true)?' ORDER BY id':'';
+        $stmt=$pdo->prepare("SELECT * FROM `$table` WHERE organization_id=?$order");$stmt->execute([$organizationId]);$tables[$table]=$stmt->fetchAll();
+    }
+    foreach(systemBackupChildQueries() as $table=>$sql){
+        if(!schemaTableExists($pdo,$table))continue;
+        $stmt=$pdo->prepare($sql);$stmt->execute([$organizationId]);$tables[$table]=$stmt->fetchAll();
+    }
+    ksort($tables);return $tables;
+}
+
+function buildSystemBackup(PDO $pdo,array $user): array {
+    $tables=systemBackupRows($pdo,(int)$user['organization_id']);$counts=[];$rowCount=0;
+    foreach($tables as $table=>$rows){$counts[$table]=count($rows);$rowCount+=count($rows);}
+    $backup=[
+        'format'=>'mt-agency-system-backup','version'=>1,'exported_at'=>cairoNow()->format(DATE_ATOM),
+        'organization_id'=>(int)$user['organization_id'],'organization_name'=>(string)($tables['organizations'][0]['name']??''),
+        'created_by'=>(string)$user['full_name'],'table_count'=>count($tables),'row_count'=>$rowCount,
+        'table_counts'=>$counts,'excluded_security_state'=>systemBackupExcludedTables(),'tables'=>$tables,
+    ];
+    $encoded=json_encode($backup,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_INVALID_UTF8_SUBSTITUTE);
+    if($encoded===false)throw new RuntimeException('Could not encode system backup.');
+    $backup['checksum']='sha256:'.hash('sha256',$encoded);return $backup;
+}
+
+function validateSystemBackup(array $backup,int $organizationId): array {
+    if(($backup['format']??'')!=='mt-agency-system-backup'||(int)($backup['version']??0)!==1)fail('ملف النسخة الاحتياطية غير مدعوم.',422,'invalid_backup_format');
+    if((int)($backup['organization_id']??0)!==$organizationId)fail('هذه النسخة تخص مؤسسة أخرى ولا يمكن استعادتها هنا.',422,'backup_organization_mismatch');
+    $checksum=(string)($backup['checksum']??'');$unsigned=$backup;unset($unsigned['checksum']);
+    $encoded=json_encode($unsigned,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_INVALID_UTF8_SUBSTITUTE);
+    if(!preg_match('/^sha256:[a-f0-9]{64}$/',$checksum)||!hash_equals($checksum,'sha256:'.hash('sha256',(string)$encoded)))fail('ملف النسخة غير مكتمل أو تم تغييره.',422,'backup_checksum_mismatch');
+    if(!is_array($backup['tables']??null)||!isset($backup['tables']['organizations'])||!isset($backup['tables']['users']))fail('ملف النسخة لا يحتوي على بيانات النظام الأساسية.',422,'backup_required_tables_missing');
+    $rows=0;foreach($backup['tables'] as $table=>$items){if(!is_string($table)||!preg_match('/^[a-z_]+$/',$table)||!is_array($items))fail('تركيب جداول النسخة غير صحيح.',422,'invalid_backup_tables');$rows+=count($items);}
+    if($rows<1||$rows>250000)fail('عدد السجلات في النسخة خارج النطاق المسموح.',422,'backup_row_limit');
+    return $backup;
+}
+
+function insertSystemBackupRow(PDO $pdo,string $table,array $row,int $organizationId,int $currentOwnerId): bool {
+    if(!preg_match('/^[a-z_]+$/',$table)||!schemaTableExists($pdo,$table))return false;
+    $columns=schemaTableColumns($pdo,$table);$values=[];
+    foreach($row as $column=>$value)if(is_string($column)&&in_array($column,$columns,true))$values[$column]=$value;
+    if(in_array('organization_id',$columns,true))$values['organization_id']=$organizationId;
+    if($table==='organizations')$values['id']=$organizationId;
+    if($table==='users'&&(int)($values['id']??0)===$currentOwnerId)return false;
+    if(!$values)return false;
+    $names=array_keys($values);$quoted=array_map(fn($column)=>'`'.$column.'`',$names);$marks=implode(',',array_fill(0,count($names),'?'));
+    $sql='INSERT INTO `'.$table.'` ('.implode(',',$quoted).') VALUES ('.$marks.')';
+    if($table==='organizations'){$updates=array_values(array_filter($names,fn($column)=>$column!=='id'));$sql.=' ON DUPLICATE KEY UPDATE '.implode(',',array_map(fn($column)=>'`'.$column.'`=VALUES(`'.$column.'`)',$updates));}
+    $stmt=$pdo->prepare($sql);$stmt->execute(array_values($values));return true;
+}
+
+function restoreSystemBackup(PDO $pdo,array $user,array $backup): array {
+    $organizationId=(int)$user['organization_id'];$ownerId=(int)$user['id'];$backup=validateSystemBackup($backup,$organizationId);
+    $allowed=array_flip(array_merge(['organizations'],systemBackupDirectTables($pdo),array_keys(systemBackupChildQueries())));
+    foreach(array_keys($backup['tables']) as $table)if(!isset($allowed[$table]))fail('تحتوي النسخة على جدول غير مسموح باستعادته: '.$table,422,'backup_table_not_allowed');
+    $currentOwner=$pdo->prepare("SELECT * FROM users WHERE id=? AND organization_id=? AND role='owner' LIMIT 1");$currentOwner->execute([$ownerId,$organizationId]);
+    if(!$currentOwner->fetch())fail('تعذر تثبيت حساب المالك الحالي قبل الاستعادة.',409,'backup_owner_guard_failed');
+    $restored=0;$pdo->exec('SET FOREIGN_KEY_CHECKS=0');$pdo->beginTransaction();
+    try{
+        foreach(systemBackupChildQueries() as $table=>$sql){
+            if(!schemaTableExists($pdo,$table))continue;
+            $deleteSql=match($table){
+                'booking_status_history'=>'DELETE child FROM booking_status_history child JOIN bookings parent ON parent.id=child.booking_id WHERE parent.organization_id=?',
+                'package_usage_ledger'=>'DELETE child FROM package_usage_ledger child JOIN client_packages parent ON parent.id=child.client_package_id WHERE parent.organization_id=?',
+                'offer_items'=>'DELETE child FROM offer_items child JOIN offers parent ON parent.id=child.offer_id WHERE parent.organization_id=?',
+                'invoice_items'=>'DELETE child FROM invoice_items child JOIN invoices parent ON parent.id=child.invoice_id WHERE parent.organization_id=?',
+                default=>'DELETE child FROM session_settlement_allocations child JOIN session_settlements parent ON parent.id=child.settlement_id WHERE parent.organization_id=?',
+            };$stmt=$pdo->prepare($deleteSql);$stmt->execute([$organizationId]);
+        }
+        $pdo->prepare('DELETE s FROM api_sessions s JOIN users u ON u.id=s.user_id WHERE u.organization_id=? AND u.id<>?')->execute([$organizationId,$ownerId]);
+        if(schemaTableExists($pdo,'password_reset_tokens'))$pdo->prepare('DELETE FROM password_reset_tokens WHERE organization_id=?')->execute([$organizationId]);
+        $direct=array_reverse(systemBackupDirectTables($pdo));
+        foreach($direct as $table){if($table==='users')continue;$pdo->prepare("DELETE FROM `$table` WHERE organization_id=?")->execute([$organizationId]);}
+        $pdo->prepare('DELETE FROM users WHERE organization_id=? AND id<>?')->execute([$organizationId,$ownerId]);
+        foreach($backup['tables'] as $table=>$rows)foreach($rows as $row)if(is_array($row)&&insertSystemBackupRow($pdo,$table,$row,$organizationId,$ownerId))$restored++;
+        audit($pdo,$user,'restore_system_backup','organizations',$organizationId,null,['backup_exported_at'=>$backup['exported_at']??null,'checksum'=>$backup['checksum'],'restored_rows'=>$restored]);
+        recordChangeEvent($pdo,$organizationId,null,'system','organizations',$organizationId,'backup_restored');
+        $pdo->commit();$pdo->exec('SET FOREIGN_KEY_CHECKS=1');return ['restored_rows'=>$restored,'backup_exported_at'=>$backup['exported_at']??null,'current_owner_preserved'=>true];
+    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();$pdo->exec('SET FOREIGN_KEY_CHECKS=1');throw $error;}
+}
+
 $resources = [
     'clients' => ['org' => true, 'clientScoped' => true, 'scopeColumn' => 'id', 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => ['owner','admin','operations'], 'columns' => ['id','organization_id','name','company_name','contact_person','phone1','phone2','email','job','address','city','tax_number','commercial_registration','preferred_contact','whatsapp_opt_in','whatsapp_opt_in_at','color','notes','debt','credit','points','points_updated_at','dismissed_alerts','status','created_at','updated_at']],
     'services' => ['org' => true, 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => [], 'columns' => ['id','organization_id','name','category','billing_unit','price','total_hours','payment_due_hours','deposit_percent','overage_price','total_reels','validity_days','package_validity_mode','minimum_booking_minutes','booking_increment_minutes','auto_start_timer','is_active','is_draft','archive_reason','archived_by','archived_at','version','created_at','updated_at']],
@@ -1805,6 +1908,23 @@ function remainingPackageCalendarDays(?string $expiresAt, ?string $today=null): 
     $zone=new DateTimeZone('Africa/Cairo');$start=DateTimeImmutable::createFromFormat('!Y-m-d',$today?:cairoNow()->format('Y-m-d'),$zone);$end=DateTimeImmutable::createFromFormat('!Y-m-d',substr($expiresAt,0,10),$zone);
     if(!$start||!$end||$end<$start)return 0;
     return (int)$start->diff($end)->days+1;
+}
+
+if ($path === '/system-backups/export' && $method === 'GET') {
+    $user=requireUser($user);requireRole($user,['owner']);
+    $backup=buildSystemBackup($pdo,$user);audit($pdo,$user,'export_system_backup','organizations',(int)$user['organization_id'],null,['checksum'=>$backup['checksum'],'row_count'=>$backup['row_count']]);
+    respond($backup);
+}
+
+if ($path === '/system-backups/restore' && $method === 'POST') {
+    $user=requireUser($user);requireRole($user,['owner']);
+    if(trim((string)($_POST['confirmation']??''))!=='استعادة البيانات')fail('اكتب عبارة التأكيد كما هي قبل الاستعادة.',422,'backup_confirmation_required');
+    $file=$_FILES['backup']??null;if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)fail('اختر ملف نسخة احتياطية صالحًا.',422,'backup_file_required');
+    $size=(int)($file['size']??0);if($size<20||$size>52428800)fail('حجم ملف النسخة يجب ألا يتجاوز 50 ميجابايت.',422,'backup_file_size');
+    $name=(string)($file['name']??'');if(!str_ends_with(mb_strtolower($name),'.json'))fail('استخدم ملف النسخة بصيغة JSON.',422,'backup_file_type');
+    $raw=file_get_contents((string)$file['tmp_name']);if($raw===false)fail('تعذر قراءة ملف النسخة.',422,'backup_file_read_failed');
+    $backup=json_decode($raw,true);if(!is_array($backup))fail('محتوى ملف النسخة غير صحيح.',422,'invalid_backup_json');
+    respond(restoreSystemBackup($pdo,$user,$backup));
 }
 
 if ($path === '/health' && $method === 'GET') {
