@@ -959,6 +959,12 @@ function appNotification(PDO $pdo, int $organizationId, ?int $clientId, string $
     }catch(Throwable $error){if($ownTransaction&&$pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
+function refreshCurrentAppNotification(PDO $pdo, int $organizationId, ?int $clientId, string $audience, string $type, string $title, string $message, string $entityType, int $entityId, string $dedupeKey, string $severity='info', ?string $actionTab=null, array $payload=[], ?int $recipientUserId=null): bool {
+    $created=appNotification($pdo,$organizationId,$clientId,$audience,$type,$title,$message,$entityType,$entityId,$dedupeKey,$severity,$actionTab,$payload,$recipientUserId);
+    if(!$created){$safePayload=[];foreach(['booking_id','package_id','project_id','invoice_id','offer_id','post_production_job_id'] as $key)if(isset($payload[$key])&&filter_var($payload[$key],FILTER_VALIDATE_INT)!==false)$safePayload[$key]=(int)$payload[$key];$stmt=$pdo->prepare('UPDATE app_notifications SET title=?,message=?,severity=?,action_tab=?,payload_json=? WHERE organization_id=? AND source_event_key=? AND dismissed_at IS NULL');$stmt->execute([$title,$message,$severity,$actionTab,$safePayload?json_encode($safePayload,JSON_UNESCAPED_UNICODE):null,$organizationId,$dedupeKey]);}
+    return $created;
+}
+
 function packageReminderQuantity(array $package, string $kind): float {
     $unit=(string)($package['billing_unit']??'');
     if($unit==='hour'){
@@ -972,7 +978,8 @@ function packageReminderQuantity(array $package, string $kind): float {
 function packageReminderUnitText(float $quantity, string $unit): string {
     if($unit==='hour')return arabicDurationMinutes((int)round(max(0,$quantity)*60));
     $number=rtrim(rtrim(number_format(max(0,$quantity),2,'.',''),'0'),'.');
-    return $number.' ريل';
+    $label=match($unit){'reel'=>'ريل','day'=>'يوم','month'=>'شهر','project'=>'مشروع',default=>'وحدة'};
+    return $number.' '.$label;
 }
 
 function packageReminderOutstandingCents(array $package): int {
@@ -984,20 +991,77 @@ function notifyPackagePaymentDue(PDO $pdo, int $organizationId, int $clientId, i
     if(!$package){$stmt=$pdo->prepare('SELECT * FROM client_packages WHERE id=? AND organization_id=? AND client_id=?');$stmt->execute([$packageId,$organizationId,$clientId]);$package=$stmt->fetch()?:null;}
     if(!$package)return 0;$unit=(string)($package['billing_unit']??'hour');$threshold=packageReminderQuantity($package,'payment_due');$consumed=packageReminderQuantity($package,'consumed');$outstandingCents=packageReminderOutstandingCents($package);if($threshold<=0||$consumed+0.0001<$threshold||$outstandingCents<=0)return 0;
     $packageName=trim((string)($package['name']??''))?:'الباقة';$message='لقد تجاوزتم حد الدفع للباقة برجاء سرعة سداد باقي المستحقات لتجنب توقف الباقة. '.$packageName.' — المتبقي '.packageMoney($outstandingCents).' ج.م بعد استهلاك '.packageReminderUnitText($consumed,$unit).'.';$created=0;
-    if(appNotification($pdo,$organizationId,$clientId,'client','payment_due','حان موعد سداد متبقي الباقة',$message,'client_packages',$packageId,'package:'.$packageId.':payment-due:client','warning','finance',['package_id'=>$packageId]))$created++;
-    if(appNotification($pdo,$organizationId,$clientId,'staff','payment_due','حان استحقاق باقة عميل',$clientName.' — '.$message,'client_packages',$packageId,'package:'.$packageId.':payment-due:staff','warning','packages',['package_id'=>$packageId]))$created++;
+    if(refreshCurrentAppNotification($pdo,$organizationId,$clientId,'client','payment_due','حان موعد سداد متبقي الباقة',$message,'client_packages',$packageId,'package:'.$packageId.':payment-due:client','warning','finance',['package_id'=>$packageId]))$created++;
+    if(refreshCurrentAppNotification($pdo,$organizationId,$clientId,'staff','payment_due','حان استحقاق باقة عميل',$clientName.' — '.$message,'client_packages',$packageId,'package:'.$packageId.':payment-due:staff','warning','packages',['package_id'=>$packageId]))$created++;
     if($created>0)queueClientWhatsAppSummary($pdo,$organizationId,$clientId,'package:'.$packageId.':payment-due');return $created;
 }
 
 function materializePackageLifecycleNotifications(PDO $pdo, int $organizationId, ?int $clientId=null): int {
-    $sql="SELECT cp.*,c.name AS client_name FROM client_packages cp JOIN clients c ON c.id=cp.client_id AND c.organization_id=cp.organization_id WHERE cp.organization_id=? AND cp.status='active'";$params=[$organizationId];if($clientId!==null){$sql.=' AND cp.client_id=?';$params[]=$clientId;}$sql.=' ORDER BY cp.id';$stmt=$pdo->prepare($sql);$stmt->execute($params);$created=0;
+    $sql="SELECT cp.*,c.name AS client_name FROM client_packages cp JOIN clients c ON c.id=cp.client_id AND c.organization_id=cp.organization_id WHERE cp.organization_id=? AND cp.status='active'";$params=[$organizationId];if($clientId!==null){$sql.=' AND cp.client_id=?';$params[]=$clientId;}$sql.=' ORDER BY cp.id';$stmt=$pdo->prepare($sql);$stmt->execute($params);$created=0;$desiredClientKeys=[];
     $today=DateTimeImmutable::createFromFormat('!Y-m-d',cairoNow()->format('Y-m-d'),new DateTimeZone('Africa/Cairo'));
-    foreach($stmt->fetchAll() as $package){$packageId=(int)$package['id'];$packageClientId=(int)$package['client_id'];$unit=(string)$package['billing_unit'];if(!in_array($unit,['hour','reel'],true))continue;$outstandingCents=packageReminderOutstandingCents($package);$threshold=packageReminderQuantity($package,'payment_due');$consumed=packageReminderQuantity($package,'consumed');
-        if($outstandingCents>0&&$threshold>0){$untilDue=$threshold-$consumed;$upcoming=$untilDue>0.0001&&(($unit==='hour'&&$untilDue<=1.0001)||($unit==='reel'&&$untilDue<=1.0001));if($upcoming){$message='اقترب موعد سداد المتبقي على '.($package['name']?:'الباقة').' وقيمته '.packageMoney($outstandingCents).' ج.م؛ يتبقى على حد الاستحقاق '.packageReminderUnitText($untilDue,$unit).'.';if(appNotification($pdo,$organizationId,$packageClientId,'client','payment_upcoming','اقترب موعد سداد متبقي الباقة',$message,'client_packages',$packageId,'package:'.$packageId.':payment-upcoming:client','warning','finance',['package_id'=>$packageId]))$created++;}elseif($untilDue<=0.0001)$created+=notifyPackagePaymentDue($pdo,$organizationId,$packageClientId,$packageId,(string)$package['client_name'],$package);}
+    foreach($stmt->fetchAll() as $package){
+        $packageId=(int)$package['id'];$packageClientId=(int)$package['client_id'];$unit=(string)$package['billing_unit'];if(!in_array($unit,['hour','reel'],true))continue;$outstandingCents=packageReminderOutstandingCents($package);$threshold=packageReminderQuantity($package,'payment_due');$consumed=packageReminderQuantity($package,'consumed');
+        if($outstandingCents>0&&$threshold>0){$untilDue=$threshold-$consumed;$upcoming=$untilDue>0.0001&&$untilDue<=1.0001;if($upcoming){$key='package:'.$packageId.':payment-upcoming:client';$desiredClientKeys[]=$key;$message='اقترب موعد سداد المتبقي على '.($package['name']?:'الباقة').' وقيمته '.packageMoney($outstandingCents).' ج.م؛ يتبقى على حد الاستحقاق '.packageReminderUnitText($untilDue,$unit).'.';if(refreshCurrentAppNotification($pdo,$organizationId,$packageClientId,'client','payment_upcoming','اقترب موعد سداد متبقي الباقة',$message,'client_packages',$packageId,$key,'warning','finance',['package_id'=>$packageId]))$created++;}elseif($untilDue<=0.0001){$desiredClientKeys[]='package:'.$packageId.':payment-due:client';$created+=notifyPackagePaymentDue($pdo,$organizationId,$packageClientId,$packageId,(string)$package['client_name'],$package);}}
         $expiresAt=trim((string)($package['expires_at']??''));if($expiresAt===''||!$today)continue;$expiry=DateTimeImmutable::createFromFormat('!Y-m-d',substr($expiresAt,0,10),new DateTimeZone('Africa/Cairo'));if(!$expiry)continue;$days=(int)$today->diff($expiry)->format('%r%a');if($days<0||$days>7)continue;$bucket=$days<=0?0:($days<=1?1:($days<=3?3:7));$available=max(0,packageReminderQuantity($package,'purchased')-packageReminderQuantity($package,'consumed')-packageReminderQuantity($package,'held'));if($available<=0.0001)continue;
-        $title=$bucket===0?'تنتهي باقتك اليوم':'اقترب انتهاء الباقة';$when=$bucket===0?'تنتهي اليوم':'متبقي '.$days.' '.($days===1?'يوم':'أيام').' على انتهائها';$message=($package['name']?:'الباقة').' '.$when.' ('.$expiry->format('Y-m-d').'). أسرع بحجز '.packageReminderUnitText($available,$unit).' المتبقية.';$key='package:'.$packageId.':expiry:'.$expiry->format('Y-m-d').':window:'.$bucket;if(appNotification($pdo,$organizationId,$packageClientId,'client','package_expiry_reminder',$title,$message,'client_packages',$packageId,$key,'warning','home',['package_id'=>$packageId]))$created++;
+        $title=$bucket===0?'تنتهي باقتك اليوم':'اقترب انتهاء الباقة';$when=$bucket===0?'تنتهي اليوم':'متبقي '.$days.' '.($days===1?'يوم':'أيام').' على انتهائها';$message=($package['name']?:'الباقة').' '.$when.' ('.$expiry->format('Y-m-d').'). أسرع بحجز '.packageReminderUnitText($available,$unit).' المتبقية.';$key='package:'.$packageId.':expiry:'.$expiry->format('Y-m-d').':window:'.$bucket;$desiredClientKeys[]=$key;if(refreshCurrentAppNotification($pdo,$organizationId,$packageClientId,'client','package_expiry_reminder',$title,$message,'client_packages',$packageId,$key,'warning','home',['package_id'=>$packageId]))$created++;
     }
+    $where="organization_id=? AND audience='client' AND entity_type='client_packages' AND type IN ('payment_upcoming','payment_due','package_expiry_reminder') AND dismissed_at IS NULL";$dismissParams=[$organizationId];if($clientId!==null){$where.=' AND client_id=?';$dismissParams[]=$clientId;}if($desiredClientKeys){$where.=' AND source_event_key NOT IN ('.implode(',',array_fill(0,count($desiredClientKeys),'?')).')';$dismissParams=array_merge($dismissParams,$desiredClientKeys);}$dismiss=$pdo->prepare('UPDATE app_notifications SET dismissed_at=NOW(),read_at=COALESCE(read_at,NOW()) WHERE '.$where);$dismiss->execute($dismissParams);
     return $created;
+}
+
+function operationalAlert(array $values): array {
+    return array_merge([
+        'id'=>'','type'=>'info','title'=>'','message'=>'','severity'=>'info',
+        'client_id'=>null,'client_name'=>null,'package_id'=>null,'package_name'=>null,
+        'project_id'=>null,'project_name'=>null,'entity_type'=>null,'entity_id'=>null,
+        'action_tab'=>null,'due_at'=>null,'amount'=>null,'billing_unit'=>null,'remaining_quantity'=>null,'available_quantity'=>null,'sort_at'=>PHP_INT_MAX,
+    ],$values);
+}
+
+function operationalAlerts(PDO $pdo, array $user): array {
+    $organizationId=(int)$user['organization_id'];$userId=(int)$user['id'];$role=(string)$user['role'];$alerts=[];
+    $timezone=new DateTimeZone('Africa/Cairo');$now=cairoNow();$today=$now->format('Y-m-d');$soon=$now->modify('+24 hours');
+    $nextBusinessDay=$now->setTime(0,0)->modify('+1 day');while((int)$nextBusinessDay->format('N')===5)$nextBusinessDay=$nextBusinessDay->modify('+1 day');$deliveryDates=[$today,$nextBusinessDay->format('Y-m-d')];
+
+    if(in_array($role,['owner','admin','operations','finance'],true)){
+        $stmt=$pdo->prepare("SELECT cp.*,COALESCE(NULLIF(TRIM(c.name),''),CONCAT('عميل #',cp.client_id)) client_name FROM client_packages cp JOIN clients c ON c.id=cp.client_id AND c.organization_id=cp.organization_id WHERE cp.organization_id=? AND cp.status='active' AND cp.archived_at IS NULL AND (cp.expires_at IS NULL OR cp.expires_at>=?) ORDER BY cp.id");
+        $stmt->execute([$organizationId,$today]);
+        foreach($stmt->fetchAll() as $package){
+            $packageId=(int)$package['id'];$clientId=(int)$package['client_id'];$clientName=(string)$package['client_name'];$packageName=trim((string)($package['name']??''))?:'الباقة';$unit=(string)($package['billing_unit']??'hour');
+            $outstandingCents=packageReminderOutstandingCents($package);$threshold=packageReminderQuantity($package,'payment_due');$consumed=packageReminderQuantity($package,'consumed');$held=packageReminderQuantity($package,'held');$purchased=packageReminderQuantity($package,'purchased');$remaining=max(0,$purchased-$consumed);$available=max(0,$remaining-$held);
+            $base=['client_id'=>$clientId,'client_name'=>$clientName,'package_id'=>$packageId,'package_name'=>$packageName,'billing_unit'=>$unit,'entity_type'=>'client_packages','entity_id'=>$packageId,'action_tab'=>'packages'];
+            if($outstandingCents>0){
+                $untilDue=$threshold-$consumed;$isDue=$threshold<=0.0001||$untilDue<=0.0001;$isUpcoming=!$isDue&&$untilDue<=1.0001;
+                if($isDue||$isUpcoming){$phase=$isDue?'due':'upcoming';$amount=packageMoney($outstandingCents);$message=$isDue?'متبقي على الباقة '.$amount.' ج.م ومستحق التحصيل الآن.':'متبقي على الباقة '.$amount.' ج.م، ويتبقى '.packageReminderUnitText($untilDue,$unit).' للوصول إلى حد التحصيل.';
+                    $alerts[]=operationalAlert(array_merge($base,['id'=>'package:'.$packageId.':payment:'.$phase.':'.$outstandingCents.':'.(int)round($consumed*60),'type'=>$isDue?'package_payment_due':'package_payment_upcoming','title'=>$isDue?'مستحقات باقة واجبة التحصيل':'اقترب موعد تحصيل الباقة','message'=>$message,'severity'=>$isDue?'danger':'warning','amount'=>$amount,'sort_at'=>$isDue?0:2]));}
+            }
+            if(in_array($unit,['hour','reel'],true)&&$purchased>0.0001){
+                $lowLimit=$unit==='hour'?2:2;$balanceType=null;$balanceTitle='';$balanceMessage='';$severity='warning';
+                if($remaining<=0.0001){$balanceType='package_exhausted';$balanceTitle='نفد رصيد الباقة';$balanceMessage='تم استهلاك كامل رصيد الباقة.';$severity='danger';}
+                elseif($available<=0.0001&&$held>0.0001){$balanceType='package_fully_booked';$balanceTitle='رصيد الباقة محجوز بالكامل';$balanceMessage='كل الرصيد المتبقي مرتبط بمواعيد مؤكدة: '.packageReminderUnitText($held,$unit).'.';}
+                elseif($available<=$lowLimit+0.0001){$balanceType='package_balance_low';$balanceTitle='رصيد الباقة أوشك على الانتهاء';$balanceMessage='المتاح للحجز الآن '.packageReminderUnitText($available,$unit).'، والمتبقي قبل المواعيد المحجوزة '.packageReminderUnitText($remaining,$unit).'.';}
+                if($balanceType)$alerts[]=operationalAlert(array_merge($base,['id'=>'package:'.$packageId.':balance:'.$balanceType.':'.(int)round($remaining*60).':'.(int)round($available*60),'type'=>$balanceType,'title'=>$balanceTitle,'message'=>$balanceMessage,'severity'=>$severity,'remaining_quantity'=>$remaining,'available_quantity'=>$available,'sort_at'=>$severity==='danger'?1:3]));
+            }
+            $expiresAt=trim((string)($package['expires_at']??''));if($expiresAt!==''){$expiry=DateTimeImmutable::createFromFormat('!Y-m-d',substr($expiresAt,0,10),$timezone);$todayDate=DateTimeImmutable::createFromFormat('!Y-m-d',$today,$timezone);if($expiry&&$todayDate){$days=(int)$todayDate->diff($expiry)->format('%r%a');if($days>=0&&$days<=7){$when=$days===0?'تنتهي اليوم':($days===1?'تنتهي غدًا':'تنتهي خلال '.$days.' أيام');$alerts[]=operationalAlert(array_merge($base,['id'=>'package:'.$packageId.':expiry:'.$expiry->format('Y-m-d').':'.$days,'type'=>'package_expiry','title'=>'صلاحية الباقة تقترب من الانتهاء','message'=>$when.' بتاريخ '.$expiry->format('Y-m-d').'. المتاح للحجز '.packageReminderUnitText($available,$unit).'.','severity'=>$days<=1?'danger':'warning','due_at'=>$expiry->format('Y-m-d'),'remaining_quantity'=>$remaining,'available_quantity'=>$available,'sort_at'=>$expiry->getTimestamp()]));}}}
+        }
+    }
+
+    if(in_array($role,['owner','admin','operations','finance','staff'],true)){
+        $stmt=$pdo->prepare("SELECT id,title,type,due_date,notify_before,amount FROM reminders WHERE organization_id=? AND status='pending' AND archived_at IS NULL ORDER BY due_date,id");$stmt->execute([$organizationId]);
+        foreach($stmt->fetchAll() as $reminder){$reminderTitle=(string)$reminder['title'];if(str_starts_with($reminderTitle,'تسليم غداً لعميل:')||str_starts_with($reminderTitle,'تسليم اليوم لعميل:'))continue;$due=new DateTimeImmutable((string)$reminder['due_date'],$timezone);$notifyAt=$due->modify('-'.max(0,(int)$reminder['notify_before']).' minutes');if($now<$notifyAt)continue;$overdue=$now>$due;$amountCents=max(0,packageMoneyCents($reminder['amount']??0));$amount=$amountCents>0?packageMoney($amountCents):null;$message=($overdue?'تأخر عن موعده: ':'موعده: ').$due->format('Y-m-d').' '.displayBusinessTime12($due->format('H:i')).($amount!==null?' — المبلغ '.$amount.' ج.م':'');$alerts[]=operationalAlert(['id'=>'reminder:'.(int)$reminder['id'].':'.$due->format('YmdHi').':'.(int)$reminder['notify_before'],'type'=>'reminder','title'=>$reminderTitle,'message'=>$message,'severity'=>$overdue?'danger':'warning','entity_type'=>'reminders','entity_id'=>(int)$reminder['id'],'action_tab'=>'reminders','due_at'=>$due->format(DATE_ATOM),'amount'=>$amount,'sort_at'=>$overdue?0:$due->getTimestamp()]);}
+    }
+
+    if(in_array($role,['owner','admin','operations','staff'],true)){
+        $sql="SELECT t.id,t.title,t.status,t.priority,t.assigned_to,t.due_at,p.id project_id,p.name project_name,p.client_package_id,c.id client_id,COALESCE(NULLIF(TRIM(c.name),''),CONCAT('عميل #',c.id)) client_name,cp.name package_name FROM project_tasks t JOIN projects p ON p.id=t.project_id AND p.organization_id=t.organization_id JOIN clients c ON c.id=p.client_id AND c.organization_id=p.organization_id LEFT JOIN client_packages cp ON cp.id=p.client_package_id AND cp.organization_id=p.organization_id WHERE t.organization_id=? AND t.status NOT IN ('done','completed','cancelled') AND t.due_at IS NOT NULL AND t.archived_at IS NULL AND p.archived_at IS NULL AND p.status NOT IN ('completed','cancelled')";$params=[$organizationId];if($role==='staff'){$sql.=' AND t.assigned_to=?';$params[]=$userId;}$sql.=' ORDER BY t.due_at,t.id';$stmt=$pdo->prepare($sql);$stmt->execute($params);
+        foreach($stmt->fetchAll() as $task){$due=new DateTimeImmutable((string)$task['due_at'],$timezone);if($due>$soon)continue;$overdue=$now>$due;$packageId=$task['client_package_id']?(int)$task['client_package_id']:null;$alerts[]=operationalAlert(['id'=>'project-task:'.(int)$task['id'].':'.$due->format('YmdHi').':'.(string)$task['status'].':'.(int)($task['assigned_to']??0),'type'=>'project_task','title'=>$overdue?'مهمة مشروع متأخرة':'مهمة مشروع قريبة','message'=>(string)$task['title'].' — الموعد '.$due->format('Y-m-d h:i A'),'severity'=>$overdue||$task['priority']==='high'?'danger':'warning','client_id'=>(int)$task['client_id'],'client_name'=>(string)$task['client_name'],'package_id'=>$packageId,'package_name'=>$packageId?(string)($task['package_name']??''):null,'project_id'=>(int)$task['project_id'],'project_name'=>(string)$task['project_name'],'entity_type'=>'project_tasks','entity_id'=>(int)$task['id'],'action_tab'=>'projects','due_at'=>$due->format(DATE_ATOM),'sort_at'=>$overdue?0:$due->getTimestamp()]);}
+    }
+
+    if(in_array($role,['owner','admin','operations','staff'],true)){
+        $marks=implode(',',array_fill(0,count($deliveryDates),'?'));$stmt=$pdo->prepare("SELECT b.id,b.client_id,b.client_package_id,b.project_id,b.delivery_date,b.service,c.name client_name,cp.name package_name,p.name project_name FROM bookings b JOIN clients c ON c.id=b.client_id AND c.organization_id=b.organization_id LEFT JOIN client_packages cp ON cp.id=b.client_package_id AND cp.organization_id=b.organization_id LEFT JOIN projects p ON p.id=b.project_id AND p.organization_id=b.organization_id WHERE b.organization_id=? AND b.delivery_date IN ($marks) AND b.status NOT IN ('cancelled','rejected') AND b.archived_at IS NULL ORDER BY b.delivery_date,b.id");$stmt->execute(array_merge([$organizationId],$deliveryDates));
+        foreach($stmt->fetchAll() as $booking){$packageId=$booking['client_package_id']?(int)$booking['client_package_id']:null;$projectId=$booking['project_id']?(int)$booking['project_id']:null;$alerts[]=operationalAlert(['id'=>'booking:'.(int)$booking['id'].':delivery:'.(string)$booking['delivery_date'],'type'=>'delivery','title'=>(string)$booking['delivery_date']===$today?'تسليم مطلوب اليوم':'تسليم في يوم العمل التالي','message'=>'موعد تسليم '.((string)$booking['service']?:'جلسة التصوير').' بتاريخ '.(string)$booking['delivery_date'].'.','severity'=>(string)$booking['delivery_date']===$today?'danger':'info','client_id'=>(int)$booking['client_id'],'client_name'=>(string)$booking['client_name'],'package_id'=>$packageId,'package_name'=>$packageId?(string)($booking['package_name']??''):null,'project_id'=>$projectId,'project_name'=>$projectId?(string)($booking['project_name']??''):null,'entity_type'=>'bookings','entity_id'=>(int)$booking['id'],'action_tab'=>'bookings','due_at'=>(string)$booking['delivery_date'],'sort_at'=>(string)$booking['delivery_date']===$today?1:strtotime((string)$booking['delivery_date'])]);}
+    }
+
+    usort($alerts,fn($left,$right)=>($left['sort_at']<=>$right['sort_at'])?:strcmp((string)$left['id'],(string)$right['id']));$alerts=array_slice($alerts,0,100);foreach($alerts as &$alert)unset($alert['sort_at']);unset($alert);return $alerts;
 }
 
 function ownerClientActionTemplate(string $action, string $entityType, mixed $before, mixed $after): ?array {
@@ -2518,6 +2582,11 @@ if (preg_match('#^/bookings/(\d+)/session/settlement-preview$#',$path,$m) && $me
 
 if (preg_match('#^/bookings/(\d+)/session/complete$#',$path,$m) && $method === 'POST') {
     $user=requireUser($user);requireRole($user,['owner','admin','operations']);respond(settleAndCompleteBookingSession($pdo,$user,(int)$m[1],body()));
+}
+
+if ($path === '/operational-alerts' && $method === 'GET') {
+    $user=requireUser($user);requireRole($user,['owner','admin','operations','finance','staff']);
+    respond(['items'=>operationalAlerts($pdo,$user),'generated_at'=>cairoNow()->format(DATE_ATOM)]);
 }
 
 if ($path === '/app-notifications' && $method === 'GET') {

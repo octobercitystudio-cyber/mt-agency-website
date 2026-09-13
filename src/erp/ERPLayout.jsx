@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { Users, CalendarDays, DollarSign, LogOut, Home, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, Inbox, Package, FolderKanban, Fingerprint, FlaskConical, RotateCcw, CheckCircle2, AlertCircle, Landmark, TrendingUp, Clapperboard } from 'lucide-react';
 import { useData } from '../store/DataContext';
-import { useGlobalAlerts, NotificationsOffcanvas } from './ERPNotifications';
+import { NotificationsOffcanvas } from './ERPNotifications';
+import useOperationalAlerts from './useOperationalAlerts';
 import { dataClient } from '../dataClient';
 import ERPSessionTimer from './ERPSessionTimer';
 import useExternalScripts from '../hooks/useExternalScripts';
@@ -12,12 +13,20 @@ import OwnerNotifications from './OwnerNotifications';
 import './ERPLayout.css';
 import './ERPEnterpriseTheme.css';
 
+const operationalAlertRoutes = {
+  packages: '/erp/packages',
+  projects: '/erp/projects',
+  bookings: '/erp/bookings',
+  reminders: '/erp/reminders',
+};
+
 const ERPLayout = () => {
   const { logoutErp, currentUser } = useData();
   const navigate = useNavigate();
+  const role = currentUser?.role;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { alerts, dismissAlert } = useGlobalAlerts();
+  const { alerts, loading: alertsLoading, error: alertsError, fetchAlerts, dismissAlert } = useOperationalAlerts({ userId: currentUser?.id, role });
   const [requestsCount, setRequestsCount] = useState(0);
   const [demoResetState, setDemoResetState] = useState('idle');
   const [demoDataVersion, setDemoDataVersion] = useState(0);
@@ -25,7 +34,6 @@ const ERPLayout = () => {
   useExternalScripts();
   
   const unreadCount = alerts.length;
-  const role = currentUser?.role;
   const canManageFinance = ['owner', 'admin'].includes(role);
   const canManageFormationFund = ['owner', 'admin'].includes(role);
   const canManageSocialProfits = ['owner', 'admin'].includes(role);
@@ -307,7 +315,15 @@ const ERPLayout = () => {
         isOpen={notificationsOpen} 
         onClose={() => setNotificationsOpen(false)} 
         alerts={alerts} 
-        onDismiss={dismissAlert} 
+        loading={alertsLoading}
+        error={alertsError}
+        onRefresh={fetchAlerts}
+        onDismiss={dismissAlert}
+        onOpen={alert => {
+          navigate(operationalAlertRoutes[alert.action_tab] || '/erp');
+          setNotificationsOpen(false);
+          setSidebarOpen(false);
+        }}
       />
 
     </div>

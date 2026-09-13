@@ -1,1 +1,0 @@
-import{Wt as e}from"./index-ZC_Md8Ii.js";var t=e(`chevron-right`,[[`path`,{d:`m9 18 6-6-6-6`,key:`mthhwq`}]]);export{t};

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { dataClient } from '../dataClient';
-import { format, addMonths } from 'date-fns';
+import { format } from 'date-fns';
 import { ListTodo } from 'lucide-react';
 import BusinessDateTimeInput from '../components/BusinessDateTimeInput';
 import ERPPageHero from './ERPPageHero';
-import { formatDateTime12, formatEGP } from '../lib/businessFormat';
+import { addBusinessMonths, businessDateTimeStorage, formatDateTime12, formatEGP } from '../lib/businessFormat';
 import { useData } from '../store/DataContext';
 import OwnerRecordActions from './OwnerRecordActions';
 
@@ -74,14 +74,10 @@ const ERPReminders = () => {
 
   const handleOpenEditModal = (rem) => {
     setEditingId(rem.id);
-    const localDate = new Date(rem.due_date);
-    const tzoffset = localDate.getTimezoneOffset() * 60000;
-    const localISOTime = new Date(localDate - tzoffset).toISOString().slice(0, 16);
-    
     setFormData({
       title: rem.title,
       type: rem.type,
-      due_date: localISOTime,
+      due_date: String(rem.due_date || '').replace(' ', 'T').slice(0, 16),
       notify_before: rem.notify_before,
       is_recurring: rem.is_recurring,
       amount: rem.amount || ''
@@ -104,7 +100,7 @@ const ERPReminders = () => {
   const handleSaveAdd = async (e) => {
     e.preventDefault();
     const payload = {
-      title: formData.title, type: formData.type, due_date: new Date(formData.due_date).toISOString(),
+      title: formData.title, type: formData.type, due_date: businessDateTimeStorage(formData.due_date),
       notify_before: parseInt(formData.notify_before), is_recurring: formData.is_recurring,
       amount: parseFloat(formData.amount) || 0, status: 'pending'
     };
@@ -116,7 +112,7 @@ const ERPReminders = () => {
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     const payload = {
-      title: formData.title, type: formData.type, due_date: new Date(formData.due_date).toISOString(),
+      title: formData.title, type: formData.type, due_date: businessDateTimeStorage(formData.due_date),
       notify_before: parseInt(formData.notify_before), is_recurring: formData.is_recurring,
       amount: parseFloat(formData.amount) || 0
     };
@@ -140,8 +136,7 @@ const ERPReminders = () => {
     const rem = reminders.find(r => r.id === payData.reminder_id);
     if (rem) {
       if (rem.is_recurring) {
-        const nextDate = addMonths(new Date(rem.due_date), 1);
-        await dataClient.from('reminders').update({ due_date: nextDate.toISOString() }).eq('id', rem.id);
+        await dataClient.from('reminders').update({ due_date: addBusinessMonths(rem.due_date, 1) }).eq('id', rem.id);
         alert('تم صرف المبلغ وتجديد التذكير للشهر القادم تلقائياً!');
       } else {
         await dataClient.from('reminders').update({ status: 'completed' }).eq('id', rem.id);
@@ -156,8 +151,7 @@ const ERPReminders = () => {
   const handleComplete = async (rem) => {
     if (!window.confirm('هل متأكد من إنجاز هذه المهمة؟')) return;
     if (rem.is_recurring) {
-      const nextDate = addMonths(new Date(rem.due_date), 1);
-      await dataClient.from('reminders').update({ due_date: nextDate.toISOString() }).eq('id', rem.id);
+      await dataClient.from('reminders').update({ due_date: addBusinessMonths(rem.due_date, 1) }).eq('id', rem.id);
       alert('تم إنجاز المهمة وتجديدها للشهر القادم تلقائياً!');
     } else {
       await dataClient.from('reminders').update({ status: 'completed' }).eq('id', rem.id);

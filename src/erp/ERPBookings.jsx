@@ -566,7 +566,6 @@ const ERPBookings = () => {
     const results = [];
     for (const item of bookingsToInsert) results.push(await dataClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_id: client.id, service_id: service.id, service: service.name, date: item.date, start_time: item.start_time, end_time: item.end_time, status: 'confirmed', notes: item.notes }) }));
     const error = results.find(result => result.error)?.error;
-    const insertedBookings = results.filter(result => !result.error).map(result => result.data);
 
     if (!error) {
       // Record money only after every booking row has been accepted by the server.
@@ -593,32 +592,6 @@ const ERPBookings = () => {
           const pointsToAdd = Math.floor((newBooking.paid / pSpent) * pEarn);
           const newPoints = (clientData.points || 0) + pointsToAdd;
           await dataClient.from('clients').update({ points: newPoints, points_updated_at: new Date().toISOString().split('T')[0] }).eq('id', clientData.id);
-        }
-      }
-
-      if (insertedBookings) {
-        const remindersToInsert = [];
-        insertedBookings.filter(b => b.delivery_date).forEach(b => {
-             const dDate = new Date(b.delivery_date);
-             // Reminder 1: Tomorrow
-             remindersToInsert.push({
-               title: `تسليم غداً لعميل: ${b.client_name}`,
-               description: `تجهيز وتسليم خدمة ${b.service} الخاصة بحجز يوم ${b.date}.`,
-               due_date: dDate.toISOString(),
-               notify_before: 1440, // 24 hours
-               status: 'pending'
-             });
-             // Reminder 2: Today
-             remindersToInsert.push({
-               title: `تسليم اليوم لعميل: ${b.client_name} 🚨`,
-               description: `موعد التسليم النهائي لخدمة ${b.service} اليوم.`,
-               due_date: dDate.toISOString(),
-               notify_before: 0,
-               status: 'pending'
-             });
-        });
-        if (remindersToInsert.length > 0) {
-          await dataClient.from('reminders').insert(remindersToInsert);
         }
       }
 

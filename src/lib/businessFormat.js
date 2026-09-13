@@ -1,3 +1,5 @@
+import { cairoDateTimeToEpoch } from './promotionTime.js';
+
 export const BUSINESS_START = '12:00';
 export const BUSINESS_END = '24:00';
 export const BUSINESS_HOURS_LABEL = 'من 12:00 م إلى 12:00 ص';
@@ -136,6 +138,25 @@ const datePartsInCairo = value => {
 
 export const cairoDateKey = (value = new Date()) => datePartsInCairo(value instanceof Date ? value : new Date(value));
 
+export const businessDateTimeStorage = value => {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) return '';
+  const [, year, month, day, hour, minute, second = '00'] = match;
+  const utc = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (utc.getUTCFullYear() !== Number(year) || utc.getUTCMonth() !== Number(month) - 1 || utc.getUTCDate() !== Number(day) || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59) return '';
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+};
+
+export const addBusinessMonths = (value, months = 1) => {
+  const normalized = businessDateTimeStorage(value);
+  if (!normalized) return '';
+  const [date, time] = normalized.split(' ');
+  const [year, month, day] = date.split('-').map(Number);
+  const target = new Date(Date.UTC(year, month - 1 + Number(months || 0), 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')} ${time}`;
+};
+
 const dateOnlyToUtc = value => {
   const match = String(value || '').slice(0, 10).match(DATE_ONLY_PATTERN);
   if (!match) return null;
@@ -259,7 +280,7 @@ export const formatTime12 = (value, fallback = '—') => {
 
 export const formatDateTime12 = (value, fallback = '—') => {
   if (!value) return fallback;
-  const date = new Date(value);
+  const date = new Date(cairoDateTimeToEpoch(value));
   if (Number.isNaN(date.getTime())) return fallback;
   return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
     year: 'numeric', month: 'short', day: 'numeric',

@@ -897,6 +897,14 @@ const demoCreateClientNotification = (database, { clientId, type, title, message
   return notification;
 };
 
+const demoRefreshClientNotification = (database, values) => {
+  const created = demoCreateClientNotification(database, values);
+  if (created) return created;
+  const existing = database.app_notifications.find(item => item.source_event_key === values.sourceEventKey || item.dedupe_key === values.sourceEventKey);
+  if (existing && !existing.dismissed_at) Object.assign(existing, { type: values.type, title: values.title, message: values.message, entity_type: values.entityType, entity_id: Number(values.entityId), action_tab: values.actionTab === 'montage' ? 'videos' : values.actionTab, payload: clone(values.payload || {}), severity: values.severity || 'info' });
+  return null;
+};
+
 const DEMO_POST_PRODUCTION_STATUSES = ['editing_in_progress', 'editing_completed', 'uploading', 'upload_completed', 'ready_for_pickup', 'delivered'];
 const demoPostProductionNext = status => ({ editing_in_progress: ['editing_completed'], editing_completed: ['uploading', 'ready_for_pickup'], uploading: ['upload_completed'], upload_completed: ['delivered'], ready_for_pickup: ['delivered'] })[status] || [];
 const demoPostProductionLabel = status => ({ editing_in_progress: 'جاري العمل في المونتاج', editing_completed: 'اكتمل المونتاج', uploading: 'جاري الرفع', upload_completed: 'اكتمل الرفع', ready_for_pickup: 'جاهزة للاستلام', delivered: 'تم التسليم' })[status] || 'حالة غير معروفة';
@@ -947,18 +955,20 @@ const demoPackageReminderQuantity = (pkg, kind) => {
 
 const demoPackageReminderUnitText = (quantity, unit) => unit === 'hour'
   ? formatDurationMinutes(Math.round(Math.max(0, quantity) * 60))
-  : `${Math.round(Math.max(0, quantity))} ريل`;
+  : `${Math.round(Math.max(0, quantity))} ${{ reel: 'ريل', day: 'يوم', month: 'شهر', project: 'مشروع' }[unit] || 'وحدة'}`;
 
 const demoMaterializePackageLifecycleNotifications = (database, clientId = null) => {
-  const today = cairoDateKey(); let created = 0;
+  const today = cairoDateKey(); let created = 0; const desiredKeys = new Set();
   tableRows(database, 'client_packages').filter(pkg => pkg.status === 'active' && (!clientId || Number(pkg.client_id) === Number(clientId))).forEach(pkg => {
     const unit = String(pkg.billing_unit || 'hour'); if (!['hour', 'reel'].includes(unit)) return; const finances = packageFinancialSummary(pkg); const threshold = demoPackageReminderQuantity(pkg, 'payment_due'); const consumed = demoPackageReminderQuantity(pkg, 'consumed'); const untilDue = threshold - consumed;
     if (finances.outstandingCents > 0 && threshold > 0) {
       if (untilDue > 0.0001 && untilDue <= 1.0001) {
-        const item = demoCreateClientNotification(database, { clientId: Number(pkg.client_id), type: 'payment_upcoming', title: 'اقترب موعد سداد متبقي الباقة', message: `اقترب موعد سداد المتبقي على ${pkg.name || 'الباقة'} وقيمته ${centsToMoney(finances.outstandingCents)} ج.م؛ يتبقى على حد الاستحقاق ${demoPackageReminderUnitText(untilDue, unit)}.`, entityType: 'client_packages', entityId: Number(pkg.id), actionTab: 'finance', severity: 'warning', sourceEventKey: `package:${pkg.id}:payment-upcoming:client`, payload: { package_id: Number(pkg.id) } });
+        const sourceEventKey = `package:${pkg.id}:payment-upcoming:client`; desiredKeys.add(sourceEventKey);
+        const item = demoRefreshClientNotification(database, { clientId: Number(pkg.client_id), type: 'payment_upcoming', title: 'اقترب موعد سداد متبقي الباقة', message: `اقترب موعد سداد المتبقي على ${pkg.name || 'الباقة'} وقيمته ${centsToMoney(finances.outstandingCents)} ج.م؛ يتبقى على حد الاستحقاق ${demoPackageReminderUnitText(untilDue, unit)}.`, entityType: 'client_packages', entityId: Number(pkg.id), actionTab: 'finance', severity: 'warning', sourceEventKey, payload: { package_id: Number(pkg.id) } });
         if (item) created += 1;
       } else if (untilDue <= 0.0001) {
-        const item = demoCreateClientNotification(database, { clientId: Number(pkg.client_id), type: 'payment_due', title: 'حان موعد سداد متبقي الباقة', message: `لقد تجاوزتم حد الدفع للباقة برجاء سرعة سداد باقي المستحقات لتجنب توقف الباقة. ${pkg.name || 'الباقة'} — المتبقي ${centsToMoney(finances.outstandingCents)} ج.م بعد استهلاك ${demoPackageReminderUnitText(consumed, unit)}.`, entityType: 'client_packages', entityId: Number(pkg.id), actionTab: 'finance', severity: 'warning', sourceEventKey: `package:${pkg.id}:payment-due:client`, payload: { package_id: Number(pkg.id) } });
+        const sourceEventKey = `package:${pkg.id}:payment-due:client`; desiredKeys.add(sourceEventKey);
+        const item = demoRefreshClientNotification(database, { clientId: Number(pkg.client_id), type: 'payment_due', title: 'حان موعد سداد متبقي الباقة', message: `لقد تجاوزتم حد الدفع للباقة برجاء سرعة سداد باقي المستحقات لتجنب توقف الباقة. ${pkg.name || 'الباقة'} — المتبقي ${centsToMoney(finances.outstandingCents)} ج.م بعد استهلاك ${demoPackageReminderUnitText(consumed, unit)}.`, entityType: 'client_packages', entityId: Number(pkg.id), actionTab: 'finance', severity: 'warning', sourceEventKey, payload: { package_id: Number(pkg.id) } });
         if (item) created += 1;
       }
     }
@@ -966,10 +976,52 @@ const demoMaterializePackageLifecycleNotifications = (database, clientId = null)
     const days = Math.round((Date.parse(`${expiryKey}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000); if (days < 0 || days > 7) return;
     const available = Math.max(0, demoPackageReminderQuantity(pkg, 'purchased') - demoPackageReminderQuantity(pkg, 'consumed') - demoPackageReminderQuantity(pkg, 'held')); if (available <= 0.0001) return;
     const bucket = days <= 0 ? 0 : days <= 1 ? 1 : days <= 3 ? 3 : 7; const when = bucket === 0 ? 'تنتهي اليوم' : `متبقي ${days} ${days === 1 ? 'يوم' : 'أيام'} على انتهائها`;
-    const item = demoCreateClientNotification(database, { clientId: Number(pkg.client_id), type: 'package_expiry_reminder', title: bucket === 0 ? 'تنتهي باقتك اليوم' : 'اقترب انتهاء الباقة', message: `${pkg.name || 'الباقة'} ${when} (${expiryKey}). أسرع بحجز ${demoPackageReminderUnitText(available, unit)} المتبقية.`, entityType: 'client_packages', entityId: Number(pkg.id), actionTab: 'home', severity: 'warning', sourceEventKey: `package:${pkg.id}:expiry:${expiryKey}:window:${bucket}`, payload: { package_id: Number(pkg.id) } });
+    const sourceEventKey = `package:${pkg.id}:expiry:${expiryKey}:window:${bucket}`; desiredKeys.add(sourceEventKey);
+    const item = demoRefreshClientNotification(database, { clientId: Number(pkg.client_id), type: 'package_expiry_reminder', title: bucket === 0 ? 'تنتهي باقتك اليوم' : 'اقترب انتهاء الباقة', message: `${pkg.name || 'الباقة'} ${when} (${expiryKey}). أسرع بحجز ${demoPackageReminderUnitText(available, unit)} المتبقية.`, entityType: 'client_packages', entityId: Number(pkg.id), actionTab: 'home', severity: 'warning', sourceEventKey, payload: { package_id: Number(pkg.id) } });
     if (item) created += 1;
   });
+  tableRows(database, 'app_notifications').filter(item => item.audience === 'client' && item.entity_type === 'client_packages' && ['payment_upcoming', 'payment_due', 'package_expiry_reminder'].includes(item.type) && !item.dismissed_at && (!clientId || Number(item.client_id) === Number(clientId)) && !desiredKeys.has(String(item.source_event_key || item.dedupe_key || ''))).forEach(item => { item.dismissed_at = nowText(); item.read_at ||= item.dismissed_at; });
   return created;
+};
+
+const demoOperationalAlert = values => ({
+  id: '', type: 'info', title: '', message: '', severity: 'info', client_id: null, client_name: null,
+  package_id: null, package_name: null, project_id: null, project_name: null, entity_type: null,
+  entity_id: null, action_tab: null, due_at: null, amount: null, billing_unit: null, remaining_quantity: null, available_quantity: null, sort_at: Number.MAX_SAFE_INTEGER, ...values,
+});
+
+const demoDateTimeEpoch = value => {
+  const raw = String(value || '').trim().replace(' ', 'T');
+  if (!raw) return Number.NaN;
+  return cairoDateTimeToEpoch(raw);
+};
+
+const demoOperationalAlerts = database => {
+  if (!['owner', 'admin', 'operations', 'finance', 'staff'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض التنبيهات التشغيلية.', 'forbidden');
+  const alerts = []; const today = cairoDateKey(); const now = Date.now(); const soon = now + 24 * 60 * 60 * 1000;
+  const nextBusiness = new Date(`${today}T12:00:00Z`); do nextBusiness.setUTCDate(nextBusiness.getUTCDate() + 1); while (nextBusiness.getUTCDay() === 5);
+  const nextBusinessKey = nextBusiness.toISOString().slice(0, 10);
+  const clients = new Map(tableRows(database, 'clients').filter(belongsToDemoOrganization).map(client => [Number(client.id), client]));
+  const packages = new Map(tableRows(database, 'client_packages').filter(belongsToDemoOrganization).map(pkg => [Number(pkg.id), pkg]));
+  const projects = new Map(tableRows(database, 'projects').filter(belongsToDemoOrganization).map(project => [Number(project.id), project]));
+
+  if (['owner', 'admin', 'operations', 'finance'].includes(demoRole)) tableRows(database, 'client_packages').filter(pkg => belongsToDemoOrganization(pkg) && pkg.status === 'active' && !pkg.archived_at && (!pkg.expires_at || String(pkg.expires_at).slice(0, 10) >= today)).forEach(pkg => {
+    const client = clients.get(Number(pkg.client_id)); const unit = String(pkg.billing_unit || 'hour'); const finances = packageFinancialSummary(pkg); const quantity = packageQuantitySummary(pkg);
+    const purchased = unit === 'hour' ? quantity.purchasedMinutes / 60 : quantity.purchased; const consumed = unit === 'hour' ? quantity.consumedMinutes / 60 : quantity.consumed; const held = unit === 'hour' ? quantity.heldMinutes / 60 : quantity.held; const remaining = Math.max(0, purchased - consumed); const available = Math.max(0, remaining - held);
+    const base = { client_id: Number(pkg.client_id), client_name: client?.name || `عميل #${pkg.client_id}`, package_id: Number(pkg.id), package_name: pkg.name || 'الباقة', billing_unit: unit, entity_type: 'client_packages', entity_id: Number(pkg.id), action_tab: 'packages' };
+    const threshold = demoPackageReminderQuantity(pkg, 'payment_due'); const untilDue = threshold - consumed;
+    if (finances.outstandingCents > 0 && (threshold <= 0.0001 || untilDue <= 1.0001)) { const due = threshold <= 0.0001 || untilDue <= 0.0001; const amount = centsToMoney(finances.outstandingCents); alerts.push(demoOperationalAlert({ ...base, id: `package:${pkg.id}:payment:${due ? 'due' : 'upcoming'}:${finances.outstandingCents}:${Math.round(consumed * 60)}`, type: due ? 'package_payment_due' : 'package_payment_upcoming', title: due ? 'مستحقات باقة واجبة التحصيل' : 'اقترب موعد تحصيل الباقة', message: due ? `متبقي على الباقة ${amount} ج.م ومستحق التحصيل الآن.` : `متبقي على الباقة ${amount} ج.م، ويتبقى ${demoPackageReminderUnitText(untilDue, unit)} للوصول إلى حد التحصيل.`, severity: due ? 'danger' : 'warning', amount, sort_at: due ? 0 : 2 })); }
+    if (['hour', 'reel'].includes(unit) && purchased > 0.0001) { let type = ''; let title = ''; let message = ''; let severity = 'warning'; if (remaining <= 0.0001) { type = 'package_exhausted'; title = 'نفد رصيد الباقة'; message = 'تم استهلاك كامل رصيد الباقة.'; severity = 'danger'; } else if (available <= 0.0001 && held > 0.0001) { type = 'package_fully_booked'; title = 'رصيد الباقة محجوز بالكامل'; message = `كل الرصيد المتبقي مرتبط بمواعيد مؤكدة: ${demoPackageReminderUnitText(held, unit)}.`; } else if (available <= 2.0001) { type = 'package_balance_low'; title = 'رصيد الباقة أوشك على الانتهاء'; message = `المتاح للحجز الآن ${demoPackageReminderUnitText(available, unit)}، والمتبقي قبل المواعيد المحجوزة ${demoPackageReminderUnitText(remaining, unit)}.`; } if (type) alerts.push(demoOperationalAlert({ ...base, id: `package:${pkg.id}:balance:${type}:${Math.round(remaining * 60)}:${Math.round(available * 60)}`, type, title, message, severity, remaining_quantity: remaining, available_quantity: available, sort_at: severity === 'danger' ? 1 : 3 })); }
+    const expiry = String(pkg.expires_at || '').slice(0, 10); if (/^\d{4}-\d{2}-\d{2}$/.test(expiry)) { const days = Math.round((Date.parse(`${expiry}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000); if (days >= 0 && days <= 7) alerts.push(demoOperationalAlert({ ...base, id: `package:${pkg.id}:expiry:${expiry}:${days}`, type: 'package_expiry', title: 'صلاحية الباقة تقترب من الانتهاء', message: `${days === 0 ? 'تنتهي اليوم' : days === 1 ? 'تنتهي غدًا' : `تنتهي خلال ${days} أيام`} بتاريخ ${expiry}. المتاح للحجز ${demoPackageReminderUnitText(available, unit)}.`, severity: days <= 1 ? 'danger' : 'warning', due_at: expiry, remaining_quantity: remaining, available_quantity: available, sort_at: Date.parse(`${expiry}T00:00:00Z`) })); }
+  });
+
+  tableRows(database, 'reminders').filter(reminder => belongsToDemoOrganization(reminder) && reminder.status === 'pending' && !reminder.archived_at).forEach(reminder => { const reminderTitle = String(reminder.title || ''); if (reminderTitle.startsWith('تسليم غداً لعميل:') || reminderTitle.startsWith('تسليم اليوم لعميل:')) return; const due = demoDateTimeEpoch(reminder.due_date); const notifyAt = due - Math.max(0, Number(reminder.notify_before || 0)) * 60000; if (!Number.isFinite(due) || now < notifyAt) return; const overdue = now > due; const amountCents = Math.max(0, moneyToCents(reminder.amount || 0)); const amount = amountCents > 0 ? centsToMoney(amountCents) : null; alerts.push(demoOperationalAlert({ id: `reminder:${reminder.id}:${String(reminder.due_date).replace(/\D/g, '').slice(0, 12)}:${Number(reminder.notify_before || 0)}`, type: 'reminder', title: reminderTitle, message: `${overdue ? 'تأخر عن موعده' : 'موعده'}: ${reminder.due_date}${amount ? ` — المبلغ ${amount} ج.م` : ''}`, severity: overdue ? 'danger' : 'warning', entity_type: 'reminders', entity_id: Number(reminder.id), action_tab: 'reminders', due_at: String(reminder.due_date).replace(' ', 'T'), amount, sort_at: overdue ? 0 : due })); });
+
+  if (['owner', 'admin', 'operations', 'staff'].includes(demoRole)) tableRows(database, 'project_tasks').filter(task => belongsToDemoOrganization(task) && !['done', 'completed', 'cancelled'].includes(task.status) && task.due_at && !task.archived_at && (demoRole !== 'staff' || Number(task.assigned_to) === Number(demoUserId))).forEach(task => { const due = demoDateTimeEpoch(task.due_at); if (!Number.isFinite(due) || due > soon) return; const project = projects.get(Number(task.project_id)); if (!project || project.archived_at || ['completed', 'cancelled'].includes(project.status)) return; const client = clients.get(Number(project.client_id)); const pkg = project.client_package_id ? packages.get(Number(project.client_package_id)) : null; const overdue = now > due; alerts.push(demoOperationalAlert({ id: `project-task:${task.id}:${String(task.due_at).replace(/\D/g, '').slice(0, 12)}:${task.status}:${Number(task.assigned_to || 0)}`, type: 'project_task', title: overdue ? 'مهمة مشروع متأخرة' : 'مهمة مشروع قريبة', message: `${task.title} — الموعد ${task.due_at}`, severity: overdue || task.priority === 'high' ? 'danger' : 'warning', client_id: Number(project.client_id), client_name: client?.name || `عميل #${project.client_id}`, package_id: pkg ? Number(pkg.id) : null, package_name: pkg?.name || null, project_id: Number(project.id), project_name: project.name, entity_type: 'project_tasks', entity_id: Number(task.id), action_tab: 'projects', due_at: String(task.due_at).replace(' ', 'T'), sort_at: overdue ? 0 : due })); });
+
+  if (['owner', 'admin', 'operations', 'staff'].includes(demoRole)) tableRows(database, 'bookings').filter(booking => belongsToDemoOrganization(booking) && [today, nextBusinessKey].includes(String(booking.delivery_date || '').slice(0, 10)) && !['cancelled', 'rejected'].includes(booking.status) && !booking.archived_at).forEach(booking => { const client = clients.get(Number(booking.client_id)); const pkg = booking.client_package_id ? packages.get(Number(booking.client_package_id)) : null; const project = booking.project_id ? projects.get(Number(booking.project_id)) : null; const deliveryDate = String(booking.delivery_date).slice(0, 10); alerts.push(demoOperationalAlert({ id: `booking:${booking.id}:delivery:${deliveryDate}`, type: 'delivery', title: deliveryDate === today ? 'تسليم مطلوب اليوم' : 'تسليم في يوم العمل التالي', message: `موعد تسليم ${booking.service || 'جلسة التصوير'} بتاريخ ${deliveryDate}.`, severity: deliveryDate === today ? 'danger' : 'info', client_id: Number(booking.client_id), client_name: client?.name || booking.client_name, package_id: pkg ? Number(pkg.id) : null, package_name: pkg?.name || null, project_id: project ? Number(project.id) : null, project_name: project?.name || null, entity_type: 'bookings', entity_id: Number(booking.id), action_tab: 'bookings', due_at: deliveryDate, sort_at: Date.parse(`${deliveryDate}T00:00:00Z`) })); });
+
+  return alerts.sort((left, right) => Number(left.sort_at) - Number(right.sort_at) || String(left.id).localeCompare(String(right.id))).slice(0, 100).map(item => { const result = { ...item }; delete result.sort_at; return result; });
 };
 
 const demoBookingNotificationMoment = booking => {
@@ -2372,6 +2424,7 @@ const demoRequest = async (path, options = {}) => {
     const nextCursor = events.length ? Number(events.at(-1).id) : cursor;
     return { cursor: nextCursor, high_watermark: highWatermark, has_more: nextCursor < highWatermark, topics: [...new Set(events.map(event => event.topic))], events: clone(events), server_now: new Date().toISOString() };
   }
+  if (route === '/operational-alerts' && (options.method || 'GET') === 'GET') return { items: demoOperationalAlerts(database), generated_at: demoCairoNowIso() };
   if (route === '/app-notifications' && (options.method || 'GET') === 'GET') {
     if (demoRole === 'client' && demoMaterializePackageLifecycleNotifications(database, 1) > 0) writeDatabase(database);
     const status = url.searchParams.get('status') || 'all'; const type = url.searchParams.get('type') || ''; const channel = url.searchParams.get('channel') || ''; const cursor = Number(url.searchParams.get('cursor') || 0); const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit') || 20))); const clientId = demoRole === 'client' ? 1 : null;

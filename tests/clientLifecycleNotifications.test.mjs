@@ -58,6 +58,23 @@ test('payment due reminder appears at the configured consumption threshold and p
   activateDemoMode('client'); const inbox = await demoClient.request('/app-notifications?status=all&limit=50', { method: 'GET' }); const started = inbox.data.items.filter(item => item.type === 'package_started' && Number(item.entity_id) === 202); assert.equal(started.length, 1); assert.match(started[0].message, /أول موعد تصوير/);
 });
 
+test('client lifecycle inbox removes stale payment phases and expiry windows', async () => {
+  let database = readDatabase(); const pkg = database.client_packages.find(row => Number(row.id) === 201);
+  Object.assign(pkg, { purchased_quantity: 10, purchased_minutes: 600, held_quantity: 0, held_minutes: 0, consumed_quantity: 4, consumed_minutes: 240, payment_due_quantity: 5, payment_due_minutes: 300, total_price: '10000.00', paid_amount: '2000.00', expires_at: dateAfter(5), status: 'active' });
+  database.app_notifications = database.app_notifications.filter(item => !['payment_upcoming', 'payment_due', 'package_expiry_reminder'].includes(item.type)); writeDatabase(database);
+  await demoClient.request('/app-notifications?status=all&limit=50', { method: 'GET' });
+
+  database = readDatabase(); Object.assign(database.client_packages.find(row => Number(row.id) === 201), { consumed_quantity: 5, consumed_minutes: 300, expires_at: dateAfter(1) }); writeDatabase(database);
+  const second = await demoClient.request('/app-notifications?status=all&limit=50', { method: 'GET' });
+  const visible = second.data.items.filter(item => Number(item.entity_id) === 201);
+  assert.equal(visible.filter(item => item.type === 'payment_upcoming').length, 0);
+  assert.equal(visible.filter(item => item.type === 'payment_due').length, 1);
+  assert.equal(visible.filter(item => item.type === 'package_expiry_reminder').length, 1);
+  assert.match(visible.find(item => item.type === 'package_expiry_reminder').message, /1 يوم/);
+  const stored = readDatabase().app_notifications.filter(item => Number(item.entity_id) === 201 && ['payment_upcoming', 'package_expiry_reminder'].includes(item.type));
+  assert.ok(stored.some(item => item.dismissed_at));
+});
+
 test('production lifecycle reminders feed Firebase cron and retain all owner booking/session notification semantics', async () => {
   const api = await load('api/index.php');
   assert.match(api, /function materializePackageLifecycleNotifications/);
