@@ -41,5 +41,6 @@ test('sold packages and booking entry explain the continuity rule in the interfa
   assert.match(packageCss, /package-continuity-badge--priority/);
   assert.match(bookingModal, /الأولوية الآن/);
   assert.match(blockConversion, /الأولوية الآن/);
+  assert.match(blockConversion, /setPackageId\(priority/);
   assert.match(upgradeDialog, /تُنشأ باقة جديدة داخل ملف العميل نفسه/);
 });

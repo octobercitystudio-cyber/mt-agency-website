@@ -25,7 +25,7 @@ function initialDraft() {
   return {
     serviceId: '', name: '', quantity: '1', validityDays: '30', totalPrice: '0', paidNow: '0',
     paymentDue: '0', depositPercent: '0', overagePrice: '0', paymentMethod: 'cash',
-    activationMode: 'first_booking', closeSource: false, notes: '', reason: '',
+    activationMode: 'first_booking', closeSource: false, notes: '', reason: 'تجديد رصيد العميل واستكمال المواعيد الجديدة',
   };
 }
 
@@ -151,7 +151,7 @@ export default function PackageUpgradeDialog({ packageId, sessionActive = false,
   if (!packageId) return null;
   return <div className="package-upgrade-overlay" onMouseDown={event => event.target === event.currentTarget && close()}>
     <form ref={dialogRef} className="package-upgrade-dialog" role="dialog" aria-modal="true" aria-labelledby="package-upgrade-title" aria-describedby="package-upgrade-description" onSubmit={submit} noValidate>
-      <header><div><span><ArrowUpCircle /> تجديد أو استكمال موثق</span><h2 id="package-upgrade-title">إنشاء الباقة التالية بدون خلط السجلات</h2><p id="package-upgrade-description">تُنشأ باقة جديدة داخل ملف العميل نفسه، وتبقى جلسات ودفعات واستهلاك كل باقة مستقلة.</p></div><button data-dialog-initial type="button" onClick={close} disabled={busy} aria-label="إغلاق نافذة تجديد الباقة"><X /></button></header>
+      <header><div><span><ArrowUpCircle /> تجديد أو استكمال موثق</span><h2 id="package-upgrade-title">إنشاء الباقة التالية بدون خلط السجلات</h2><p id="package-upgrade-description">تُنشأ باقة جديدة داخل ملف العميل نفسه حتى لو انتهت القديمة أو نفد رصيدها. تبدأ الحجوزات من أقدم باقة صالحة ثم تنتقل تلقائيًا للجديدة، مع بقاء سجل كل باقة مستقلًا.</p></div><button data-dialog-initial type="button" onClick={close} disabled={busy} aria-label="إغلاق نافذة تجديد الباقة"><X /></button></header>
       {loading ? <div className="package-upgrade-state"><RefreshCw /><strong>جارٍ تحميل الرصيد ونماذج الباقات…</strong></div> : source && <div className="package-upgrade-body">
         {(activeSession || held > 0) && <div className="package-upgrade-guard" role="note"><AlertTriangle /><div><strong>{activeSession ? 'جلسة تصوير جارية على الباقة الحالية' : 'توجد مواعيد تحجز رصيدًا من الباقة الحالية'}</strong><p>يمكنك إنشاء الباقة البديلة الآن، لكن لن ننقل الجلسة أو المواعيد إليها ولن نغلق الباقة القديمة.</p></div></div>}
         <section className="package-upgrade-comparison" aria-label="مقارنة الباقة الحالية والجديدة">

@@ -576,3 +576,22 @@
 .erp-booking-package-calendar-note strong {
   color: var(--erp-primary);
 }
+
+.erp-booking-package-plan {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(22, 163, 111, 0.22);
+  border-radius: 12px;
+  background: #ecfdf3;
+  color: #08734d;
+  font-size: .76rem;
+  font-weight: 800;
+  line-height: 1.65;
+}
+
+.erp-booking-package-plan svg { width: 18px; flex: 0 0 auto; }
+.erp-booking-package-plan.is-error { border-color: rgba(220, 38, 38, .24); background: #fff1f2; color: #b42318; }

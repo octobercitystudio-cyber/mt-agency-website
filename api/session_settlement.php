@@ -33,7 +33,7 @@ function studioSettlementPreview(PDO $pdo,array $user,int $bookingId,int $actual
     }
     $today=cairoNow()->format('Y-m-d');$eligible=[];
     if($excess>0){
-        $sql="SELECT id,name,service_id,purchased_quantity,purchased_minutes,consumed_quantity,consumed_minutes,held_quantity,held_minutes,starts_at,expires_at,version FROM client_packages WHERE organization_id=? AND client_id=? AND id<>? AND billing_unit='hour' AND status='active' AND ((starts_at IS NULL AND expires_at IS NULL) OR (starts_at<=? AND expires_at>=?)) ORDER BY id$lockSql";
+        $sql="SELECT id,name,service_id,purchased_quantity,purchased_minutes,consumed_quantity,consumed_minutes,held_quantity,held_minutes,starts_at,expires_at,version FROM client_packages WHERE organization_id=? AND client_id=? AND id<>? AND billing_unit='hour' AND status='active' AND ((starts_at IS NULL AND expires_at IS NULL) OR (starts_at<=? AND expires_at>=?)) ORDER BY CASE WHEN expires_at IS NULL THEN 1 ELSE 0 END,expires_at,id$lockSql";
         $other=$pdo->prepare($sql);$other->execute([$user['organization_id'],$booking['client_id'],$packageId,$today,$today]);
         foreach($other->fetchAll() as $row){$free=max(0,settlementPackageMinutes($row,'purchased')-settlementPackageMinutes($row,'consumed')-settlementPackageMinutes($row,'held'));if($free>=$excess)$eligible[]=['id'=>(int)$row['id'],'name'=>$row['name'],'service_id'=>(int)$row['service_id'],'free_minutes'=>$free,'remaining_after_minutes'=>$free-$excess,'expires_at'=>$row['expires_at'],'version'=>(int)($row['version']??1)];}
     }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { packageBookingAvailability, packagesForBookingClient, validatePackageBookingDraft } from '../src/erp/packageBookingSelection.js';
+import { packageBookingAvailability, packageChainValidRange, packagesForBookingClient, planPackageBookingRows, validatePackageBookingDraft } from '../src/erp/packageBookingSelection.js';
 
 const activePackage = {
   id: 201,
@@ -43,14 +43,53 @@ test('daily package accepts only its shooting day and matching service', () => {
   assert.match(validatePackageBookingDraft({ pkg: daily, service: { id: 99 }, dates: [{ date: '2026-08-20' }], todayKey: '2026-08-10' }), /خدمة الباقة/);
 });
 
+test('booking plan consumes the oldest valid package first then moves future appointments to the new package', () => {
+  const old = { ...activePackage, id: 210, purchased_quantity: 3, consumed_quantity: 1, held_quantity: 1, starts_at: '2026-09-01', expires_at: '2026-09-20' };
+  const next = { ...activePackage, id: 211, purchased_quantity: 5, consumed_quantity: 0, held_quantity: 0, starts_at: null, expires_at: null, validity_days_snapshot: 30 };
+  const plan = planPackageBookingRows({
+    packages: [next, old], clientId: 7, todayKey: '2026-09-10', preferredPackageId: old.id,
+    rows: [
+      { date: '2026-09-15', start_time: '12:00', end_time: '13:00' },
+      { date: '2026-09-22', start_time: '12:00', end_time: '14:00' },
+    ],
+  });
+  assert.equal(plan.ok, true);
+  assert.deepEqual(plan.allocations.map(item => item.package.id), [210, 211]);
+  assert.equal(plan.allocations[0].remainingAfter, 0);
+  assert.equal(plan.allocations[1].remainingAfter, 3);
+});
+
+test('one appointment stays on one package when the old remainder cannot cover its full duration', () => {
+  const old = { ...activePackage, id: 220, purchased_quantity: 3, consumed_quantity: 1, held_quantity: 1, starts_at: '2026-09-01', expires_at: '2026-09-30' };
+  const next = { ...activePackage, id: 221, purchased_quantity: 5, consumed_quantity: 0, held_quantity: 0, starts_at: null, expires_at: null, validity_days_snapshot: 30 };
+  const plan = planPackageBookingRows({ packages: [next, old], clientId: 7, todayKey: '2026-09-10', preferredPackageId: old.id, rows: [{ date: '2026-09-15', start_time: '12:00', end_time: '14:00' }] });
+  assert.equal(plan.ok, true);
+  assert.equal(plan.allocations[0].package.id, 221);
+  assert.equal(plan.allocations[0].quantity, 2);
+});
+
+test('pending package validity starts on its first chronological booking and bounds later bookings', () => {
+  const next = { ...activePackage, id: 231, purchased_quantity: 8, consumed_quantity: 0, held_quantity: 0, starts_at: null, expires_at: null, validity_days_snapshot: 5 };
+  const plan = planPackageBookingRows({ packages: [next], clientId: 7, todayKey: '2026-09-10', rows: [
+    { date: '2026-09-20', start_time: '12:00', end_time: '13:00' },
+    { date: '2026-09-26', start_time: '12:00', end_time: '13:00' },
+  ] });
+  assert.equal(plan.ok, false);
+  assert.equal(plan.failedIndex, 1);
+  assert.deepEqual(packageChainValidRange([next], '2026-09-10'), { start: '2026-09-10', end: '' });
+});
+
 test('sold packages and dashboard booking modal share package-aware IDs and request contract', () => {
   const modal = fs.readFileSync(new URL('../src/erp/ERPAddBookingModal.jsx', import.meta.url), 'utf8');
   const packages = fs.readFileSync(new URL('../src/erp/ERPPackages.jsx', import.meta.url), 'utf8');
   assert.match(modal, /initialClientId/);
   assert.match(modal, /initialPackageId/);
-  assert.match(modal, /client_package_id:selectedPackage\?\.id/);
-  assert.match(modal, /requested_reels:selectedPackage\?\.billing_unit/);
+  assert.match(modal, /client_package_id:allocatedPackage\?\.id/);
+  assert.match(modal, /requested_reels:allocatedPackage\?\.billing_unit/);
+  assert.match(modal, /planPackageBookingRows/);
+  assert.match(modal, /أقدم باقة صالحة/);
   assert.match(packages, /className="package-booking-button"/);
+  assert.match(packages, /باقة جديدة لنفس العميل/);
   assert.match(packages, /initialClientId=\{bookingPackage\.pkg\?\.client_id\}/);
   assert.match(packages, /initialPackageId=\{bookingPackage\.pkg\?\.id\}/);
 });

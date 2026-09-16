@@ -16,9 +16,9 @@ import CustomServiceForm from './CustomServiceForm';
 import './ERPProjectsCustomServices.css';
 import './ERPAddBookingModal.css';
 import { activeServiceCategories, isProjectServiceCategory } from '../lib/serviceCategories';
-import { packageBookingAvailability, packageBookingSnapshot, packagesForBookingClient, validatePackageBookingDraft } from './packageBookingSelection';
+import { packageBookingAvailability, packageBookingSnapshot, packageChainValidRange, packagesForBookingClient, planPackageBookingRows } from './packageBookingSelection';
 import { getBookingAvailability } from './bookingAvailability';
-import { packageBookingValidRange } from '../lib/packageBookingCalendar';
+import { packageBookingValidRange, shiftBookingDate } from '../lib/packageBookingCalendar';
 
 export const CUSTOM_SERVICE_OPTION = '__custom_service__';
 
@@ -76,7 +76,8 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     if (!initialSelectionAppliedRef.current) {
       const initialClient = (cData || []).find(c => String(c.id) === String(initialClientId))
         || (cData || []).find(c => c.name === prefilledClientName);
-      const initialPackage = initialClient && (pData || []).find(pkg => String(pkg.id) === String(initialPackageId) && String(pkg.client_id) === String(initialClient.id));
+      const requestedPackage = initialClient && (pData || []).find(pkg => String(pkg.id) === String(initialPackageId) && String(pkg.client_id) === String(initialClient.id));
+      const initialPackage = requestedPackage || (initialClient && packagesForBookingClient(pData || [], initialClient.id, cairoDateKey()).find(pkg => pkg.availability.bookable));
       if (initialClient) {
         const initialService = initialPackage && (sData || []).find(service => String(service.id) === String(initialPackage.service_id));
         setNewBooking(prev => ({
@@ -115,7 +116,19 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
 
   const handleClientChange = value => {
     const client = clients.find(item => String(item.id) === String(value));
-    setNewBooking(current => ({ ...applyBookingClientToDraft(current, client), client_package_id: '', category: '', service: '', base_price: 0, schedule_extra: false }));
+    const priorityPackage = packagesForBookingClient(clientPackages, client?.id, cairoDateKey()).find(pkg => pkg.availability.bookable);
+    const priorityService = priorityPackage && services.find(service => String(service.id) === String(priorityPackage.service_id));
+    setNewBooking(current => ({
+      ...applyBookingClientToDraft(current, client),
+      client_package_id: priorityPackage ? String(priorityPackage.id) : '',
+      category: priorityService?.category || '',
+      service: priorityService?.name || '',
+      base_price: priorityService?.price || 0,
+      paid: 0,
+      discount: 0,
+      discount_reason: '',
+      schedule_extra: priorityPackage?.billing_unit === 'reel',
+    }));
   };
 
   const handleClientCreated = async savedClient => {
@@ -207,8 +220,9 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       : services.find(service => service.name === newBooking.service);
     if (selectedPackage) {
       if (String(selectedPackage.client_id) !== String(newBooking.client_id)) return alert('الباقة المختارة لا تخص هذا العميل.');
-      const packageError = validatePackageBookingDraft({ pkg: selectedPackage, service: selectedService, dates: newBooking.dates, todayKey: cairoDateKey() });
-      if (packageError) return alert(packageError);
+      const availability = packageBookingAvailability(selectedPackage, cairoDateKey());
+      if (!availability.bookable) return alert(availability.reason);
+      if (!selectedService) return alert('خدمة الباقة المختارة غير متاحة.');
     }
 
     const photoCategories = ['تصوير بالساعة', 'باقة يومية', 'باقة شهرية'];
@@ -240,14 +254,26 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     const unavailable = newBooking.dates.find(date => getBookingAvailability({ ...date, resource_id: 1 }, bookings, { blocks: bookingBlocks }).status !== 'available');
     if (unavailable) return alert(`الموعد ${formatBookingDate(unavailable.date)} غير متاح. اختر فترة أخرى.`);
 
-    if (selectedPackage) {
-      const availableBalance = packageBookingSnapshot(selectedPackage, selectedService).quantity.available;
-      const requestedBalance = selectedPackage.billing_unit === 'reel'
-        ? newBooking.dates.reduce((sum, row) => sum + Math.max(0, Number(row.requested_quantity || 0)), 0)
-        : newBooking.dates.reduce((sum, row) => sum + (calculateDurationMinutes(row.start_time, row.end_time) / 60), 0);
-      if (requestedBalance <= 0 || requestedBalance > availableBalance + 0.0001) {
-        return alert(`الرصيد المطلوب ${formatPackageQuantity(requestedBalance, selectedPackage.billing_unit)} يتجاوز المتاح ${formatPackageQuantity(availableBalance, selectedPackage.billing_unit)}.`);
-      }
+    const packagePlan = selectedPackage ? planPackageBookingRows({
+      packages: clientPackages,
+      clientId: newBooking.client_id,
+      rows: newBooking.dates,
+      todayKey: cairoDateKey(),
+      preferredPackageId: selectedPackage.id,
+    }) : null;
+    if (packagePlan && !packagePlan.ok) {
+      const failed = newBooking.dates[packagePlan.failedIndex];
+      return alert(`${packagePlan.reason}${failed?.date ? ` الموعد: ${formatBookingDate(failed.date)}.` : ''} أضف باقة جديدة أو عدّل مدة الموعد.`);
+    }
+    if (packagePlan?.ok) {
+      const invalidAllocation = packagePlan.allocations.find(allocation => {
+        const allocationService = services.find(item => String(item.id) === String(allocation.package.service_id));
+        const minimum = Math.max(15, Number(allocationService?.minimum_booking_minutes || 60));
+        const increment = Math.max(15, Number(allocationService?.booking_increment_minutes || 15));
+        const duration = calculateDurationMinutes(allocation.row.start_time, allocation.row.end_time);
+        return !allocationService || !isValidBusinessBooking(allocation.row.start_time, allocation.row.end_time, minimum) || duration % increment !== 0;
+      });
+      if (invalidAllocation) return alert(`الموعد ${formatBookingDate(invalidAllocation.row.date)} لا يطابق حد الحجز الخاص بالباقة «${invalidAllocation.package.name}».`);
     }
 
     if (!needsDates) return alert('هذه الخدمة تُدار من صفحة الباقات أو المشروعات، وليس من جدول الاستديو.');
@@ -279,14 +305,14 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       });
     bookingsToInsert.forEach((b, i) => { if(i > 0) b.payment = 0; });
 
-    const client=clients.find(item=>String(item.id)===String(newBooking.client_id));const service=selectedService;if(!client||!service)return alert('اختر عميلًا وخدمة مسجلين.');const results=[];for(const item of bookingsToInsert)results.push(await dataClient.request('/bookings/request',{method:'POST',body:JSON.stringify({client_id:client.id,client_package_id:selectedPackage?.id||undefined,service_id:service.id,service:service.name,date:item.date,start_time:item.start_time,end_time:item.end_time,status:'confirmed',notes:item.notes,requested_quantity:selectedPackage?.billing_unit==='reel'?Number(item.requested_quantity||1):undefined,requested_reels:selectedPackage?.billing_unit==='reel'?Number(item.requested_quantity||1):undefined})}));const error=results.find(result=>result.error)?.error;
+    const client=clients.find(item=>String(item.id)===String(newBooking.client_id));const service=selectedService;if(!client||!service)return alert('اختر عميلًا وخدمة مسجلين.');const results=[];for(const [index,item] of bookingsToInsert.entries()){const allocatedPackage=packagePlan?.allocations?.[index]?.package||selectedPackage;const allocatedService=allocatedPackage?services.find(candidate=>String(candidate.id)===String(allocatedPackage.service_id)):service;if(!allocatedService)return alert('إحدى الباقات المختارة مرتبطة بخدمة غير متاحة.');const result=await dataClient.request('/bookings/request',{method:'POST',body:JSON.stringify({client_id:client.id,client_package_id:allocatedPackage?.id||undefined,service_id:allocatedService.id,service:allocatedService.name,date:item.date,start_time:item.start_time,end_time:item.end_time,status:'confirmed',notes:item.notes,requested_quantity:allocatedPackage?.billing_unit==='reel'?Number(item.requested_quantity||1):undefined,requested_reels:allocatedPackage?.billing_unit==='reel'?Number(item.requested_quantity||1):undefined})});results.push(result);if(result.error)break;}const error=results.find(result=>result.error)?.error;
 
     if (!error) {
       alert('تم إضافة الحجز بنجاح');
       onSuccess && onSuccess();
       close();
     } else {
-      alert('حدث خطأ أثناء إضافة الحجز');
+      alert(error?.message || 'حدث خطأ أثناء إضافة الحجز');
     }
   };
 
@@ -299,7 +325,21 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
   const clientPackageOptions = packagesForBookingClient(clientPackages, newBooking.client_id, cairoDateKey());
   const bookablePackageCount = clientPackageOptions.filter(pkg => pkg.availability.bookable).length;
   const packageSnapshot = packageBookingSnapshot(selectedPackage, selectedService);
-  const calendarValidRange = packageBookingValidRange(selectedPackage, cairoDateKey());
+  const continuityPackages = selectedPackage
+    ? clientPackageOptions.filter(pkg => pkg.availability.bookable && pkg.billing_unit === selectedPackage.billing_unit)
+    : [];
+  const chainRange = packageChainValidRange(continuityPackages, cairoDateKey());
+  const calendarValidRange = selectedPackage
+    ? { start: chainRange.start, ...(chainRange.end ? { end: shiftBookingDate(chainRange.end, 1) } : {}) }
+    : packageBookingValidRange(selectedPackage, cairoDateKey());
+  const packagePlanPreview = selectedPackage && newBooking.dates.length ? planPackageBookingRows({
+    packages: clientPackages,
+    clientId: newBooking.client_id,
+    rows: newBooking.dates,
+    todayKey: cairoDateKey(),
+    preferredPackageId: selectedPackage.id,
+  }) : null;
+  const plannedPackageIds = [...new Set((packagePlanPreview?.allocations || []).map(item => item.package.id))];
   const projectOrReel = ['reel', 'project'].includes(String(selectedService?.billing_unit || '')) || isProjectServiceCategory(newBooking.category);
   const showCalendar = Boolean(selectedPackage) || !projectOrReel || newBooking.schedule_extra;
   const showDelivery = projectOrReel;
@@ -357,7 +397,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                   ))}
                 </select>
                 {newBooking.client_id && !clientPackageOptions.length && <small className="erp-booking-package-empty">لا توجد باقات مباعة لهذا العميل؛ يمكنك متابعة حجز خدمة عادية.</small>}
-                {bookablePackageCount > 1 && <small className="erp-booking-package-priority">رتبنا الباقات حسب أولوية الاستخدام: الأقرب انتهاءً أولًا، ثم الباقة التالية.</small>}
+                {bookablePackageCount > 1 && <small className="erp-booking-package-priority">سيُسند كل موعد تلقائيًا إلى أقدم باقة صالحة تكفي مدته، ثم ينتقل إلى الباقة التالية دون خلط الأرصدة.</small>}
               </div>
               
               <div>
@@ -399,7 +439,9 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                     <Pointer size={14} style={{ display: 'inline', marginLeft: '5px' }} /> اضغط على اليوم في التقويم لإضافته
                   </label>
                 </div>
-                {selectedPackage && <p className="erp-booking-package-calendar-note"><CalendarPlus/> يمكنك الانتقال لأي شهر {selectedPackage.expires_at ? `حتى ${formatBookingDate(selectedPackage.expires_at)}` : 'وسيبدأ احتساب الصلاحية مع أول حجز مؤكد'}، بشرط ألا يتجاوز مجموع المواعيد الرصيد المتاح وهو <strong>{formatPackageQuantity(packageSnapshot.quantity.available, selectedPackage.billing_unit)}</strong>.</p>}
+                {selectedPackage && <p className="erp-booking-package-calendar-note"><CalendarPlus/> يمكنك الانتقال لأي شهر داخل صلاحية باقات العميل. يبدأ الحجز من الأقدم، وعند نفاد رصيدها ينتقل تلقائيًا للتالية. الرصيد المتاح في الباقة المختارة <strong>{formatPackageQuantity(packageSnapshot.quantity.available, selectedPackage.billing_unit)}</strong>.</p>}
+                {selectedPackage && packagePlanPreview?.ok && plannedPackageIds.length > 0 && <p className="erp-booking-package-plan"><PackageCheck/> خطة الحجز الحالية تستخدم {plannedPackageIds.length.toLocaleString('ar-EG')} {plannedPackageIds.length === 1 ? 'باقة' : 'باقات'} بالترتيب، وكل موعد سيظل مرتبطًا بباقة واحدة.</p>}
+                {selectedPackage && packagePlanPreview && !packagePlanPreview.ok && <p className="erp-booking-package-plan is-error"><ShieldAlert/> {packagePlanPreview.reason}</p>}
                 
                 <div style={{ border: '1px solid var(--erp-border)', borderRadius: '15px', padding: '10px', background: 'var(--erp-surface)', marginBottom: '20px' }}>
                   <FullCalendar
@@ -432,7 +474,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                     <div key={idx} className="erp-booking-date-row" style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', background: 'var(--erp-surface)', padding: '15px', borderRadius: '15px', border: '1px solid var(--erp-border)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
                       <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>تاريخ الجلسة</label>
-                        <input type="date" min={calendarValidRange.start} max={selectedPackage?.expires_at?.slice(0, 10)} value={dRow.date} onChange={(e) => updateDateRow(idx, 'date', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', color: 'var(--erp-primary)', fontWeight: 'bold' }} />
+                        <input type="date" min={calendarValidRange.start} max={chainRange.end || undefined} value={dRow.date} onChange={(e) => updateDateRow(idx, 'date', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', color: 'var(--erp-primary)', fontWeight: 'bold' }} />
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>من الساعة</label>

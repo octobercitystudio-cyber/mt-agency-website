@@ -60,6 +60,22 @@ test('owner upgrade creates an independent package, exact payment records and ap
   assert.ok(db.app_notifications.some(row => Number(row.entity_id) === Number(replacement.id) && row.type === 'package_upgraded'));
 });
 
+test('owner can create the next package when the source package is expired or fully consumed', async () => {
+  const db = database(); const source = db.client_packages.find(row => row.id === 209);
+  Object.assign(source, { status: 'expired', expires_at: '2026-01-01', consumed_quantity: source.purchased_quantity, consumed_minutes: source.purchased_minutes, held_quantity: 0, held_minutes: 0 });
+  writeDatabase(db);
+  const result = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify(upgradePayload({
+    idempotency_key: 'package-upgrade-expired-0001',
+    upgrade_context: { ...upgradePayload().upgrade_context, close_source_package: false, activation_mode: 'first_booking', reason: 'استكمال مواعيد العميل بعد نفاد الباقة' },
+  })) });
+  assert.equal(result.error, null);
+  const after = database(); const replacement = after.client_packages.find(row => Number(row.id) === Number(result.data.id));
+  assert.equal(after.client_packages.find(row => row.id === 209).status, 'expired');
+  assert.equal(replacement.status, 'active');
+  assert.equal(replacement.starts_at, null);
+  assert.equal(replacement.expires_at, null);
+});
+
 test('upgrade replay is idempotent and never duplicates package, payment, finance or notification', async () => {
   const first = await demoClient.request('/client-packages', { method: 'POST', body: JSON.stringify(upgradePayload()) }); assert.equal(first.error, null);
   const counts = Object.fromEntries(['client_packages', 'payments', 'finance', 'payment_allocations', 'app_notifications'].map(table => [table, database()[table].length]));

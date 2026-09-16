@@ -42,8 +42,13 @@ export default function BookingBlockConversionForm({ block, clients, packages, s
 
   const chooseClient = value => {
     const next = String(value || '');
-    const eligible = packages.some(pkg => String(pkg.client_id) === next && bookingBlockPackageEligibility(pkg, block, serviceById(pkg.service_id)).eligible);
-    setClientId(next); setPackageId(''); setMode(eligible ? 'existing_package' : 'new_package'); setCategory(''); setDraft(null); setErrors({});
+    if (!next) { setClientId(''); setPackageId(''); setMode('new_package'); setCategory(''); setDraft(null); setErrors({}); return; }
+    const priority = packages
+      .filter(pkg => String(pkg.client_id) === next)
+      .map(pkg => ({ pkg, state: bookingBlockPackageEligibility(pkg, block, serviceById(pkg.service_id)) }))
+      .filter(option => option.state.eligible)
+      .sort((left, right) => String(left.pkg.expires_at || '9999-12-31').localeCompare(String(right.pkg.expires_at || '9999-12-31')) || Number(left.pkg.id || 0) - Number(right.pkg.id || 0))[0];
+    setClientId(next); setPackageId(priority ? String(priority.pkg.id) : ''); setMode(priority ? 'existing_package' : 'new_package'); setCategory(''); setDraft(null); setErrors({});
   };
   const chooseTemplate = serviceId => {
     const service = templates.find(item => String(item.id) === String(serviceId));
