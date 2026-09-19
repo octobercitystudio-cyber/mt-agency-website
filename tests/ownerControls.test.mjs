@@ -35,7 +35,8 @@ test('owner controls are hidden from non-owner users in all three screens', asyn
   assert.match(finance, /currentUser\?\.role === 'owner'/);
   assert.match(settings, /currentUser\?\.role === 'owner'/);
   assert.match(settings, /المبيعات الجديدة فقط/);
-  assert.match(packages, /تحكم المالك/);
+  const workbench = await load('src/erp/PackageWorkbench.jsx');
+  assert.match(workbench, /canAdjust && <button[^>]*className="package-owner-button"[^>]*[\s\S]*?تحكم المالك/);
   assert.match(finance, /قيد عكسي موثق/);
 });
 

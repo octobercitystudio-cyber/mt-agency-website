@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { cairoAppointmentNowKey, packageAppointmentUsage, packageCalendarWeek, partitionPackageAppointments, shiftPackageCalendarDate, validatePackageAppointment } from '../src/lib/packageSaleAppointments.js';
+import { cairoAppointmentNowKey, defaultPackageSaleResourceId, packageAppointmentUsage, packageCalendarWeek, partitionPackageAppointments, shiftPackageCalendarDate, validatePackageAppointment } from '../src/lib/packageSaleAppointments.js';
 import { templateToPackageDraft } from '../src/lib/clientPackageDraft.js';
 
 const root = new URL('../', import.meta.url);
@@ -18,6 +18,24 @@ const browserGlobals = () => {
   globalThis.CustomEvent = class CustomEvent { constructor(type, init) { this.type = type; this.detail = init?.detail; } };
   return storage;
 };
+
+test('automatic package studio ignores inactive resources and equipment and still checks conflicts', () => {
+  const resources = [
+    { id: 1, type: 'studio', is_active: 0 },
+    { id: 2, type: 'equipment', is_active: 1 },
+    { id: 9, type: 'studio', is_active: 1 },
+    { id: '7', type: 'studio', is_active: '1' },
+  ];
+  const resourceId = defaultPackageSaleResourceId(resources);
+  assert.equal(resourceId, '7');
+  assert.equal(defaultPackageSaleResourceId([...resources].reverse()), resourceId);
+  const candidate = { resource_id: resourceId, date: futureBookableDate(), start_time: '12:00', end_time: '13:00' };
+  assert.deepEqual(validatePackageAppointment(candidate), {});
+  assert.ok(validatePackageAppointment(candidate, { occupied: [{ ...candidate, status: 'confirmed' }] }).conflict);
+  assert.equal(defaultPackageSaleResourceId(resources.slice(0, 2)), '');
+  assert.equal(defaultPackageSaleResourceId(), '');
+  assert.ok(validatePackageAppointment({ ...candidate, resource_id: '' }).resource_id);
+});
 
 test('appointment helper separates studio duration from reel usage and catches overlaps', () => {
   const bookingDate = futureBookableDate();

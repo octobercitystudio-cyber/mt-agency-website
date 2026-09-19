@@ -50,13 +50,14 @@ test('an empty upcoming schedule produces no sendable message', () => {
   assert.equal(APPOINTMENTS_EMPTY_MESSAGE, 'لا توجد مواعيد تصوير قادمة مرتبطة بهذه الباقة.');
 });
 
-test('sold package table and mobile cards expose a distinct accessible appointments action', async () => {
+test('sold package workspace exposes distinct accessible summary and appointments actions', async () => {
   const view = await load('src/erp/ERPPackages.jsx');
-  assert.match(view, /className="package-whatsapp-button"[\s\S]*?إرسال التفاصيل/);
-  assert.match(view, /className="package-appointments-whatsapp-button"[\s\S]*?إرسال المواعيد/);
-  assert.match(view, /aria-label=\{`إرسال مواعيد التصوير الخاصة بـ \$\{sessionLabel/);
-  assert.match(view, /function PackageRow\([^)]*onShareAppointments/);
-  assert.match(view, /function PackageCard\([^)]*onShareAppointments/);
+  const workbench = await load('src/erp/PackageWorkbench.jsx');
+  assert.match(workbench, /className="package-whatsapp-button"[\s\S]*?إرسال التفاصيل/);
+  assert.match(workbench, /className="package-appointments-whatsapp-button"[\s\S]*?إرسال المواعيد/);
+  assert.match(workbench, /aria-label=\{`إرسال مواعيد التصوير الخاصة بـ \$\{sessionLabel/);
+  assert.match(workbench, /function WorkspacePackage\([^)]*onShareAppointments/);
+  assert.match(view, /<PackageWorkbench[\s\S]*?packageViewProps=\{packageViewProps\}/);
   assert.match(view, /setWhatsappMode\('appointments'\)/);
   assert.match(view, /<PackageWhatsAppDialog[^>]+mode=\{whatsappMode\}/);
 });

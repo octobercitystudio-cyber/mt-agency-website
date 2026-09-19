@@ -28,17 +28,17 @@ test('client package file keeps renewals together and prioritizes the balance ex
 
 test('sold packages and booking entry explain the continuity rule in the interface', async () => {
   const [packagesPage, packageCss, bookingModal, blockConversion, upgradeDialog] = await Promise.all([
-    readFile(new URL('../src/erp/ERPPackages.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('../src/erp/ERPPackages.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/erp/PackageWorkbench.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/erp/PackageWorkbench.css', import.meta.url), 'utf8'),
     readFile(new URL('../src/erp/ERPAddBookingModal.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/erp/BookingBlockConversionForm.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/erp/PackageUpgradeDialog.jsx', import.meta.url), 'utf8'),
   ]);
-  assert.match(packagesPage, /الباقات مرتبة داخل ملف واحد لكل عميل/);
-  assert.match(packagesPage, /أولوية الحجز للباقة النشطة الأقرب انتهاءً/);
-  assert.match(packagesPage, /عرض .* باقة سابقة أو أخرى/);
-  assert.match(packageCss, /package-client-group-row/);
-  assert.match(packageCss, /package-continuity-badge--priority/);
+  assert.match(packagesPage, /باقات العميل/);
+  assert.match(packagesPage, /أولوية الحجز للباقة الصالحة الأقرب انتهاءً/);
+  assert.match(packagesPage, /عرض باقي الباقات/);
+  assert.match(packageCss, /package-workbench/);
+  assert.match(packageCss, /pw-continuity--priority/);
   assert.match(bookingModal, /الأولوية الآن/);
   assert.match(blockConversion, /الأولوية الآن/);
   assert.match(blockConversion, /setPackageId\(priority/);

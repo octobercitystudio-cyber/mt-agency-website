@@ -88,8 +88,9 @@ test('sold packages and dashboard booking modal share package-aware IDs and requ
   assert.match(modal, /requested_reels:allocatedPackage\?\.billing_unit/);
   assert.match(modal, /planPackageBookingRows/);
   assert.match(modal, /أقدم باقة صالحة/);
-  assert.match(packages, /className="package-booking-button"/);
-  assert.match(packages, /باقة جديدة لنفس العميل/);
+  const workspace = fs.readFileSync(new URL('../src/erp/PackageWorkbench.jsx', import.meta.url), 'utf8');
+  assert.match(workspace, /className="[^"]*package-booking-button/);
+  assert.match(workspace, /باقة جديدة لنفس العميل/);
   assert.match(packages, /initialClientId=\{bookingPackage\.pkg\?\.client_id\}/);
   assert.match(packages, /initialPackageId=\{bookingPackage\.pkg\?\.id\}/);
 });

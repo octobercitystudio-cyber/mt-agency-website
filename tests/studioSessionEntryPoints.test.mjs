@@ -45,19 +45,15 @@ test('dashboard uses exact booking cards without nested interactive controls', a
 
 test('sold-package start action is a solid red operational control', async () => {
   const [packages, packagesCss] = await Promise.all([
-    load('src/erp/ERPPackages.jsx'),
-    load('src/erp/ERPPackages.css'),
+    load('src/erp/PackageWorkbench.jsx'),
+    load('src/erp/PackageWorkbench.css'),
   ]);
-  assert.match(packages, /className="package-session-start"/);
-  assert.match(packages, /running\?<div className="package-session-running"/);
-  assert.match(packages, /sessionLabel=\{`\$\{pkg\.name\} للعميل \$\{person\?\.name\|\|'عميل'\}`\}/);
-  assert.match(packagesCss, /\.package-session-start\{[^}]*background:#dc2626[^}]*color:#fff/);
-  assert.match(packagesCss, /\.package-session-running\{[^}]*color:#08734d/);
-  assert.match(packagesCss, /\.packages-table-wrap table\{[^}]*min-width:0[^}]*table-layout:fixed/);
-  assert.match(packagesCss, /@media\(min-width:901px\)/);
-  assert.match(packagesCss, /\.packages-table-wrap th:nth-child\(5\)\{width:22%\}/);
-  assert.match(packagesCss, /\.packages-table-wrap \.package-session-start,[^}]*\{width:100%;white-space:normal/);
-  assert.doesNotMatch(packagesCss, /\.packages-table-wrap table\{[^}]*min-width:1080px/);
+  assert.match(packages, /className="[^"]*package-session-start"/);
+  assert.match(packages, /running\s*\?\s*<span className="pw-session-running"/);
+  assert.match(packages, /const sessionLabel = `\$\{pkg\.name\} للعميل \$\{person\?\.name \|\| 'عميل'\}`/);
+  assert.match(packagesCss, /\.pw-actions button\.pw-start\{[^}]*background:#dc2626[^}]*color:#fff/);
+  assert.match(packagesCss, /\.pw-session-running\{/);
+  assert.match(packagesCss, /\.pw-actions button[^{}]*\{[^}]*min-height:44px/);
 });
 
 test('start roles, busy/error state and global session event are shared', async () => {

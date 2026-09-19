@@ -10,6 +10,12 @@ const timeMinutes = value => {
 
 export const appointmentDurationMinutes = appointment => timeMinutes(appointment?.end_time) - timeMinutes(appointment?.start_time);
 
+// Keep the studio stable when names or the resource list ordering change.
+export const defaultPackageSaleResourceId = (resources = []) => {
+  const studios = resources.filter(resource => resource.type === 'studio' && Number(resource.is_active) === 1 && Number.isSafeInteger(Number(resource.id)) && Number(resource.id) > 0);
+  return studios.length ? String(Math.min(...studios.map(resource => Number(resource.id)))) : '';
+};
+
 const dateKeyFromParts = parts => {
   const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
@@ -66,7 +72,7 @@ export const appointmentConflicts = (candidate, appointments = [], occupied = []
 export const validatePackageAppointment = (candidate, { unit = 'hour', minimumMinutes = 60, incrementMinutes = 15, startsAt = '', expiresAt = '', shootingDate = '', appointments = [], occupied = [], editIndex = -1, nowKey = cairoAppointmentNowKey() } = {}) => {
   const errors = {};
   const duration = appointmentDurationMinutes(candidate);
-  if (!(Number(candidate?.resource_id) > 0)) errors.resource_id = 'اختر الاستديو أو المورد.';
+  if (!(Number(candidate?.resource_id) > 0)) errors.resource_id = 'لا يوجد استديو نشط لإضافة الموعد. فعّل استديو من الإعدادات، أو احفظ الباقة بدون موعد.';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(candidate?.date || ''))) errors.date = 'حدد تاريخ الموعد.';
   if (timeMinutes(candidate?.start_time) < 720 || timeMinutes(candidate?.end_time) > 1440 || duration < minimumMinutes || duration % incrementMinutes !== 0) errors.time = `الموعد من 12:00 م إلى 12:00 ص، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)}.`;
   if (candidate?.date && ((startsAt && candidate.date < startsAt) || (expiresAt && candidate.date > expiresAt) || (shootingDate && candidate.date !== shootingDate))) errors.date = 'الموعد خارج فترة صلاحية الباقة.';
