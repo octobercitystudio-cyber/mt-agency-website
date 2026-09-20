@@ -58,11 +58,8 @@
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-calendar .fc-event-main { color: inherit !important; overflow: visible; }
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-calendar .fc-event:hover { filter: none; transform: none; box-shadow: 0 0 0 2px #90b4c7 !important; }
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-calendar .is-reschedule-eligible { cursor: grab; }
-.erp-layout .erp-main .erp-bookings-wide .booking-calendar-ticket { display: grid; gap: 5px; min-width: 0; width: 100%; padding: 8px 6px; border: 1px solid #d1e2f4; border-inline-start: 3px solid var(--booking-client-color, #406e98); border-radius: 4px; color: #214e7b; background: #edf4fc; line-height: 1.55; white-space: normal !important; }
-.erp-layout .erp-main .erp-bookings-wide .booking-status-completed .booking-calendar-ticket { background: #eef6f0; border-color: #cfdfd2; border-inline-start-color: var(--booking-client-color); color: #2d6550; }
-.erp-layout .erp-main .erp-bookings-wide .booking-status-temporary .booking-calendar-ticket, .erp-layout .erp-main .erp-bookings-wide .booking-status-pending .booking-calendar-ticket { background: #fff7e5; border-color: #e9d7b2; border-inline-start-color: var(--booking-client-color); color: #87530a; }
-.erp-layout .erp-main .erp-bookings-wide .booking-status-in_progress .booking-calendar-ticket { background: #eff0ff; border-color: #d6d4f2; border-inline-start-color: var(--booking-client-color); color: #574785; }
-.erp-layout .erp-main .erp-bookings-wide .booking-status-late_cancel_requested .booking-calendar-ticket, .erp-layout .erp-main .erp-bookings-wide .booking-status-cancel_requested .booking-calendar-ticket { background: #fff1ee; border-color: #edcec8; border-inline-start-color: var(--booking-client-color); color: #a14430; }
+.erp-layout .erp-main .erp-bookings-wide .booking-calendar-ticket { display: grid; gap: 5px; min-width: 0; width: 100%; padding: 8px 6px; border: 1px solid rgba(0, 0, 0, .14); border-inline-start: 3px solid var(--booking-client-color, #4318ff); border-radius: 4px; color: var(--booking-client-text, #fff); background: var(--booking-client-color, #4318ff); line-height: 1.55; white-space: normal !important; }
+.erp-layout .erp-main .erp-bookings-wide .booking-status-temporary .booking-calendar-ticket { background: #fff7e5; border-color: #e9d7b2; border-inline-start-color: var(--booking-client-color); color: #87530a; }
 .erp-layout .erp-main .erp-bookings-wide .booking-calendar-ticket__client { font-size: 16px !important; font-weight: 800 !important; line-height: 1.65 !important; overflow-wrap: anywhere; word-break: normal; white-space: normal !important; color: inherit; }
 .erp-layout .erp-main .erp-bookings-wide .booking-calendar-ticket__time { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; color: inherit; font-size: 16px !important; line-height: 1.6 !important; font-weight: 700; font-variant-numeric: tabular-nums; }
 .erp-layout .erp-main .erp-bookings-wide .booking-calendar-ticket__time-segment { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 4px; min-width: 0; font-size: 16px !important; line-height: 1.6 !important; }
@@ -78,8 +75,8 @@
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-mobile-dates { display: none; }
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-legend { display: flex; justify-content: flex-start; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-top: 1px solid var(--booking-line); color: var(--booking-muted); font-size: 13px !important; }
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-legend i { width: 8px; height: 8px; background: #356a9b; border-radius: 2px; }
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-legend .temporary { background: #b77a25; }.erp-layout .erp-main .erp-bookings-wide .bookings-wide-legend .completed { background: #438563; }
+.erp-layout .erp-main .erp-bookings-wide .bookings-wide-legend i { width: 8px; height: 8px; background: #20a66a; border-radius: 2px; }
+.erp-layout .erp-main .erp-bookings-wide .bookings-wide-legend .temporary { background: #b77a25; }.erp-layout .erp-main .erp-bookings-wide .bookings-wide-legend .completed { background: #20a66a; }
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-agenda { border-top: 3px solid var(--booking-teal); }
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-agenda > header { padding: 17px 14px; border-bottom: 1px solid var(--booking-line); }
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-agenda > header p { margin: 0 0 4px; font-size: 14px !important; color: var(--booking-teal); }

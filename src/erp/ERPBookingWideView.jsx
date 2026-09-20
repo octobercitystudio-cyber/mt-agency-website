@@ -7,6 +7,7 @@ import arCalendarLocale from '@fullcalendar/core/locales/ar';
 import { CalendarPlus, CalendarDays, ChevronLeft, ChevronRight, Search, Clock, Check, Ban, RefreshCw, CalendarClock, LockKeyhole, CheckCircle, X } from 'lucide-react';
 import { cairoDateKey, calculateDurationMinutes, formatBookingDate, formatDurationMinutes, formatTime12 } from '../lib/businessFormat';
 import { bookingDayAgenda, bookingDaySummary, normalizeBookingViewStatus } from '../lib/bookingView';
+import { clientColorText } from '../lib/clientColors';
 import './ERPBookingWideView.css';
 
 const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -94,7 +95,7 @@ export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin
   const eventContent = arg => {
     const data = arg.event.extendedProps; const block = data.kind === 'booking_block';
     const meta = block ? { label: 'حجز مؤقت', color: '#956019' } : getStatusMeta(data.status);
-    return <div className="booking-calendar-ticket" style={{ '--booking-client-color': block ? '#b77a25' : data.client_color }}>
+    return <div className="booking-calendar-ticket" style={{ '--booking-client-color': block ? '#b77a25' : data.client_color, '--booking-client-text': clientColorText(data.client_color) }}>
       <strong className="booking-calendar-ticket__client">{block ? data.block_title : data.client_name}</strong>
       <BookingTimes start={data.start_time} end={data.end_time} />
       <span className="booking-calendar-ticket__status"><span>{block ? <LockKeyhole aria-hidden="true" /> : <i aria-hidden="true" style={{ background: meta.color }} />}{meta.label}</span><span>{formatDurationMinutes(calculateDurationMinutes(data.start_time, data.end_time))}</span></span>
@@ -134,7 +135,7 @@ export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin
           />
         </div>
         <div className="bookings-wide-mobile-dates"><label>انتقل إلى تاريخ<input type="date" aria-label="تاريخ المواعيد" value={selectedDate} onChange={event => chooseDate(event.target.value)} /></label><div ref={dayRailRef} className="bookings-wide-date-rail" aria-label="أيام الشهر">{Array.from({ length: monthDays }, (_, index) => { const value = `${displayedMonth}-${String(index + 1).padStart(2, '0')}`; const day = parseDate(value).getUTCDay(); return <button key={value} type="button" aria-current={value === selectedDate ? 'date' : undefined} className={day === 5 ? 'friday' : ''} onClick={() => chooseDate(value)} aria-label={dateLabel(value)}><small>{dayNames[day]}</small><b>{index + 1}</b></button>; })}</div><p>مرّر الأيام أو اختر التاريخ المطلوب من الحقل بالأعلى.</p></div>
-        <footer className="bookings-wide-legend"><span><i className="confirmed" />مؤكد</span>{isAdmin && <span><i className="temporary" />حجز مؤقت</span>}<span><i className="completed" />مكتمل</span><span>الخط الجانبي بلون العميل</span></footer>
+        <footer className="bookings-wide-legend"><span><i className="confirmed" />مؤكد</span>{isAdmin && <span><i className="temporary" />حجز مؤقت</span>}<span><i className="completed" />مكتمل</span><span>لون الموعد هو لون العميل</span></footer>
       </section>
       <aside className="bookings-wide-agenda" aria-labelledby="booking-agenda-title"><header><p>اليوم المختار</p><h2 id="booking-agenda-title">{dateLabel(selectedDate)}</h2><span>{appointmentCount(summary.total)}{filtered ? ' مطابقة للتصفية' : ''}</span></header>{isAdmin && <button type="button" className="bookings-wide-button bookings-wide-agenda-action" onClick={event => onDayActions(event.currentTarget)}><CalendarClock size={17} />إجراءات هذا اليوم</button>}
         <div className="bookings-wide-agenda-list">{!agenda.length ? <div className="bookings-wide-empty"><CalendarDays size={25} /><h3>{filtered ? 'لا توجد نتائج مطابقة' : loading ? 'جارٍ تحميل اليوم' : 'لا توجد مواعيد مسجلة'}</h3><p>{filtered ? 'غيّر البحث أو الحالة لعرض بقية المواعيد.' : parseDate(selectedDate).getUTCDay() === 5 ? 'الجمعة إجازة الاستديو.' : 'اختر يومًا آخر أو أضف موعدًا جديدًا.'}</p></div> : agenda.map(({ kind, record }) => { const block = kind === 'block'; const meta = block ? { label: 'حجز مؤقت', color: '#956019' } : getStatusMeta(record.status); return <article key={`${kind}-${record.id}`} className={`bookings-wide-agenda-item booking-status-${block ? 'temporary' : normalizeBookingViewStatus(record.status)}`} style={{ '--booking-client-color': block ? '#b77a25' : getClientColor(record.client_name) }}>
