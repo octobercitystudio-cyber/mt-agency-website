@@ -1,0 +1,22 @@
+import { useMemo } from 'react';
+import { AlertCircle, ArrowLeft, CheckCircle2, PackageOpen, RefreshCw, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { formatPackageStatus, moneyToCents } from '../lib/businessFormat';
+import useModalDialog from '../hooks/useModalDialog';
+import { FinanceAmount } from './FinanceClearLedger';
+
+export default function FinanceReceivablesDialog({ open, onClose, returnFocusRef, view, onRetry }) {
+  const dialogRef = useModalDialog(open, onClose, { returnFocusRef, isolateBackground: true });
+  const groups = useMemo(() => {
+    const grouped = new Map();
+    for (const item of view.data?.items || []) {
+      const key = String(item.client_id);
+      if (!grouped.has(key)) grouped.set(key, { clientId: key, name: item.client_name || `عميل #${key}`, items: [], cents: 0 });
+      const group = grouped.get(key); group.items.push(item); group.cents += moneyToCents(item.outstanding_amount);
+    }
+    return [...grouped.values()].sort((left, right) => right.cents - left.cents || left.name.localeCompare(right.name, 'ar'));
+  }, [view.data]);
+  if (!open) return null;
+  const reconciliation = view.data?.reconciliation || {};
+  return <div className="erp-modal-overlay fc-receivables-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section ref={dialogRef} className="fc-receivables-dialog" role="dialog" aria-modal="true" aria-labelledby="finance-receivables-title" aria-describedby="finance-receivables-note" tabIndex={-1}><header><div><span>مستحقات الشركة لدى العملاء</span><h2 id="finance-receivables-title">فلوس الشركة عند العملاء</h2><p id="finance-receivables-note">الباقات النشطة حاليًا · حتى اليوم، بصرف النظر عن الشهر المعروض.</p></div><button type="button" data-dialog-initial onClick={onClose} aria-label="إغلاق مستحقات العملاء"><X aria-hidden="true"/></button></header><div className="fc-receivables-body">{view.loading ? <div className="fc-empty" role="status"><RefreshCw className="fc-spin" aria-hidden="true"/><strong>جارٍ تحديث المستحقات…</strong><p>نراجع أرصدة الباقات النشطة والمدفوع لكل باقة.</p></div> : view.error ? <div className="fc-empty error" role="alert"><AlertCircle aria-hidden="true"/><strong>تعذر تحميل المستحقات</strong><p>{view.error}</p><button type="button" onClick={onRetry}>إعادة المحاولة</button></div> : !view.data ? <div className="fc-empty"><strong>المستحقات غير متاحة الآن</strong><button type="button" onClick={onRetry}>إعادة المحاولة</button></div> : <><section className="fc-receivables-total"><div><span>إجمالي المستحق الحالي</span><FinanceAmount value={view.data.amount}/></div><p>{view.data.item_count || 0} باقة · {groups.length} عميل</p></section>{groups.length ? <><dl className="fc-reconciliation"><div><dt>قيمة الباقات</dt><dd><FinanceAmount value={reconciliation.total_price}/></dd></div><div><dt>الزيادات</dt><dd><FinanceAmount value={reconciliation.overage_amount}/></dd></div><div><dt>المدفوع</dt><dd><FinanceAmount value={reconciliation.paid_amount}/></dd></div><div><dt>المستحق</dt><dd><FinanceAmount value={reconciliation.outstanding_amount}/></dd></div></dl><p className="fc-receivables-explainer">المستحق = قيمة الباقة + الزيادات − المدفوع. لا تُضاف الفواتير مرة أخرى، أو أرصدة العملاء القديمة، أو الباقات المنتهية والمكتملة والموقوفة.</p><div className="fc-receivables-clients">{groups.map(group => <section key={group.clientId} className="fc-receivables-client"><header><div><span>العميل</span><h3>{group.name}</h3></div><FinanceAmount value={group.cents / 100}/></header>{group.items.map(item => <article className="fc-receivable-package" key={item.package_id}><div><strong><PackageOpen aria-hidden="true"/>{item.package_name}</strong><span>باقة <bdi>#{item.package_id}</bdi> · {formatPackageStatus(item.status)}</span></div><dl><div><dt>قيمة الباقة</dt><dd><FinanceAmount value={item.total_price}/></dd></div><div><dt>الزيادات</dt><dd><FinanceAmount value={item.overage_amount}/></dd></div><div><dt>المدفوع</dt><dd><FinanceAmount value={item.paid_amount}/></dd></div><div className="due"><dt>المستحق</dt><dd><FinanceAmount value={item.outstanding_amount}/></dd></div></dl></article>)}</section>)}</div></> : <div className="fc-empty"><CheckCircle2 aria-hidden="true"/><strong>لا توجد مستحقات على الباقات النشطة</strong><p>كل الباقات النشطة حاليًا مسددة.</p></div>}</>}</div><footer><span>راجع الباقات ومدفوعاتها من صفحة الباقات المباعة.</span><Link to="/erp/packages" onClick={onClose}>إدارة الباقات <ArrowLeft aria-hidden="true"/></Link></footer></section></div>;
+}

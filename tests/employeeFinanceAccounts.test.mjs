@@ -100,7 +100,9 @@ test('attendance owns employee accounts while finance keeps the linked ledger', 
   assert.match(component, /finance_entry_id/);
   assert.doesNotMatch(finance, /Partners Dues|settleDues|adjustPartner|handleAdjustDue|openAdvanceModal/);
   assert.match(finance, /employee_user_id/);
-  assert.match(finance, /حساب الموظف:/);
+  const ledger = await load('src/erp/FinanceClearLedger.jsx');
+  assert.match(finance, /<FinanceClearLedger[\s\S]*?employeeId=\{employeeFilter\}/);
+  assert.match(ledger, /حساب الموظف:/);
   assert.match(api, /requireRole\(\$user,\['owner','admin'\]\).*?employee-accounts/s);
   assert.match(api, /organization_id=\?/);
   assert.match(responsiveCss, /\.attendance-table-wrap\s*\{[^}]*direction:\s*ltr[^}]*overflow-x:\s*auto/s);

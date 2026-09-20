@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { dataClient } from '../dataClient';
 import { format, parseISO, addMonths, subMonths } from 'date-fns';
-import { ar } from 'date-fns/locale';
-import { AlertCircle, ArrowDown, ArrowLeftRight, ArrowUp, Banknote, ChartNoAxesCombined, ChevronLeft, ChevronRight, CirclePlus, Info, Layers3, PackageOpen, Pencil, Printer, ReceiptText, Send, ShieldCheck, SlidersHorizontal, Smartphone, Sparkles, UserRound, Wallet, X } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowLeftRight, ArrowUp, ChartNoAxesCombined, ChevronLeft, ChevronRight, CirclePlus, Info, PackageOpen, Printer, ShieldCheck, SlidersHorizontal, UserRound, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import ERPPageHero from './ERPPageHero';
 import { CURRENCY_LABEL, formatEGP, formatPaymentMethod } from '../lib/businessFormat';
@@ -10,6 +9,9 @@ import { calculateOperationalFinanceMovement, normalizeFinanceEntryKind } from '
 import useChangeSync from '../hooks/useChangeSync';
 import { useData } from '../store/DataContext';
 import ClientCombobox from '../components/ClientCombobox';
+import FinanceClearLedger, { FinanceOverview, FinanceWallets } from './FinanceClearLedger';
+import FinanceReceivablesDialog from './FinanceReceivablesDialog';
+import { safeUiError } from '../lib/uiError';
 import './ERPFinance.css';
 
 let globalFinanceCache = null;
@@ -26,6 +28,10 @@ const ERPFinance = () => {
   const [employeeAccountsWarning, setEmployeeAccountsWarning] = useState('');
   const [loading, setLoading] = useState(!globalFinanceCache);
   const [loadError, setLoadError] = useState('');
+  const [receivables, setReceivables] = useState({ loading: true, error: '', data: null });
+  const [receivablesOpen, setReceivablesOpen] = useState(false);
+  const receivablesSequenceRef = useRef(0);
+  const receivablesTriggerRef = useRef(null);
   
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [financePeriod, setFinancePeriod] = useState(null);
@@ -58,6 +64,24 @@ const ERPFinance = () => {
   const [adjustWalletForm, setAdjustWalletForm] = useState({ method: '', new_balance: '', current_balance: 0 });
 
   const methodsList = ['cash', 'bank_transfer', 'vodafone_cash', 'instapay'].map(value => ({ value, label: formatPaymentMethod(value) }));
+
+  const fetchReceivables = useCallback(async () => {
+    const sequence = ++receivablesSequenceRef.current;
+    setReceivables({ loading: true, error: '', data: null });
+    try {
+      const result = await dataClient.request('/dashboard/receivables', { method: 'GET' });
+      if (sequence !== receivablesSequenceRef.current) return;
+      if (result.error) throw result.error;
+      if (!result.data || result.data.amount == null || !Array.isArray(result.data.items)) throw new Error('تعذر تحميل بيانات المستحقات.');
+      setReceivables({ loading: false, error: '', data: result.data });
+    } catch (error) {
+      if (sequence !== receivablesSequenceRef.current) return;
+      setReceivables({ loading: false, error: safeUiError(error, 'تعذر تحميل مستحقات العملاء الآن.'), data: null });
+    }
+  }, []);
+  useEffect(() => { const timer = window.setTimeout(fetchReceivables, 0); return () => { window.clearTimeout(timer); receivablesSequenceRef.current += 1; }; }, [fetchReceivables]);
+  const closeReceivables = useCallback(() => setReceivablesOpen(false), []);
+  const openReceivables = event => { receivablesTriggerRef.current = event.currentTarget; setReceivablesOpen(true); fetchReceivables(); };
 
   const fetchData = useCallback(async () => {
     if (globalFinanceCache) {
@@ -93,7 +117,10 @@ const ERPFinance = () => {
   }, [selectedMonth]);
 
   useEffect(() => { const timer = window.setTimeout(fetchData, 0); return () => window.clearTimeout(timer); }, [fetchData]);
-  useChangeSync(useCallback((topics) => { if (topics.includes('finance')) fetchData(true); }, [fetchData]));
+  useChangeSync(useCallback((topics) => {
+    if (topics.includes('finance')) fetchData(true);
+    if (topics.some(topic => ['finance', 'client_packages', 'packages', 'clients'].includes(topic))) fetchReceivables();
+  }, [fetchData, fetchReceivables]));
 
   const fetchFinancePeriod = useCallback(async () => {
     setPeriodError('');
@@ -126,7 +153,7 @@ const ERPFinance = () => {
   const clientPackages = useMemo(() => packages.filter(pkg => String(pkg.client_id) === String(txForm.client_id)), [packages, txForm.client_id]);
   const periodOpen = financePeriod?.status === 'open';
   const canAdjustWallet = periodOpen && selectedMonth === format(new Date(), 'yyyy-MM');
-  const openTransactionModal = () => { if (!periodOpen) return; transactionRequestKeyRef.current = packagePaymentRequestKey(); setTxError([]); setTxForm(emptyTransaction()); setModalState(state => ({ ...state, addTransaction: true })); };
+  const openTransactionModal = (entryKind, event) => { if (!periodOpen || !isAdmin) return; transactionTriggerRef.current = event.currentTarget; transactionRequestKeyRef.current = packagePaymentRequestKey(); setTxError([]); setTxForm({ ...emptyTransaction(), type: entryKind === 'income' ? 'إيراد' : 'مصروف', entry_kind: entryKind, category: entryKind === 'income' ? 'other_income' : 'general_expense' }); setModalState(state => ({ ...state, addTransaction: true })); };
   const txErrorFields = new Set(txError.map(error => error.field));
 
   const safeFloat = (val) => {
@@ -176,12 +203,7 @@ const ERPFinance = () => {
     };
   }, [allTransactions, selectedMonth]);
 
-  const { total_inc, total_exp, net_profit, balances, incomes, expenses } = calculations;
-  const displayIncomes = employeeFilter ? incomes.filter(entry => String(entry.employee_user_id || '') === employeeFilter) : incomes;
-  const displayExpenses = employeeFilter ? expenses.filter(entry => String(entry.employee_user_id || '') === employeeFilter) : expenses;
-  const employeeMovement = employeeFilter ? calculateOperationalFinanceMovement(allTransactions.filter(entry => String(entry.employee_user_id || '') === employeeFilter), selectedMonth) : null;
-  const displayIncomeTotal = employeeMovement?.income ?? total_inc;
-  const displayExpenseTotal = employeeMovement?.expense ?? total_exp;
+  const { total_inc, total_exp, net_profit, balances } = calculations;
 
   const handleAddTransaction = async (e) => {
     e.preventDefault();
@@ -217,6 +239,7 @@ const ERPFinance = () => {
       setModalState(s => ({...s, addTransaction: false}));
       setTxForm(emptyTransaction());
       fetchData(true);
+      fetchReceivables();
     } else {
       setTxError([{ field: 'finance-form', message: error.message || 'حدث خطأ أثناء حفظ المعاملة.' }]);
     }
@@ -331,7 +354,7 @@ const ERPFinance = () => {
     if (ownerAction.mode === 'correct') Object.assign(payload, { amount: ownerAction.amount, method: ownerAction.method, detail: ownerAction.detail, date: ownerAction.date, entry_kind: entry.entry_kind });
     const { error } = await dataClient.request(endpoint, { method: 'POST', body: JSON.stringify(payload) });
     if (error) return setOwnerAction(state => ({ ...state, error: error.message || 'تعذر تنفيذ الإجراء.', requiresAllocation: state.requiresAllocation || error.code === 'ambiguous_legacy_allocation' }));
-    closeOwnerAction(); await fetchData(true);
+    closeOwnerAction(); await fetchData(true); fetchReceivables();
   };
 
   const changeMonth = (offset) => {
@@ -360,45 +383,19 @@ const ERPFinance = () => {
   if (loading) return <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--erp-text-muted)' }}>جاري تحميل الحسابات...</div>;
 
   return (
-    <div className="container-fluid p-0 finance-page">
-      <style>{`
-        .wallet-card { transition: all 0.3s ease; border: 1px solid rgba(0,0,0,0.05); }
-        .wallet-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.1) !important; }
-        
-        .table-container { overflow: auto; max-height: 500px; padding-top: 5px; }
-        .table-container::-webkit-scrollbar { width: 6px; height: 6px; } 
-        .table-container::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
-        
-        .month-selector { background: white; border: 1px solid #e2e8f0; border-radius: 50px; padding: 5px; display: inline-flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
-        
-        .gradient-primary { background: linear-gradient(135deg, #4318ff 0%, #868cff 100%); color: white; }
-        .gradient-success { background: linear-gradient(135deg, #10b981 0%, #34d399 100%); color: white; }
-        .gradient-danger { background: linear-gradient(135deg, #ef4444 0%, #f87171 100%); color: white; }
-
-        .bg-income-container { background-color: #f7fdf9 !important; border: 1px solid #dcfce7 !important; }
-        .table-income tbody tr td { background-color: #e8faed !important; border-bottom: 6px solid #f7fdf9 !important; transition: all 0.2s ease; }
-        .table-income tbody tr:hover td { background-color: #d1f4dc !important; transform: scale(0.99); }
-        .thead-income th { background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important; color: #ffffff !important; border: none !important; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); }
-
-        .bg-expense-container { background-color: #fff9f9 !important; border: 1px solid #fee2e2 !important; }
-        .table-expense tbody tr td { background-color: #ffefef !important; border-bottom: 6px solid #fff9f9 !important; transition: all 0.2s ease; }
-        .table-expense tbody tr:hover td { background-color: #ffe0e0 !important; transform: scale(0.99); }
-        .thead-expense th { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important; color: #ffffff !important; border: none !important; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2); }
-
-        .due-row td { background-color: #fffbeb !important; border-bottom: 6px solid #fff9f9 !important; transition: all 0.2s ease; }
-        .due-row:hover td { background-color: #fef3c7 !important; transform: scale(0.99); }
-      `}</style>
+    <div className="container-fluid p-0 finance-page finance-clear-page">
 
       {/* Header Area */}
       <ERPPageHero
         icon={ChartNoAxesCombined}
         eyebrow="الحسابات والتدفقات النقدية"
-        title="الإدارة المالية"
-        description="تابع الإيرادات والمصروفات والمستحقات وحركة المحافظ للفترة المختارة."
+        title="الحسابات"
+        description="سجل واضح للحركات المالية، والمحافظ، ومستحقات الشركة."
         actions={<>
           <button onClick={() => window.print()}><Printer aria-hidden="true"/> طباعة</button>
-          <button disabled={!periodOpen} onClick={() => { setTransferForm({ from_method: 'cash', to_method: 'vodafone_cash', amount: '', date: selectedPeriodDate(), note: '' }); setModalState({...modalState, transfer: true}); }}><ArrowLeftRight aria-hidden="true"/> تحويل</button>
-          {isAdmin && <button ref={transactionTriggerRef} data-variant="primary" disabled={!periodOpen} onClick={openTransactionModal}><CirclePlus aria-hidden="true"/> عملية مالية</button>}
+          {isAdmin && <button disabled={!periodOpen} onClick={() => { setTransferForm({ from_method: 'cash', to_method: 'vodafone_cash', amount: '', date: selectedPeriodDate(), note: '' }); setModalState({...modalState, transfer: true}); }}><ArrowLeftRight aria-hidden="true"/> تحويل داخلي</button>}
+          {isAdmin && <button className="fc-add-income" disabled={!periodOpen} onClick={event => openTransactionModal('income', event)}><CirclePlus aria-hidden="true"/> إضافة إيراد</button>}
+          {isAdmin && <button className="fc-add-expense" disabled={!periodOpen} onClick={event => openTransactionModal('expense', event)}><CirclePlus aria-hidden="true"/> إضافة مصروف</button>}
         </>}
         details={<div className="month-selector" aria-label="الشهر المالي">
             <button type="button" onClick={() => changeMonth(1)} className="finance-month-button" aria-label="عرض الشهر التالي" title="الشهر التالي"><ChevronRight aria-hidden="true"/></button>
@@ -414,103 +411,24 @@ const ERPFinance = () => {
       {periodError && <div className="finance-load-error" role="alert"><AlertCircle/><span>{periodError}</span><button type="button" onClick={fetchFinancePeriod}>إعادة المحاولة</button></div>}
       {loadError && <div className="finance-load-error" role="alert"><AlertCircle/><span>{loadError}</span><button type="button" onClick={() => fetchData(true)}>إعادة المحاولة</button></div>}
 
-      {/* Overview Cards */}
-      <div className="row g-3 mb-4">
-        <div className="col-12 col-md-4">
-          <div className="card border-0 rounded-4 p-3 h-100 gradient-success shadow-sm wallet-card position-relative overflow-hidden">
-            <ArrowUp className="finance-kpi-watermark" aria-hidden="true"/>
-            <div className="position-relative z-1">
-              <p className="mb-1 fw-bold opacity-75 small">إيرادات تشغيلية ({format(parseISO(`${selectedMonth}-01`), 'MM-yy')})</p>
-              <h3 className="fw-bold m-0">{formatEGP(total_inc)}</h3>
-            </div>
-          </div>
-        </div>
-        <div className="col-12 col-md-4">
-          <div className="card border-0 rounded-4 p-3 h-100 gradient-danger shadow-sm wallet-card position-relative overflow-hidden">
-            <ArrowDown className="finance-kpi-watermark" aria-hidden="true"/>
-            <div className="position-relative z-1">
-              <p className="mb-1 fw-bold opacity-75 small">مصروفات تشغيلية ({format(parseISO(`${selectedMonth}-01`), 'MM-yy')})</p>
-              <h3 className="fw-bold m-0">{formatEGP(total_exp)}</h3>
-            </div>
-          </div>
-        </div>
-        <div className="col-12 col-md-4">
-          <div className="card border-0 rounded-4 p-3 p-md-4 h-100 gradient-primary shadow-sm wallet-card position-relative overflow-hidden">
-            <Sparkles className="finance-kpi-watermark" aria-hidden="true"/>
-            <div className="position-relative z-1">
-              <p className="mb-1 fw-bold opacity-75">صافي الأرباح للشهر</p>
-              <h2 className="fw-bold m-0">{formatEGP(net_profit)}</h2>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Vault Balances */}
-      <h5 className="fw-bold mb-3" style={{ color: 'var(--erp-text-main)' }}>
-        <Wallet className="finance-heading-icon" aria-hidden="true"/> أرصدة المحافظ للشهر المحدد (تبدأ من صفر يوم 1)
-      </h5>
-      <div className="row g-3 mb-4">
-        <div className="col-6 col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-3 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
-            <div className="d-flex justify-content-between align-items-center mb-2">
-              <div style={{ background: 'rgba(25, 135, 84, 0.1)', color: '#198754', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Banknote aria-hidden="true"/>
-              </div>
-              {isAdmin && (
-                <button className="finance-wallet-edit no-print" disabled={!canAdjustWallet} aria-label="تسوية رصيد الكاش" title={canAdjustWallet ? 'تسوية الرصيد' : 'التسوية متاحة في الشهر الحالي المفتوح فقط'} onClick={() => openAdjustWalletModal('كاش', balances.cash)}><Pencil aria-hidden="true"/></button>
-              )}
-            </div>
-            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>الكاش (النقدية)</p>
-            <h4 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{formatEGP(balances.cash)}</h4>
-          </div>
-        </div>
-        <div className="col-6 col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-3 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
-            <div className="d-flex justify-content-between align-items-center mb-2">
-              <div style={{ background: 'rgba(220, 53, 69, 0.1)', color: '#dc3545', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Smartphone aria-hidden="true"/>
-              </div>
-              {isAdmin && (
-                <button className="finance-wallet-edit danger no-print" disabled={!canAdjustWallet} aria-label="تسوية رصيد فودافون كاش" title={canAdjustWallet ? 'تسوية الرصيد' : 'التسوية متاحة في الشهر الحالي المفتوح فقط'} onClick={() => openAdjustWalletModal('فودافون كاش', balances.vodafone)}><Pencil aria-hidden="true"/></button>
-              )}
-            </div>
-            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>فودافون كاش</p>
-            <h4 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{formatEGP(balances.vodafone)}</h4>
-          </div>
-        </div>
-        <div className="col-12 col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-3 wallet-card h-100" style={{ background: 'var(--erp-surface)' }}>
-            <div className="d-flex justify-content-between align-items-center mb-2">
-              <div style={{ background: '#f4f0ff', color: '#6f42c1', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Send aria-hidden="true"/>
-              </div>
-              {isAdmin && (
-                <button className="finance-wallet-edit instapay no-print" disabled={!canAdjustWallet} aria-label="تسوية رصيد إنستاباي" title={canAdjustWallet ? 'تسوية الرصيد' : 'التسوية متاحة في الشهر الحالي المفتوح فقط'} onClick={() => openAdjustWalletModal('انستاباي', balances.instapay)}><Pencil aria-hidden="true"/></button>
-              )}
-            </div>
-            <p className="fw-bold mb-1 small" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem' }}>حساب البنك (InstaPay)</p>
-            <h4 className="fw-bold m-0" style={{ color: 'var(--erp-text-main)' }}>{formatEGP(balances.instapay)}</h4>
-          </div>
-        </div>
-      </div>
+      <FinanceOverview income={total_inc} expense={total_exp} profit={net_profit} month={selectedMonth} receivables={receivables} onReceivables={openReceivables} onRetryReceivables={fetchReceivables}/>
+      <FinanceWallets balances={balances} month={selectedMonth} isAdmin={isAdmin} canAdjust={canAdjustWallet} onAdjust={openAdjustWalletModal}/>
 
       {employeeFilter && <div className="finance-employee-filter" role="status"><UserRound/><div><strong>عرض معاملات {filteredEmployee?.user.full_name || `الموظف #${employeeFilter}`}</strong><span>كل هذه القيود هي نفسها الظاهرة في حساب الموظف بصفحة الحضور والرواتب.</span></div><button type="button" onClick={() => setSearchParams({})}>عرض كل الحسابات</button></div>}
-      <div className="finance-ledgers-grid" aria-label="دفتر الإيرادات والمصروفات">
-        <FinanceLedgerPanel kind="income" entries={displayIncomes} total={employeeFilter ? displayIncomeTotal : total_inc} isOwner={isOwner} onAction={openOwnerAction} targetEntryId={targetEntryId}/>
-        <FinanceLedgerPanel kind="expense" entries={displayExpenses} total={employeeFilter ? displayExpenseTotal : total_exp} isOwner={isOwner} onAction={openOwnerAction} targetEntryId={targetEntryId}/>
-      </div>
+      <FinanceClearLedger entries={allTransactions} month={selectedMonth} employeeId={employeeFilter} isOwner={isOwner} onOwnerAction={openOwnerAction} targetEntryId={targetEntryId}/>
+      <FinanceReceivablesDialog open={receivablesOpen} onClose={closeReceivables} returnFocusRef={receivablesTriggerRef} view={receivables} onRetry={fetchReceivables}/>
 
       {/* --- MODALS --- */}
       
       {/* 1. Transaction Modal */}
       {modalState.addTransaction && (
         <div className="erp-modal-overlay" onClick={() => setModalState({...modalState, addTransaction: false})}>
-          <div ref={transactionDialogRef} className="erp-modal-content finance-manual-dialog border-0 shadow-lg p-0" role="dialog" aria-modal="true" aria-labelledby="finance-manual-title" style={{ maxWidth: '680px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header border-0 p-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>
-              <h5 id="finance-manual-title" className="fw-bold m-0 d-flex align-items-center"><ReceiptText className="finance-inline-icon" aria-hidden="true"/> تسجيل عملية مالية يدوية</h5>
+          <div ref={transactionDialogRef} className={`erp-modal-content finance-manual-dialog finance-manual-dialog--${txForm.entry_kind} border-0 shadow-lg p-0`} data-entry-kind={txForm.entry_kind} role="dialog" aria-modal="true" aria-labelledby="finance-manual-title" style={{ maxWidth: '680px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header border-0 p-4">
+              <h5 id="finance-manual-title" className="fw-bold m-0 d-flex align-items-center">{txForm.entry_kind === 'income' ? <ArrowDown className="finance-inline-icon" aria-hidden="true"/> : <ArrowUp className="finance-inline-icon" aria-hidden="true"/>}{txForm.entry_kind === 'income' ? 'إضافة إيراد' : 'إضافة مصروف'}</h5>
               <button type="button" className="finance-dialog-close" aria-label="إغلاق" onClick={() => setModalState(state => ({ ...state, addTransaction: false }))}>×</button>
             </div>
-            <form onSubmit={handleAddTransaction} className="p-4 bg-white" noValidate>
+            <form onSubmit={handleAddTransaction} className="p-4" noValidate>
               {txError.length > 0 && <div id="finance-form-errors" ref={transactionErrorRef} className="finance-form-error" role="alert" tabIndex="-1"><AlertCircle/><div><strong>راجع الحقول المطلوبة التالية</strong><ul>{txError.map(error => <li key={`${error.field}-${error.message}`}>{error.field === 'finance-form' ? error.message : <a href={`#${error.field}`} onClick={event => { event.preventDefault(); document.getElementById(error.field)?.focus(); }}>{error.message}</a>}</li>)}</ul></div></div>}
               <div className="row g-3">
                 <div className="col-md-6">
@@ -556,7 +474,7 @@ const ERPFinance = () => {
                   <input id="finance-entry-detail" type="text" className="form-control border-0 py-2" style={{ background: 'var(--erp-bg)' }} value={txForm.detail} onChange={e => setTxForm({...txForm, detail: e.target.value})} placeholder="مثال: فاتورة إنترنت، دفعة حجز..." required aria-invalid={txErrorFields.has('finance-entry-detail')||undefined} aria-describedby={txErrorFields.has('finance-entry-detail')?'finance-form-errors':undefined} />
                 </div>
               </div>
-              <button type="submit" className="btn w-100 py-3 rounded-4 fw-bold shadow mt-4" style={{ background: 'var(--erp-primary)', color: 'white' }}>اعتماد وحفظ</button>
+              <button type="submit" className="btn finance-manual-submit w-100 py-3 rounded-4 fw-bold shadow mt-4">{txForm.entry_kind === 'income' ? 'اعتماد وحفظ الإيراد' : 'اعتماد وحفظ المصروف'}</button>
             </form>
           </div>
         </div>
@@ -638,109 +556,6 @@ const ERPFinance = () => {
   );
 };
 
-function RevenueIdentity({ entry }) {
-  const clientName = entry.client_name || 'إيراد عام';
-  const sourceLabel = entry.source_label || 'غير مرتبط بباقة أو خدمة';
-  const labels = entry.source_labels || [];
-  return <div className={`finance-revenue-identity ${entry.client_name ? '' : 'general'}`}>
-    <span className="finance-revenue-avatar" aria-hidden="true">{entry.client_name ? <UserRound/> : <Layers3/>}</span>
-    <div><strong>{clientName}</strong><span title={labels.join(' · ') || sourceLabel}><PackageOpen/>{sourceLabel}{Number(entry.source_extra_count) > 0 && <b>+{entry.source_extra_count} أخرى</b>}</span></div>
-  </div>;
-}
-
-const FINANCE_CATEGORY_LABELS = {
-  client_revenue: 'إيراد عميل', client_payment: 'دفعة عميل', other_income: 'إيراد آخر', package_payment: 'دفعة باقة', payment_correction: 'تصحيح دفعة',
-  rent: 'إيجار', equipment: 'معدات وصيانة', utilities: 'مرافق واتصالات', marketing: 'تسويق وإعلانات',
-  transport: 'انتقالات', general_expense: 'مصروف عام', reminder_expense: 'سداد تذكير', wallet_adjustment: 'تسوية خزينة',
-  partner_settlement: 'سداد مستحقات', partner_advance: 'سلفة شريك', partner_advance_repayment: 'سداد سلفة', internal_transfer: 'تحويل داخلي',
-  employee_out_of_pocket: 'مدفوع من جيب الموظف', employee_advance: 'سلفة موظف', employee_advance_repayment: 'سداد سلفة موظف', employee_settlement: 'سداد مستحقات موظف',
-};
-
-const financeCategoryLabel = entry => {
-  const category = String(entry.category || '').replace(/^reversal_/, '');
-  return FINANCE_CATEGORY_LABELS[category] || category.replaceAll('_', ' ') || 'غير مصنف';
-};
-
-const financeDayName = value => {
-  try { return format(parseISO(value), 'EEEE', { locale: ar }); } catch { return 'تاريخ غير محدد'; }
-};
-
-function FinanceEntryState({ entry }) {
-  if (entry.entry_kind === 'reversal') return <span className="finance-entry-state reversal"><ShieldCheck/> قيد عكسي</span>;
-  if (entry.voided_at) return <span className="finance-entry-state voided"><ShieldCheck/> ملغى وموثق</span>;
-  if (['transfer_in', 'transfer_out'].includes(entry.entry_kind)) return <span className="finance-entry-state transfer"><Layers3/> تحويل داخلي مترابط</span>;
-  if (entry.is_system) return <span className="finance-entry-state system"><ShieldCheck/> قيد نظامي</span>;
-  if (entry.source_type) return <span className="finance-entry-state linked"><Layers3/> مرتبط بالمصدر</span>;
-  return <span className="finance-entry-state manual">قيد يدوي</span>;
-}
-
-function ExpenseIdentity({ entry }) {
-  return <div className="finance-expense-identity">
-    <strong>{entry.detail || 'مصروف بلا وصف'}</strong>
-    <span>{entry.employee_name ? `حساب الموظف: ${entry.employee_name}` : entry.entity || 'الشركة'} · {financeCategoryLabel(entry)}{entry.employee_user_id ? ` · قيد #${entry.id}` : ''}</span>
-  </div>;
-}
-
-function FinanceLedgerPanel({ kind, entries, total, isOwner, onAction, targetEntryId }) {
-  const income = kind === 'income';
-  const title = income ? 'الإيرادات' : 'المصروفات';
-  const headingId = `finance-${kind}-heading`;
-  return <section className={`finance-ledger-panel ${kind}`} aria-labelledby={headingId}>
-    <header className="finance-ledger-heading">
-      <div><span>{income ? 'دفتر الوارد' : 'دفتر الصادر'}</span><h2 id={headingId}>{title}</h2><p>{entries.length} {entries.length === 1 ? 'حركة' : 'حركات'} في الفترة المحددة</p></div>
-      <div className="finance-ledger-total"><span>صافي الفترة</span><strong>{formatEGP(total)}</strong></div>
-    </header>
-    <div className="finance-ledger-body">
-      <div className="finance-ledger-table-wrap">
-        <table className="finance-ledger-table">
-          <caption className="visually-hidden">{title} للفترة المحددة، متضمنة المبلغ وإجراءات المالك</caption>
-          <thead><tr><th scope="col">{income ? 'العميل والمصدر' : 'البيان والجهة'}</th><th scope="col">تفاصيل الحركة</th><th scope="col">المبلغ والإجراءات</th></tr></thead>
-          <tbody>
-            {entries.map(entry => <FinanceLedgerRow key={entry.id} entry={entry} kind={kind} isOwner={isOwner} onAction={onAction} highlighted={String(entry.id) === String(targetEntryId)}/>)}
-            {!entries.length && <tr><td colSpan="3"><FinanceLedgerEmpty kind={kind}/></td></tr>}
-          </tbody>
-        </table>
-      </div>
-      <div className="finance-ledger-cards" aria-label={`بطاقات ${title}`}>
-        {entries.map(entry => <FinanceLedgerCard key={entry.id} entry={entry} kind={kind} isOwner={isOwner} onAction={onAction} highlighted={String(entry.id) === String(targetEntryId)}/>)}
-        {!entries.length && <FinanceLedgerEmpty kind={kind}/>}
-      </div>
-    </div>
-  </section>;
-}
-
-function FinanceLedgerRow({ entry, kind, isOwner, onAction, highlighted }) {
-  const income = kind === 'income';
-  return <tr id={`finance-entry-${entry.id}`} className={`${entry.entry_kind === 'reversal' ? 'is-reversal' : ''} ${highlighted ? 'is-highlighted' : ''}`}>
-    <td>{income ? <RevenueIdentity entry={entry}/> : <ExpenseIdentity entry={entry}/>}<span className="finance-row-date">{financeDayName(entry.date)} · {entry.date}</span></td>
-    <td><p className="finance-row-description">{income ? entry.detail : financeCategoryLabel(entry)}</p><div className="finance-row-tags"><span>{formatPaymentMethod(entry.method)}</span><FinanceEntryState entry={entry}/></div></td>
-    <td><FinanceLedgerAmount entry={entry} kind={kind}/>{isOwner && <FinanceOwnerActions entry={entry} onAction={onAction}/>}</td>
-  </tr>;
-}
-
-function FinanceLedgerAmount({ entry, kind }) {
-  const prefix = entry.entry_kind === 'reversal' ? '↶ ' : kind === 'income' ? '+' : '−';
-  return <strong className={`finance-ledger-amount ${entry.entry_kind === 'reversal' ? 'reversal' : ''}`}>{prefix}{formatEGP(entry.amount)}</strong>;
-}
-
-function FinanceLedgerCard({ entry, kind, isOwner, onAction, highlighted }) {
-  const income = kind === 'income';
-  return <article id={`finance-entry-card-${entry.id}`} className={`finance-ledger-card ${kind} ${entry.entry_kind === 'reversal' ? 'is-reversal' : ''} ${highlighted ? 'is-highlighted' : ''}`}>
-    <header>{income ? <RevenueIdentity entry={entry}/> : <ExpenseIdentity entry={entry}/>}<FinanceLedgerAmount entry={entry} kind={kind}/></header>
-    <p>{income ? entry.detail : financeCategoryLabel(entry)}</p>
-    <footer><span>{financeDayName(entry.date)} · {entry.date}</span><span className="finance-method-chip">{formatPaymentMethod(entry.method)}</span><FinanceEntryState entry={entry}/></footer>
-    {isOwner && <FinanceOwnerActions entry={entry} onAction={onAction}/>}
-  </article>;
-}
-
-function FinanceLedgerEmpty({ kind }) {
-  return <div className="finance-ledger-empty"><strong>{kind === 'income' ? 'لا توجد إيرادات' : 'لا توجد مصروفات'}</strong><span>لا توجد حركات مطابقة للشهر المحدد.</span></div>;
-}
-
-function FinanceOwnerActions({entry,onAction}) {
-  const locked=entry.entry_kind==='reversal'||entry.voided_at;const transfer=['transfer_in','transfer_out'].includes(entry.entry_kind);
-  return <div className="finance-owner-actions no-print" aria-label="إجراءات المالك"><button type="button" disabled={locked||transfer} onClick={event=>onAction(entry,'correct',event)}>تعديل</button><button type="button" className="void" disabled={locked} onClick={event=>onAction(entry,'void',event)}>{transfer?'إلغاء الطرفين':'إلغاء'}</button>{locked&&<small>محفوظ كسجل ملغى</small>}</div>;
-}
 
 function FinanceOwnerDialog({dialogRef,state,setState,packages,onClose,onSubmit}) {
   const entry=state.entry||{};
