@@ -38,18 +38,19 @@ test('positive unlinked sessions reject every completion path that does not assi
 });
 
 test('production and stop-dialog contracts enforce package-only allocation for positive unlinked sessions',async()=>{
-  const [php,api,dialog,calendar,actions]=await Promise.all([
+  const [php,api,dialog,calendar,actions,view]=await Promise.all([
     readFile(new URL('../api/session_settlement.php',import.meta.url),'utf8'),
     readFile(new URL('../api/index.php',import.meta.url),'utf8'),
     readFile(new URL('../src/erp/ERPStopSessionDialog.jsx',import.meta.url),'utf8'),
     readFile(new URL('../src/erp/ERPBookings.jsx',import.meta.url),'utf8'),
     readFile(new URL('../src/erp/ERPBookingDayActionsDialog.jsx',import.meta.url),'utf8'),
+    readFile(new URL('../src/erp/ERPBookingWideView.jsx',import.meta.url),'utf8'),
   ]);
   assert.match(php,/\$requiresPackageAssignment&&\$mode!==['"]existing_package['"]/);assert.match(php,/unassigned_package_required/);
   const directRoute=api.slice(api.indexOf("if ($path==='/studio-sessions/start-direct'"),api.indexOf("if (preg_match('#^/bookings/(\\d+)/session/settlement-preview$#'"));const hashExpression=directRoute.slice(directRoute.indexOf('$requestHash='),directRoute.indexOf(";$requestKey='direct-session:"));assert.match(hashExpression,/client_id.*resource_id.*date.*end_time.*title.*note/);assert.doesNotMatch(hashExpression,/start_time/);
   const branchStart=dialog.indexOf(': isUnassigned ? <>',dialog.indexOf('isOperations ?'));
   const branchEnd=dialog.indexOf(': <>',branchStart+1);const packageOnlyBranch=dialog.slice(branchStart,branchEnd);
   assert.ok(branchStart>0&&branchEnd>branchStart);assert.match(packageOnlyBranch,/data-unassigned-package-only/);assert.match(packageOnlyBranch,/preview\.eligible_packages\.map/);assert.doesNotMatch(packageOnlyBranch,/new_package|package_overage|custom_invoice|custom_project|waive|SettlementChoice/);assert.match(dialog,/وقت غير مسند/);
-  assert.match(calendar,/\.erp-bookings-calendar \.fc \{ min-width: 0; \}/);assert.match(calendar,/\.erp-bookings-calendar \.fc-view-harness \{ min-width: 760px; \}/);assert.match(calendar,/-webkit-line-clamp: 2/);
+  assert.match(calendar,/<ERPBookingWideView/);assert.match(view,/className="bookings-wide-mobile-dates"/);assert.match(view,/data\.block_note/);assert.doesNotMatch(view,/-webkit-line-clamp/);
   assert.match(actions,/وابدأ المؤقت الآن بدون باقة/);assert.doesNotMatch(actions,/المؤق الآن/);assert.match(actions,/aria-label="إغلاق"/);
 });

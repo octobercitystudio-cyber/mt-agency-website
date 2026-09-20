@@ -58,13 +58,14 @@ test('every date-time editor reuses the 12-hour business time control', async ()
 
 test('calendars and notifications explicitly format times in 12-hour notation', async () => {
   const [bookings, requests, api, demo] = await Promise.all([
-    load('src/erp/ERPBookings.jsx'),
+    load('src/erp/ERPBookingWideView.jsx'),
     load('src/erp/ERPRequests.jsx'),
     load('api/index.php'),
     load('src/lib/demoDataClient.js'),
   ]);
-  assert.match(bookings, /eventTimeFormat=\{\{[^}]*hour12: true/);
-  assert.match(bookings, /slotLabelFormat=\{\{[^}]*hour12: true/);
+  assert.match(bookings, /const calendarTimeFormat = \{[^}]*hour12: true/);
+  assert.match(bookings, /eventTimeFormat=\{calendarTimeFormat\}/);
+  assert.match(bookings, /slotLabelFormat=\{calendarTimeFormat\}/);
   assert.match(requests, /eventTimeFormat=\{\{[^}]*hour12: true/);
   assert.match(requests, /slotLabelFormat=\{\{[^}]*hour12: true/);
   assert.match(api, /function displayBusinessTime12/);

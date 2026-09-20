@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { dataClient } from '../dataClient';
-import { CalendarPlus, Trash2, Clock, Calendar as CalendarIcon, DollarSign, X, CheckCircle, Truck, Pointer, Check, Ban, RefreshCw, Send, CalendarClock, LockKeyhole, MoveHorizontal } from 'lucide-react';
+import { CalendarPlus, Trash2, DollarSign, X, CheckCircle, Truck, Pointer, RefreshCw, Send, CalendarClock } from 'lucide-react';
 import { format } from 'date-fns';
-import { ar as arDateLocale } from 'date-fns/locale';
 import arCalendarLocale from '@fullcalendar/core/locales/ar';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
-import { calculateDurationMinutes, formatBookingDate, formatDurationMinutes, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
-import ERPPageHero from './ERPPageHero';
+import { cairoDateKey, calculateDurationMinutes, formatBookingDate, formatDurationMinutes, formatTime12, isValidBusinessBooking, normalizeTime } from '../lib/businessFormat';
+import ERPBookingWideView from './ERPBookingWideView';
+import { filterBookingsForDisplay, filterBlocksForDisplay, normalizeBookingViewStatus } from '../lib/bookingView';
 import ERPRescheduleBookingDialog from './ERPRescheduleBookingDialog';
 import ERPBookingDetailsDialog from './ERPBookingDetailsDialog';
 import { startStudioSession } from './studioSessionStart';
@@ -24,7 +24,6 @@ import { isClientBookingVisible } from '../lib/clientBookingVisibility';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import timeGridPlugin from '@fullcalendar/timegrid';
 
 let globalBookingsCache = null;
 let globalClientsCache = null;
@@ -32,41 +31,6 @@ let globalServicesCache = null;
 let globalBookingsLastFetch = 0;
 const fallbackClientColor = '#4318ff';
 const safeClientColor = value => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : fallbackClientColor;
-const readableOnColor = value => {
-  const hex = safeClientColor(value).slice(1);
-  const channels = [0, 2, 4].map(index => parseInt(hex.slice(index, index + 2), 16) / 255).map(channel => channel <= .03928 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
-  const luminance = .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
-  return luminance > .179 ? '#111827' : '#ffffff';
-};
-const applyCalendarEventColors = info => {
-  if (info.event.extendedProps.kind === 'booking_block') {
-    info.el.style.setProperty('--fc-event-bg-color', '#fff1f2');
-    info.el.style.setProperty('--fc-event-border-color', '#c56a76');
-    info.el.style.setProperty('--fc-event-text-color', '#8d2f3d');
-    info.el.style.setProperty('background-color', '#fff1f2', 'important');
-    info.el.style.setProperty('border-color', '#c56a76', 'important');
-    info.el.style.setProperty('color', '#8d2f3d', 'important');
-    const blockTitle=info.event.extendedProps.block_title||'حجز مؤقت'; const note=info.event.extendedProps.block_note||''; info.el.setAttribute('aria-label', `${blockTitle}، ${info.timeText || ''}${note ? `، ${note}` : ''}`);
-    info.el.setAttribute('title', `${blockTitle} — ${info.timeText || ''}${note ? ` — ${note}` : ''}`);
-    return;
-  }
-  const background = safeClientColor(info.event.extendedProps.client_color);
-  const foreground = readableOnColor(background);
-  info.el.style.setProperty('--fc-event-bg-color', background);
-  info.el.style.setProperty('--fc-event-border-color', background);
-  info.el.style.setProperty('--fc-event-text-color', foreground);
-  info.el.style.setProperty('background-color', background, 'important');
-  info.el.style.setProperty('border-color', background, 'important');
-  info.el.style.setProperty('color', foreground, 'important');
-  info.el.querySelector('.fc-event-main')?.style.setProperty('color', foreground, 'important');
-  const clientName = info.event.extendedProps.client_name || info.event.title;
-  const startTime = formatTime12(info.event.extendedProps.start_time, '');
-  const endTime = formatTime12(info.event.extendedProps.end_time, '');
-  const timeRange = `من ${startTime} إلى ${endTime}`;
-  info.el.setAttribute('aria-label', `حجز ${clientName}، ${timeRange}`);
-  info.el.setAttribute('title', `${clientName} — ${timeRange}`);
-};
-
 const calendarDateTime = (date, time, endOfDay = false) => {
   const normalized = normalizeTime(time || (endOfDay ? '13:00' : '12:00'), { endOfDay });
   if (normalized === '24:00') {
@@ -104,7 +68,13 @@ const ERPBookings = () => {
   const [clientColorsHydrated, setClientColorsHydrated] = useState(globalClientsCache !== null);
   
   // UI State
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState(() => cairoDateKey());
+  const [bookingQuery, setBookingQuery] = useState('');
+  const [bookingStatus, setBookingStatus] = useState('all');
+  const [loadError, setLoadError] = useState('');
+  const [blockLoadError, setBlockLoadError] = useState('');
+  const blockRequestSequenceRef = useRef(0);
+  const currentBlockRangeRef = useRef({ from: `${cairoDateKey().slice(0, 7)}-01`, to: format(new Date(Number(cairoDateKey().slice(0, 4)), Number(cairoDateKey().slice(5, 7)), 0), 'yyyy-MM-dd') });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBookingDetails, setSelectedBookingDetails] = useState(null);
   const [decisionBusy, setDecisionBusy] = useState(null);
@@ -126,6 +96,7 @@ const ERPBookings = () => {
   const dayActionTriggerRef = useRef(null);
   const bookingCalendarRef = useRef(null);
   const dateSelectionTimerRef = useRef(null);
+  const lastDayDoubleClickRef = useRef({ date: '', at: 0 });
   const directSessionTriggerRef = useRef(null);
 
   const isAdmin = ['owner', 'admin', 'operations'].includes(currentUser?.role);
@@ -141,6 +112,7 @@ const ERPBookings = () => {
       const dayCell = bookingBlockDayCellFromEvent(event, calendarRoot);
       const clickedDate = String(dayCell?.getAttribute?.('data-date') || '').slice(0, 10);
       if (!dayCell || !/^\d{4}-\d{2}-\d{2}$/.test(clickedDate)) return;
+      lastDayDoubleClickRef.current = { date: clickedDate, at: Date.now() };
       if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
       dateSelectionTimerRef.current = window.setTimeout(() => {
         setSelectedDate(clickedDate);
@@ -167,6 +139,17 @@ const ERPBookings = () => {
     schedule_extra: false
   });
 
+  const fetchBookingBlocks = async (range = currentBlockRangeRef.current) => {
+    if (!isAdmin) return;
+    const sequence = ++blockRequestSequenceRef.current;
+    const { from, to } = range;
+    const { data, error } = await dataClient.request(`/booking-blocks?from=${from}&to=${to}`, { method: 'GET' });
+    if (sequence !== blockRequestSequenceRef.current || currentBlockRangeRef.current.from !== from || currentBlockRangeRef.current.to !== to) return;
+    if (error) { setBlockLoadError(error.message || 'تعذر تحميل الحجوزات المؤقتة لهذه الفترة.'); return; }
+    setBlockLoadError('');
+    if (Array.isArray(data)) setBookingBlocks(data);
+  };
+
   const fetchData = async (force = false) => {
     if (globalBookingsCache && globalClientsCache && globalServicesCache) {
       setBookings(globalBookingsCache);
@@ -179,13 +162,14 @@ const ERPBookings = () => {
       setLoading(true);
     }
     
-    const [{ data: bData }, { data: cData }, { data: sData }, { data: rData }, { data: pData }, blocksResult] = await Promise.all([
+    setLoadError('');
+    const [{ data: bData, error: bookingError }, { data: cData }, { data: sData }, { data: rData }, { data: pData }] = await Promise.all([
       dataClient.from('bookings').select('*').order('date', { ascending: false }),
       dataClient.from('clients').select('id,name,color,phone1,phone2,status'),
       dataClient.from('services').select('*'),
       dataClient.from('resources').select('id,name,is_active,archived_at').eq('is_active', 1),
       dataClient.from('client_packages').select('*'),
-      isAdmin ? dataClient.request('/booking-blocks', { method: 'GET' }) : Promise.resolve({ data: [] }),
+      fetchBookingBlocks(),
     ]);
 
     if (bData) {
@@ -203,7 +187,7 @@ const ERPBookings = () => {
     }
     if (rData) setResources(rData);
     if (pData) setClientPackages(pData);
-    if (blocksResult?.data) setBookingBlocks(blocksResult.data);
+    if (bookingError) setLoadError(bookingError.message || 'تعذر تحميل المواعيد. حاول مرة أخرى.');
     
     globalBookingsLastFetch = Date.now();
     setLoading(false);
@@ -244,11 +228,13 @@ const ERPBookings = () => {
     'منتهي': { label: 'مكتمل', color: '#20a66a' },
   };
 
-  const getStatusMeta = (status) => statusMeta[status] || { label: status || 'غير محدد', color: '#6f5b82' };
+  const getStatusMeta = (status) => statusMeta[normalizeBookingViewStatus(status)] || { label: status || 'غير محدد', color: '#6f5b82' };
   const pendingBookings = bookings.filter(b => b.status === 'pending');
   const visibleBookings = bookings.filter(isClientBookingVisible);
+  const displayedBookings = filterBookingsForDisplay(visibleBookings, { query: bookingQuery, status: bookingStatus });
+  const displayedBlocks = isAdmin ? filterBlocksForDisplay(bookingBlocks, { query: bookingQuery, status: bookingStatus }) : [];
 
-  const bookingEvents = visibleBookings.map(b => {
+  const bookingEvents = displayedBookings.map(b => {
     const clientColor = getClientColor(b.client_name);
     return {
     id: b.id,
@@ -256,9 +242,9 @@ const ERPBookings = () => {
     start: calendarDateTime(b.date, b.start_time),
     end: calendarDateTime(b.date, b.end_time, true),
     allDay: false,
-    backgroundColor: clientColor,
-    borderColor: clientColor,
-    textColor: readableOnColor(clientColor),
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    textColor: '#16324a',
     editable: isAdmin && b.status === 'confirmed',
     startEditable: isAdmin && b.status === 'confirmed',
     durationEditable: isAdmin && b.status === 'confirmed',
@@ -273,29 +259,25 @@ const ERPBookings = () => {
       original_end_time: normalizeTime(b.end_time || '13:00', { endOfDay: true }),
       reschedule_eligible: isAdmin && b.status === 'confirmed',
       client_color: clientColor,
-      text_color: readableOnColor(clientColor)
+      text_color: '#16324a'
     }
   }});
 
-  const blockEvents = bookingBlocks.map(block => ({
+  const blockEvents = displayedBlocks.map(block => ({
     id: `block-${block.id}`,
     title: block.title || 'حجز مؤقت',
     start: calendarDateTime(block.block_date, block.start_time),
     end: calendarDateTime(block.block_date, block.end_time, true),
     allDay: false,
-    backgroundColor: '#fff1f2',
-    borderColor: '#c56a76',
-    textColor: '#8d2f3d',
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    textColor: '#956019',
     editable: false,
     startEditable: false,
     durationEditable: false,
     extendedProps: { kind: 'booking_block', block_id: block.id, block_title: block.title || 'حجز مؤقت', block_note: block.note || '', original_end_time: block.end_time, start_time: block.start_time, end_time: block.end_time, text_color: '#8d2f3d' },
   }));
   const calendarEvents = [...bookingEvents, ...blockEvents];
-
-  const dailyBookings = visibleBookings.filter(b => b.date === selectedDate);
-  const dailyBlocks = bookingBlocks.filter(block => block.block_date === selectedDate);
-  const clientColorSignature = clients.map(client => `${client.id}:${client.name}:${safeClientColor(client.color)}`).sort().join('|') || 'no-clients';
 
   const submitDecision = async (booking, action, extra = {}) => {
     setDecisionBusy(`${action}-${booking.id}`);
@@ -321,6 +303,9 @@ const ERPBookings = () => {
 
   const handleDateClick = (arg) => {
     const clickedDate = String(arg.dateStr || '').slice(0, 10);
+    // FullCalendar may deliver its trailing dateClick after native dblclick.
+    // Do not let it cancel the already queued day-action chooser.
+    if (lastDayDoubleClickRef.current.date === clickedDate && Date.now() - lastDayDoubleClickRef.current.at < 350) return;
     if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
     dateSelectionTimerRef.current = window.setTimeout(() => {
       setSelectedDate(clickedDate);
@@ -336,12 +321,12 @@ const ERPBookings = () => {
 
   const openBlockDialogForSelectedDate = trigger => { if (!isAdmin) return; blockTriggerRef.current = trigger; setDayActionsOpen(false); setBlockError(''); setBlockDialogOpen(true); };
 
-  const handleCalendarDatesSet = async info => {
-    if (!isAdmin) return;
+  const handleCalendarDatesSet = info => {
     const end = new Date(info.end); end.setDate(end.getDate() - 1);
     const from = format(info.start, 'yyyy-MM-dd'); const to = format(end, 'yyyy-MM-dd');
-    const { data } = await dataClient.request(`/booking-blocks?from=${from}&to=${to}`, { method: 'GET' });
-    if (data) setBookingBlocks(data);
+    if (currentBlockRangeRef.current.from === from && currentBlockRangeRef.current.to === to) return;
+    currentBlockRangeRef.current = { from, to };
+    fetchBookingBlocks({ from, to });
   };
 
   const openBookingDetails = (booking, trigger = null) => {
@@ -614,323 +599,19 @@ const ERPBookings = () => {
   const bookingCategoryGroups = activeServiceCategories(services);
 
   return (
-    <div>
-      <style>{`
-        .fc-theme-standard td, .fc-theme-standard th { border-color: var(--erp-border); }
-        .fc-theme-standard .fc-scrollgrid { border: none; }
-        .fc-col-header-cell { background-color: var(--erp-bg); padding: 10px 0; border-bottom: 2px solid var(--erp-border) !important; }
-        .fc-col-header-cell-cushion { color: var(--erp-text-muted); font-weight: 700; font-size: 0.9rem; text-decoration: none; }
-        .fc-daygrid-day-number { color: var(--erp-text-main); font-weight: 700; padding: 8px !important; text-decoration: none; transition: 0.2s; }
-        .fc-daygrid-day-number:hover { background-color: var(--erp-border); border-radius: 50%; }
-        .fc .fc-daygrid-day.fc-day-today { background-color: rgba(67, 24, 255, 0.05); }
-        
-        .selected-day-highlight { background-color: rgba(67, 24, 255, 0.1) !important; border: 2px solid var(--erp-primary) !important; border-radius: 8px; transition: all 0.2s ease-in-out; box-shadow: inset 0 0 10px rgba(67, 24, 255, 0.05); }
-        .selected-day-highlight .fc-daygrid-day-number { color: var(--erp-primary) !important; }
-
-        td.fc-day-fri { background-color: rgba(0,0,0,0.03) !important; border-color: var(--erp-border) !important; }
-        th.fc-day-fri { background-color: rgba(0,0,0,0.05) !important; border-color: var(--erp-border) !important; }
-        th.fc-day-fri .fc-col-header-cell-cushion { color: var(--erp-warning) !important; }
-        td.fc-day-fri .fc-daygrid-day-number { color: var(--erp-text-muted) !important; }
-        td.fc-day-fri:hover { background-color: rgba(0,0,0,0.06) !important; }
-        td.fc-day-fri .fc-daygrid-day-frame::before { content: "إجازة رسمية"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 1.4rem; font-weight: 900; color: rgba(0,0,0, 0.05); pointer-events: none; z-index: 0; white-space: nowrap; }
-
-        .erp-bookings-layout { flex-wrap: nowrap; align-items: stretch; gap: 18px; }
-        .erp-bookings-layout .erp-calendar-container { flex: 1 1 auto; min-width: 0; }
-        .erp-bookings-layout .erp-daily-bookings-container { flex: 0 0 clamp(260px, 21vw, 292px); min-width: 260px; max-width: 292px; }
-        .erp-bookings-calendar-card { padding: 20px; }
-        .bookings-calendar-legend { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; color: var(--erp-text-muted); font-size: .78rem; font-weight: 800; }
-        .bookings-calendar-legend span { display: inline-flex; align-items: center; gap: 5px; }
-        .bookings-calendar-legend i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-        .booking-calendar-scroll-hint { display: none; }
-        .erp-bookings-calendar { max-width: 100%; overflow-x: auto; overflow-y: visible; scrollbar-color: var(--erp-primary) var(--erp-bg); scrollbar-gutter: stable; }
-        .erp-bookings-calendar:focus-visible { outline: 3px solid rgba(67, 24, 255, .24); outline-offset: 3px; }
-        .erp-bookings-calendar .fc-daygrid-day-frame { min-height: 118px; }
-        .erp-bookings-calendar .fc-daygrid-day-events { position: relative; z-index: 1; margin: 0 3px 4px; }
-        .fc-event { border: 1px solid var(--fc-event-border-color, currentColor) !important; border-radius: 6px !important; padding: 4px 6px; margin-bottom: 4px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .erp-bookings-calendar .fc-event { border-radius: 7px !important; padding: 5px 7px; }
-        .fc-daygrid-event, .fc-timegrid-event { opacity: 1 !important; filter: none; background-color: var(--fc-event-bg-color) !important; border-color: var(--fc-event-border-color) !important; }
-        .fc-daygrid-event .fc-event-main, .fc-timegrid-event .fc-event-main { color: inherit !important; }
-        .fc-event:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); filter: brightness(1.1); }
-        .fc-event .fc-event-main { color: var(--fc-event-text-color) !important; }
-        .erp-bookings-calendar .is-calendar-booking, .erp-bookings-calendar .is-calendar-booking .fc-event-main, .erp-bookings-calendar .is-calendar-booking .fc-event-main-frame { white-space: normal; }
-        .booking-calendar-ticket { display: grid; gap: 3px; min-width: 0; width: 100%; max-width: 100%; overflow: hidden; line-height: 1.3; }
-        .booking-calendar-ticket__client { min-width: 0; color: inherit; font-size: .74rem; font-weight: 900; line-height: 1.4; overflow-wrap: break-word; word-break: normal; white-space: normal; }
-        .booking-calendar-ticket__time, .booking-calendar-ticket__status { display: flex; align-items: flex-start; min-width: 0; font-weight: 800; line-height: 1.4; white-space: normal; }
-        .booking-calendar-ticket__time { flex-wrap: wrap; column-gap: 6px; row-gap: 2px; direction: rtl; font-size: .61rem; font-variant-numeric: tabular-nums; white-space: normal; }
-        .booking-calendar-ticket__time-segment { display: inline-flex; align-items: baseline; gap: 3px; min-width: 0; white-space: nowrap; }
-        .booking-calendar-ticket__time-value { direction: rtl; unicode-bidi: isolate; white-space: nowrap; }
-        .booking-calendar-ticket__time svg { width: 11px; height: 11px; flex: none; }
-        .booking-calendar-ticket__status { align-items: center; gap: 3px; font-size: .56rem; }
-        .booking-calendar-ticket__status i { width: 6px; height: 6px; flex: none; border-radius: 50%; }
-        .erp-bookings-calendar .fc-more-link { color: var(--erp-primary); font-size: .66rem; font-weight: 900; text-decoration: none; }
-
-        .erp-daily-bookings-card { height: 100%; display: flex; flex-direction: column; background: var(--erp-surface); border-top: 4px solid #1e293b; border-radius: 16px; box-shadow: var(--erp-shadow); }
-        .erp-daily-bookings-head { padding: 17px 16px 0; text-align: center; }
-        .erp-selected-day-label { display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; padding: 8px 10px; margin-bottom: 11px; color: var(--erp-primary); background: rgba(67, 24, 255, .08); border: 1px solid rgba(67, 24, 255, .12); border-radius: 9px; font-size: .72rem; line-height: 1.55; }
-        .erp-selected-day-label span { font-weight: 900; font-variant-numeric: tabular-nums; }
-        .erp-daily-bookings-head h5 { margin: 0; color: var(--erp-text-main); font-size: .92rem; font-weight: 900; }
-        .erp-daily-bookings-head hr { margin: 14px 0 0; opacity: .1; }
-        .erp-daily-bookings-list { flex-grow: 1; max-height: 720px; overflow-y: auto; padding: 14px; }
-        .erp-daily-bookings-list-content { display: flex; flex-direction: column; gap: 11px; }
-        .erp-daily-bookings-list .timeline-card { padding: 12px !important; }
-        .erp-daily-bookings-list .timeline-card > div:first-child { flex-wrap: wrap; gap: 8px; }
-        .erp-daily-bookings-list .timeline-time, .erp-daily-bookings-list .timeline-client { font-size: .92rem; }
-        .erp-daily-bookings-list .booking-time-fact { padding-inline: 6px; }
-        .erp-daily-bookings-list .booking-time-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .erp-daily-bookings-list .booking-duration-fact { grid-column: 1 / -1; padding-top: 7px; margin-top: 7px; border-inline-start: 0; border-top: 1px solid var(--erp-border); }
-
-        @media (max-width: 1180px) {
-          .erp-bookings-layout { flex-wrap: wrap; }
-          .erp-bookings-layout .erp-calendar-container, .erp-bookings-layout .erp-daily-bookings-container { flex: 1 1 100%; width: 100%; min-width: 0; max-width: none; }
-          .erp-bookings-layout .erp-daily-bookings-container { min-width: 0; }
-          .erp-daily-bookings-list { max-height: 520px; }
-        }
-
-        .fc-toolbar-title { font-weight: 800 !important; color: var(--erp-text-main) !important; font-size: 1.5rem !important; }
-        .fc .fc-button-primary { background-color: var(--erp-surface); border: 1px solid var(--erp-border); color: var(--erp-text-muted); font-weight: 700; border-radius: 8px; text-transform: capitalize; transition: 0.2s; }
-        .fc .fc-button-primary:hover { background-color: var(--erp-bg); border-color: var(--erp-text-muted); color: var(--erp-text-main); }
-        .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active { background-color: var(--erp-primary); border-color: var(--erp-primary); color: white; }
-
-        .timeline-card { transition: all 0.3s ease; border-right: 4px solid var(--erp-primary); background: var(--erp-surface); }
-        .timeline-card:hover { transform: translateX(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.05) !important; border-right-color: var(--erp-warning); }
-        .timeline-time { font-size: 1.1rem; font-weight: 800; color: var(--erp-primary); letter-spacing: -0.5px; }
-        .timeline-client { font-size: 1.1rem; font-weight: 800; color: var(--erp-text-main); }
-        .timeline-service { font-size: 0.8rem; font-weight: 700; color: var(--erp-text-muted); background: var(--erp-bg); padding: 4px 10px; border-radius: 20px; display: inline-block; }
-
-        .admin-delete-btn { cursor: pointer; opacity: 0.5; transition: 0.3s; color: var(--erp-danger); }
-        .admin-delete-btn:hover { opacity: 1; transform: scale(1.2); color: #dc2626 !important; }
-        .pending-requests-panel { background: var(--erp-surface); border: 1px solid var(--erp-border); border-top: 4px solid #d99124; border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: var(--erp-shadow); }
-        .pending-requests-head { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 18px; }
-        .pending-requests-title { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--erp-text-main); font-size: 1.05rem; font-weight: 800; }
-        .pending-count { min-width: 30px; height: 30px; padding: 0 9px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #7a4a00; background: #ffe3b4; font-weight: 900; }
-        .pending-requests-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
-        .pending-request-card { border: 1px solid var(--erp-border); border-right: 4px solid #d99124; border-radius: 12px; padding: 16px; background: var(--erp-bg); }
-        .pending-request-card h5 { margin: 0; color: var(--erp-text-main); font-weight: 800; }
-        .pending-request-meta { display: flex; flex-wrap: wrap; gap: 7px 14px; color: var(--erp-text-muted); font-size: .78rem; margin: 10px 0 13px; }
-        .pending-request-actions { display: flex; gap: 7px; flex-wrap: wrap; }
-        .pending-request-actions button { border: 1px solid var(--erp-border); border-radius: 8px; padding: 8px 10px; font-weight: 700; font-size: .72rem; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; background: var(--erp-surface); color: var(--erp-text-main); }
-        .pending-request-actions .confirm { color: #158254; border-color: rgba(32,166,106,.35); }
-        .pending-request-actions .alternative { color: #267ab0; border-color: rgba(38,139,210,.35); }
-        .pending-request-actions .reject { color: #c13a4d; border-color: rgba(216,75,93,.35); }
-        .pending-request-actions button:disabled { opacity: .45; cursor: wait; }
-        .booking-status-pill { display: inline-flex; color: white; border-radius: 6px; padding: 3px 8px; font-size: .68rem; font-weight: 800; }
-        .decision-error { background: rgba(216,75,93,.1); color: #c13a4d; border: 1px solid rgba(216,75,93,.25); padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: .78rem; }
-        .booking-reschedule-notice { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 11px 14px; border: 1px solid rgba(32,166,106,.25); border-radius: 10px; background: rgba(32,166,106,.08); color: #158254; font-size: .78rem; font-weight: 800; }
-        .fc-event.is-reschedule-eligible { cursor: grab; }
-        .fc-event.is-reschedule-eligible:active { cursor: grabbing; }
-        .fc-event.is-booking-block { cursor: pointer; box-shadow: none; border-right-width: 3px !important; }
-        .fc-event.is-booking-block:hover { filter: none; box-shadow: 0 4px 10px rgba(141,47,61,.12); }
-        .booking-block-calendar-event { display: flex; align-items: center; gap: 5px; min-width: 0; color: #8d2f3d; line-height: 1.25; }
-        .booking-block-calendar-event > svg { width: 13px; flex: none; }
-        .booking-block-calendar-event > span { display: grid; min-width: 0; }
-        .booking-block-calendar-event strong { font-size: .68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .booking-block-calendar-event strong b { font: inherit; }
-        .booking-block-label-compact { display: none; }
-        .booking-block-calendar-event small { font-size: .56rem; font-weight: 800; }
-        .booking-block-calendar-event em { display: -webkit-box; overflow: hidden; color: #64748b; font-size: .54rem; font-style: normal; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-        .booking-block-timeline { width: 100%; border: 1px solid #fecdd3; border-right: 4px solid #a53645 !important; background: #fff7f7; color: #8d2f3d; padding: 14px; display: flex; align-items: center; gap: 11px; text-align: right; cursor: pointer; }
-        .booking-block-timeline:hover { transform: translateX(-3px); border-right-color: #a53645 !important; }
-        .booking-block-timeline-icon { width: 38px; height: 38px; flex: none; display: grid; place-items: center; background: #fff1f2; border: 1px solid #fecdd3; }
-        .booking-block-timeline-icon svg { width: 18px; }
-        .booking-block-timeline > span:last-child { display: grid; gap: 3px; }
-        .booking-block-timeline strong { font-size: .82rem; }
-        .booking-block-timeline small { color: #8d2f3d; font-size: .72rem; font-weight: 800; }
-        .booking-block-timeline em { color: #64748b; font-size: .65rem; font-style: normal; }
-        #bookingDetailsModal { display: none !important; }
-        @media (max-width: 600px) {
-          .pending-requests-panel { padding: 15px; }
-          .pending-requests-list { grid-template-columns: 1fr; }
-          .pending-request-actions button { flex: 1; justify-content: center; }
-          .erp-bookings-calendar-card { padding: 10px 5px !important; }
-          .bookings-calendar-legend { justify-content: center; gap: 6px 10px; padding-inline: 5px; font-size: .67rem; }
-          .booking-calendar-scroll-hint { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0 5px 8px; padding: 7px 9px; color: var(--erp-primary); background: var(--erp-primary-soft); border: 1px solid rgba(67, 24, 255, .15); border-radius: 8px; font-size: .68rem; font-weight: 800; }
-          .booking-calendar-scroll-hint svg { width: 15px; height: 15px; flex: none; }
-          .erp-bookings-calendar { padding-bottom: 8px; overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch; }
-          .erp-bookings-calendar .fc { min-width: 0; }
-          .erp-bookings-calendar .fc-view-harness { min-width: 760px; }
-          .erp-bookings-calendar .fc-daygrid-day-frame { min-height: 98px; }
-          .erp-bookings-calendar .fc-daygrid-day-events { margin-inline: 1px; }
-          .erp-bookings-calendar .fc-event { min-width: 0 !important; min-height: 38px !important; padding: 4px 3px !important; margin-bottom: 3px; }
-          .booking-calendar-ticket { gap: 2px; }
-          .booking-calendar-ticket__client { font-size: .6rem; line-height: 1.3; }
-          .booking-calendar-ticket__time { column-gap: 5px; row-gap: 1px; font-size: .52rem; line-height: 1.35; }
-          .booking-calendar-ticket__time svg { width: 9px; height: 9px; }
-          .booking-calendar-ticket__status { font-size: .5rem; line-height: 1.3; }
-          .erp-daily-bookings-head { padding: 15px 12px 0; }
-          .erp-daily-bookings-list { padding: 12px; }
-          .booking-block-calendar-event { gap: 2px; }
-          .booking-block-calendar-event > svg { width: 10px; }
-          .booking-block-calendar-event strong { font-size: .6rem; }
-          .booking-block-calendar-event small { font-size: .5rem; }
-          .booking-block-label-full { display: none; }
-          .booking-block-label-compact { display: inline; }
-        }
-      `}</style>
-
-      {/* Header */}
-      <ERPPageHero
-        icon={CalendarIcon}
-        eyebrow="جدول الاستديو"
-        title="إدارة المواعيد والتقويم"
-        description={<>انقر مرة على اليوم لعرض جدوله.{isAdmin && <> انقر مرتين على مساحة فارغة داخل اليوم لفتح خيارات الحجز المؤقت أو بدء جلسة تصوير. · يمكنك تعديل الموعد أو إلغاؤه مع الاحتفاظ بالسجل.</>}</>}
-        actions={<><button data-variant="primary" onClick={event => { bookingTriggerRef.current = event.currentTarget; setIsModalOpen(true); }}><CalendarPlus size={18} /> حجز موعد / إضافة خدمة</button>{isAdmin && <button data-variant="secondary" onClick={event => openDayActionsForSelectedDate(event.currentTarget)}><CalendarClock size={18}/>إجراءات اليوم</button>}</>}
+    <div className="erp-bookings-page">
+      {rescheduleNotice && <div className="booking-reschedule-notice" role="status"><CheckCircle size={17} />{rescheduleNotice}<button type="button" onClick={() => setRescheduleNotice('')} aria-label="إخفاء الرسالة"><X size={16}/></button></div>}
+      <ERPBookingWideView
+        selectedDate={selectedDate} onSelectDate={setSelectedDate} isAdmin={isAdmin} loading={loading} loadError={loadError} blockLoadError={isAdmin ? blockLoadError : ''} onRefresh={() => fetchData(true)}
+        bookings={displayedBookings} blocks={displayedBlocks} events={clientColorsHydrated ? calendarEvents : []}
+        query={bookingQuery} onQueryChange={setBookingQuery} status={bookingStatus} onStatusChange={setBookingStatus}
+        pendingBookings={pendingBookings} decisionBusy={decisionBusy} decisionError={decisionError} onDecision={submitDecision}
+        onAlternative={booking => setAlternativeModal({ open: true, booking, date: booking.date, start_time: normalizeTime(booking.start_time || '12:00'), end_time: normalizeTime(booking.end_time || '13:00', { endOfDay: true }), note: '' })}
+        onNewBooking={trigger => { bookingTriggerRef.current = trigger; setIsModalOpen(true); }} onDayActions={openDayActionsForSelectedDate}
+        onOpenBooking={openBookingDetails} onOpenBlock={(block, trigger) => { if (!isAdmin) return; blockDetailsTriggerRef.current = trigger; setBlockError(''); setSelectedBlock(block); }}
+        onDateClick={handleDateClick} onDatesSet={handleCalendarDatesSet} onEventClick={handleEventClick} onRescheduleProposal={handleCalendarRescheduleProposal}
+        calendarRootRef={bookingCalendarRef} getStatusMeta={getStatusMeta} getClientColor={getClientColor}
       />
-
-      {rescheduleNotice && <div className="booking-reschedule-notice" role="status"><CheckCircle size={17} />{rescheduleNotice}<button type="button" onClick={() => setRescheduleNotice('')} style={{ marginRight: 'auto', border: 0, background: 'transparent', color: 'inherit' }} aria-label="إخفاء الرسالة"><X size={16}/></button></div>}
-
-      <section className="pending-requests-panel" aria-labelledby="pending-requests-title">
-        <div className="pending-requests-head">
-          <h4 className="pending-requests-title" id="pending-requests-title"><Clock size={20} color="#d99124" /> طلبات بانتظار التأكيد <span className="pending-count">{pendingBookings.length}</span></h4>
-          <button onClick={() => fetchData(true)} disabled={loading} style={{ border: 'none', background: 'transparent', color: 'var(--erp-primary)', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', fontWeight: 700 }}><RefreshCw size={15} className={loading ? 'client-spin' : ''}/> تحديث</button>
-        </div>
-        {decisionError && <div className="decision-error" role="alert">{decisionError}</div>}
-        {pendingBookings.length === 0 ? (
-          <div style={{ padding: '22px', textAlign: 'center', color: 'var(--erp-text-muted)', border: '1px dashed var(--erp-border)', borderRadius: '10px', fontSize: '.82rem' }}><CheckCircle size={23} style={{ marginBottom: '7px', color: 'var(--erp-success)' }}/><div>لا توجد طلبات جديدة بانتظار القرار.</div></div>
-        ) : <div className="pending-requests-list">{pendingBookings.map(booking => <article className="pending-request-card" key={booking.id}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}><h5>{booking.client_name}</h5><span className="booking-status-pill" style={{ background: getStatusMeta(booking.status).color }}>{getStatusMeta(booking.status).label}</span></div>
-          <div className="pending-request-meta"><span><CalendarIcon size={13}/> {formatBookingDate(booking.date)}</span><span><Clock size={13}/> {formatTime12(booking.start_time)} – {formatTime12(booking.end_time)}</span><span>{booking.service}</span></div>
-          {booking.notes && <p style={{ color: 'var(--erp-text-muted)', fontSize: '.73rem', lineHeight: 1.7, margin: '0 0 12px' }}>{booking.notes}</p>}
-          <div className="pending-request-actions"><button className="confirm" disabled={Boolean(decisionBusy)} onClick={() => submitDecision(booking, 'confirm')}><Check size={15}/> {decisionBusy === `confirm-${booking.id}` ? 'جارٍ التأكيد...' : 'تأكيد'}</button><button className="alternative" disabled={Boolean(decisionBusy)} onClick={() => setAlternativeModal({ open: true, booking, date: booking.date, start_time: normalizeTime(booking.start_time || '12:00'), end_time: normalizeTime(booking.end_time || '13:00', { endOfDay: true }), note: '' })}><CalendarPlus size={15}/> موعد بديل</button><button className="reject" disabled={Boolean(decisionBusy)} onClick={() => { if (window.confirm(`رفض طلب ${booking.client_name}؟`)) submitDecision(booking, 'reject'); }}><Ban size={15}/> {decisionBusy === `reject-${booking.id}` ? 'جارٍ الرفض...' : 'رفض'}</button></div>
-        </article>)}</div>}
-      </section>
-
-      <div className="erp-bookings-layout">
-        
-        {/* FullCalendar Box */}
-        <div className="erp-calendar-container">
-          <div className="erp-calendar-inner erp-bookings-calendar-card" style={{ minHeight: '600px' }}>
-            <div className="bookings-calendar-legend" aria-label="دليل ألوان التقويم">
-              <span style={{ color: 'var(--erp-primary)' }}><i aria-hidden="true" />مجدول</span>
-              <span style={{ color: 'var(--erp-success)' }}><i aria-hidden="true" />منتهي</span>
-              <span style={{ color: 'var(--erp-text-muted)' }}><i aria-hidden="true" />يوم الجمعة (إجازة)</span>
-            </div>
-
-            <p className="booking-calendar-scroll-hint"><MoveHorizontal aria-hidden="true" />مرّر يمينًا ويسارًا لرؤية باقي الأيام</p>
-            <div ref={bookingCalendarRef} className="erp-bookings-calendar" role="region" aria-label="تقويم الحجوزات الشهري، يمكن تمريره أفقيًا على الشاشات الصغيرة" tabIndex={0}>
-              <FullCalendar
-              key={`bookings-calendar-${clientColorsHydrated ? clientColorSignature : 'loading-colors'}`}
-              plugins={[ dayGridPlugin, interactionPlugin, timeGridPlugin ]}
-              initialView="dayGridMonth"
-              locales={[arCalendarLocale]}
-              locale="ar"
-              buttonText={{ today: 'اليوم', month: 'شهر', week: 'أسبوع', day: 'يوم', list: 'قائمة' }}
-              direction="rtl"
-              firstDay={6}
-              events={clientColorsHydrated ? calendarEvents : []}
-              dateClick={handleDateClick}
-              datesSet={handleCalendarDatesSet}
-              eventClick={handleEventClick}
-              eventDisplay="block"
-              eventDidMount={applyCalendarEventColors}
-              editable={isAdmin}
-              eventStartEditable={isAdmin}
-              eventDurationEditable={isAdmin}
-              eventDrop={handleCalendarRescheduleProposal}
-              eventResize={handleCalendarRescheduleProposal}
-              eventAllow={(dropInfo, draggedEvent) => Boolean(draggedEvent.extendedProps.reschedule_eligible) && dropInfo.start.getDay() !== 5}
-              eventClassNames={arg => arg.event.extendedProps.kind === 'booking_block' ? ['is-booking-block'] : ['is-calendar-booking', ...(arg.event.extendedProps.reschedule_eligible ? ['is-reschedule-eligible'] : [])]}
-              slotMinTime="12:00:00"
-              slotMaxTime="24:00:00"
-              allDaySlot={false}
-              slotDuration="00:15:00"
-              eventTimeFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
-              slotLabelFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
-              eventContent={(arg) => arg.event.extendedProps.kind === 'booking_block' ? <div className="booking-block-calendar-event"><LockKeyhole/><span><strong><b className="booking-block-label-full">{arg.event.extendedProps.block_title}</b><b className="booking-block-label-compact">{arg.event.extendedProps.block_title}</b></strong><small>{arg.timeText}</small>{arg.event.extendedProps.block_note && <em>{arg.event.extendedProps.block_note}</em>}</span></div> : (
-                <div className="booking-calendar-ticket" style={{ color: arg.event.extendedProps.text_color }}>
-                  <strong className="booking-calendar-ticket__client">{arg.event.extendedProps.client_name}</strong>
-                  <span className="booking-calendar-ticket__time"><Clock aria-hidden="true" /><span className="booking-calendar-ticket__time-segment">من <bdi className="booking-calendar-ticket__time-value">{formatTime12(arg.event.extendedProps.start_time, '')}</bdi></span><span className="booking-calendar-ticket__time-segment">إلى <bdi className="booking-calendar-ticket__time-value">{formatTime12(arg.event.extendedProps.end_time, '')}</bdi></span></span>
-                  <span className="booking-calendar-ticket__status"><i aria-hidden="true" style={{ background: getStatusMeta(arg.event.extendedProps.status).color, border: `1px solid ${arg.event.extendedProps.text_color}` }} />{getStatusMeta(arg.event.extendedProps.status).label}</span>
-                </div>
-              )}
-              dayMaxEvents={4}
-              moreLinkText={num => `+${num} أخرى`}
-              height="auto"
-              headerToolbar={{
-                right: 'dayGridMonth,timeGridWeek',
-                center: 'title',
-                left: 'prev,next today'
-              }}
-              dayCellClassNames={(arg) => {
-                let classes = [];
-                if (arg.date.getDay() === 5) classes.push('fc-day-fri');
-                if (format(arg.date, 'yyyy-MM-dd') === selectedDate) classes.push('selected-day-highlight');
-                return classes;
-              }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Daily Bookings Sidebar */}
-        <div className="erp-daily-bookings-container">
-          <div className="erp-daily-bookings-card">
-            
-            <div className="erp-daily-bookings-head">
-              <div className="erp-selected-day-label">
-                <CalendarIcon size={14} aria-hidden="true" /> جدول يوم: <span>{format(new Date(selectedDate), 'EEEE، d MMMM yyyy', { locale: arDateLocale })}</span>
-              </div>
-              <h5>قائمة جلسات التصوير</h5>
-              <hr />
-            </div>
-
-            <div className="erp-daily-bookings-list">
-              {dailyBookings.length === 0 && dailyBlocks.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                  <div style={{ background: 'var(--erp-bg)', borderRadius: '50%', display: 'inline-flex', justifyContent: 'center', alignItems: 'center', width: '80px', height: '80px', marginBottom: '15px' }}>
-                    <Clock size={32} color="var(--erp-text-muted)" style={{ opacity: 0.5 }} />
-                  </div>
-                  <h6 style={{ fontWeight: 'bold', color: 'var(--erp-text-main)' }}>يوم هادئ!</h6>
-                  <p style={{ color: 'var(--erp-text-muted)', fontSize: '0.85rem' }}>لا توجد جلسات تصوير مجدولة.</p>
-                </div>
-              ) : (
-                <div className="erp-daily-bookings-list-content">
-                  {dailyBlocks.map(block => <button type="button" key={`block-${block.id}`} className="timeline-card booking-block-timeline" onClick={event => { blockDetailsTriggerRef.current = event.currentTarget; setBlockError(''); setSelectedBlock(block); }}>
-                    <span className="booking-block-timeline-icon"><LockKeyhole/></span><span><strong>{block.title || 'حجز مؤقت'}</strong><small>{formatTime12(block.start_time)} — {formatTime12(block.end_time)}</small>{block.note && <em>{block.note}</em>}<em>{block.resource_name || 'مورد الحجز'}</em></span>
-                  </button>)}
-                  {dailyBookings.map(b => (
-                    <div key={b.id} className="timeline-card" style={{ padding: '15px', borderRadius: '12px', borderRightColor: getClientColor(b.client_name), opacity: b.status === 'منتهي' ? 0.6 : 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <div className="timeline-time" style={{ color: 'var(--erp-text-main)', fontFamily: 'monospace' }}>
-                          <span aria-hidden="true" style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', marginLeft: 7, background: getClientColor(b.client_name), boxShadow: `0 0 0 2px ${getClientColor(b.client_name)}22` }} />
-                          <Clock size={14} style={{ display: 'inline', marginLeft: '5px' }} />
-                          {formatTime12(b.start_time)}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {b.status === 'منتهي' ? (
-                            <span style={{ background: 'var(--erp-success)', color: 'white', padding: '2px 8px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>منتهي</span>
-                          ) : (
-                            <span style={{ background: 'var(--erp-primary)', color: 'white', padding: '2px 8px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>مجدول</span>
-                          )}
-                          {isAdmin && (
-                            <button type="button" className="admin-delete-btn" onClick={event => openBookingDetails(b, event.currentTarget)} aria-label={`فتح تفاصيل حجز ${b.client_name}`} style={{ border: 0, padding: 4, background: 'transparent' }}><Trash2 size={16} /></button>
-                          )}
-                        </div>
-                      </div>
-                      <h5 className="timeline-client" style={{ marginBottom: '10px', marginTop: 0 }}>{b.client_name}</h5>
-                      <span className="timeline-service">{b.service}</span>
-                      <dl className="booking-time-summary" aria-label="تفاصيل توقيت جلسة التصوير">
-                        <div className="booking-time-fact">
-                          <dt>من</dt>
-                          <dd>{formatTime12(b.start_time)}</dd>
-                        </div>
-                        <div className="booking-time-fact">
-                          <dt>إلى</dt>
-                          <dd>{formatTime12(b.end_time)}</dd>
-                        </div>
-                        <div className="booking-time-fact booking-duration-fact">
-                          <dt>مدة التصوير</dt>
-                          <dd>{formatDurationMinutes(calculateDurationMinutes(b.start_time, b.end_time))}</dd>
-                        </div>
-                      </dl>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
-      </div>
 
       {/* Complex Booking Modal */}
       {isModalOpen && newBooking.category === '__legacy_booking_modal__' && (

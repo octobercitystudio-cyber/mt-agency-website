@@ -6,40 +6,26 @@ const root = new URL('../', import.meta.url);
 const load = path => readFile(new URL(path, root), 'utf8');
 
 test('month booking cards expose the full client name and complete time range', async () => {
-  const bookings = await load('src/erp/ERPBookings.jsx');
+  const [bookings, view] = await Promise.all([load('src/erp/ERPBookings.jsx'), load('src/erp/ERPBookingWideView.jsx')]);
 
   assert.match(bookings, /client_name: b\.client_name/);
   assert.match(bookings, /start_time: b\.start_time/);
   assert.match(bookings, /end_time: b\.end_time/);
-  assert.match(bookings, /className="booking-calendar-ticket__client">\{arg\.event\.extendedProps\.client_name\}<\/strong>/);
-  assert.match(bookings, /className="booking-calendar-ticket__time"[\s\S]*?className="booking-calendar-ticket__time-segment">من <bdi className="booking-calendar-ticket__time-value">\{formatTime12\(arg\.event\.extendedProps\.start_time, ''\)\}<\/bdi>/);
-  assert.match(bookings, /className="booking-calendar-ticket__time-segment">إلى <bdi className="booking-calendar-ticket__time-value">\{formatTime12\(arg\.event\.extendedProps\.end_time, ''\)\}<\/bdi>/);
+  assert.match(view, /className="booking-calendar-ticket__client">\{block \? data\.block_title : data\.client_name\}<\/strong>/);
+  assert.match(view, /<BookingTimes start=\{data\.start_time\} end=\{data\.end_time\}/);
+  assert.match(view, /className="booking-calendar-ticket__time-segment">من <bdi className="booking-calendar-ticket__time-value">\{formatTime12\(start, ''\)\}<\/bdi>/);
+  assert.match(view, /className="booking-calendar-ticket__time-segment">إلى <bdi className="booking-calendar-ticket__time-value">\{formatTime12\(end, ''\)\}<\/bdi>/);
+  assert.match(view, /data\.block_note && <span className="booking-calendar-ticket__note">\{data\.block_note\}/);
 });
 
-test('375px month calendar keeps readable day columns inside an accessible horizontal scroller', async () => {
-  const bookings = await load('src/erp/ERPBookings.jsx');
-  const clientRule = bookings.match(/\.booking-calendar-ticket__client\s*\{([^}]*)\}/)?.[1] || '';
-  const timeRule = bookings.match(/\.booking-calendar-ticket__time\s*\{([^}]*)\}/)?.[1] || '';
-  const ticketRule = bookings.match(/\.booking-calendar-ticket\s*\{([^}]*)\}/)?.[1] || '';
-  const timeValueRule = bookings.match(/\.booking-calendar-ticket__time-value\s*\{([^}]*)\}/)?.[1] || '';
-  const scrollerRule = bookings.match(/\.erp-bookings-calendar\s*\{([^}]*)\}/)?.[1] || '';
-  const mobileRules = bookings.match(/@media \(max-width: 600px\)\s*\{([\s\S]*?)\n\s*\}\n\s*`}<\/style>/)?.[1] || '';
-
-  assert.match(clientRule, /white-space:\s*normal/);
-  assert.match(clientRule, /overflow-wrap:\s*break-word/);
-  assert.match(clientRule, /word-break:\s*normal/);
-  assert.doesNotMatch(clientRule, /text-overflow:\s*ellipsis/);
-  assert.match(ticketRule, /max-width:\s*100%/);
-  assert.match(ticketRule, /overflow:\s*hidden/);
-  assert.match(timeRule, /flex-wrap:\s*wrap/);
-  assert.match(timeRule, /white-space:\s*normal/);
-  assert.match(timeValueRule, /white-space:\s*nowrap/);
-  assert.match(timeValueRule, /unicode-bidi:\s*isolate/);
-  assert.match(scrollerRule, /overflow-x:\s*auto/);
-  assert.match(bookings, /className="erp-bookings-calendar" role="region"[^>]*tabIndex=\{0\}/);
-  assert.match(bookings, /\.erp-bookings-calendar \.fc\s*\{[^}]*min-width:\s*0/);
-  assert.match(bookings, /\.erp-bookings-calendar \.fc-view-harness\s*\{[^}]*min-width:\s*760px/);
-  assert.match(bookings, /\.booking-calendar-scroll-hint\s*\{[^}]*display:\s*flex/);
-  assert.doesNotMatch(mobileRules, /\.booking-calendar-ticket__status\s*\{[^}]*display:\s*none/);
-  assert.match(bookings, /\.booking-calendar-ticket__time\s*\{[^}]*font-size:/);
+test('compact booking display has a date picker and selected-day agenda instead of shrinking the month columns', async () => {
+  const view = await load('src/erp/ERPBookingWideView.jsx');
+  assert.match(view, /type="date" aria-label="تاريخ المواعيد" value=\{selectedDate\}/);
+  assert.match(view, /className="bookings-wide-date-rail" aria-label="أيام الشهر"/);
+  assert.match(view, /aria-current=\{value === selectedDate \? 'date' : undefined\}/);
+  assert.match(view, /ref=\{dayRailRef\}/);
+  assert.match(view, /rail\.scrollLeft/);
+  assert.match(view, /className="bookings-wide-agenda"/);
+  assert.match(view, /dayMaxEvents=\{false\}/, 'full month tickets are not silently hidden after four entries');
+  assert.doesNotMatch(view, /-webkit-line-clamp|text-overflow:\s*ellipsis/);
 });

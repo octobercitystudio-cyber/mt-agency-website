@@ -205,8 +205,9 @@ test('production API and migration enforce a single atomic schedule owner', asyn
 
 test('owner calendar selects on one click and opens day actions only from an empty-cell double click', async () => {
   const [calendar, dialog, conversion, actions, css] = await Promise.all([load('src/erp/ERPBookings.jsx'),load('src/erp/ERPBookingBlockDialog.jsx'),load('src/erp/BookingBlockConversionForm.jsx'),load('src/erp/ERPBookingDayActionsDialog.jsx'),load('src/erp/ERPBookingBlockDialog.css')]);
+  const view = await load('src/erp/ERPBookingWideView.jsx');
   assert.match(calendar, /import \{ bindBookingBlockDoubleClick, bookingBlockDayCellFromEvent \} from '\.\/bookingBlockInteraction'/);
-  assert.match(calendar, /dateClick=\{handleDateClick\}/); assert.match(calendar, /ref=\{bookingCalendarRef\} className="erp-bookings-calendar"/); assert.doesNotMatch(calendar, /dayCellDidMount|dayCellWillUnmount|new WeakMap/); assert.match(calendar, /const dateSelectionTimerRef = useRef\(null\)/);
+  assert.match(calendar, /onDateClick=\{handleDateClick\}/); assert.match(view, /dateClick=\{onDateClick\}/); assert.match(calendar, /calendarRootRef=\{bookingCalendarRef\}/); assert.match(view, /ref=\{calendarRootRef\} className="bookings-wide-calendar"/); assert.doesNotMatch(calendar, /dayCellDidMount|dayCellWillUnmount|new WeakMap/); assert.match(calendar, /const dateSelectionTimerRef = useRef\(null\)/);
   assert.match(calendar, /useEffect\(\(\) => \(\) => \{\s*if \(dateSelectionTimerRef\.current !== null\) window\.clearTimeout\(dateSelectionTimerRef\.current\);\s*\}, \[\]\)/);
   const singleClick = calendar.slice(calendar.indexOf('const handleDateClick'), calendar.indexOf('const openDayActionsForSelectedDate'));
   assert.match(singleClick, /window\.clearTimeout\(dateSelectionTimerRef\.current\)/); assert.match(singleClick, /dateSelectionTimerRef\.current = window\.setTimeout/); assert.match(singleClick, /\}, 240\)/); assert.match(singleClick, /setSelectedDate/); assert.doesNotMatch(singleClick, /setDayActionsOpen|setBlockDialogOpen/);
@@ -214,10 +215,10 @@ test('owner calendar selects on one click and opens day actions only from an emp
   assert.match(delegatedDoubleClick, /bookingBlockDayCellFromEvent\(event, calendarRoot\)/); assert.match(delegatedDoubleClick, /getAttribute\?\.\('data-date'\)/); assert.match(delegatedDoubleClick, /window\.clearTimeout\(dateSelectionTimerRef\.current\)/); assert.match(delegatedDoubleClick, /dateSelectionTimerRef\.current = window\.setTimeout/); assert.match(delegatedDoubleClick, /\}, 0\)/); assert.match(delegatedDoubleClick, /dayActionTriggerRef\.current = calendarRoot/); assert.match(delegatedDoubleClick, /setDayActionsOpen\(true\)/); assert.doesNotMatch(delegatedDoubleClick, /setBlockDialogOpen/);
   const explicitDayAction = calendar.slice(calendar.indexOf('const openDayActionsForSelectedDate'), calendar.indexOf('const openBlockDialogForSelectedDate'));
   assert.match(explicitDayAction, /dayActionTriggerRef\.current = trigger/); assert.match(explicitDayAction, /setDayActionsOpen\(true\)/);
-  assert.match(calendar, /data-variant="secondary" onClick=\{event => openDayActionsForSelectedDate\(event\.currentTarget\)\}><CalendarClock size=\{18\}\/>إجراءات اليوم<\/button>/);
-  assert.equal((calendar.match(/إجراءات اليوم/g) || []).length, 1, 'touch and keyboard fallback is one explicit hero action');
+  assert.match(calendar, /onDayActions=\{openDayActionsForSelectedDate\}/);
+  assert.match(view, /onClick=\{event => onDayActions\(event\.currentTarget\)\}><CalendarClock size=\{18\} \/>إجراءات اليوم<\/button>/);
   assert.match(calendar, /ERPBookingDayActionsDialog date=\{selectedDate\}[^>]*returnFocusRef=\{dayActionTriggerRef\}/);
-  assert.match(calendar, /انقر مرتين على مساحة فارغة داخل اليوم لفتح خيارات الحجز المؤقت أو بدء جلسة تصوير/);
+  assert.match(view, /نقرتان على مساحة فارغة/);
   assert.match(actions, /حجز مؤقت/); assert.match(actions, /بدء جلسة تصوير/); assert.match(actions, /timeZone: 'Africa\/Cairo'/); assert.match(actions, /const canStartDirect = date === today/); assert.match(actions, /disabled=\{!canStartDirect\}/); assert.match(actions, /بدء الجلسة متاح ليوم العمل الحالي فقط/); assert.match(actions, /role="dialog"/);
   assert.match(dialog, /title: ''/); assert.match(dialog, /BookingBlockConversionForm/); assert.match(conversion, /تحويل إلى حجز عميل/); assert.match(conversion, /requestKeyRef\.current/); assert.match(css, /@media\(max-width:600px\)/);
 });

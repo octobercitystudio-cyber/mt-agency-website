@@ -24,38 +24,36 @@ test('confirmed booking details expose the shared admin reschedule dialog', asyn
 });
 
 test('calendar controls are Arabic and event colors come from each client', async () => {
-  const [bookings, rescheduleCss] = await Promise.all([
+  const [bookings, view, rescheduleCss] = await Promise.all([
     load('src/erp/ERPBookings.jsx'),
+    load('src/erp/ERPBookingWideView.jsx'),
     load('src/erp/ERPRescheduleBookingDialog.css'),
   ]);
 
-  assert.match(bookings, /import arCalendarLocale from '@fullcalendar\/core\/locales\/ar'/);
-  assert.match(bookings, /locales=\{\[arCalendarLocale\]\}/);
-  assert.match(bookings, /buttonText=\{\{ today: 'اليوم', month: 'شهر', week: 'أسبوع'/);
+  assert.match(view, /import arCalendarLocale from '@fullcalendar\/core\/locales\/ar'/);
+  assert.match(view, /const calendarLocales = \[arCalendarLocale\]/);
+  assert.match(view, /locales=\{calendarLocales\}/);
+  assert.match(view, />شهر<\/button>/);
+  assert.match(view, />أسبوع<\/button>/);
   assert.match(bookings, /const clientColor = getClientColor\(b\.client_name\)/);
-  assert.match(bookings, /backgroundColor: clientColor/);
-  assert.match(bookings, /borderColor: clientColor/);
-  assert.match(bookings, /textColor: readableOnColor\(clientColor\)/);
+  assert.match(bookings, /client_color: clientColor/);
   assert.match(bookings, /clientColorsHydrated \? calendarEvents : \[\]/);
-  assert.match(bookings, /key=\{`bookings-calendar-\$\{clientColorsHydrated \? clientColorSignature : 'loading-colors'\}`\}/);
-  assert.match(bookings, /eventDidMount=\{applyCalendarEventColors\}/);
-  assert.match(bookings, /setProperty\('background-color', background, 'important'\)/);
-  assert.match(bookings, /querySelector\('\.fc-event-main'\)\?\.style\.setProperty\('color', foreground, 'important'\)/);
-  assert.doesNotMatch(bookings, /\.fc-h-event \.fc-event-main \{ color: white/);
-  assert.match(bookings, /eventDisplay="block"/);
-  assert.match(bookings, /background-color: var\(--fc-event-bg-color\) !important/);
-  assert.match(bookings, /getStatusMeta\(arg\.event\.extendedProps\.status\)\.label/);
+  assert.doesNotMatch(bookings + view, /key=\{`bookings-calendar-/,'color refresh must not remount and reset the displayed month');
+  assert.match(view, /'--booking-client-color': block \? '#b77a25' : data\.client_color/);
+  assert.match(view, /eventDisplay="block"/);
+  assert.match(view, /getStatusMeta\(data\.status\)/);
   assert.match(rescheduleCss, /width: 44px; height: 44px; flex: 0 0 44px/);
 });
 
 test('calendar drag and resize revert before opening the confirmation flow', async () => {
-  const bookings = await load('src/erp/ERPBookings.jsx');
+  const [bookings, view] = await Promise.all([load('src/erp/ERPBookings.jsx'), load('src/erp/ERPBookingWideView.jsx')]);
 
   assert.match(bookings, /start: calendarDateTime\(b\.date, b\.start_time\)/);
   assert.match(bookings, /end: calendarDateTime\(b\.date, b\.end_time, true\)/);
   assert.match(bookings, /reschedule_eligible: isAdmin && b\.status === 'confirmed'/);
-  assert.match(bookings, /eventDrop=\{handleCalendarRescheduleProposal\}/);
-  assert.match(bookings, /eventResize=\{handleCalendarRescheduleProposal\}/);
+  assert.match(bookings, /onRescheduleProposal=\{handleCalendarRescheduleProposal\}/);
+  assert.match(view, /eventDrop=\{onRescheduleProposal\}/);
+  assert.match(view, /eventResize=\{onRescheduleProposal\}/);
   assert.match(bookings, /const proposal = calendarProposal\(info\.event\);[\s\S]*info\.revert\(\);[\s\S]*openReschedule\(booking, proposal\)/);
 });
 
