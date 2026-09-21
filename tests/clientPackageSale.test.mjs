@@ -74,6 +74,6 @@ test('production and UI contracts include normalized reel support, snapshots, id
   assert.match(api, /normalizedStudioPackageUnit/); assert.match(api, /client_package_sale_requests/); assert.match(api, /payment_due_minutes/); assert.match(api, /payment_allocations/); assert.match(api, /packageMoneyCents/); assert.match(api, /appNotification/);
   assert.match(migration, /UNIQUE KEY uq_client_package_sale_request/); assert.match(view, /templateToPackageDraft/); assert.match(view, /استعادة شروط القالب/); assert.match(view, /idempotency_key/); assert.match(view, /payment_due_quantity/); assert.match(view, /deposit_percent_snapshot/); assert.match(css, /packages-template-snapshot/); assert.match(css, /max-width:700px/);
   assert.ok(view.indexOf('packages-template-snapshot') < view.indexOf('packages-sale-groups'), 'template comparison must appear before editable groups');
-  assert.match(view, /الرصيد والصلاحية/); assert.match(view, /السعر والدفع/); assert.match(view, /رصيد الباقة \(\{balanceUnitPlural\}\)/); assert.match(view, /سعر \{reelBalance \? 'الريل' : 'الساعة'\} الإضافي/);
+  assert.match(view, /الرصيد والصلاحية/); assert.match(view, /المبلغ وطريقة الدفع/); assert.match(view, /رصيد الباقة \(\{balanceUnitPlural\}\)/); assert.doesNotMatch(view, /راجع الاتفاق التجاري والدفعة الافتتاحية/); assert.match(view, /طريقة الدفع<select/);
   assert.match(css, /\.erp-main \.packages-dialog\.packages-sale-dialog[^}]+background:[^}]+!important/); assert.match(css, /packages-sale-section/); assert.match(css, /min-height:44px/);
 });

@@ -1,1 +1,1 @@
-export const emptyClient = { name: '', company_name: '', contact_person: '', phone1: '', phone2: '', email: '', job: '', address: '', city: '', tax_number: '', commercial_registration: '', preferred_contact: 'whatsapp', whatsapp_opt_in: 1, notes: '', color: '#4318ff', debt: 0, points: 0, enablePortal: true, portalPassword: '' };
+export const emptyClient = { name: '', phone1: '', phone2: '', additional_phones: [], job: '', company_name: '', color: '#4318ff' };

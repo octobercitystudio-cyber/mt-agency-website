@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Eye, EyeOff, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { dataClient } from '../dataClient';
@@ -18,7 +19,7 @@ const buildInitial = (serviceType = 'custom', clientId = '') => {
   return {
     client_id: clientId ? String(clientId) : '', service_type: serviceType, name: '', description: '', requirements: '',
     starts_at: new Date().toISOString().slice(0, 10), due_at: '', assigned_to: '', status: 'planning',
-    pricing_model: meta.pricing[0] || 'custom', paid_amount: '0.00', requires_booking: false,
+    pricing_model: meta.pricing[0] || 'custom', paid_amount: '0.00', payment_method: 'cash', requires_booking: false,
   };
 };
 
@@ -91,7 +92,7 @@ export default function CustomServiceForm({ clients = [], initialService = 'cust
     onSubmit({
       idempotency_key: requestKeyRef.current, client_id: Number(form.client_id), service_type: form.service_type, name: form.name.trim(), status: form.status,
       starts_at: form.starts_at, due_at: form.due_at || '', pricing_model: form.pricing_model, quantity: 1, unit_label: 'project',
-      agreed_price: Number(money(totalCents)), paid_amount: Number(money(paidCents)), requires_booking: form.requires_booking,
+      agreed_price: Number(money(totalCents)), paid_amount: Number(money(paidCents)), payment_method: form.payment_method, requires_booking: form.requires_booking,
       requirements_json: { description: form.description.trim(), client_requirements: form.requirements.trim(), assigned_to: form.assigned_to.trim() || null },
       notes: form.description.trim(), items: normalizedItems,
       milestones: normalizedStages.map((stage, index) => ({ title: stage.title, status: 'pending', progress_percent: 0, is_client_visible: true, sort_order: index })),
@@ -109,6 +110,7 @@ export default function CustomServiceForm({ clients = [], initialService = 'cust
       <label className="wide-field">وصف مختصر<textarea rows="3" value={form.description} onChange={event => set({ description: event.target.value })} placeholder="ما الذي سيتم تنفيذه وتسليمه؟"/></label>
       <label>إجمالي الاتفاق<input required type="number" min="0" step="0.01" value={items[0]?.unit_price || '0.00'} onChange={event => setAgreedTotal(event.target.value)}/></label>
       <label>المبلغ المدفوع<input type="number" min="0" step="0.01" max={money(totalCents)} value={form.paid_amount} onChange={event => set({ paid_amount: event.target.value })}/></label>
+      <label>طريقة الدفع<select value={form.payment_method} onChange={event => set({ payment_method: event.target.value })}>{Object.entries(PAYMENT_METHODS).map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label>
     </div></fieldset>
 
     <details className="custom-advanced-options">

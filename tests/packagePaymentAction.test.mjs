@@ -23,7 +23,7 @@ test('package payment UI is shared, exact, accessible and responsive', async () 
 test('demo package payment creates one exact payment, allocation and finance row and refreshes package/invoice cents', async () => {
   const storage = browserGlobals(); const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); let db = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const pkg = db.client_packages.find(row => row.id === 203); pkg.source_invoice_id = 703; storage.set('mt_agency_erp_demo_v12', JSON.stringify(db)); activateDemoMode('finance');
-  const body = { amount: '100.25', method: 'bank_transfer', reference: 'EVAL-10025', note: 'اختبار مستقل لمسار الدفعة', payment_date: '2026-08-30', idempotency_key: 'package-payment-exact-001' };
+  const body = { amount: '100.25', method: 'instapay', reference: 'EVAL-10025', note: 'اختبار مستقل لمسار الدفعة', payment_date: '2026-08-30', idempotency_key: 'package-payment-exact-001' };
   const result = await demoClient.request('/client-packages/203/payments', { method: 'POST', body: JSON.stringify(body) }); assert.equal(result.error, null); assert.equal(result.data.idempotent, false); assert.equal(result.data.amount, '100.25');
   db = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const payment = db.payments.find(row => row.id === result.data.payment_id); const allocation = db.payment_allocations.filter(row => row.payment_id === payment.id); const finance = db.finance.filter(row => row.source_type === 'payment' && row.source_id === payment.id);
   assert.equal(payment.status, 'approved'); assert.equal(payment.amount, '100.25'); assert.equal(payment.note, body.note); assert.equal(allocation.length, 1); assert.equal(allocation[0].client_package_id, 203); assert.equal(allocation[0].invoice_id, 703); assert.equal(allocation[0].amount, '100.25'); assert.equal(finance.length, 1); assert.equal(finance[0].amount, '100.25'); assert.equal(finance[0].date, body.payment_date); assert.equal(finance[0].detail, body.note);
@@ -35,10 +35,10 @@ test('demo package payment creates one exact payment, allocation and finance row
 
 test('package payment crosses into the client finance-history consumer exactly once with structured metadata', async () => {
   browserGlobals(); const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js'); resetDemoDatabase(); activateDemoMode('admin');
-  const body = { amount: '100.25', method: 'bank_transfer', reference: 'EVAL-10025', note: 'اختبار مستقل لمسار الدفعة', idempotency_key: 'package-payment-client-history-001' };
+  const body = { amount: '100.25', method: 'instapay', reference: 'EVAL-10025', note: 'اختبار مستقل لمسار الدفعة', idempotency_key: 'package-payment-client-history-001' };
   const created = await demoClient.request('/client-packages/206/payments', { method: 'POST', body: JSON.stringify(body) }); assert.equal(created.error, null);
   const history = await demoClient.request('/clients/5/payment-history', { method: 'GET' }); assert.equal(history.error, null); const exact = history.data.items.filter(item => item.record_type === 'payment' && item.payment_id === created.data.payment_id); assert.equal(exact.length, 1);
-  assert.equal(exact[0].amount, '100.25'); assert.equal(exact[0].method, 'bank_transfer'); assert.equal(exact[0].reference, 'EVAL-10025'); assert.equal(exact[0].note, 'اختبار مستقل لمسار الدفعة'); assert.equal(exact[0].package_id, 206); assert.equal(exact[0].package_name, 'يوم تصوير العيادة'); assert.equal(exact[0].status, 'approved'); assert.equal(exact[0].allocations.length, 1);
+  assert.equal(exact[0].amount, '100.25'); assert.equal(exact[0].method, 'instapay'); assert.equal(exact[0].reference, 'EVAL-10025'); assert.equal(exact[0].note, 'اختبار مستقل لمسار الدفعة'); assert.equal(exact[0].package_id, 206); assert.equal(exact[0].package_name, 'يوم تصوير العيادة'); assert.equal(exact[0].status, 'approved'); assert.equal(exact[0].allocations.length, 1);
   activateDemoMode('client'); const denied = await demoClient.request('/clients/5/payment-history', { method: 'GET' }); assert.equal(denied.error?.code, 'forbidden'); deactivateDemoMode();
 });
 

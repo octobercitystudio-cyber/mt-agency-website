@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CircleDollarSign, Clock3, PackageCheck, PackagePlus } from 'lucide-react';
 import ClientCombobox from '../components/ClientCombobox';
@@ -13,7 +14,6 @@ import { buildPackageServiceGroups } from '../lib/packageBookingPicker';
 import './BookingBlockConversionForm.css';
 
 const newKey = () => globalThis.crypto?.randomUUID?.() || `convert-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const PAYMENT_METHODS = { cash: 'كاش', bank_transfer: 'تحويل بنكي', vodafone_cash: 'فودافون كاش', instapay: 'إنستاباي' };
 
 export default function BookingBlockConversionForm({ block, clients, packages, services, busy, onConvert }) {
   const requestKeyRef = useRef(newKey());

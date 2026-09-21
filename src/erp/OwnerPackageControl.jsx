@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ArrowUpCircle, Banknote, CalendarCheck2, CalendarClock, CheckCircle2, CircleDollarSign, Clock3, PackageCheck, RefreshCw, Save, ShieldAlert, TimerReset, Trash2, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
@@ -12,7 +13,6 @@ import './OwnerPackageControlFixes.css';
 
 const STATUS_LABELS = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد', alternative_proposed: 'موعد بديل', cancel_requested: 'طلب إلغاء', late_cancel_requested: 'إلغاء متأخر', in_progress: 'جارٍ التصوير', completed: 'مكتمل', cancelled: 'ملغي' };
 const PACKAGE_STATUSES = { active: 'نشطة', suspended: 'موقوفة', completed: 'مكتملة', expired: 'منتهية', cancelled: 'ملغاة' };
-const PAYMENT_METHODS = { cash: 'كاش', bank_transfer: 'تحويل بنكي', vodafone_cash: 'فودافون كاش', instapay: 'إنستاباي' };
 const correctionKey = prefix => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 const PACKAGE_DAY_MS = 86400000;
 const packageExpiryFromDays = (starts, rawDays) => {

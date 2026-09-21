@@ -57,3 +57,11 @@
 .erp-client-modal-overlay--package-sale-dark .erp-client-color-note{color:#b8a9c7}.erp-client-modal-overlay--package-sale-dark .erp-client-color-note.is-auto{color:#7dd3fc}
 @media(max-width:640px){.erp-client-modal-overlay--package-sale-dark{padding:6px!important;align-items:stretch}.erp-main .erp-client-modal-overlay--package-sale-dark .erp-client-modal-content--package-sale-dark{width:calc(100vw - 12px)!important;max-width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important;margin:auto;padding:18px!important;border-radius:14px!important}.erp-client-modal-overlay--package-sale-dark .erp-client-modal-content>div:first-child{margin-bottom:16px!important}.erp-client-modal-overlay--package-sale-dark .erp-client-modal-content form{gap:12px!important}}
 @media(max-width:360px){.erp-main .erp-client-modal-overlay--package-sale-dark .erp-client-modal-content--package-sale-dark{padding:15px!important}.erp-client-modal-overlay--package-sale-dark .erp-client-modal-content h2{font-size:1rem!important}}
+.erp-client-phone-row { display:flex; align-items:center; gap:10px; min-width:0; }
+.erp-client-phone-row input { flex:1; min-width:0; box-sizing:border-box; }
+.erp-client-phone-add,.erp-client-phone-remove { flex:none; min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 12px; border:1px solid var(--erp-border); border-radius:8px; cursor:pointer; font:inherit; font-weight:700; }
+.erp-client-phone-add { background:rgba(67,24,255,.08); color:var(--erp-primary,#4318ff); }
+.erp-client-phone-remove { background:rgba(220,53,69,.08); color:#b42332; }
+.erp-client-phone-add:focus-visible,.erp-client-phone-remove:focus-visible { outline:3px solid #819af9; outline-offset:2px; }
+.erp-client-phone-add:disabled { opacity:.5; cursor:default; }
+@media(max-width:420px){ .erp-client-phone-add span { display:none; } .erp-client-phone-row { gap:8px; } }

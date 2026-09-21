@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Banknote, CheckCircle2, RefreshCw, ShieldAlert, WalletCards, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
@@ -6,7 +7,6 @@ import { centsToMoney, formatEGP, moneyToCents, packageFinancialSummary } from '
 import { safeUiError } from '../lib/uiError';
 import './PackagePaymentModal.css';
 
-const METHODS = { cash: 'نقدي', bank_transfer: 'تحويل بنكي', vodafone_cash: 'فودافون كاش', instapay: 'إنستاباي' };
 const requestKey = () => `package-payment-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 
 export default function PackagePaymentModal({ isOpen, pkg, person, returnFocusRef, onClose, onSuccess }) {
@@ -35,7 +35,7 @@ export default function PackagePaymentModal({ isOpen, pkg, person, returnFocusRe
         : amountCents <= 0 ? 'أدخل مبلغًا أكبر من صفر.'
           : amountCents > financial.outstandingCents ? `مبلغ الدفعة لا يمكن أن يتجاوز ${formatEGP(centsToMoney(financial.outstandingCents))}.` : '';
   const remainingCents = Math.max(0, financial.outstandingCents - Math.max(0, amountCents));
-  const invalid = Boolean(amountError) || !METHODS[form.method];
+  const invalid = Boolean(amountError) || !PAYMENT_METHODS[form.method];
 
   const submit = async event => {
     event.preventDefault(); if (busy || invalid) return;
@@ -54,7 +54,7 @@ export default function PackagePaymentModal({ isOpen, pkg, person, returnFocusRe
       <div className="package-payment-fields">
         <label className="amount"><span>مبلغ الدفعة</span><div className="package-payment-amount-control"><input type="number" inputMode="decimal" min="0.01" max={centsToMoney(financial.outstandingCents)} step="0.01" value={form.amount} onChange={event => setForm(current => ({ ...current, amount: event.target.value }))} aria-invalid={Boolean(amountError)} aria-describedby="package-payment-amount-help package-payment-amount-error"/><small>ج.م</small></div><em id="package-payment-amount-help">الحد الأقصى {formatEGP(centsToMoney(financial.outstandingCents))}</em><small id="package-payment-amount-error" className="package-payment-amount-error" aria-live="polite">{amountError}</small></label>
         <button type="button" className="package-payment-full" onClick={() => setForm(current => ({ ...current, amount: centsToMoney(financial.outstandingCents) }))}><CheckCircle2/> سداد كامل</button>
-        <label><span>طريقة الدفع</span><select value={form.method} onChange={event => setForm(current => ({ ...current, method: event.target.value }))}>{Object.entries(METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label><span>طريقة الدفع</span><select value={form.method} onChange={event => setForm(current => ({ ...current, method: event.target.value }))}>{Object.entries(PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label><span>مرجع الدفع <small>اختياري</small></span><input maxLength="120" value={form.reference} onChange={event => setForm(current => ({ ...current, reference: event.target.value }))} placeholder="رقم التحويل أو الإيصال"/></label>
         <label className="wide"><span>ملاحظة داخلية <small>اختيارية</small></span><textarea rows="3" maxLength="500" value={form.note} onChange={event => setForm(current => ({ ...current, note: event.target.value }))} placeholder="تفاصيل تساعد في مراجعة الدفعة لاحقًا"/></label>
       </div>

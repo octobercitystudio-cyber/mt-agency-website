@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BanknoteArrowUp, ChevronDown, ChevronUp, CircleDollarSign, ExternalLink, HandCoins, LoaderCircle, ReceiptText, RotateCcw, TriangleAlert, UserRound, WalletCards, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
@@ -57,7 +58,7 @@ function MovementDialog({ account, kind, onClose, onSaved }) {
         {error && <p className="employee-finance-form-error" role="alert">{error}</p>}
         <label>المبلغ بالجنيه<input type="text" inputMode="decimal" autoComplete="off" value={form.amount} onChange={event => setForm(old => ({ ...old, amount: event.target.value }))} placeholder="0.00" required /></label>
         <label>تاريخ المعاملة<input type="date" value={form.date} onChange={event => setForm(old => ({ ...old, date: event.target.value }))} required /></label>
-        <label>طريقة الدفع<select value={form.method} onChange={event => setForm(old => ({ ...old, method: event.target.value }))}><option value="cash">نقدي</option><option value="bank_transfer">تحويل بنكي</option><option value="instapay">إنستاباي</option><option value="vodafone_cash">فودافون كاش</option></select></label>
+        <label>طريقة الدفع<select value={form.method} onChange={event => setForm(old => ({ ...old, method: event.target.value }))}>{Object.entries(PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="wide">البيان والتفاصيل<textarea rows="3" maxLength="255" value={form.detail} onChange={event => setForm(old => ({ ...old, detail: event.target.value }))} placeholder="مثال: شراء مستلزمات تصوير من ماله الخاص" required /></label>
       </div>
       <footer><button type="button" onClick={onClose} disabled={saving}>إلغاء</button><button className="primary" disabled={saving}>{saving ? <><LoaderCircle className="spin" /> جارٍ الحفظ…</> : 'حفظ في الحضور والحسابات'}</button></footer>

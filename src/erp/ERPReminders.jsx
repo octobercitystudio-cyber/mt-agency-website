@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useState, useEffect, useCallback } from 'react';
 import { dataClient } from '../dataClient';
 import { format } from 'date-fns';
@@ -32,7 +33,7 @@ const ERPReminders = () => {
     title: '',
     amount: 0,
     date: format(new Date(), 'yyyy-MM-dd'),
-    method: 'كاش',
+    method: 'cash',
     entity: 'الشركة'
   });
 
@@ -91,7 +92,7 @@ const ERPReminders = () => {
       title: rem.title,
       amount: rem.amount,
       date: format(new Date(), 'yyyy-MM-dd'),
-      method: 'كاش',
+      method: 'cash',
       entity: 'الشركة'
     });
     window.bootstrap.Modal.getOrCreateInstance(document.getElementById('payReminderModal')).show();
@@ -402,9 +403,7 @@ const ERPReminders = () => {
                 <div className="col-md-6">
                   <label className="small fw-bold text-muted mb-1">سحب من الخزينة</label>
                   <select className="form-select bg-light border-0 fw-bold" value={payData.method} onChange={e => setPayData({...payData, method: e.target.value})}>
-                    <option value="كاش">كاش</option>
-                    <option value="فودافون كاش">فودافون كاش</option>
-                    <option value="انستاباي">إنستاباي</option>
+                    {Object.entries(PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </div>
                 <div className="col-md-6">

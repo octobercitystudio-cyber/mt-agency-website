@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS, paymentMethodLabel } from '../lib/paymentMethods';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Banknote, Check, CheckCircle2, CircleDollarSign, Copy, FileText, FileUp, Package, RefreshCw, X, XCircle } from 'lucide-react';
@@ -13,8 +14,9 @@ const outstandingPackage = pkg => Math.max(0, packageTotal(pkg) - Number(pkg.pai
 const outstandingInvoice = invoice => Math.max(0, Number(invoice.total || 0) - Number(invoice.paid_amount || 0));
 const preciseEGP = piastres => formatEGP(piastresToMoney(piastres), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const TRANSFER_METHODS = {
-  instapay: { label: 'إنستاباي', account: '01114466646' },
-  vodafone_cash: { label: 'فودافون كاش', account: '01094084424' },
+  cash: { label: PAYMENT_METHODS.cash, account: '', note: 'سداد في مقر الشركة' },
+  instapay: { label: PAYMENT_METHODS.instapay, account: '01114466646' },
+  vodafone_cash: { label: PAYMENT_METHODS.vodafone_cash, account: '01094084424' },
 };
 const TRANSACTION_STATUS = {
   approved: { label: 'مقبولة', className: 'accepted' },
@@ -22,7 +24,7 @@ const TRANSACTION_STATUS = {
   rejected: { label: 'مرفوضة', className: 'rejected' },
 };
 const normalizedTransactionStatus = status => status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'pending';
-const transferMethodLabel = method => TRANSFER_METHODS[method]?.label || method || 'تحويل بنكي';
+const transferMethodLabel = paymentMethodLabel;
 
 function PackageFinancialStatus({ pkg, dueNow, remaining }) {
   if (remaining <= 0) return <span className="client-finance-chip paid">مدفوعة بالكامل</span>;
@@ -242,12 +244,12 @@ export default function ClientFinanceView({
       </div>
     </section>
 
-    {payOpen && createPortal(<div className="client-payment-modal" onMouseDown={event => { if (event.target === event.currentTarget) closePay(); }}><section ref={payDialogRef} role="dialog" aria-modal="true" aria-labelledby="client-payment-title"><button data-dialog-initial type="button" className="client-payment-modal__close" onClick={closePay} aria-label="إغلاق الدفع"><X/></button><header><span>إرسال إثبات تحويل</span><h2 id="client-payment-title">ادفع من حسابك</h2><p>حدد المبلغ وطريقة التحويل ثم ارفع صورة العملية.</p></header><form onSubmit={submitPayment}>
+    {payOpen && createPortal(<div className="client-payment-modal" onMouseDown={event => { if (event.target === event.currentTarget) closePay(); }}><section ref={payDialogRef} role="dialog" aria-modal="true" aria-labelledby="client-payment-title"><button data-dialog-initial type="button" className="client-payment-modal__close" onClick={closePay} aria-label="إغلاق الدفع"><X/></button><header><span>إرسال إثبات دفع</span><h2 id="client-payment-title">ادفع من حسابك</h2><p>حدد المبلغ وطريقة الدفع ثم ارفع صورة التحويل أو إيصال السداد.</p></header><form onSubmit={submitPayment}>
       <label>الباقة أو الفاتورة<select required value={proofForm.target} onChange={event => onProofFormChange({ target: event.target.value, amount: String(targetOptions.find(item => item.value === event.target.value)?.outstanding || '') })}><option value="">اختر المطلوب سداده</option>{targetOptions.map(target => <option key={target.value} value={target.value}>{target.label} — متبقي {formatEGP(target.outstanding)}</option>)}</select></label>
       <div className="client-payment-amounts"><div><span>إجمالي المتبقي</span><strong>{selectedTarget ? formatEGP(selectedTarget.outstanding) : '—'}</strong></div><label>المبلغ الذي ستدفعه<input required type="number" min="0.01" step="0.01" max={selectedTarget?.outstanding || undefined} value={proofForm.amount} onChange={event => onProofFormChange({ amount: event.target.value })} placeholder="0.00"/></label></div>
-      <fieldset><legend>طريقة الدفع</legend><div className="client-transfer-methods">{Object.entries(TRANSFER_METHODS).map(([value, method]) => <label className={proofForm.payment_method === value ? 'active' : ''} key={value}><input type="radio" name="payment_method" value={value} checked={proofForm.payment_method === value} onChange={() => onProofFormChange({ payment_method: value })}/><span>{method.label}</span><strong>{method.account}</strong></label>)}</div></fieldset>
-      <div className="client-transfer-account"><span>رقم التحويل عبر {transferMethod.label}</span><strong dir="ltr">{transferMethod.account}</strong><button type="button" onClick={copyAccount}>{copied ? <Check/> : <Copy/>}{copied ? 'تم النسخ' : 'نسخ الرقم'}</button></div>
-      <label className="client-finance-file"><FileUp/><span>{proofForm.file?.name || 'حدد صورة التحويل أو ملف PDF'}</span><input required type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={event => onProofFormChange({ file: event.target.files?.[0] || null })}/></label><ProofFilePreview file={proofForm.file}/>
+      <fieldset><legend>طريقة الدفع</legend><div className="client-transfer-methods">{Object.entries(TRANSFER_METHODS).map(([value, method]) => <label className={proofForm.payment_method === value ? 'active' : ''} key={value}><input type="radio" name="payment_method" value={value} checked={proofForm.payment_method === value} onChange={() => onProofFormChange({ payment_method: value })}/><span>{method.label}</span><strong>{method.account || method.note}</strong></label>)}</div></fieldset>
+      {transferMethod.account ? <div className="client-transfer-account"><span>رقم التحويل عبر {transferMethod.label}</span><strong dir="ltr">{transferMethod.account}</strong><button type="button" onClick={copyAccount}>{copied ? <Check/> : <Copy/>}{copied ? 'تم النسخ' : 'نسخ الرقم'}</button></div> : <p className="client-cash-note">بعد السداد كاش في مقر الشركة، أرفق إيصال السداد للمراجعة. لا يُحتسب المبلغ مدفوعًا حتى تعتمد الإدارة الإثبات.</p>}
+      <label className="client-finance-file"><FileUp/><span>{proofForm.file?.name || 'حدد صورة التحويل أو إيصال السداد أو ملف PDF'}</span><input required type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={event => onProofFormChange({ file: event.target.files?.[0] || null })}/></label><ProofFilePreview file={proofForm.file}/>
       <button className="client-primary" disabled={proofBusy || !selectedTarget}>{proofBusy ? <RefreshCw className="client-spin"/> : <FileUp/>}{proofBusy ? 'جارٍ الإرسال...' : 'إرسال إثبات الدفع'}</button>
     </form></section></div>, document.body)}
   </section>;

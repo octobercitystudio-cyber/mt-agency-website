@@ -125,7 +125,7 @@ test('demo formation and social corrections return their existing replacement on
   const socialFirst = await demoClient.request('/social-profits/3201/correct', { method: 'POST', body: JSON.stringify(socialPayload) });
   const socialRetry = await demoClient.request('/social-profits/3201/correct', { method: 'POST', body: JSON.stringify(socialPayload) });
   assert.equal(socialFirst.error, null); assert.equal(socialRetry.error, null); assert.equal(socialRetry.data.idempotent, true); assert.equal(socialRetry.data.replacement_id, socialFirst.data.replacement_id);
-  const fundPayload = { reason: 'تصحيح قيمة مساهمة التأسيس', founder_id: 1, amount: 150001, title: 'مساهمة رأس المال المصححة', category: 'capital', payment_method: 'تحويل بنكي', reference: 'RETRY-FUND', entry_date: '2026-08-01', note: '' };
+  const fundPayload = { reason: 'تصحيح قيمة مساهمة التأسيس', founder_id: 1, amount: 150001, title: 'مساهمة رأس المال المصححة', category: 'capital', payment_method: 'instapay', reference: 'RETRY-FUND', entry_date: '2026-08-01', note: '' };
   const fundFirst = await demoClient.request('/formation-fund/entries/3001/correct', { method: 'POST', body: JSON.stringify(fundPayload) });
   const fundRetry = await demoClient.request('/formation-fund/entries/3001/correct', { method: 'POST', body: JSON.stringify(fundPayload) });
   assert.equal(fundFirst.error, null); assert.equal(fundRetry.error, null); assert.equal(fundRetry.data.idempotent, true); assert.equal(fundRetry.data.replacement_id, fundFirst.data.replacement_id);

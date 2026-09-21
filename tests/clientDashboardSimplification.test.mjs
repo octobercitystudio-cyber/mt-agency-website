@@ -37,9 +37,9 @@ test('the four primary pages are home, appointments, finance, and offers', async
 
 test('owner creation forms keep a short default path and collapsed advanced controls', async () => {
   const [packages, custom] = await Promise.all([load('src/erp/ERPPackages.jsx'), load('src/erp/CustomServiceForm.jsx')]);
-  assert.match(packages, /packages-sale-basics/);
-  assert.match(packages, /<details className="packages-progressive-section">/);
-  assert.match(packages, /إضافة موعد الآن \(اختياري\)/);
+  assert.match(packages, /packages-quick-dialog/);
+  assert.match(packages, /<details[^>]*className="packages-progressive-section packages-quick-advanced"[^>]*>/);
+  assert.match(packages, /إضافة مواعيد تصوير/);
   assert.match(packages, /حفظ الباقة بدون موعد/);
   assert.match(custom, /<details className="custom-advanced-options">/);
   assert.match(custom, /إجمالي الاتفاق/);

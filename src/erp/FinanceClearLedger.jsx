@@ -27,9 +27,9 @@ export function FinanceOverview({ income, expense, profit, month, receivables, o
 
 export function FinanceWallets({ balances, month, isAdmin, canAdjust, onAdjust }) {
   const wallets = [
-    { key: 'cash', label: 'الكاش', method: 'كاش', icon: Banknote, note: 'الخزينة النقدية' },
-    { key: 'instapay', label: 'انستاباي', method: 'انستاباي', icon: Send, note: 'يشمل رصيد التحويل البنكي' },
-    { key: 'vodafone', label: 'فودافون كاش', method: 'فودافون كاش', icon: Smartphone, note: 'محفظة فودافون كاش' },
+    { key: 'cash', label: 'كاش', method: 'cash', icon: Banknote, note: 'الخزينة النقدية' },
+    { key: 'instapay', label: 'انستاباي', method: 'instapay', icon: Send, note: 'يشمل رصيد التحويل البنكي' },
+    { key: 'vodafone', label: 'فودافون كاش', method: 'vodafone_cash', icon: Smartphone, note: 'محفظة فودافون كاش' },
   ];
   return <section className="fc-wallets" aria-labelledby="finance-wallets-heading"><header><div><h2 id="finance-wallets-heading"><Wallet aria-hidden="true"/> المحافظ</h2><p>تبدأ من الصفر يوم 1 · <bdi>{month}</bdi></p></div><span>رصيد كل محفظة بعد حركات الشهر</span></header><div className="fc-wallet-grid">{wallets.map(({ key, label, method, icon: Icon, note }) => <article key={key} className={`fc-wallet fc-wallet--${key}`}><header><span className="fc-wallet-icon"><Icon aria-hidden="true"/></span><h3>{label}</h3>{isAdmin && <button type="button" className="finance-wallet-edit no-print" disabled={!canAdjust} aria-label={`تسوية رصيد ${label}`} title={canAdjust ? 'تسوية الرصيد' : 'التسوية متاحة في الشهر الحالي المفتوح فقط'} onClick={() => onAdjust(method, balances[key])}><Pencil aria-hidden="true"/></button>}</header><FinanceAmount value={balances[key]}/><p>{note}</p></article>)}</div></section>;
 }

@@ -6,14 +6,7 @@ export const BUSINESS_HOURS_LABEL = 'متاح طوال اليوم (24 ساعة)'
 export const CURRENCY_CODE = 'EGP';
 export const CURRENCY_LABEL = 'ج.م';
 
-const PAYMENT_METHOD_LABELS = new Map([
-  ['cash', 'نقدي'], ['كاش', 'نقدي'], ['نقدي', 'نقدي'],
-  ['bank_transfer', 'تحويل بنكي'], ['تحويل بنكي', 'تحويل بنكي'],
-  ['vodafone_cash', 'فودافون كاش'], ['فودافون كاش', 'فودافون كاش'],
-  ['instapay', 'إنستاباي'], ['انستاباي', 'إنستاباي'], ['إنستاباي', 'إنستاباي'], ['إنستاباي (InstaPay)', 'إنستاباي'],
-]);
-
-export const formatPaymentMethod = value => PAYMENT_METHOD_LABELS.get(String(value || '').trim()) || String(value || '').trim() || 'غير محدد';
+export { paymentMethodLabel as formatPaymentMethod } from './paymentMethods.js';
 
 const BOOKING_STATUS_LABELS = Object.freeze({
   pending: 'بانتظار التأكيد', confirmed: 'مؤكد', alternative_proposed: 'موعد بديل مقترح',

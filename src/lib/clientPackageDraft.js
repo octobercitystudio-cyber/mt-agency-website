@@ -1,3 +1,4 @@
+import { normalizePaymentMethod } from './paymentMethods.js';
 import { moneyToCents, centsToMoney } from './businessFormat.js';
 
 const HOUR_TEMPLATE_UNITS = new Set(['hour', 'day', 'month']);
@@ -119,6 +120,6 @@ export const validatePackageDraft = draft => {
   const totalCents = moneyToCents(draft?.total_price); const paidCents = moneyToCents(draft?.paid_amount);
   if (totalCents < 0) errors.total_price = 'السعر الإجمالي لا يمكن أن يكون سالبًا.';
   if (paidCents < 0 || paidCents > totalCents) errors.paid_amount = 'المدفوع يجب أن يكون بين صفر والسعر الإجمالي.';
-  if (!text(draft?.payment_method)) errors.payment_method = 'اختر طريقة الدفع.';
+  if (!normalizePaymentMethod(draft?.payment_method)) errors.payment_method = 'اختر طريقة الدفع.';
   return errors;
 };

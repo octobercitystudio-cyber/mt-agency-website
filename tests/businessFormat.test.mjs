@@ -10,11 +10,11 @@ import {
 } from '../src/lib/businessFormat.js';
 
 test('payment methods normalize across API and Arabic legacy values', () => {
-  assert.equal(formatPaymentMethod('cash'), 'نقدي');
+  assert.equal(formatPaymentMethod('cash'), 'كاش');
   assert.equal(formatPaymentMethod('bank_transfer'), 'تحويل بنكي');
   assert.equal(formatPaymentMethod('vodafone_cash'), 'فودافون كاش');
-  assert.equal(formatPaymentMethod('instapay'), 'إنستاباي');
-  assert.equal(formatPaymentMethod('إنستاباي (InstaPay)'), 'إنستاباي');
+  assert.equal(formatPaymentMethod('instapay'), 'انستاباي');
+  assert.equal(formatPaymentMethod('إنستاباي (InstaPay)'), 'انستاباي');
   assert.equal(formatPaymentMethod('طريقة خاصة'), 'طريقة خاصة');
   assert.equal(formatPaymentMethod(''), 'غير محدد');
 });

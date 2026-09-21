@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, ArrowUpCircle, CheckCircle2, Clock3,
@@ -11,9 +12,6 @@ import { safeUiError } from '../lib/uiError';
 import useModalDialog from '../hooks/useModalDialog';
 import './PackageUpgradeDialog.css';
 
-const PAYMENT_METHODS = {
-  cash: 'كاش', bank_transfer: 'تحويل بنكي', vodafone_cash: 'فودافون كاش', instapay: 'إنستاباي',
-};
 
 const upgradeKey = packageId => `package-upgrade-${packageId}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 

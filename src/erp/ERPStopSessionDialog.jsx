@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, ArrowLeftRight, CheckCircle2, Clock3,
@@ -303,7 +304,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
               <label><span>الصلاحية بالأيام</span><input type="number" min="1" value={newPackage.validity_days} readOnly={!isOwner} onChange={event => setNewPackage({ ...newPackage, validity_days: event.target.value })} /></label>
               <SettlementMoneyInput id="session-new-package-total" label="إجمالي السعر" value={newPackage.total_price} readOnly={!isOwner} onChange={value => setNewPackage({ ...newPackage, total_price: value })} />
               <SettlementMoneyInput id="session-new-package-paid" label="المدفوع الآن" value={newPackage.initial_paid} onChange={value => setNewPackage({ ...newPackage, initial_paid: value })} />
-              <label><span>طريقة الدفع</span><select value={newPackage.payment_method} onChange={event => setNewPackage({ ...newPackage, payment_method: event.target.value })}><option value="cash">نقدي</option><option value="bank_transfer">تحويل بنكي</option><option value="vodafone_cash">فودافون كاش</option><option value="instapay">إنستاباي</option></select></label>
+              <label><span>طريقة الدفع</span><select value={newPackage.payment_method} onChange={event => setNewPackage({ ...newPackage, payment_method: event.target.value })}>{Object.entries(PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             </div><label className="session-settlement-note"><span>ملاحظات</span><textarea rows="2" value={newPackage.notes} onChange={event => setNewPackage({ ...newPackage, notes: event.target.value })} /></label><p className="session-settlement-result">سيُخصم {durationLabel(preview.excess_minutes)} الآن، ويتبقى في الباقة الجديدة {durationLabel(packageAfter)}.</p></section>}
 
             {family === 'package_overage' && <section className="session-settlement-panel session-settlement-panel--overage"><h3><WalletCards /> سعر الوقت الإضافي</h3><div className="session-settlement-grid"><SettlementMoneyInput id="session-overage-rate" label="سعر الساعة الحالي" value={effectiveRate} readOnly={!isOwner} onChange={value => setCustom({ ...custom, hourly_rate: value })} /><p className="session-settlement-result">الوقت الزائد {durationLabel(preview.excess_minutes)} · المبلغ المستحق {overageAmount === null ? '—' : moneyLabel(overageAmount)}</p></div></section>}

@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { dataClient } from '../dataClient';
 import { CalendarPlus, Trash2, DollarSign, X, CheckCircle, Truck, Pointer, PackageCheck, Clock3, WalletCards, ShieldAlert } from 'lucide-react';
@@ -49,7 +50,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
     discount: 0,
     discount_reason: '',
     paid: 0,
-    payment_method: 'فودافون كاش',
+    payment_method: 'vodafone_cash',
     notes: '',
     schedule_extra: false,
     client_package_id: '',
@@ -103,7 +104,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       if (prefilledClientName) {
         setNewBooking(prev => ({ ...prev, client_id: '', client_name: prefilledClientName, color: '#4318ff', category: '', service: '', dates: [], paid: 0, discount: 0, discount_reason: '', base_price: 0, schedule_extra: false, client_package_id: '' }));
       } else {
-        setNewBooking({ client_id: '', client_name: '', color: '#4318ff', category: '', service: '', dates: [], delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'فودافون كاش', notes: '', schedule_extra: false, client_package_id: '' });
+        setNewBooking({ client_id: '', client_name: '', color: '#4318ff', category: '', service: '', dates: [], delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'vodafone_cash', notes: '', schedule_extra: false, client_package_id: '' });
       }
     } }, 0);
     return () => window.clearTimeout(timer);
@@ -550,9 +551,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
               <div>
                 <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '8px', display: 'block' }}>إيداع الدفعة في (خزينة)</label>
                 <select value={newBooking.payment_method} onChange={e => setNewBooking({...newBooking, payment_method: e.target.value})} style={{ width: '100%', background: 'var(--erp-surface)', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', color: 'var(--erp-text-main)', boxShadow: '0 2px 5px rgba(0,0,0,0.02)' }}>
-                  <option value="كاش">كاش</option>
-                  <option value="فودافون كاش">فودافون كاش</option>
-                  <option value="انستاباي">إنستاباي</option>
+                  {Object.entries(PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </div>
               )}

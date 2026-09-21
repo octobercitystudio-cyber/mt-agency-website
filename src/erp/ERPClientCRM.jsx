@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { centsToMoney, formatBookingDate, formatEGP, formatPackageQuantity, formatTime12, packageFinancialSummary, packageQuantitySummary, remainingCalendarDays } from '../lib/businessFormat';
 import OwnerRecordActions from './OwnerRecordActions';
+import { clientAdditionalPhones } from '../lib/clientPhones';
 
 const money = formatEGP;
 const bookingDate = booking => booking?.date ? formatBookingDate(booking.date) : 'لا يوجد موعد قادم';
@@ -79,6 +80,7 @@ function ClientDirectoryItem({ client, checked, onToggle, onOpen, onBook, onEdit
       </button>
       <div className="client-crm-item__contact">
         <a href={`tel:${client.phone1}`} dir="ltr"><Phone size={15} /> {client.phone1 || 'لا يوجد هاتف'}</a>
+        {clientAdditionalPhones(client).map(phone => <a key={phone} href={`tel:${phone}`} dir="ltr"><Phone size={15} /> {phone}</a>)}
         <span dir={client.email ? 'ltr' : 'rtl'}><Mail size={15} /> {client.email || 'لا يوجد بريد مسجل'}</span>
       </div>
       <div className="client-crm-item__relationship">
@@ -183,7 +185,7 @@ function ClientMetric({ icon: Icon, label, value, tone = '' }) {
 
 function OverviewTab({ client, onBook, onOpenHistory }) {
   return <div className="client-crm-overview">
-    <section className="client-crm-section"><header><div><span>بيانات التواصل</span><h3>الملف الأساسي</h3></div></header><dl className="client-crm-data-list"><div><dt>الهاتف الأساسي</dt><dd dir="ltr">{client.phone1 || '—'}</dd></div><div><dt>هاتف إضافي</dt><dd dir="ltr">{client.phone2 || '—'}</dd></div><div><dt>البريد الإلكتروني</dt><dd dir="ltr">{client.email || 'غير مسجل'}</dd></div><div><dt>النوع / العمل</dt><dd>{client.job || 'غير مسجل'}</dd></div></dl></section>
+    <section className="client-crm-section"><header><div><span>بيانات التواصل</span><h3>الملف الأساسي</h3></div></header><dl className="client-crm-data-list"><div><dt>الهاتف الأساسي</dt><dd dir="ltr">{client.phone1 || '—'}</dd></div>{clientAdditionalPhones(client).map((phone, index) => <div key={phone}><dt>هاتف إضافي {index + 1}</dt><dd dir="ltr">{phone}</dd></div>)}<div><dt>الشركة</dt><dd>{client.company_name || 'غير مسجلة'}</dd></div><div><dt>البريد الإلكتروني</dt><dd dir="ltr">{client.email || 'غير مسجل'}</dd></div><div><dt>النوع / العمل</dt><dd>{client.job || 'غير مسجل'}</dd></div></dl></section>
     <section className="client-crm-section"><header><div><span>الحالة التشغيلية</span><h3>العلاقة الحالية</h3></div></header><div className="client-crm-relationship-summary"><p><PackageCheck />{client.packagesList?.length ? client.packagesList.join('، ') : 'لا توجد خدمات نشطة مشتقة من الحجوزات.'}</p><p><CalendarClock />{client.nextBooking ? `الموعد القادم ${bookingDate(client.nextBooking)} الساعة ${formatTime12(client.nextBooking.start_time)}` : 'لا يوجد موعد قادم مسجل.'}</p></div><button className="client-crm-primary-action" type="button" onClick={onBook}><CalendarPlus /> حجز / إضافة خدمة</button></section>
     <section className="client-crm-history-strip"><button onClick={() => onOpenHistory('packages')}><History /> سجل الباقات</button><button onClick={() => onOpenHistory('bookings')}><CalendarClock /> سجل المواعيد</button><button onClick={() => onOpenHistory('finance')}><FileText /> سجل الدفعات</button></section>
   </div>;

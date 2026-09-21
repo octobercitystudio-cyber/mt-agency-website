@@ -1,3 +1,4 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useState, useEffect, useRef } from 'react';
 import { dataClient } from '../dataClient';
 import { UserPlus, Edit, Trash2, Search, Wallet, DollarSign, MessageCircle, CalendarPlus, CheckSquare, History, FileText, Camera, Calendar, Tag, Play, RotateCcw } from 'lucide-react';
@@ -5,6 +6,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import ERPAddBookingModal from './ERPAddBookingModal';
 import ERPClientModal from './ERPClientModal';
 import { emptyClient } from './clientForm';
+import { clientAdditionalPhones } from '../lib/clientPhones';
 import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
 import { ClientDirectory, ClientProfileDrawer } from './ERPClientCRM';
@@ -345,7 +347,7 @@ const ERPClients = () => {
 
   const normalizedSearch = searchTerm.trim().toLocaleLowerCase('ar');
   let sortedClients = clients.filter(c => {
-    const matchesSearch = !normalizedSearch || [c.name, c.phone1, c.phone2, c.job, c.email]
+    const matchesSearch = !normalizedSearch || [c.name, c.phone1, ...clientAdditionalPhones(c), c.job, c.company_name, c.email]
       .some(value => String(value || '').toLocaleLowerCase('ar').includes(normalizedSearch));
     const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? c.isActive : !c.isActive);
     const hasDue = Number(c.debt) > 0 || c.hasPackageDebt;
@@ -524,7 +526,7 @@ const ERPClients = () => {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px' }}>
                           <div style={{ direction: 'ltr', textAlign: 'right' }}>
                             <div style={{ fontWeight: 'bold', color: '#4318ff', fontSize: '0.9rem' }}>{client.phone1}</div>
-                            {client.phone2 && <div style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)' }}>{client.phone2}</div>}
+                            {clientAdditionalPhones(client).map(phone => <div key={phone} dir="ltr" style={{ fontSize: '0.8rem', color: 'var(--erp-text-muted)' }}>{phone}</div>)}
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button onClick={(e) => { e.stopPropagation(); setBookingClientName(client.name); setIsAddBookingModalOpen(true); }} style={{ background: 'rgba(67, 24, 255, 0.1)', color: '#4318ff', border: '1px solid rgba(67, 24, 255, 0.2)', padding: '5px 12px', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
@@ -568,7 +570,7 @@ const ERPClients = () => {
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
                           <p className="mobile-client-job" style={{ color: 'var(--erp-text-muted)', fontSize: '0.8rem', margin: 0 }}>{client.job || 'عميل'}</p>
-                          <span style={{ direction: 'ltr', fontSize: '0.85rem', color: '#4318ff', fontWeight: 'bold' }}>{client.phone1}</span>
+                          <div style={{ textAlign: 'end' }}><span style={{ direction: 'ltr', fontSize: '0.85rem', color: '#4318ff', fontWeight: 'bold' }}>{client.phone1}</span>{clientAdditionalPhones(client).map(phone => <div key={phone} dir="ltr" style={{ fontSize: '.8rem', color: 'var(--erp-text-muted)' }}>{phone}</div>)}</div>
                         </div>
                       </div>
                     </div>
@@ -763,7 +765,7 @@ const ERPClients = () => {
         client={isEditing ? currentClient : emptyClient}
         canManageAccess={sessionUser?.role === 'owner'}
         onClose={() => setIsClientModalOpen(false)}
-        onSuccess={() => fetchClients(true)}
+        onSuccess={async saved => { setSelectedClient(current => current?.id === saved.id ? { ...current, ...saved } : current); await fetchClients(true); }}
       />
 
       {/* 2. Finance Modal */}
@@ -784,10 +786,7 @@ const ERPClients = () => {
                 <div style={{ textAlign: 'right' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>طريقة السداد / الخزينة</label>
                   <select value={financeMethod} onChange={e => setFinanceMethod(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '1rem', border: 'none', background: 'var(--erp-bg)', fontWeight: 'bold' }}>
-                    <option value="cash">كاش</option>
-                    <option value="bank_transfer">تحويل بنكي</option>
-                    <option value="vodafone_cash">فودافون كاش</option>
-                    <option value="instapay">إنستاباي</option>
+                    {Object.entries(PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </div>
                 {financeError && <p role="alert" style={{ margin: 0, color: '#b4232f', fontWeight: 800 }}>{financeError}</p>}

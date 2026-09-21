@@ -1,11 +1,13 @@
+import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeftRight, CalendarCheck2, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, Clock3, Edit3, History, PackageCheck, PackagePlus, Plus, ReceiptText, RefreshCw, Search, ShieldAlert, TimerReset, Trash2, WalletCards, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import './ERPPackages.css';
+import './PackageQuickForm.css';
 import { safeUiError } from '../lib/uiError';
-import { cairoDateKey, centsToMoney, effectivePackageStatus, formatBookingDate, formatBookingStatus, formatDateTime12, formatDurationMinutes, formatEGP, formatPackageQuantity, formatPackageStatus, formatTime12, packageFinancialSummary, packageQuantitySummary, remainingCalendarDays } from '../lib/businessFormat';
+import { cairoDateKey, centsToMoney, effectivePackageStatus, formatBookingDate, formatBookingStatus, formatDateTime12, formatDurationMinutes, formatEGP, formatPackageQuantity, formatPackageStatus, formatPaymentMethod, formatTime12, packageFinancialSummary, packageQuantitySummary, remainingCalendarDays } from '../lib/businessFormat';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
 import ERPPageHero from './ERPPageHero';
@@ -33,7 +35,6 @@ const initialAppointment = (resourceId = '') => ({ resource_id: resourceId, date
 const initialModal = { open: false, type: 'details', pkg: null, name: '', notes: '', starts_at: '', expires_at: '', status: 'active', target_quantity: '', target_total_price: '', target_paid_amount: '', payment_method: 'cash', reason: '', destructiveConfirmed: false, deleteConfirmation: '', audit: [], auditLoading: false };
 const STATUS = { active: [formatPackageStatus('active'), 'active'], expired: [formatPackageStatus('expired'), 'expired'], suspended: [formatPackageStatus('suspended'), 'suspended'], completed: [formatPackageStatus('completed'), 'completed'], draft: [formatPackageStatus('draft'), 'draft'], cancelled: [formatPackageStatus('cancelled'), 'cancelled'], archived: [formatPackageStatus('archived'), 'archived'] };
 const money = formatEGP;
-const PAYMENT_METHODS = { cash: 'كاش', bank_transfer: 'تحويل بنكي', vodafone_cash: 'فودافون كاش', instapay: 'إنستاباي' };
 
 export default function ERPPackages() {
   const { currentUser } = useData();
@@ -117,7 +118,7 @@ export default function ERPPackages() {
     fetchData();
   }, [fetchData]);
 
-  const closeAddDialog = useCallback(() => setFormOpen(false), []);
+  const closeAddDialog = useCallback(() => { if (!formBusy) setFormOpen(false); }, [formBusy]);
   const addDialogRef = useModalDialog(formOpen, closeAddDialog, { returnFocusRef: dialogTriggerRef });
   const closeActionDialog = useCallback(() => setModal(initialModal), []);
   const closeDetailsDialog = useCallback(() => {
@@ -369,7 +370,7 @@ export default function ERPPackages() {
     {whatsappPackage && <PackageWhatsAppDialog key={`${whatsappPackage.id}-${whatsappMode}`} pkg={whatsappPackage} mode={whatsappMode} onClose={() => setWhatsappPackage(null)} />}
     <PackageWorkbench groups={packageGroups} packages={packages} bookings={calendarBookings} todayKey={today()} loading={loading} canAdd={canAssign} onAdd={openAddDialog} onToggleHistory={toggleClientHistory} packageViewProps={packageViewProps} filters={<div className="pw-filters"><label className="pw-search"><Search aria-hidden="true"/><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="اسم العميل أو الهاتف أو الباقة" aria-label="البحث باسم العميل أو الهاتف أو الباقة"/></label><div className="pw-filter-grid"><label>حالة الباقة<select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">كل الحالات</option>{Object.entries(STATUS).map(([key, [label]]) => <option value={key} key={key}>{label}</option>)}</select></label><label>الخدمة<select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)}><option value="all">كل الخدمات</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label><label>الانتهاء<select value={expiryFilter} onChange={event => setExpiryFilter(event.target.value)}><option value="all">كل التواريخ</option><option value="14">خلال 14 يومًا</option><option value="expired">منتهية التاريخ</option></select></label></div><button type="button" className="pw-refresh" onClick={fetchData} disabled={loading}><RefreshCw className={loading ? 'packages-spin' : ''} aria-hidden="true"/> تحديث البيانات</button></div>}/>
 
-    {formOpen && <AddPackageDialog dialogRef={addDialogRef} form={form} errors={formErrors} clients={clients} serviceGroups={serviceGroups} selectedTemplate={selectedTemplate} dirty={formDirty} expiry={expiryPreview} busy={formBusy} childOpen={clientModalOpen} clientPickerTriggerRef={clientPickerTriggerRef} onOpenClient={() => setClientModalOpen(true)} onSelectClient={selectClient} onClose={closeAddDialog} onSubmit={submitPackage} onSelectService={selectService} onField={updateFormField} onReset={resetFormTemplate} resetNotice={templateResetNotice} resources={resources} calendarBookings={calendarBookings} appointments={saleBookings} appointment={appointment} appointmentErrors={appointmentErrors} editingAppointment={editingAppointment} usage={appointmentUsage} onAppointment={setAppointment} onSaveAppointment={saveAppointment} onEditAppointment={editAppointment} onRemoveAppointment={removeAppointment}/>}
+    {formOpen && <AddPackageDialog dialogRef={addDialogRef} requestError={error} form={form} errors={formErrors} clients={clients} serviceGroups={serviceGroups} selectedTemplate={selectedTemplate} dirty={formDirty} expiry={expiryPreview} busy={formBusy} childOpen={clientModalOpen} clientPickerTriggerRef={clientPickerTriggerRef} onOpenClient={() => setClientModalOpen(true)} onSelectClient={selectClient} onClose={closeAddDialog} onSubmit={submitPackage} onSelectService={selectService} onField={updateFormField} onReset={resetFormTemplate} resetNotice={templateResetNotice} resources={resources} calendarBookings={calendarBookings} appointments={saleBookings} appointment={appointment} appointmentErrors={appointmentErrors} editingAppointment={editingAppointment} usage={appointmentUsage} onAppointment={setAppointment} onSaveAppointment={saveAppointment} onEditAppointment={editAppointment} onRemoveAppointment={removeAppointment}/>}
     <ERPClientModal isOpen={clientModalOpen} nested returnFocusRef={clientPickerTriggerRef} onClose={() => setClientModalOpen(false)} onSuccess={handleClientCreated}/>
 
     {modal.open && <OwnerPackageControl pkg={modal.pkg} person={client(modal.pkg?.client_id)} resources={resources} returnFocusRef={dialogTriggerRef} childOpen={bookingPackage.open || paymentPackage.open} refreshToken={ownerRefreshToken} onClose={closeActionDialog} onChanged={fetchData} onDeleted={handlePackageDeleted} onNewBooking={event => openPackageBooking(modal.pkg, event)} onNewPayment={event => openPackagePayment(modal.pkg, event)}/>}
@@ -380,11 +381,45 @@ export default function ERPPackages() {
   </div>;
 }
 
-function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, selectedTemplate, dirty, expiry, busy, childOpen, clientPickerTriggerRef, onOpenClient, onSelectClient, onClose, onSubmit, onSelectService, onField, onReset, resetNotice, resources, calendarBookings, appointments, appointment, appointmentErrors, editingAppointment, usage, onAppointment, onSaveAppointment, onEditAppointment, onRemoveAppointment }) {
+function AddPackageDialog({ dialogRef, requestError, form, errors, clients, serviceGroups, selectedTemplate, dirty, expiry, busy, childOpen, clientPickerTriggerRef, onOpenClient, onSelectClient, onClose, onSubmit, onSelectService, onField, onReset, resetNotice, resources, calendarBookings, appointments, appointment, appointmentErrors, editingAppointment, usage, onAppointment, onSaveAppointment, onEditAppointment, onRemoveAppointment }) {
   const errorFor = field => errors[field] ? <small className="packages-field-error" role="alert">{errors[field]}</small> : null;
   const anchoredDraft = anchorPackageDraftToBookings(form, appointments);
   const original = selectedTemplate ? templateToPackageDraft(selectedTemplate, { clientId: form.client_id, startsAt: form.starts_at }) : null;
-  const financial = packageFinancialSummary({ total_price: form.total_price, paid_amount: form.paid_amount, overage_amount: 0 });
+  const advancedRef = useRef(null);
+  const appointmentsRef = useRef(null);
+  const submitAttemptRef = useRef(false);
+  const appointmentAttemptRef = useRef(false);
+  const total = Number(form.total_price);
+  const paid = Number(form.paid_amount);
+  const validMoney = form.total_price !== '' && Number.isFinite(total) && Number.isFinite(paid) && total >= 0 && paid >= 0 && paid <= total;
+  const moneyNumber = value => value !== '' && Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—';
+  const outstanding = validMoney ? moneyNumber(Math.round((total - paid) * 100) / 100) : '—';
+  const moneyError = paid > total ? 'المبلغ المدفوع لا يمكن أن يتجاوز إجمالي سعر الباقة.' : total < 0 || paid < 0 ? 'أدخل مبالغ صحيحة لا تقل عن صفر.' : '';
+  useEffect(() => {
+    const bookingErrors = Object.values(appointmentErrors).some(Boolean) || usage.exceeded;
+    const formHasErrors = Object.values(errors).some(Boolean);
+    if (bookingErrors && appointmentsRef.current) appointmentsRef.current.open = true;
+    if (formHasErrors && !errors.service_id && ['name', 'billing_unit', 'quantity', 'payment_due_quantity', 'validity_days', 'starts_at', 'shooting_date'].some(key => errors[key]) && advancedRef.current) advancedRef.current.open = true;
+    const shouldFocus = (submitAttemptRef.current && (formHasErrors || bookingErrors)) || (appointmentAttemptRef.current && bookingErrors);
+    submitAttemptRef.current = false;
+    appointmentAttemptRef.current = false;
+    if (!shouldFocus) return;
+    const frame = requestAnimationFrame(() => {
+      const target = bookingErrors ? appointmentsRef.current?.querySelector('[aria-invalid="true"], [role="alert"], .packages-usage-strip.conflict') : dialogRef.current?.querySelector('[aria-invalid="true"]');
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [errors, appointmentErrors, dialogRef, usage.exceeded]);
+  useEffect(() => {
+    if (!requestError) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const target = dialogRef.current?.querySelector('.packages-quick-request-error');
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requestError, dialogRef]);
   const reelBalance = form.billing_unit === 'reel';
   const balanceUnit = reelBalance ? 'ريل' : 'ساعة';
   const balanceUnitPlural = reelBalance ? 'ريلز' : 'ساعات';
@@ -395,34 +430,43 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
   const calendarDays = useMemo(() => packageCalendarWeek(calendarAnchor, { startsAt: anchoredDraft.starts_at, expiresAt: expiry === '—' ? '' : expiry, shootingDate: daily ? anchoredDraft.shooting_date : '', resourceId: appointment.resource_id, occupied: calendarBookings, appointments }), [calendarAnchor, anchoredDraft.starts_at, anchoredDraft.shooting_date, expiry, daily, appointment.resource_id, calendarBookings, appointments]);
   const calendarLabel = calendarDays.length ? `${calendarDays[0].date} — ${calendarDays.at(-1).date}` : '';
   const chooseCalendarDay = day => { if (day.disabled) return; setCalendarAnchor(day.date); onAppointment(current => ({ ...current, date: day.date })); };
-  return <div className="packages-modal packages-sale-modal" onMouseDown={event => { if (!childOpen && event.target === event.currentTarget) onClose(); }}>
-    <form ref={dialogRef} className="packages-dialog large packages-sale-dialog" role="dialog" aria-modal="true" aria-labelledby="add-package-title" aria-describedby="add-package-description" aria-hidden={childOpen ? 'true' : undefined} inert={childOpen ? true : undefined} onSubmit={onSubmit} noValidate>
-      <button type="button" aria-label="إغلاق نافذة إضافة الباقة" className="packages-close" onClick={onClose}><X/></button>
-      <span className="packages-dialog-kicker"><PackagePlus/> عملية بيع جديدة</span>
-      <h3 id="add-package-title">إضافة باقة لعميل</h3>
-      <p id="add-package-description">اختر العميل والقالب؛ ستظهر شروطه كاملة ويمكن مراجعتها أو تعديلها قبل إنشاء الرصيد والدفعة.</p>
+  return <div className="packages-modal packages-sale-modal" onMouseDown={event => { if (!childOpen && !busy && event.target === event.currentTarget) onClose(); }}>
+    <form ref={dialogRef} className="packages-dialog large packages-sale-dialog packages-quick-dialog" role="dialog" aria-modal="true" aria-labelledby="add-package-title" aria-describedby="add-package-description" aria-hidden={childOpen ? 'true' : undefined} inert={childOpen ? true : undefined} onSubmit={event => { submitAttemptRef.current = true; onSubmit(event); }} noValidate>
+      <header className="packages-quick-head">
+        <span className="packages-quick-symbol" aria-hidden="true"><PackagePlus/></span>
+        <div><h3 id="add-package-title">إضافة باقة لعميل</h3><p id="add-package-description">اختر العميل والباقة، وسجّل الدفعة الأولى.</p></div>
+        <button type="button" aria-label="إغلاق نافذة إضافة الباقة" className="packages-close" disabled={busy} onClick={onClose}><X/></button>
+      </header>
+      <div className="packages-quick-body">
+      {requestError && <div className="packages-quick-request-error" role="alert" tabIndex={-1}><ShieldAlert/><span>{requestError}</span></div>}
+      <fieldset className="packages-quick-fields" disabled={busy}>
+      <section aria-labelledby="package-client-heading">
+      <h4 className="packages-quick-heading" id="package-client-heading"><span>01</span> العميل والباقة</h4>
       <div className="packages-form-grid packages-sale-selectors">
         <div className="packages-client-picker">
-          <ClientCombobox ref={clientPickerTriggerRef} clients={clients} value={form.client_id} onChange={onSelectClient} onCreateClient={onOpenClient} label="العميل" required invalid={Boolean(errors.client_id)} inputProps={{ 'data-dialog-initial': true }} />
+          <ClientCombobox ref={clientPickerTriggerRef} clients={clients} value={form.client_id} onChange={onSelectClient} onCreateClient={onOpenClient} label="اسم العميل" disabled={busy} required invalid={Boolean(errors.client_id)} inputProps={{ 'data-dialog-initial': true }} />
           {errorFor('client_id')}
         </div>
-        <label>قالب الخدمة<select aria-invalid={Boolean(errors.service_id)} value={form.service_id} onChange={event => onSelectService(event.target.value)}><option value="">اختر الخدمة</option>{serviceGroups.map(group => <optgroup key={group.key} label={group.label}>{group.services.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</optgroup>)}</select>{errorFor('service_id')}</label>
+        <label>نوع الباقة<select aria-invalid={Boolean(errors.service_id)} value={form.service_id} onChange={event => onSelectService(event.target.value)}><option value="">اختر الخدمة</option>{serviceGroups.map(group => <optgroup key={group.key} label={group.label}>{group.services.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</optgroup>)}</select>{errorFor('service_id')}<span className="packages-quick-meta">{selectedTemplate ? <><b>{formatPackageQuantity(form.quantity, form.billing_unit)} تصوير</b><span>·</span><span>{daily ? 'صالحة ليوم تصوير واحد' : `صلاحية ${form.validity_days} يومًا`}</span></> : 'اختر الباقة لعرض الرصيد والصلاحية.'}</span></label>
       </div>
+      </section>
+      <section className="packages-quick-money" aria-labelledby="package-money-heading">
+        <h4 className="packages-quick-heading" id="package-money-heading"><span>02</span> المبلغ وطريقة الدفع</h4>
+        <div className="packages-quick-money-grid">
+          <label>إجمالي سعر الباقة<span className="packages-quick-money-input"><input aria-invalid={Boolean(errors.total_price)} type="number" min="0" step="0.01" inputMode="decimal" value={form.total_price} onChange={event => onField('total_price', event.target.value)}/><span>ج.م</span></span>{errorFor('total_price')}</label>
+          <label>المبلغ المدفوع<span className="packages-quick-money-input"><input aria-invalid={Boolean(errors.paid_amount || moneyError)} type="number" min="0" step="0.01" inputMode="decimal" max={form.total_price || undefined} value={form.paid_amount} onChange={event => onField('paid_amount', event.target.value)}/><span>ج.م</span></span>{errorFor('paid_amount')}</label>
+          <label>طريقة الدفع<select aria-invalid={Boolean(errors.payment_method)} value={form.payment_method} onChange={event => onField('payment_method', event.target.value)}>{Object.entries(PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{errorFor('payment_method')}</label>
+        </div>
+        <div className={'packages-quick-balance' + (moneyError ? ' is-invalid' : '')} aria-live="polite"><span>المتبقي على العميل</span><strong>{outstanding}</strong><span>ج.م</span><small>{moneyError || 'يمكن استكمال الدفع في أي وقت.'}</small></div>
+      </section>
+      <details ref={advancedRef} className="packages-progressive-section packages-quick-advanced">
+        <summary><span><strong>تعديل تفاصيل الباقة</strong><small>اختياري</small></span></summary>
       {selectedTemplate && <section className={`packages-template-snapshot${dirty ? ' is-dirty' : ''}`} aria-label="ملخص قالب الخدمة">
         <div><span>القالب المختار</span><strong>{selectedTemplate.name}</strong><small>{dirty ? 'تم تعديل بعض شروط القالب' : 'مطابق لشروط القالب الأصلية'}</small></div>
         <dl><div><dt>الرصيد الأصلي</dt><dd>{formatPackageQuantity(original?.quantity, original?.billing_unit)}</dd></div><div><dt>الصلاحية</dt><dd>{original?.validity_days} يوم</dd></div><div><dt>سعر القالب</dt><dd>{money(original?.total_price)}</dd></div><div><dt>حد الاستحقاق</dt><dd>{formatPackageQuantity(original?.payment_due_quantity, original?.billing_unit)}</dd></div><div><dt>سعر {original?.billing_unit === 'reel' ? 'الريل' : 'الساعة'} الإضافي</dt><dd>{money(original?.overage_price_snapshot)}</dd></div></dl>
         <button type="button" className="packages-reset-template" onClick={onReset} disabled={!dirty || busy}><TimerReset/> استعادة شروط القالب</button>
         {resetNotice && <p className="packages-reset-outcome" role="status">{resetNotice}</p>}
       </section>}
-      <fieldset className="packages-sale-section packages-payment-section packages-sale-basics">
-        <legend><CircleDollarSign/><span><strong>السعر والدفع</strong><small>راجع الرقمين الأساسيين قبل الحفظ.</small></span></legend>
-        <div className="packages-form-grid packages-sale-grid">
-          <label>السعر الإجمالي<input aria-invalid={Boolean(errors.total_price)} type="number" min="0" step="0.01" value={form.total_price} onChange={event => onField('total_price', event.target.value)}/>{errorFor('total_price')}</label>
-          <label>المبلغ المدفوع<input aria-invalid={Boolean(errors.paid_amount)} type="number" min="0" step="0.01" max={form.total_price || undefined} value={form.paid_amount} onChange={event => onField('paid_amount', event.target.value)}/><small className="packages-field-help">سيُسجل هذا المبلغ فقط كإيراد.</small>{errorFor('paid_amount')}</label>
-        </div>
-      </fieldset>
-      <details className="packages-progressive-section">
-        <summary><span><strong>تعديل تفاصيل الباقة</strong><small>الاسم والرصيد والصلاحية والشروط التجارية</small></span></summary>
         <div className="packages-sale-groups">
         <fieldset className="packages-sale-section packages-balance-section">
           <legend><Clock3/><span><strong>الرصيد والصلاحية</strong><small>حدد ما يملكه العميل ومدة استخدامه.</small></span></legend>
@@ -439,18 +483,12 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
             {!daily && <label>مدة الصلاحية بالأيام<input aria-invalid={Boolean(errors.validity_days)} type="number" min="1" step="1" value={form.validity_days} onChange={event => onField('validity_days', event.target.value)}/><small className="packages-field-help">يوم أول حجز هو اليوم رقم 1.</small>{errorFor('validity_days')}</label>}
           </div>
         </fieldset>
-        <fieldset className="packages-sale-section packages-payment-section">
-          <legend><CircleDollarSign/><span><strong>السعر والدفع</strong><small>راجع الاتفاق التجاري والدفعة الافتتاحية.</small></span></legend>
-          <div className="packages-form-grid packages-sale-grid">
-            <label>سعر {reelBalance ? 'الريل' : 'الساعة'} الإضافي<input aria-invalid={Boolean(errors.overage_price_snapshot)} type="number" min="0" step="0.01" value={form.overage_price_snapshot} onChange={event => onField('overage_price_snapshot', event.target.value)}/><small className="packages-field-help">يُحفظ مع الباقة ولا يتغير بتعديل القالب لاحقًا.</small>{errorFor('overage_price_snapshot')}</label>
-            <label className="packages-field-wide">طريقة الدفع<select aria-invalid={Boolean(errors.payment_method)} value={form.payment_method} onChange={event => onField('payment_method', event.target.value)}><option value="cash">كاش</option><option value="bank_transfer">تحويل بنكي</option><option value="vodafone_cash">فودافون كاش</option><option value="instapay">إنستاباي</option></select>{errorFor('payment_method')}</label>
-          </div>
-        </fieldset>
+
         </div>
         <label className="packages-sale-notes">ملاحظات البيع<textarea value={form.notes} onChange={event => onField('notes', event.target.value)} placeholder="ملاحظات الاتفاق أو شروط خاصة تظهر مع الباقة"/></label>
       </details>
-      <details className="packages-progressive-section packages-progressive-appointments">
-        <summary><span><strong>إضافة موعد الآن (اختياري)</strong><small>{appointments.length ? `${appointments.length} موعد في الخطة` : 'يمكن حفظ الباقة بدون موعد'}</small></span></summary>
+      <details ref={appointmentsRef} className="packages-progressive-section packages-progressive-appointments">
+        <summary><span><strong>إضافة مواعيد تصوير</strong><small>{appointments.length ? `${appointments.length} موعد في الخطة` : 'اختياري · يمكنك الحجز لاحقًا'}</small></span></summary>
         <fieldset className="packages-sale-section packages-appointments-section">
         <legend><CalendarCheck2/><span><strong>المواعيد (اختيارية)</strong><small>أضف موعدًا أو أكثر، أو احفظ الباقة بدون موعد.</small></span></legend>
         <div className="packages-inline-calendar" aria-label="تقويم توافر المواعيد">
@@ -468,17 +506,22 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
           <label>من<BusinessTimeSelect aria-invalid={Boolean(appointmentErrors.time || appointmentErrors.past)} min="00:00" max="23:45" step={15} required value={appointment.start_time} onChange={event => onAppointment(current => ({ ...current, start_time: event.target.value }))}/></label>
           <label>إلى<BusinessTimeSelect aria-invalid={Boolean(appointmentErrors.time)} min="00:15" max="24:00" step={15} required value={appointment.end_time} onChange={event => onAppointment(current => ({ ...current, end_time: event.target.value }))}/></label>
           {reelBalance && <label>عدد الريلز<input type="number" min="1" step="1" value={appointment.requested_quantity} onChange={event => onAppointment(current => ({ ...current, requested_quantity: event.target.value }))}/></label>}
-          <button type="button" className="packages-add-appointment" disabled={!appointment.resource_id} onClick={onSaveAppointment}><Plus/>{editingAppointment >= 0 ? 'حفظ تعديل الموعد' : 'إضافة الموعد'}</button>
+          <button type="button" className="packages-add-appointment" disabled={busy || !appointment.resource_id || !selectedTemplate} onClick={() => { appointmentAttemptRef.current = true; onSaveAppointment(); }}><Plus/>{editingAppointment >= 0 ? 'حفظ تعديل الموعد' : 'إضافة الموعد'}</button>
         </div>
         {!appointment.resource_id && <p className="packages-appointment-error" role="status">لا يوجد استديو نشط لإضافة الموعد. فعّل استديو من الإعدادات، أو احفظ الباقة بدون موعد.</p>}
-        {Object.values(appointmentErrors).filter(Boolean).length > 0 && <div className="packages-appointment-error" role="alert">{Object.values(appointmentErrors).filter(Boolean)[0]}</div>}
+        {Object.values(appointmentErrors).filter(Boolean).length > 0 && <div className="packages-appointment-error" role="alert" tabIndex={-1}>{Object.values(appointmentErrors).filter(Boolean)[0]}</div>}
         {occupiedForSelection.length > 0 && <div className="packages-occupied" aria-live="polite"><strong>المحجوز في هذا اليوم:</strong>{occupiedForSelection.map(item => <span key={item.id}>{formatTime12(item.start_time)}–{formatTime12(item.end_time)} · {item.client_name}</span>)}</div>}
         <div className="packages-appointment-list">{appointments.length ? appointments.map((item, index) => <article key={`${item.date}-${item.start_time}-${index}`}><CalendarClock/><div><strong>{item.date} · {formatTime12(item.start_time)}–{formatTime12(item.end_time)}</strong><span>{resourceName(item.resource_id)} · {formatDurationMinutes(appointmentDurationMinutes(item))}{reelBalance ? ` · ${item.requested_quantity} ريل` : ''}</span><small>متاح مبدئيًا · يتم التأكيد عند الحفظ</small></div><div className="packages-appointment-actions"><button type="button" aria-label="تعديل الموعد" onClick={() => onEditAppointment(index)}><Edit3/></button><button type="button" aria-label="حذف الموعد" onClick={() => onRemoveAppointment(index)}><Trash2/></button></div></article>) : <p className="packages-appointment-empty">حفظ الباقة بدون موعد الآن.</p>}</div>
-        <div className={`packages-usage-strip ${usage.exceeded ? 'conflict' : ''}`} aria-live="polite"><span>المحدد <b>{formatPackageQuantity(usage.selected, form.billing_unit)}</b></span><span>المتبقي <b>{formatPackageQuantity(usage.remaining, form.billing_unit)}</b></span></div>
+        <div className={`packages-usage-strip ${usage.exceeded ? 'conflict' : ''}`} aria-live="polite" tabIndex={-1}><span>المحدد <b>{formatPackageQuantity(usage.selected, form.billing_unit)}</b></span><span>المتبقي <b>{formatPackageQuantity(usage.remaining, form.billing_unit)}</b></span></div>
         </fieldset>
       </details>
-      <div className="packages-sale-summary"><div><span>الإجمالي</span><strong>{money(form.total_price)}</strong></div><div><span>المدفوع</span><strong>{money(form.paid_amount)}</strong></div><div><span>المتبقي</span><strong>{money(centsToMoney(financial.outstandingCents))}</strong></div><div><span>تاريخ الانتهاء</span><strong>{expiry}</strong></div></div>
-      <button className="packages-submit" disabled={busy}>{busy ? <RefreshCw className="packages-spin"/> : <PackagePlus/>}{busy ? 'جارٍ إنشاء الباقة ومواعيدها...' : appointments.length ? `حفظ الباقة و${appointments.length} موعد` : 'حفظ الباقة بدون موعد'}</button>
+      <p className="packages-quick-expiry"><CalendarClock aria-hidden="true"/>{expiry === '—' ? 'تبدأ الصلاحية من أول موعد تصوير · لم تبدأ بعد.' : 'تبدأ الصلاحية من أول موعد تصوير · تنتهي في ' + expiry}</p>
+      </fieldset>
+      </div>
+      <footer className="packages-quick-footer">
+        <div className="packages-quick-totals" aria-label="ملخص المبالغ"><div><span>الإجمالي · ج.م</span><strong>{moneyNumber(form.total_price)}</strong></div><div><span>المدفوع · ج.م</span><strong>{moneyNumber(form.paid_amount)}</strong></div><div><span>المتبقي · ج.م</span><strong>{outstanding}</strong></div></div>
+        <div className="packages-quick-actions"><button type="button" className="packages-quick-cancel" disabled={busy} onClick={onClose}>إلغاء</button><button type="submit" className="packages-submit" disabled={busy}>{busy && <RefreshCw className="packages-spin"/>}{busy ? 'جارٍ الحفظ...' : appointments.length ? 'حفظ الباقة و' + appointments.length + ' موعد' : 'حفظ الباقة بدون موعد'}</button></div>
+      </footer>
     </form>
   </div>;
 }
@@ -501,7 +544,7 @@ function PackageDetailsDialog({dialogRef,details,onClose,onRetry,onTab}){
     </div>}</section></div>;
 }
 function HealthItem({label,value,note,progress,tone}){return <article className={tone}><span>{label}</span><strong>{value}</strong><small>{note}</small><div aria-hidden="true"><i style={{width:`${Math.max(0,Math.min(100,progress))}%`}}/></div></article>}
-function PaymentHistory({items}){if(!items.length)return <HistoryEmpty icon={ReceiptText} title="لا توجد دفعات مخصصة" text="لم تُسجل تخصيصات دفع مباشرة أو سجلات فاتورة قديمة لهذه الباقة."/>;return <div className="package-history-list">{items.map(item=><article key={`${item.allocation_source}-${item.allocation_id}`} className={item.is_exact_package_amount?'exact':'legacy'}><div className="package-history-icon">{item.is_exact_package_amount?<CheckCircle2/>:<ShieldAlert/>}</div><div className="package-history-main"><header><strong>{item.is_exact_package_amount?money(item.amount):'دفعة فاتورة قديمة'}</strong><span className={`package-record-status ${item.status}`}>{item.status==='approved'?'معتمدة':item.status||'مسجلة'}</span></header><p>{formatDateTime12(item.reviewed_at||item.created_at)} · {PAYMENT_METHODS[item.method]||item.method||'طريقة غير محددة'}</p><small>{item.reference?`مرجع ${item.reference}`:'دون مرجع'}{item.invoice_number?` · فاتورة ${item.invoice_number}`:''}{item.proof_name?' · يوجد إثبات مرفق':''}</small>{item.note&&<small className="package-payment-note">ملاحظة: {item.note}</small>}{!item.is_exact_package_amount&&<em>{item.allocation_note} مبلغ حركة الفاتورة: {money(item.amount)}</em>}</div></article>)}</div>}
+function PaymentHistory({items}){if(!items.length)return <HistoryEmpty icon={ReceiptText} title="لا توجد دفعات مخصصة" text="لم تُسجل تخصيصات دفع مباشرة أو سجلات فاتورة قديمة لهذه الباقة."/>;return <div className="package-history-list">{items.map(item=><article key={`${item.allocation_source}-${item.allocation_id}`} className={item.is_exact_package_amount?'exact':'legacy'}><div className="package-history-icon">{item.is_exact_package_amount?<CheckCircle2/>:<ShieldAlert/>}</div><div className="package-history-main"><header><strong>{item.is_exact_package_amount?money(item.amount):'دفعة فاتورة قديمة'}</strong><span className={`package-record-status ${item.status}`}>{item.status==='approved'?'معتمدة':item.status||'مسجلة'}</span></header><p>{formatDateTime12(item.reviewed_at||item.created_at)} · {formatPaymentMethod(item.method)}</p><small>{item.reference?`مرجع ${item.reference}`:'دون مرجع'}{item.invoice_number?` · فاتورة ${item.invoice_number}`:''}{item.proof_name?' · يوجد إثبات مرفق':''}</small>{item.note&&<small className="package-payment-note">ملاحظة: {item.note}</small>}{!item.is_exact_package_amount&&<em>{item.allocation_note} مبلغ حركة الفاتورة: {money(item.amount)}</em>}</div></article>)}</div>}
 function UsedHistory({items,billingUnit}){if(!items.length)return <HistoryEmpty icon={History} title="لا توجد جلسات مستخدمة" text="سيظهر هنا الوقت الفعلي المحفوظ بعد إنهاء أول جلسة مرتبطة بالباقة."/>;return <div className="package-history-list">{items.map(item=>{const legacy=item.record_type==='legacy_consumption';return <article key={item.id} className={legacy?'legacy-consumption':''}><div className="package-history-icon">{legacy?<ShieldAlert/>:<Clock3/>}</div><div className="package-history-main"><header><strong>{item.service||'جلسة تصوير'}</strong><span className={`package-record-status ${legacy?'reconciled':'completed'}`}>{legacy?'مصالحة':'مكتملة'}</span></header>{legacy?<><p>قيد استهلاك محفوظ منذ {formatBookingDate(item.date)}</p><dl><div><dt>المخصوم من الباقة</dt><dd>{formatPackageQuantity(item.consumed_quantity,billingUnit)}</dd></div></dl><em>{item.reconciliation_note}</em></>:<><p>{formatBookingDate(item.date)} · {formatTime12(item.start_time)} – {formatTime12(item.end_time)}</p><dl><div><dt>الوقت الفعلي المحفوظ</dt><dd>{formatPackageQuantity(Number(item.actual_seconds||0)/3600,'hour')}</dd></div><div><dt>المخصوم من الباقة</dt><dd>{formatPackageQuantity(item.consumed_quantity||item.actual_quantity,billingUnit)}</dd></div></dl><small>{item.ended_by_name?`أنهى الجلسة ${item.ended_by_name}`:'جلسة نهائية محفوظة'}{item.adjustment_reason?` · ${item.adjustment_reason}`:''}</small></>}</div></article>})}</div>}
 function SettlementHistory({items,packageId}){if(!items.length)return <HistoryEmpty icon={ArrowLeftRight} title="لا توجد تسويات وقت" text="ستظهر هنا الجلسات التي وزّعت وقتها بين هذه الباقة وباقة أو نظام آخر."/>;const labels={original_package:'مغطى من هذه الباقة',new_package:'باقة جديدة',existing_package:'باقة أخرى',package_overage:'سعر ساعة إضافية',custom_invoice:'فاتورة مخصصة',custom_project:'مشروع مخصص',waive:'دون رسوم'};return <div className="package-history-list">{items.map(item=>{const incoming=Number(item.target_client_package_id)===Number(packageId);return <article key={`${item.settlement_id}-${item.event_key}`}><div className="package-history-icon"><ArrowLeftRight/></div><div className="package-history-main"><header><strong>{item.service||'جلسة تصوير'} · {labels[item.allocation_type]||item.allocation_type}</strong><span className="package-record-status completed">{incoming?'وارد للباقة':'تسوية موثقة'}</span></header><p>{formatDateTime12(item.settled_at||item.created_at)}</p><dl><div><dt>الوقت الفعلي</dt><dd>{formatPackageQuantity(Number(item.actual_minutes||0)/60,'hour')}</dd></div><div><dt>المخصص في هذا القيد</dt><dd>{formatPackageQuantity(Number(item.minutes||0)/60,'hour')}</dd></div>{Number(item.amount_snapshot||item.amount_due)>0&&<div><dt>القيمة</dt><dd>{money(item.amount_snapshot||item.amount_due)}</dd></div>}</dl>{item.client_note&&<small>{item.client_note}</small>}</div></article>})}</div>}
 function UpcomingHistory({items,billingUnit}){if(!items.length)return <HistoryEmpty icon={CalendarCheck2} title="لا توجد مواعيد قادمة" text="لا توجد حجوزات مستقبلية مرتبطة بهذه الباقة في الحالات النشطة."/>;return <div className="package-history-list">{items.map(item=><article key={item.id}><div className="package-history-icon"><CalendarCheck2/></div><div className="package-history-main"><header><strong>{item.service||'موعد تصوير'}</strong><span className={`package-record-status ${item.status}`}>{formatBookingStatus(item.status)}</span></header><p>{formatBookingDate(item.date)} · {formatTime12(item.start_time)} – {formatTime12(item.end_time)}</p><small>المخطط: {formatPackageQuantity(item.requested_quantity,billingUnit)}{item.resource_name?` · ${item.resource_name}`:''}</small></div></article>)}</div>}

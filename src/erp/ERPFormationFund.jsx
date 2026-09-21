@@ -1,3 +1,4 @@
+import { PAYMENT_METHOD_OPTIONS, normalizePaymentMethod } from '../lib/paymentMethods';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, BanknoteArrowDown, BanknoteArrowUp, CircleDollarSign, Eye, Landmark, Plus, ReceiptText, ShieldCheck, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
@@ -12,7 +13,6 @@ const money = new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP
 const formatMoney = value => money.format(Number(value || 0));
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
 const categoryLabels = { studio: 'الاستديو والإيجار', equipment: 'المعدات', furniture: 'الأثاث والتجهيز', licenses: 'التراخيص والتسجيل', legal: 'قانوني', marketing: 'هوية وإطلاق', other: 'مصروفات أخرى' };
-const methodOptions = ['تحويل بنكي', 'كاش', 'إنستاباي', 'بطاقة', 'شيك'];
 
 const Dialog = ({ title, description, onClose, children }) => {
   const panelRef = useRef(null);
@@ -63,20 +63,20 @@ const VoidEntryForm = ({ entry, onClose, onVoided }) => {
 };
 
 const ContributionForm = ({ founders, selectedFounder, onClose, onSaved }) => {
-  const [form, setForm] = useState({ founder_id: selectedFounder || founders[0]?.id || '', amount: '', title: 'زيادة رصيد صندوق التأسيس', entry_date: today(), payment_method: 'تحويل بنكي', reference: '', note: '' });
+  const [form, setForm] = useState({ founder_id: selectedFounder || founders[0]?.id || '', amount: '', title: 'زيادة رصيد صندوق التأسيس', entry_date: today(), payment_method: 'cash', reference: '', note: '' });
   const [saving, setSaving] = useState(false); const [error, setError] = useState('');
   const submit = async event => { event.preventDefault(); setSaving(true); setError(''); const { error: requestError } = await dataClient.request('/formation-fund/contributions', { method: 'POST', body: JSON.stringify(form) }); setSaving(false); if (requestError) return setError(requestError.message); onSaved(); };
   return <form className="formation-form" onSubmit={submit}>
     <div className="formation-form-grid"><label>المؤسس<select value={form.founder_id} onChange={e => setForm({ ...form, founder_id: Number(e.target.value) })}>{founders.map(founder => <option key={founder.id} value={founder.id}>{founder.name_ar}</option>)}</select></label><label>قيمة المساهمة<input type="number" min="0.01" step="0.01" required value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} inputMode="decimal" /></label></div>
     <label>البيان<input required maxLength="180" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
-    <div className="formation-form-grid"><label>تاريخ الإيداع<input type="date" required value={form.entry_date} onChange={e => setForm({ ...form, entry_date: e.target.value })} /></label><label>طريقة الإيداع<select value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}>{methodOptions.map(option => <option key={option}>{option}</option>)}</select></label></div>
+    <div className="formation-form-grid"><label>تاريخ الإيداع<input type="date" required value={form.entry_date} onChange={e => setForm({ ...form, entry_date: e.target.value })} /></label><label>طريقة الإيداع<select required value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}><option value="" disabled>اختر طريقة الدفع</option>{PAYMENT_METHOD_OPTIONS.map(({value,label}) => <option key={value} value={value}>{label}</option>)}</select></label></div>
     <label>المرجع<input maxLength="120" placeholder="رقم التحويل أو الإيصال" value={form.reference} onChange={e => setForm({ ...form, reference: e.target.value })} /></label><label>ملاحظة<textarea rows="3" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} /></label>
     {error && <p className="formation-form-error" role="alert">{error}</p>}<footer><button type="button" className="formation-button formation-button--ghost" onClick={onClose}>إلغاء</button><button className="formation-button formation-button--teal" disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ المساهمة'}</button></footer>
   </form>;
 };
 
 const ExpenseForm = ({ founders, pooledAvailable, onClose, onSaved }) => {
-  const [form, setForm] = useState({ title: '', category: 'equipment', amount: '', entry_date: today(), payment_method: 'تحويل بنكي', reference: '', note: '', allocation_mode: 'proportional' });
+  const [form, setForm] = useState({ title: '', category: 'equipment', amount: '', entry_date: today(), payment_method: 'cash', reference: '', note: '', allocation_mode: 'proportional' });
   const [manual, setManual] = useState(Object.fromEntries(founders.map(founder => [founder.id, '']))); const [saving, setSaving] = useState(false); const [error, setError] = useState('');
   const preview = useMemo(() => form.allocation_mode === 'proportional' ? allocateFormationExpense(form.amount, founders) : founders.map(founder => ({ founder_id: founder.id, amount: Number(manual[founder.id] || 0) })), [form.allocation_mode, form.amount, founders, manual]);
   const manualDifference = toCents(form.amount) - preview.reduce((sum, row) => sum + toCents(row.amount), 0);
@@ -84,7 +84,7 @@ const ExpenseForm = ({ founders, pooledAvailable, onClose, onSaved }) => {
   return <form className="formation-form" onSubmit={submit}>
     <label>بيان المصروف<input required maxLength="180" placeholder="مثال: دفعة شراء كاميرا وإضاءة" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
     <div className="formation-form-grid"><label>التصنيف<select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>{Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label>قيمة المصروف<input type="number" min="0.01" max={pooledAvailable} step="0.01" required value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} inputMode="decimal" /></label></div>
-    <div className="formation-form-grid"><label>تاريخ المصروف<input type="date" required value={form.entry_date} onChange={e => setForm({ ...form, entry_date: e.target.value })} /></label><label>طريقة السداد<select value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}>{methodOptions.map(option => <option key={option}>{option}</option>)}</select></label></div>
+    <div className="formation-form-grid"><label>تاريخ المصروف<input type="date" required value={form.entry_date} onChange={e => setForm({ ...form, entry_date: e.target.value })} /></label><label>طريقة السداد<select required value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}><option value="" disabled>اختر طريقة الدفع</option>{PAYMENT_METHOD_OPTIONS.map(({value,label}) => <option key={value} value={value}>{label}</option>)}</select></label></div>
     <fieldset className="formation-allocation"><legend>تحميل المصروف على أرصدة المؤسسين</legend><div className="formation-mode-switch"><button type="button" className={form.allocation_mode === 'proportional' ? 'active' : ''} onClick={() => setForm({ ...form, allocation_mode: 'proportional' })}>نسبي تلقائي</button><button type="button" className={form.allocation_mode === 'manual' ? 'active' : ''} onClick={() => setForm({ ...form, allocation_mode: 'manual' })}>توزيع يدوي</button></div><p className="formation-field-help">المعاينة إرشادية؛ الخادم يعيد الحساب ويعتمد القيم النهائية.</p>
       <div className="formation-allocation-preview">{founders.map(founder => { const row = preview.find(item => Number(item.founder_id) === Number(founder.id)); return <label key={founder.id}><span>{founder.name_ar}<small>متاح {formatMoney(founder.available)}</small></span>{form.allocation_mode === 'manual' ? <input type="number" min="0" max={founder.available} step="0.01" value={manual[founder.id]} onChange={e => setManual({ ...manual, [founder.id]: e.target.value })} aria-label={`حصة ${founder.name_ar}`} /> : <strong>{formatMoney(row?.amount)}</strong>}</label>; })}</div>
       {form.allocation_mode === 'manual' && <p className={manualDifference === 0 ? 'formation-difference is-zero' : 'formation-difference'}>الفرق المتبقي: {formatMoney(manualDifference / 100)}</p>}
@@ -98,7 +98,7 @@ const CorrectionForm = ({ entry, founders, onClose, onSaved }) => {
   const [form, setForm] = useState({
     founder_id: entry.founder_id || founders[0]?.id || '',
     title: entry.title || '', category: entry.category || (entry.entry_type === 'contribution' ? 'capital' : 'other'),
-    amount: entry.amount || '', entry_date: entry.entry_date || today(), payment_method: entry.payment_method || methodOptions[0],
+    amount: entry.amount || '', entry_date: entry.entry_date || today(), payment_method: normalizePaymentMethod(entry.payment_method),
     reference: entry.reference || '', note: entry.note || '', allocation_mode: 'proportional',
     reason: 'تصحيح موثق لحركة صندوق التأسيس',
   });
@@ -119,7 +119,7 @@ const CorrectionForm = ({ entry, founders, onClose, onSaved }) => {
     <label>البيان<input required maxLength="180" value={form.title} onChange={event => update('title', event.target.value)} /></label>
     <div className="formation-form-grid"><label>القيمة<input required type="number" min="0.01" step="0.01" value={form.amount} onChange={event => update('amount', event.target.value)} /></label><label>التاريخ<input required type="date" value={form.entry_date} onChange={event => update('entry_date', event.target.value)} /></label></div>
     {entry.entry_type === 'expense' && <label>التصنيف<select value={form.category} onChange={event => update('category', event.target.value)}>{Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>}
-    <div className="formation-form-grid"><label>طريقة الدفع<select value={form.payment_method} onChange={event => update('payment_method', event.target.value)}>{methodOptions.map(option => <option key={option}>{option}</option>)}</select></label><label>المرجع<input maxLength="120" value={form.reference} onChange={event => update('reference', event.target.value)} /></label></div>
+    <div className="formation-form-grid"><label>طريقة الدفع<select required value={form.payment_method} onChange={event => update('payment_method', event.target.value)}><option value="" disabled>اختر طريقة الدفع</option>{PAYMENT_METHOD_OPTIONS.map(({value,label}) => <option key={value} value={value}>{label}</option>)}</select></label><label>المرجع<input maxLength="120" value={form.reference} onChange={event => update('reference', event.target.value)} /></label></div>
     <label>ملاحظات<textarea rows="3" value={form.note} onChange={event => update('note', event.target.value)} /></label>
     {entry.entry_type === 'expense' && <p className="formation-field-help">سيُعاد توزيع قيمة المصروف المصححة تلقائيًا بنسب الأرصدة المتاحة لحماية اتزان الصندوق.</p>}
     <label>سبب التصحيح<input required minLength="5" maxLength="500" value={form.reason} onChange={event => update('reason', event.target.value)} /></label>
