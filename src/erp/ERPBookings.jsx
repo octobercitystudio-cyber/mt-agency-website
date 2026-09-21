@@ -482,7 +482,7 @@ const ERPBookings = () => {
         if (d.start_time && d.end_time) {
           const diffInMinutes = calculateDurationMinutes(d.start_time, d.end_time);
           if (!isValidBusinessBooking(d.start_time, d.end_time, minimumMinutes) || diffInMinutes % incrementMinutes !== 0) {
-            alert(`مواعيد الحجز من 12:00 م إلى 12:00 ص، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)} حسب إعدادات الخدمة.`);
+            alert(`الحجز متاح طوال اليوم، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)} حسب إعدادات الخدمة.`);
             return;
           }
         }
@@ -688,7 +688,6 @@ const ERPBookings = () => {
                       height={350}
                       headerToolbar={{ left: 'prev,next', center: 'title', right: 'today' }}
                       dateClick={(info) => addDateRow(info.dateStr)}
-                      dayCellClassNames={(arg) => arg.date.getDay() === 5 ? ['fc-day-fri'] : []}
                     />
                   </div>
 
@@ -701,11 +700,11 @@ const ERPBookings = () => {
                         </div>
                         <div style={{ flex: 1 }}>
                           <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>من الساعة</label>
-                          <BusinessTimeSelect min="12:00" max="23:00" value={dRow.start_time} onChange={(e) => updateDateRow(idx, 'start_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
+                          <BusinessTimeSelect min="00:00" max="23:45" value={dRow.start_time} onChange={(e) => updateDateRow(idx, 'start_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
                         </div>
                         <div style={{ flex: 1 }}>
                           <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--erp-text-muted)', marginBottom: '5px', display: 'block' }}>إلى الساعة</label>
-                          <BusinessTimeSelect min="13:00" max="24:00" value={dRow.end_time} onChange={(e) => updateDateRow(idx, 'end_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
+                          <BusinessTimeSelect min="00:15" max="24:00" value={dRow.end_time} onChange={(e) => updateDateRow(idx, 'end_time', e.target.value)} required style={{ width: '100%', border: 'none', background: 'var(--erp-bg)', padding: '10px', borderRadius: '8px', fontWeight: 'bold' }} />
                         </div>
                         <button type="button" onClick={() => removeDateRow(idx)} style={{ background: 'var(--erp-bg)', color: 'var(--erp-danger)', border: 'none', width: '42px', height: '42px', borderRadius: '50%', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                           <Trash2 size={18} />
@@ -912,9 +911,9 @@ const ERPBookings = () => {
             {decisionError && <div className="decision-error" style={{ marginTop: '15px' }}>{decisionError}</div>}
             <form onSubmit={submitAlternative} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '20px' }}>
               <label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>التاريخ البديل<input required type="date" value={alternativeModal.date} onChange={e => setAlternativeModal({ ...alternativeModal, date: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>من<BusinessTimeSelect required min="12:00" max="23:00" value={alternativeModal.start_time} onChange={e => setAlternativeModal({ ...alternativeModal, start_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>إلى<BusinessTimeSelect required min="13:00" max="24:00" value={alternativeModal.end_time} onChange={e => setAlternativeModal({ ...alternativeModal, end_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>من<BusinessTimeSelect required min="00:00" max="23:45" value={alternativeModal.start_time} onChange={e => setAlternativeModal({ ...alternativeModal, start_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label><label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>إلى<BusinessTimeSelect required min="00:15" max="24:00" value={alternativeModal.end_time} onChange={e => setAlternativeModal({ ...alternativeModal, end_time: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)' }}/></label></div>
               <label style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--erp-text-muted)' }}>ملاحظة للعميل<textarea rows="3" value={alternativeModal.note} onChange={e => setAlternativeModal({ ...alternativeModal, note: e.target.value })} style={{ width: '100%', marginTop: '7px', padding: '11px', border: '1px solid var(--erp-border)', borderRadius: '8px', background: 'var(--erp-bg)', color: 'var(--erp-text-main)', resize: 'vertical' }}/></label>
-              <p style={{ padding: '10px', background: 'rgba(38,139,210,.08)', color: '#267ab0', borderRight: '3px solid #268bd2', margin: 0, fontSize: '.7rem' }}>أقل مدة ساعة، والزيادة كل 15 دقيقة، ضمن مواعيد العمل من 12:00 م إلى 12:00 ص.</p>
+              <p style={{ padding: '10px', background: 'rgba(38,139,210,.08)', color: '#267ab0', borderRight: '3px solid #268bd2', margin: 0, fontSize: '.7rem' }}>أقل مدة ساعة، والزيادة كل 15 دقيقة، الحجز متاح طوال اليوم.</p>
               <button type="submit" disabled={Boolean(decisionBusy)} style={{ border: 0, borderRadius: '9px', background: '#268bd2', color: 'white', padding: '12px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>{decisionBusy ? <RefreshCw size={16} className="client-spin"/> : <Send size={16}/>} إرسال الموعد البديل</button>
             </form>
           </div>

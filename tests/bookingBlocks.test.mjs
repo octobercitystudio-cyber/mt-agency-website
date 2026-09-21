@@ -121,9 +121,9 @@ test('demo booking blocks are atomic, idempotent, scoped, and side-effect free',
 
   const repeated = await demoClient.request('/booking-blocks', { method: 'POST', body: JSON.stringify({ date: '2027-01-04', start_time: '18:00', end_time: '19:00', resource_id: 1, repeat_daily: true, repeat_until: '2027-01-09', note: '', idempotency_key: 'block-test-series-0001' }) });
   assert.equal(repeated.error, null);
-  assert.equal(repeated.data.count, 5);
-  assert.equal(repeated.data.skipped_fridays, 1);
-  assert.equal(repeated.data.items.some(item => item.block_date === '2027-01-08'), false);
+  assert.equal(repeated.data.count, 6);
+  assert.equal(repeated.data.skipped_fridays, 0);
+  assert.equal(repeated.data.items.some(item => item.block_date === '2027-01-08'), true);
 
   const confirmed = (await demoClient.from('bookings').select('*')).data.find(item => ['confirmed', 'in_progress'].includes(item.status) && new Date(`${item.date}T12:00:00`).getDay() !== 5);
   assert.ok(confirmed, 'the demo fixture must contain a blocking booking');
@@ -141,7 +141,7 @@ test('demo booking blocks are atomic, idempotent, scoped, and side-effect free',
   const seriesMiddle = repeated.data.items[1];
   const cancelled = await demoClient.request(`/booking-blocks/${seriesMiddle.id}?scope=series`, { method: 'DELETE' });
   assert.equal(cancelled.error, null);
-  assert.equal(cancelled.data.cancelled, 4);
+  assert.equal(cancelled.data.cancelled, 5);
   const activeSeries = (await demoClient.request('/booking-blocks?from=2027-01-01&to=2027-01-31')).data;
   assert.deepEqual(activeSeries.filter(item => item.series_key === repeated.data.series_key).map(item => item.id), [repeated.data.items[0].id]);
   const activeBlockIds = new Set((await demoClient.from('booking_blocks').select('*')).data.filter(item => item.status === 'active').map(item => Number(item.id)));

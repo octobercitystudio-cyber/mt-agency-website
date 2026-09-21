@@ -47,7 +47,7 @@ test('requests page exposes the Arabic calendar, saved colors, preview, strips a
   assert.match(source, /مرجع الحجوزات/);
   assert.match(source, /locales=\{\[arCalendarLocale\]\}/);
   assert.match(source, /buttonText=\{\{ today: 'اليوم', month: 'شهر', week: 'أسبوع'/);
-  assert.match(source, /slotMinTime="12:00:00"/);
+  assert.match(source, /slotMinTime="00:00:00"/);
   assert.match(source, /slotMaxTime="24:00:00"/);
   assert.match(source, /blockingBookings\(data\.bookings\)/);
   assert.match(source, /safeBookingColor\(client\?\.color\)/);

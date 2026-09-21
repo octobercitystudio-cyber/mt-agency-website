@@ -36,10 +36,9 @@ export default function ERPRescheduleBookingDialog({ isOpen, booking, proposal, 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.date)) return 'اختر تاريخًا صحيحًا.';
     const date = new Date(`${draft.date}T12:00:00`);
     if (Number.isNaN(date.getTime())) return 'اختر تاريخًا صحيحًا.';
-    if (date.getDay() === 5) return 'يوم الجمعة إجازة رسمية للشركة. اختر يومًا آخر.';
     const duration = calculateDurationMinutes(draft.start_time, draft.end_time);
     if (!isValidBusinessBooking(draft.start_time, draft.end_time, minimumMinutes) || duration % incrementMinutes !== 0) {
-      return `الموعد يجب أن يكون من 12:00 م إلى 12:00 ص، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)}.`;
+      return `الحجز متاح طوال اليوم، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)}.`;
     }
     return '';
   }, [draft, incrementMinutes, minimumMinutes]);
@@ -69,8 +68,8 @@ export default function ERPRescheduleBookingDialog({ isOpen, booking, proposal, 
       <form onSubmit={submit}>
         <div className="booking-reschedule-fields">
           <label>التاريخ الجديد<input type="date" required value={draft.date} onChange={event => setDraft(current => ({ ...current, date: event.target.value }))} /></label>
-          <label>من الساعة<BusinessTimeSelect required min="12:00" max="23:00" value={draft.start_time} onChange={event => setDraft(current => ({ ...current, start_time: event.target.value }))} /></label>
-          <label>إلى الساعة<BusinessTimeSelect required min="13:00" max="24:00" value={draft.end_time} onChange={event => setDraft(current => ({ ...current, end_time: event.target.value }))} /></label>
+          <label>من الساعة<BusinessTimeSelect required min="00:00" max="23:45" value={draft.start_time} onChange={event => setDraft(current => ({ ...current, start_time: event.target.value }))} /></label>
+          <label>إلى الساعة<BusinessTimeSelect required min="00:15" max="24:00" value={draft.end_time} onChange={event => setDraft(current => ({ ...current, end_time: event.target.value }))} /></label>
         </div>
         <div className="booking-reschedule-comparison" aria-label="مقارنة الموعد القديم والجديد">
           <div><small>الموعد الحالي</small><strong>{formatBookingDate(booking.date)}</strong><span>{formatTime12(booking.start_time)} — {formatTime12(booking.end_time)}</span></div>

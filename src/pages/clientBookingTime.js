@@ -1,7 +1,7 @@
 import { timeToMinutes } from '../lib/businessFormat.js';
 
 export const CLIENT_BOOKING_MINUTES_MIN = 30;
-export const CLIENT_BOOKING_MINUTES_MAX = 720;
+export const CLIENT_BOOKING_MINUTES_MAX = 1440;
 export const CLIENT_BOOKING_MINUTES_STEP = 30;
 
 const formatMinuteValue = value => value === 1440
@@ -33,7 +33,6 @@ export const resolveClientBookingTime = ({ startTime, durationMinutes, slots = [
   if (!startTime) return { errorCode: 'start_required', endTime: '', slot: null };
   const startMinutes = timeToMinutes(compactTime(startTime));
   if (!Number.isSafeInteger(startMinutes) || startMinutes < 0) return { errorCode: 'start_invalid', endTime: '', slot: null };
-  if (startMinutes < 720) return { errorCode: 'start_before_open', endTime: '', slot: null };
   if (startMinutes >= 1440 || startMinutes % 60 !== 0) {
     return { errorCode: 'start_grid_invalid', endTime: '', slot: null };
   }

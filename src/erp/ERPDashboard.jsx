@@ -273,8 +273,8 @@ const ERPDashboard = () => {
     const start = booking.start_time || '12:00'; const end = booking.end_time || start;
     const startMinutes = timeToMinutes(start);
     const endMinutes = timeToMinutes(end, { endOfDay: true });
-    const top = Math.max(0, ((startMinutes - 720) / 720) * 100);
-    const height = Math.max(7, ((endMinutes - startMinutes) / 720) * 100);
+    const top = Math.max(0, (startMinutes / 1440) * 100);
+    const height = Math.max(7, ((endMinutes - startMinutes) / 1440) * 100);
     return { ...booking, normalizedStatus: normalizeStatus(booking.status), start, end, top, height };
   }), [state.bookings]);
 
@@ -316,7 +316,7 @@ const ERPDashboard = () => {
   const currentMarker = useMemo(() => {
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(clock).map((part) => [part.type, part.value]));
     const minutes = (Number(parts.hour) * 60) + Number(parts.minute);
-    return minutes >= 720 && minutes <= 1440 ? ((minutes - 720) / 720) * 100 : null;
+    return minutes >= 0 && minutes <= 1440 ? (minutes / 1440) * 100 : null;
   }, [clock]);
 
   const teamTracked = attendance.data?.team?.filter((member) => Number(member.track_attendance) === 1) || [];
@@ -370,13 +370,13 @@ const ERPDashboard = () => {
             <Link to="/erp/bookings">فتح التقويم <ArrowLeft size={16} /></Link>
           </div>
           {state.loading ? <div className="ops-skeleton ops-skeleton--timeline" /> : (
-            <div className={`runway ${timelineBookings.length === 0 ? 'runway--empty' : ''}`} aria-label="جدول حجوزات اليوم من الثانية عشرة ظهرًا إلى الثانية عشرة منتصف الليل">
-              <div className="runway__hours">{Array.from({ length: 13 }, (_, index) => <span key={index}>{formatTime12(index === 12 ? '24:00' : `${String(index + 12).padStart(2, '0')}:00`)}</span>)}</div>
+            <div className={`runway ${timelineBookings.length === 0 ? 'runway--empty' : ''}`} aria-label="جدول حجوزات اليوم على مدار 24 ساعة">
+              <div className="runway__hours">{Array.from({ length: 13 }, (_, index) => <span key={index}>{formatTime12(index === 12 ? '24:00' : `${String(index * 2).padStart(2, '0')}:00`)}</span>)}</div>
               <div className="runway__track">
                 <span className="runway__resource">الاستديو الرئيسي</span>
                 {Array.from({ length: 13 }, (_, index) => <i key={index} style={{ top: `${(index / 12) * 100}%` }} />)}
                 {currentMarker !== null && <span className="runway__now" style={{ top: `${currentMarker}%` }}><b>الآن</b></span>}
-                {timelineBookings.length === 0 && <button className="runway-empty-slot" type="button" onClick={openBookingCreate}><CalendarDays size={24} /><strong>اليوم متاح بالكامل</strong><small>12:00 م — 12:00 ص</small><span><Plus size={15} /> إضافة أول حجز</span></button>}
+                {timelineBookings.length === 0 && <button className="runway-empty-slot" type="button" onClick={openBookingCreate}><CalendarDays size={24} /><strong>اليوم متاح بالكامل</strong><small>الحجز متاح على مدار 24 ساعة</small><span><Plus size={15} /> إضافة أول حجز</span></button>}
                 {timelineBookings.map((booking, index) => (
                   <article key={booking.id} className={`runway-booking runway-booking--${booking.normalizedStatus}`} style={{ top: `${booking.top}%`, height: `${booking.height}%`, insetInlineStart: `${(index % 2) * 48}%`, width: timelineBookings.length > 1 ? '47%' : '96%' }}>
                     <span className="runway-booking__time"><bdi>{formatTime12(booking.start)}–{formatTime12(booking.end)}</bdi></span>

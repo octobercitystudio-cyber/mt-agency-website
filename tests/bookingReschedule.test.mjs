@@ -18,7 +18,7 @@ test('confirmed booking details expose the shared admin reschedule dialog', asyn
   assert.doesNotMatch(bookings, /window\.bootstrap|bootstrap\.Modal/);
   assert.match(dialog, /`\/bookings\/\$\{booking\.id\}\/admin-reschedule`/);
   assert.match(dialog, /role="dialog" aria-modal="true"/);
-  assert.match(dialog, /يوم الجمعة إجازة رسمية للشركة/);
+  assert.doesNotMatch(dialog, /يوم الجمعة إجازة رسمية للشركة/);
   assert.match(dialog, /minimum_booking_minutes/);
   assert.match(dialog, /booking_increment_minutes/);
 });

@@ -23,7 +23,7 @@ test('client availability demo is private, role scoped, bounded, and keeps pendi
   assert.deepEqual(Object.keys(result.data).sort(), ['days', 'duration_minutes', 'package', 'server_time']);
   assert.deepEqual(Object.keys(result.data.package).sort(), ['available_quantity', 'billing_unit', 'booking_increment_minutes', 'expires_at', 'id', 'minimum_booking_minutes', 'name', 'starts_at']);
   assert.ok(result.data.days.length === 21);
-  assert.ok(result.data.days.some(day => !day.available && new Date(`${day.date}T12:00:00`).getDay() === 5), 'Friday must be closed without a reason field');
+  assert.ok(result.data.days.some(day => day.available && new Date(`${day.date}T12:00:00`).getDay() === 5), 'Friday must be bookable like every other day');
   for (const day of result.data.days) {
     assert.deepEqual(Object.keys(day).sort(), ['available', 'date', 'slots']);
     for (const slot of day.slots) {
@@ -71,6 +71,8 @@ test('requested hours must fit one continuous same-day slot and are never split 
   assert.ok(target, 'the fixture must have an otherwise empty bookable day');
 
   const alternatingBlocks = [
+    ['00:00', '01:00'], ['02:00', '03:00'], ['04:00', '05:00'],
+    ['06:00', '07:00'], ['08:00', '09:00'], ['10:00', '11:00'],
     ['12:00', '13:00'], ['14:00', '15:00'], ['16:00', '17:00'],
     ['18:00', '19:00'], ['20:00', '21:00'], ['22:00', '23:00'],
   ];

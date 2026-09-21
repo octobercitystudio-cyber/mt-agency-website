@@ -1,8 +1,8 @@
 import { cairoDateTimeToEpoch } from './promotionTime.js';
 
-export const BUSINESS_START = '12:00';
+export const BUSINESS_START = '00:00';
 export const BUSINESS_END = '24:00';
-export const BUSINESS_HOURS_LABEL = 'من 12:00 م إلى 12:00 ص';
+export const BUSINESS_HOURS_LABEL = 'متاح طوال اليوم (24 ساعة)';
 export const CURRENCY_CODE = 'EGP';
 export const CURRENCY_LABEL = 'ج.م';
 

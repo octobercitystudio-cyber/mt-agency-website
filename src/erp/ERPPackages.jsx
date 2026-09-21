@@ -465,8 +465,8 @@ function AddPackageDialog({ dialogRef, form, errors, clients, serviceGroups, sel
         </div>
         <div className={`packages-appointment-editor${reelBalance ? ' is-reel' : ''}`}>
           <label>التاريخ<input aria-invalid={Boolean(appointmentErrors.date || appointmentErrors.past)} type="date" min={today()} value={appointment.date} onChange={event => { setCalendarAnchor(event.target.value); onAppointment(current => ({ ...current, date: event.target.value })); }}/></label>
-          <label>من<BusinessTimeSelect aria-invalid={Boolean(appointmentErrors.time || appointmentErrors.past)} min="12:00" max="23:45" step={15} required value={appointment.start_time} onChange={event => onAppointment(current => ({ ...current, start_time: event.target.value }))}/></label>
-          <label>إلى<BusinessTimeSelect aria-invalid={Boolean(appointmentErrors.time)} min="12:15" max="24:00" step={15} required value={appointment.end_time} onChange={event => onAppointment(current => ({ ...current, end_time: event.target.value }))}/></label>
+          <label>من<BusinessTimeSelect aria-invalid={Boolean(appointmentErrors.time || appointmentErrors.past)} min="00:00" max="23:45" step={15} required value={appointment.start_time} onChange={event => onAppointment(current => ({ ...current, start_time: event.target.value }))}/></label>
+          <label>إلى<BusinessTimeSelect aria-invalid={Boolean(appointmentErrors.time)} min="00:15" max="24:00" step={15} required value={appointment.end_time} onChange={event => onAppointment(current => ({ ...current, end_time: event.target.value }))}/></label>
           {reelBalance && <label>عدد الريلز<input type="number" min="1" step="1" value={appointment.requested_quantity} onChange={event => onAppointment(current => ({ ...current, requested_quantity: event.target.value }))}/></label>}
           <button type="button" className="packages-add-appointment" disabled={!appointment.resource_id} onClick={onSaveAppointment}><Plus/>{editingAppointment >= 0 ? 'حفظ تعديل الموعد' : 'إضافة الموعد'}</button>
         </div>

@@ -34,7 +34,7 @@ test('all authorised booking entry points use the shared custom-service flow', a
   assert.match(form, /initialService = 'custom'/);
   assert.match(form, /إضافة موعد لهذه الخدمة في جدول الحجوزات/);
   assert.match(slot, /getBookingAvailability/);
-  assert.match(schedule, /fc-day-fri/);
+  assert.doesNotMatch(schedule, /fc-day-fri/);
   assert.match(catalog, /custom: \{ label: 'خدمة مخصصة'/);
 });
 
@@ -67,14 +67,14 @@ test('demo custom service creates exact project finance without a sold package',
   deactivateDemoMode();
 });
 
-test('demo optional booking is pending and invalid Friday rolls back every child', async () => {
+test('demo optional booking is pending and invalid time rolls back every child', async () => {
   browserGlobals();
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); activateDemoMode('owner');
   const resources = (await demoClient.from('resources').select('*')).data;
   const resource = resources.find(row => Number(row.is_active ?? 1) === 1);
   const base = { client_id: 1, service_type: 'custom', starts_at: '2026-08-10', pricing_model: 'custom', paid_amount: 0, items: [{ description: 'الخدمة', quantity: 1, unit: 'مشروع', unit_price: 100 }], milestones: [{ title: 'الإعداد' }, { title: 'التسليم' }], requires_booking: true };
-  const success = await demoClient.request('/projects/custom-service', { method: 'POST', body: JSON.stringify({ ...base, idempotency_key: 'custom-test-with-booking-001', name: 'خدمة بموعد', booking: { resource_id: resource.id, date: '2026-12-16', start_time: '18:00', end_time: '19:15' } }) });
+  const success = await demoClient.request('/projects/custom-service', { method: 'POST', body: JSON.stringify({ ...base, idempotency_key: 'custom-test-with-booking-001', name: 'خدمة بموعد', booking: { resource_id: resource.id, date: '2027-01-08', start_time: '08:00', end_time: '09:15' } }) });
   assert.equal(success.error, null);
   const booking = (await demoClient.from('bookings').select('*')).data.find(row => row.id === success.data.booking_id);
   assert.equal(booking.status, 'pending');
@@ -82,7 +82,7 @@ test('demo optional booking is pending and invalid Friday rolls back every child
   assert.equal(booking.client_package_id, null);
   assert.equal(booking.duration_minutes, 75);
   const before = await Promise.all(['projects','project_items','project_milestones','invoices','bookings'].map(table => demoClient.from(table).select('*')));
-  const failure = await demoClient.request('/projects/custom-service', { method: 'POST', body: JSON.stringify({ ...base, idempotency_key: 'custom-test-invalid-friday-001', name: 'يجب ألا يُنشأ', booking: { resource_id: resource.id, date: '2026-08-14', start_time: '18:00', end_time: '19:00' } }) });
+  const failure = await demoClient.request('/projects/custom-service', { method: 'POST', body: JSON.stringify({ ...base, idempotency_key: 'custom-test-invalid-time-001', name: 'يجب ألا يُنشأ', booking: { resource_id: resource.id, date: '2027-01-08', start_time: '18:00', end_time: '18:15' } }) });
   assert.equal(failure.error?.code, 'invalid_project_booking');
   const after = await Promise.all(['projects','project_items','project_milestones','invoices','bookings'].map(table => demoClient.from(table).select('*')));
   assert.deepEqual(after.map(result => result.data.length), before.map(result => result.data.length));

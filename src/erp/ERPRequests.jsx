@@ -259,7 +259,7 @@ export default function ERPRequests() {
           headerToolbar={{ right: 'dayGridMonth,timeGridWeek', center: 'title', left: 'prev,next today' }}
           events={calendarEvents}
           eventDisplay="block"
-          slotMinTime="12:00:00"
+          slotMinTime="00:00:00" scrollTime="12:00:00"
           slotMaxTime="24:00:00"
           slotDuration="00:15:00"
           eventTimeFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
@@ -275,7 +275,6 @@ export default function ERPRequests() {
             info.el.style.setProperty('--fc-event-text-color', foreground);
             info.el.setAttribute('aria-label', `${info.event.title}، ${info.timeText || ''}`);
           }}
-          dayCellClassNames={arg => arg.date.getDay() === 5 ? ['fc-day-fri'] : []}
           eventContent={arg => <div className="requests-calendar-event" style={{ color: arg.event.textColor }}>{arg.event.extendedProps.kind === 'booking_block' && <LockKeyhole/>}<strong>{arg.event.title}</strong>{arg.event.extendedProps.kind === 'preview' && <small>{calendarPreview?.availability.status === 'available' ? 'الموعد متاح' : 'الموعد غير متاح'}</small>}</div>}
         />
       </div>

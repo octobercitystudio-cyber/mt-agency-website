@@ -58,7 +58,7 @@ test('production reschedule enforces resource organization and package validity'
   assert.match(api, /validity_mode_snapshot/);
   assert.match(api, /SELECT id FROM resources WHERE id=\? AND organization_id=\? AND is_active=1 FOR UPDATE/);
   assert.match(api, /UPDATE bookings SET resource_id=\?,date=\?/);
-  assert.match(api, /format\('N'\)==='5'/);
+  assert.doesNotMatch(api, /format\('N'\)==='5'/);
 });
 
 test('owner package writes require a real valid change before save is enabled', async () => {
