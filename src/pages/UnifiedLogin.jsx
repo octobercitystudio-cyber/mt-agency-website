@@ -4,7 +4,6 @@ import { ArrowLeft, ArrowRight, ArrowDownLeft, Eye, EyeOff, LoaderCircle, X } fr
 import { useData } from '../store/DataContext';
 import { normalizeLoginPhone } from '../lib/phoneLogin';
 import { companyPhoneTel, companyPhoneWhatsApp } from '../lib/companyContact';
-import GoogleSignIn from '../components/GoogleSignIn';
 import './UnifiedLogin.css';
 
 const STAFF_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
@@ -28,7 +27,7 @@ const loginErrorMessage = loginError => {
   if (loginError?.code === 'invalid_credentials') return 'رقم الموبايل أو كلمة المرور غير صحيحة.';
   if (loginError?.code === 'account_disabled') return 'دخول هذا الحساب موقوف. تواصل مع إدارة الشركة لإعادة تفعيله.';
   if (loginError?.code === 'login_temporarily_blocked' || loginError?.status === 429) return 'توقفت محاولات الدخول مؤقتًا للحماية. انتظر قليلًا ثم حاول مرة أخرى.';
-  if (loginError?.code === 'password_change_required') return 'سجّل الدخول برقم الموبايل وغيّر كلمة المرور أولًا، ثم اربط حساب Google.';
+  if (loginError?.code === 'password_change_required') return 'سجّل الدخول لتحديث كلمة المرور وإكمال الدخول إلى حسابك.';
   if (loginError?.status >= 500 || !loginError?.code || loginError?.code === 'api_error') return 'تعذر الاتصال بخدمة تسجيل الدخول. تحقق من الإنترنت ثم حاول مرة أخرى.';
   return loginError?.message || 'تعذر تسجيل الدخول الآن. حاول مرة أخرى.';
 };
@@ -38,18 +37,16 @@ export default function UnifiedLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [googleBusy, setGoogleBusy] = useState(false);
   const [error, setError] = useState('');
   const [fieldError, setFieldError] = useState('');
-  const [linkRequest, setLinkRequest] = useState(null);
-  const { loginErp, linkGoogle, isAuthReady, currentUser } = useData();
+  const { loginErp, isAuthReady, currentUser } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const clientDestination = safeClientDestination(location.search);
   const phoneInput = useRef(null);
   const passwordInput = useRef(null);
   const supportDialog = useRef(null);
-  const busy = loading || googleBusy;
+  const busy = loading;
 
   useEffect(() => {
     if (!isAuthReady || !currentUser?.role) return;
@@ -60,29 +57,9 @@ export default function UnifiedLogin() {
     }
   }, [clientDestination, currentUser, isAuthReady, navigate]);
 
-  useEffect(() => {
-    if (!linkRequest) return;
-    phoneInput.current?.focus();
-    const timer = setTimeout(() => {
-      setLinkRequest(null);
-      setPassword('');
-      setError('انتهت مهلة ربط Google. ابدأ المحاولة من جديد.');
-    }, Math.max(0, linkRequest.expiresAt - Date.now()));
-    return () => clearTimeout(timer);
-  }, [linkRequest]);
-
   const routeUser = user => {
     if (['client', 'applicant'].includes(user?.role)) navigate(user.must_change_password ? '/change-password' : clientDestination, { replace: true });
     else setError('تعذر الدخول إلى مساحة العملاء بهذا الحساب.');
-  };
-
-  const cancelLink = () => { setGoogleBusy(false); setLinkRequest(null); setPassword(''); setError(''); setFieldError(''); phoneInput.current?.focus(); };
-  const handleGoogleResult = result => {
-    setGoogleBusy(false);
-    if (result?.link_required) {
-      setLinkRequest({ token: result.link_token, expiresAt: Date.now() + result.expires_in * 1000 });
-      setIdentifier(''); setPassword(''); setShowPassword(false); setError(''); setFieldError('');
-    } else { setLinkRequest(null); routeUser(result); }
   };
 
   const handleLogin = async event => {
@@ -100,13 +77,9 @@ export default function UnifiedLogin() {
     }
     setLoading(true); setError(''); setFieldError('');
     try {
-      if (linkRequest && linkRequest.expiresAt <= Date.now()) { cancelLink(); setError('انتهت مهلة ربط Google. ابدأ المحاولة من جديد.'); return; }
-      const user = linkRequest
-        ? await linkGoogle({ link_token: linkRequest.token, phone, password })
-        : await loginErp(phone, password);
-      setLinkRequest(null); setPassword(''); routeUser(user);
+      const user = await loginErp(phone, password);
+      setPassword(''); routeUser(user);
     } catch (loginError) {
-      if (linkRequest && ['google_challenge_expired', 'credentials_changed', 'google_link_expired', 'google_link_invalid', 'password_change_required'].includes(loginError.code)) { setLinkRequest(null); setPassword(''); }
       setError(loginErrorMessage(loginError));
     } finally { setLoading(false); }
   };
@@ -124,10 +97,9 @@ export default function UnifiedLogin() {
       <div className="unified-login-brand"><img src="/logo.webp" width="82" height="78" alt="Multi Task Agency" /><p dir="ltr">Multi Task Agency</p></div>
       <header className="unified-login-heading">
         <span className="unified-quiet-rule" aria-hidden="true" />
-        <h1 id="unified-login-title">{linkRequest ? 'اربط حسابك، مرة واحدة.' : 'مساحتك، بخطوة واحدة.'}</h1>
-        <p>{linkRequest ? 'أكّد حسابك الحالي برقم الموبايل وكلمة المرور' : 'سجّل الدخول لمتابعة باقاتك ومواعيدك'}</p>
+        <h1 id="unified-login-title">مساحتك، بخطوة واحدة.</h1>
+        <p>سجّل الدخول لمتابعة باقاتك ومواعيدك</p>
       </header>
-      {linkRequest && <div className="unified-link-note" role="status">بعد الربط، يمكنك الدخول مباشرة عبر Google. ليس لديك حساب؟ <Link to="/register">أنشئ حسابًا أولًا</Link>.</div>}
       <form className="unified-login-form" onSubmit={handleLogin} noValidate aria-busy={busy}>
         <fieldset disabled={busy} className="unified-login-fields">
           <div className="unified-field">
@@ -142,14 +114,12 @@ export default function UnifiedLogin() {
             </div>
           </div>
         </fieldset>
-        <button type="submit" className="unified-login-submit" disabled={loading || !isAuthReady || googleBusy} aria-busy={loading}>
-          <span>{loading ? 'جارٍ تسجيل الدخول…' : !isAuthReady ? 'جارٍ تجهيز الدخول…' : linkRequest ? 'ربط Google وتسجيل الدخول' : 'تسجيل الدخول'}</span>
+        <button type="submit" className="unified-login-submit" disabled={loading || !isAuthReady} aria-busy={loading}>
+          <span>{loading ? 'جارٍ تسجيل الدخول…' : !isAuthReady ? 'جارٍ تجهيز الدخول…' : 'تسجيل الدخول'}</span>
           {loading || !isAuthReady ? <LoaderCircle className="unified-login-spinner" aria-hidden="true" /> : <ArrowLeft aria-hidden="true" />}
         </button>
         <div className="unified-login-feedback" aria-live="polite">{error && <p id="login-error" role="alert">{error}</p>}</div>
-        {linkRequest && <button className="unified-text-button unified-cancel-link" type="button" disabled={busy} onClick={cancelLink}>إلغاء الربط والعودة للدخول</button>}
       </form>
-      {!linkRequest && <GoogleSignIn disabled={busy || !isAuthReady} onResult={handleGoogleResult} onBusy={setGoogleBusy} onError={setError} />}
       <div className="unified-registration"><span>عميل جديد؟</span><Link className="unified-text-button" to="/register">إنشاء حساب <ArrowDownLeft aria-hidden="true" /></Link></div>
     </section>
     <footer className="unified-login-footer"><Link to="/">العودة للموقع الرئيسي <ArrowRight aria-hidden="true" /></Link></footer>

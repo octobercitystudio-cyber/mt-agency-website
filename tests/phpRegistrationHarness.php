@@ -14,6 +14,9 @@ function recordChangeEvent(...$args):int{return 1;}
 function appNotification(...$args):bool{return true;}
 function nextClientColor(...$args):string{return '#692ee8';}
 function requestIpHash():string{return 'test-ip';}
+function csrfCookieName(array $config):string{return 'mt_csrf';}
+function setCsrfCookie(array $config):string{return $_COOKIE['mt_csrf']=bin2hex(random_bytes(32));}
+$_COOKIE['mt_csrf']=str_repeat('c',64);
 function bookingBlockSchemaReady(PDO $pdo):bool{return true;}
 function schemaColumnExists(PDO $pdo,string $table,string $column):bool{foreach($pdo->query('PRAGMA table_info('.$table.')')->fetchAll() as $row)if($row['name']===$column)return true;return false;}
 function dismissSettledPackageNotifications(...$args):void{}
@@ -61,6 +64,7 @@ CREATE TABLE resources(id INTEGER PRIMARY KEY,organization_id INTEGER,type TEXT,
 CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,full_name TEXT,email TEXT UNIQUE,phone TEXT UNIQUE,password_hash TEXT,role TEXT,is_active INTEGER,password_status TEXT,must_change_password INTEGER,credential_version INTEGER,password_changed_at TEXT,client_id INTEGER);
 CREATE TABLE clients(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,name TEXT,phone1 TEXT,email TEXT,job TEXT,color TEXT,status TEXT,registration_source TEXT DEFAULT 'manual');
 CREATE TABLE registration_email_challenges(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,challenge_hash TEXT UNIQUE,email TEXT,code_hash TEXT,attempts INTEGER DEFAULT 0,expires_at TEXT,verified_at TEXT,grant_hash TEXT UNIQUE,grant_expires_at TEXT,consumed_at TEXT,user_id INTEGER,request_id INTEGER,request_hash TEXT,revoked_at TEXT,created_at TEXT DEFAULT '2030-01-01 10:00:00');
+CREATE TABLE registration_bot_challenges(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,challenge_hash TEXT UNIQUE,signing_secret TEXT,browser_hash TEXT,expires_at INTEGER,consumed_at TEXT,user_id INTEGER,request_hash TEXT,created_at TEXT DEFAULT '2030-01-01 10:00:00');
 CREATE TABLE client_intake_requests(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,user_id INTEGER UNIQUE,client_id INTEGER,name TEXT,phone TEXT,email TEXT,job TEXT,service_id INTEGER,service_snapshot TEXT,booking_snapshot TEXT,registration_status TEXT DEFAULT 'pending',package_status TEXT DEFAULT 'not_requested',booking_status TEXT DEFAULT 'not_requested',registration_note TEXT,package_note TEXT,booking_note TEXT,registration_decided_by INTEGER,package_decided_by INTEGER,booking_decided_by INTEGER,registration_decided_at TEXT,package_decided_at TEXT,booking_decided_at TEXT,client_package_id INTEGER,booking_id INTEGER,terms_version TEXT,terms_accepted_at TEXT,created_at TEXT DEFAULT '2030-01-01 10:00:00');
 CREATE TABLE client_packages(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,client_id INTEGER,service_id INTEGER,name TEXT,notes TEXT,billing_unit TEXT,purchased_quantity REAL,purchased_minutes INTEGER,held_quantity REAL,held_minutes INTEGER,consumed_quantity REAL,consumed_minutes INTEGER,payment_due_quantity REAL,payment_due_minutes INTEGER,deposit_percent_snapshot REAL,overage_price_snapshot TEXT,total_price TEXT,paid_amount REAL,starts_at TEXT,expires_at TEXT,validity_mode_snapshot TEXT,validity_days_snapshot INTEGER,status TEXT,version INTEGER DEFAULT 1,overage_amount TEXT DEFAULT '0.00',source_invoice_id INTEGER);
 CREATE TABLE bookings(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,client_id INTEGER,client_package_id INTEGER,service_id INTEGER,resource_id INTEGER,client_name TEXT,service TEXT,date TEXT,start_time TEXT,end_time TEXT,duration_minutes INTEGER,requested_quantity REAL,status TEXT,notes TEXT,decided_by INTEGER,decided_at TEXT,created_by INTEGER);
@@ -73,4 +77,9 @@ INSERT INTO resources VALUES(1,1,'studio',1);
 INSERT INTO services(id,organization_id,name,billing_unit,total_hours,price,validity_days,category,package_validity_mode,deposit_percent,payment_due_hours,overage_price) VALUES(101,1,'Monthly 20','hour',20,'3400.00',90,'monthly','rolling',25,10,'200.00');
 SQL);
 function countRows(PDO $pdo,string $table):int{return (int)$pdo->query('SELECT count(*) FROM '.$table)->fetchColumn();}
-function verifiedGrant(PDO $pdo,string $email):string{$token=bin2hex(random_bytes(32));$pdo->prepare('INSERT INTO registration_email_challenges(organization_id,challenge_hash,email,code_hash,expires_at,verified_at,grant_hash,grant_expires_at) VALUES(1,?,?,?,?,?,?,?)')->execute([hash('sha256',random_bytes(32)),$email,'verified','2030-01-01 10:10:00','2030-01-01 10:00:00',hash('sha256',$token),'2030-01-01 10:30:00']);return $token;}
+function verifiedBotProof(PDO $pdo):string {
+ $challenge=\AltchaOrg\Altcha\Challenge::fromArray(issueRegistrationBotChallenge($pdo,[]));
+ $solution=(new \AltchaOrg\Altcha\Altcha())->solveChallenge(new \AltchaOrg\Altcha\SolveChallengeOptions(algorithm:new \AltchaOrg\Altcha\Algorithm\Pbkdf2(),challenge:$challenge));
+ if(!$solution)throw new RuntimeException('Unable to solve bot test fixture');
+ return (new \AltchaOrg\Altcha\Payload($challenge,$solution))->toBase64();
+}

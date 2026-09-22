@@ -3,7 +3,7 @@ import { cairoDateKey } from './businessFormat.js';
 import { cairoDateTimeToEpoch } from './promotionTime.js';
 import { getBookingAvailability } from '../erp/bookingAvailability.js';
 import { CLIENT_BOOKING_POLICY, REGISTRATION_TERMS_VERSION, clientWindowError, intakeStageReady, isClientBookingDateClosed, pendingIntakeCount } from './registrationPolicy.js';
-const challenges = new Map(); const tokens = new Map();
+const challenges = new Map();
 const copy = value => JSON.parse(JSON.stringify(value));
 const fail = (message, code = 'validation_error', status = 422) => { throw Object.assign(new Error(message), { code, status }); };
 const randomToken = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), n => n.toString(16).padStart(2, '0')).join('');
@@ -18,7 +18,7 @@ export const authenticateRegistrationDemo = async (db, identifier, password) => 
   if (!user || user.is_active === 0 || await hash(`${user.salt}:${password}`) !== user.password_hash) return null;
   return dtoUser(user);
 };
-export const registrationDemoCatalog = async db => { const catalog = { services: (db.services || []).filter(service => Number(service.is_active ?? 1) === 1 && !Number(service.is_draft || 0) && ['تصوير بالساعة', 'تصوير ساعة', 'بالساعة', 'باقة يومية', 'باقة شهرية'].includes(service.category) && Number(service.total_hours) > 0 && Number(service.price) > 0).map(service => ({ id: service.id, name: service.name, kind: service.category === 'باقة يومية' ? 'daily' : service.category === 'باقة شهرية' ? 'monthly' : 'hourly', billing_unit: 'hour', price: Number(service.price), total_hours: Number(service.total_hours), validity_days: Number(service.validity_days), package_validity_mode: service.category === 'باقة يومية' ? 'shooting_day' : 'rolling', deposit_percent: 50, deposit_amount: Math.round(Number(service.price) * 50) / 100, remaining_amount: Number(service.price) - Math.round(Number(service.price) * 50) / 100, payment_due_hours: Number(service.payment_due_hours), payment_due_text: Number(service.payment_due_hours) > 0 ? `يُسدد المتبقي عند استهلاك ${service.payment_due_hours} ساعة من الباقة.` : 'يُحدد موعد سداد الباقي مع الإدارة عند اعتماد الطلب.', minimum_booking_minutes: 30, booking_increment_minutes: 30, overage_price: Number(service.overage_price || 0) })), booking_policy: CLIENT_BOOKING_POLICY, email_verification_available: true, terms_version: REGISTRATION_TERMS_VERSION }; await Promise.all(catalog.services.map(async service => { service.terms_fingerprint = await hash(JSON.stringify(service)); })); return catalog; };
+export const registrationDemoCatalog = async db => { const catalog = { services: (db.services || []).filter(service => Number(service.is_active ?? 1) === 1 && !Number(service.is_draft || 0) && ['تصوير بالساعة', 'تصوير ساعة', 'بالساعة', 'باقة يومية', 'باقة شهرية'].includes(service.category) && Number(service.total_hours) > 0 && Number(service.price) > 0).map(service => ({ id: service.id, name: service.name, kind: service.category === 'باقة يومية' ? 'daily' : service.category === 'باقة شهرية' ? 'monthly' : 'hourly', billing_unit: 'hour', price: Number(service.price), total_hours: Number(service.total_hours), validity_days: Number(service.validity_days), package_validity_mode: service.category === 'باقة يومية' ? 'shooting_day' : 'rolling', deposit_percent: 50, deposit_amount: Math.round(Number(service.price) * 50) / 100, remaining_amount: Number(service.price) - Math.round(Number(service.price) * 50) / 100, payment_due_hours: Number(service.payment_due_hours), payment_due_text: Number(service.payment_due_hours) > 0 ? `يُسدد المتبقي عند استهلاك ${service.payment_due_hours} ساعة من الباقة.` : 'يُحدد موعد سداد الباقي مع الإدارة عند اعتماد الطلب.', minimum_booking_minutes: 30, booking_increment_minutes: 30, overage_price: Number(service.overage_price || 0) })), booking_policy: CLIENT_BOOKING_POLICY, bot_protection: 'altcha', email_verification_required: false, terms_version: REGISTRATION_TERMS_VERSION }; await Promise.all(catalog.services.map(async service => { service.terms_fingerprint = await hash(JSON.stringify(service)); })); return catalog; };
 export const registrationDemoAvailability = async (db, serviceId, date, rawDuration) => {
   const service = (await registrationDemoCatalog(db)).services.find(item => Number(item.id) === Number(serviceId)); if (!service) fail('اختر خدمة متاحة.', 'invalid_service');
   const duration = Number(rawDuration); if (!Number.isSafeInteger(duration) || duration < service.minimum_booking_minutes || duration > Math.min(600, service.total_hours * 60) || duration % service.booking_increment_minutes) fail('مدة التصوير لا تطابق الباقة.', 'invalid_booking_duration');
@@ -36,28 +36,34 @@ export async function registrationDemoRequest({ route, url, method, body, databa
   if (import.meta.env && !import.meta.env.DEV) return undefined;
   if (route === '/registration/catalog' && method === 'GET') return registrationDemoCatalog(db);
   if (route === '/registration/availability' && method === 'GET') return registrationDemoAvailability(db, url.searchParams.get('service_id'), url.searchParams.get('date'), url.searchParams.get('duration_minutes'));
-  if (route === '/registration/email-code' && method === 'POST') {
-    const email = String(body.email || '').trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 190) fail('أدخل بريدًا إلكترونيًا صحيحًا.');
-    if (rows(db, 'registration_accounts').some(user => user.email === email) || db.clients.some(client => String(client.email || '').toLowerCase() === email)) fail('البريد مسجل بالفعل. يمكنك تسجيل الدخول.', 'email_exists', 409);
-    if ([...challenges.values()].some(item => item.email === email && Date.now() - item.created < 60000)) fail('انتظر دقيقة قبل إعادة إرسال الكود.', 'resend_too_soon', 429);
-    for (const [id, item] of challenges) if (item.email === email) challenges.delete(id);
-    const id = randomToken(); challenges.set(id, { email, created: Date.now(), attempts: 0 }); return { challenge_id: id, resend_after: 60, expires_in: 600 };
-  }
-  if (route === '/registration/verify-email' && method === 'POST') {
-    const challenge = challenges.get(body.challenge_id); if (!challenge || Date.now() - challenge.created > 600000 || challenge.attempts >= 5) fail('انتهت صلاحية الكود. اطلب كودًا جديدًا.', 'verification_expired');
-    challenge.attempts++; if (String(body.code) !== '123456') fail('كود التحقق غير صحيح.', 'invalid_verification_code');
-    const token = randomToken(); tokens.set(token, { email: challenge.email, expires: Date.now() + 1800000 }); challenges.delete(body.challenge_id); return { registration_token: token, email: challenge.email, expires_in: 1800 };
+  if (['/registration/email-code', '/registration/verify-email'].includes(route)) fail('التسجيل أصبح بالموبايل دون بريد إلكتروني.', 'email_verification_removed', 410);
+  if (route === '/registration/bot-challenge' && method === 'GET') {
+    const { createChallenge, pbkdf2 } = await import('altcha/lib');
+    const secret = randomToken();
+    const challenge = await createChallenge({ algorithm: 'PBKDF2/SHA-256', cost: 1500, counter: 64, expiresAt: Math.floor(Date.now() / 1000) + 600, hmacSignatureSecret: secret, deriveKey: pbkdf2.deriveKey });
+    challenges.set(challenge.signature, { challenge, secret }); return challenge;
   }
   if (route === '/registration/complete' && method === 'POST') {
-    const verification = tokens.get(body.registration_token); if (!verification || verification.expires < Date.now()) fail('انتهى تأكيد البريد. أعد التحقق دون فقد بياناتك.', 'registration_token_expired');
-    if (verification.result) return copy(verification.result);
-    const name = String(body.name || '').trim(); const phone = String(body.phone || '').trim(); const job = String(body.job || '').trim(); const password = String(body.password || '');
-    if (name.length < 2 || name.length > 160 || !/^[+0-9 ()-]{8,24}$/.test(phone) || !job || job.length > 160 || password.length < 6 || password.length > 128 || password !== body.password_confirmation) fail('راجع بيانات التسجيل.');
-    if (rows(db, 'registration_accounts').some(user => user.email === verification.email || user.phone === phone) || db.clients.some(client => String(client.email || '').toLowerCase() === verification.email || client.phone1 === phone)) fail('بيانات الاتصال مسجلة بالفعل.', 'account_exists', 409);
+    if (body.website || typeof body.altcha !== 'string' || !body.altcha || body.altcha.length > 8192) fail('أكمل التحقق من الحماية.', 'bot_verification_required', 403);
+    let proof; try { proof = JSON.parse(atob(body.altcha)); } catch { fail('تعذر تأكيد الحماية.', 'bot_verification_failed', 403); }
+    const verification = challenges.get(proof?.challenge?.signature);
+    if (!verification) fail('أعد التحقق من الحماية.', 'bot_verification_failed', 403);
+    if (verification.challenge.parameters.expiresAt <= Date.now() / 1000) fail('انتهت مدة التحقق.', 'bot_verification_expired', 403);
+    const { verifySolution, pbkdf2 } = await import('altcha/lib');
+    let checked; try { checked = await verifySolution({ challenge: proof.challenge, solution: proof.solution, deriveKey: pbkdf2.deriveKey, hmacSignatureSecret: verification.secret }); } catch { fail('تعذر تأكيد الحماية.', 'bot_verification_failed', 403); }
+    if (!checked.verified) fail('تعذر تأكيد الحماية.', 'bot_verification_failed', 403);
+    const name = String(body.name || '').trim(); const phone = normalizeLoginPhone(body.phone); const job = String(body.job || '').trim(); const password = String(body.password || '');
+    if (name.length < 2 || name.length > 160 || !phone || job.length > 160 || password.length < 6 || password.length > 128 || password !== body.password_confirmation) fail('راجع بيانات التسجيل.');
+    const requestHash = await hash(JSON.stringify({ name, phone, job, password }));
+    if (verification.result) {
+      if (verification.requestHash !== requestHash) fail('تم استخدام التحقق بالفعل.', 'registration_already_submitted', 409);
+      return copy(verification.result);
+    }
+    if (rows(db, 'registration_accounts').some(user => normalizeLoginPhone(user.phone) === phone) || db.clients.some(client => normalizeLoginPhone(client.phone1) === phone)) fail('رقم الموبايل مسجل بالفعل.', 'registration_identity_exists', 409);
     const salt = randomToken(); const passwordHash = await hash(salt + ':' + password);
-    const client = addRow(db, 'clients', { name, phone1: phone, phone2: '', additional_phones: [], job, email: verification.email, company: '', color: '#8b5cf6', balance: 0, points: 0, portal_account_exists: true, portal_enabled: true, registration_source: 'website' });
-    const user = addRow(db, 'registration_accounts', { full_name: name, phone, email: verification.email, role: 'client', client_id: client.id, is_active: 1, salt, password_hash: passwordHash });
-    writeDatabase(db); verification.result = { id: client.id, client_id: client.id, user_id: user.id, registered: true }; return copy(verification.result);
+    const client = addRow(db, 'clients', { name, phone1: phone, phone2: '', additional_phones: [], job, email: null, company: '', color: '#8b5cf6', balance: 0, points: 0, portal_account_exists: true, portal_enabled: true, registration_source: 'website' });
+    const user = addRow(db, 'registration_accounts', { full_name: name, phone, email: null, role: 'client', client_id: client.id, is_active: 1, salt, password_hash: passwordHash });
+    writeDatabase(db); verification.requestHash = requestHash; verification.result = { id: client.id, client_id: client.id, user_id: user.id, registered: true }; return copy(verification.result);
   }
 
   if (['/intake-requests', '/client/intake-requests'].includes(route) && method === 'GET') {

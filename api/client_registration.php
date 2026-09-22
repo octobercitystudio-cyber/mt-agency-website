@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__.'/registration_mail.php';
+require_once __DIR__.'/registration_bot.php';
 require_once __DIR__.'/auth_identity.php';
 
 const REGISTRATION_TERMS_VERSION = '2026-09-22';
@@ -15,7 +15,7 @@ function registrationOrganization(array $config): int {
 }
 
 function registrationSchemaReady(PDO $pdo): bool {
-    return schemaTableExists($pdo,'registration_email_challenges') && schemaTableExists($pdo,'client_intake_requests');
+    return schemaTableExists($pdo,'client_intake_requests');
 }
 
 function requireRegistrationSchema(PDO $pdo): void {
@@ -28,13 +28,6 @@ function requireRegistrationSchema(PDO $pdo): void {
         if ($sql===false) throw new RuntimeException('Registration migration is missing.');
         foreach(explode(';',preg_replace('/^\xEF\xBB\xBF/','',$sql)) as $statement) if(trim($statement)!=='') $pdo->exec($statement);
     } finally { $pdo->prepare('SELECT RELEASE_LOCK(?)')->execute(['mta_040_registration_schema']); }
-}
-
-function registrationEmail(mixed $value): string {
-    if (!is_string($value)) fail('أدخل بريدًا إلكترونيًا صحيحًا.',422,'invalid_email');
-    $email=strtolower(trim($value));
-    if (strlen($email)>190 || !filter_var($email,FILTER_VALIDATE_EMAIL)) fail('أدخل بريدًا إلكترونيًا صحيحًا.',422,'invalid_email');
-    return $email;
 }
 
 function registrationText(mixed $value, int $maximum, string $label, bool $required=true, bool $multiline=false): string {
@@ -52,7 +45,7 @@ function registrationRateLimit(PDO $pdo,string $scope,string $identity,int $limi
         $s=$pdo->prepare('SELECT attempts,window_started_at,last_attempt_at FROM auth_rate_limits WHERE limit_key=? FOR UPDATE');$s->execute([$key]);$row=$s->fetch();
         $zone=new DateTimeZone('Africa/Cairo');$elapsed=$now->getTimestamp()-(new DateTimeImmutable($row['window_started_at'],$zone))->getTimestamp();$sinceLast=$now->getTimestamp()-(new DateTimeImmutable($row['last_attempt_at'],$zone))->getTimestamp();
         $attempts=$elapsed>=$seconds?0:(int)$row['attempts'];
-        if ($attempts>=$limit || $sinceLast<$cooldown) {$pdo->rollBack();fail('انتظر قليلًا قبل طلب رمز جديد أو إعادة المحاولة.',429,'registration_rate_limited');}
+        if ($attempts>=$limit || $sinceLast<$cooldown) {$pdo->rollBack();fail('محاولات كثيرة خلال وقت قصير. انتظر قليلًا ثم أعد المحاولة.',429,'registration_rate_limited');}
         $pdo->prepare('UPDATE auth_rate_limits SET attempts=?,window_started_at=?,last_attempt_at=? WHERE limit_key=?')->execute([$attempts+1,$elapsed>=$seconds?$stamp:$row['window_started_at'],$stamp,$key]);$pdo->commit();
     } catch(Throwable $error) {if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
@@ -103,13 +96,6 @@ function registrationBooking(PDO $pdo,int $org,?array $service,mixed $raw): ?arr
     return ['date'=>$date,'start_time'=>$start,'end_time'=>$end,'duration_minutes'=>$duration,'resource_id'=>$resource];
 }
 
-function registrationCodeError(array $row,DateTimeImmutable $now): ?string {
-    if(!empty($row['revoked_at']) || !empty($row['verified_at']) || !empty($row['consumed_at']))return 'verification_code_invalid';
-    if((int)$row['attempts']>=5)return 'verification_attempts_exhausted';
-    if((new DateTimeImmutable((string)$row['expires_at'],new DateTimeZone('Africa/Cairo'))) <= $now)return 'verification_code_expired';
-    return null;
-}
-
 function intakePublicRow(array $row): array {
     $keys=['id','user_id','client_id','name','phone','email','job','created_at','registration_status','package_status','booking_status','registration_note','package_note','booking_note','registration_decided_at','package_decided_at','booking_decided_at','service_id','client_package_id','booking_id','terms_version'];
     $result=array_intersect_key($row,array_flip($keys));
@@ -129,11 +115,21 @@ function intakeStageDecisionError(array $request,string $stage,string $action): 
     return null;
 }
 
+function registrationPhoneClientExists(PDO $pdo,int $org,string $phone): bool {
+    $candidates=identityPhoneCandidates($phone);
+    $column="REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone1,' ',''),'-',''),'(',''),')',''),'+',''),'.','')";
+    foreach(preg_split('//u','٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹',-1,PREG_SPLIT_NO_EMPTY) as $index=>$digit) $column="REPLACE($column,'$digit','".($index%10)."')";
+    $s=$pdo->prepare('SELECT id FROM clients WHERE organization_id=? AND '.$column.' IN ('.implode(',',array_fill(0,count($candidates),'?')).') LIMIT 1 FOR UPDATE');
+    $s->execute(array_merge([$org],$candidates));return (bool)$s->fetch();
+}
+
 function registrationComplete(PDO $pdo,array $config,array $payload): array {
     requireClientRegistrationSourceSchema($pdo);
-    $token=(string)($payload['registration_token']??'');if(!preg_match('/^[a-f0-9]{64}$/',$token))fail('أكد البريد الإلكتروني أولًا.',403,'email_verification_required');
+    requireRegistrationBotSchema($pdo);
+    if (($payload['website']??'')!=='') fail('تعذر تأكيد الحماية. أعد المحاولة.',403,'bot_verification_failed');
+    $proof=registrationBotPayload($payload['altcha']??null);
     $name=registrationText($payload['name']??null,160,'اسم العميل');$job=registrationText($payload['job']??'',160,'الوظيفة',false);
-    $phone=normalizeClientContactPhone($payload['phone']??'');if(!preg_match('/^[0-9]{10,15}$/',$phone))fail('أدخل رقم واتساب صحيحًا.',422,'invalid_client_phone');
+    $phone=loginMobile($payload['phone']??null);if($phone==='')fail('أدخل رقم واتساب صحيحًا.',422,'invalid_client_phone');
     $password=$payload['password']??null;$confirmation=$payload['password_confirmation']??null;
     if(!is_string($password)||!validClientPassword($password))fail('كلمة المرور يجب أن تكون من 6 إلى 128 حرفًا.',422,'invalid_password');
     if(!is_string($confirmation)||!hash_equals($password,$confirmation))fail('تأكيد كلمة المرور غير مطابق.',422,'password_confirmation_mismatch');
@@ -141,23 +137,20 @@ function registrationComplete(PDO $pdo,array $config,array $payload): array {
     $org=registrationOrganization($config);$requestHash=hash('sha256',json_encode(['name'=>$name,'phone'=>$phone,'job'=>$job],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
     $pdo->beginTransaction();
     try {
-        $s=$pdo->prepare('SELECT * FROM registration_email_challenges WHERE grant_hash=? AND organization_id=? FOR UPDATE');$s->execute([hash('sha256',$token),$org]);$challenge=$s->fetch();
-        if(!$challenge||!$challenge['verified_at']||$challenge['revoked_at'])fail('تأكيد البريد غير صالح. اطلب رمزًا جديدًا.',403,'email_verification_required');
+        $challenge=lockRegistrationBotProof($pdo,$config,$proof);
         if($challenge['consumed_at']){
             $s=$pdo->prepare('SELECT id,client_id,password_hash FROM users WHERE id=? AND organization_id=?');$s->execute([$challenge['user_id'],$org]);$account=$s->fetch();
-            if(!$account||!$account['client_id']||!hash_equals((string)$challenge['request_hash'],$requestHash)||!password_verify($password,$account['password_hash']))fail('تم استخدام تأكيد البريد بالفعل.',409,'registration_already_submitted');
+            if(!$account||!$account['client_id']||!hash_equals((string)$challenge['request_hash'],$requestHash)||!password_verify($password,$account['password_hash']))fail('تم استخدام التحقق بالفعل. أعد التحقق.',409,'registration_already_submitted');
             $pdo->commit();return ['id'=>(int)$account['client_id'],'client_id'=>(int)$account['client_id'],'user_id'=>(int)$account['id'],'registered'=>true];
         }
-        if(new DateTimeImmutable($challenge['grant_expires_at'],new DateTimeZone('Africa/Cairo'))<=cairoNow())fail('انتهت مدة تأكيد البريد. اطلب رمزًا جديدًا.',403,'email_verification_expired');
         assertLoginMobileAvailable($pdo,$phone,null,'registration_identity_exists');
-        $email=(string)$challenge['email'];$s=$pdo->prepare('SELECT id FROM users WHERE LOWER(email)=? OR phone=? LIMIT 1 FOR UPDATE');$s->execute([$email,$phone]);if($s->fetch())fail('البيانات مرتبطة بحساب موجود. سجّل الدخول أو تواصل مع الإدارة.',409,'registration_identity_exists');
-        $s=$pdo->prepare('SELECT id FROM clients WHERE organization_id=? AND (phone1=? OR LOWER(email)=?) LIMIT 1 FOR UPDATE');$s->execute([$org,$phone,$email]);if($s->fetch())fail('البيانات مرتبطة بعميل مسجل. تواصل مع الإدارة لتفعيل حسابك.',409,'registration_identity_exists');
-        $pdo->prepare("INSERT INTO clients (organization_id,name,phone1,email,job,color,status,registration_source) VALUES (?,?,?,?,?,?,'active','website')")->execute([$org,$name,$phone,$email,$job?:null,nextClientColor($pdo,$org)]);$clientId=(int)$pdo->lastInsertId();
-        $pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,password_changed_at) VALUES (?,?,?,?,?,?,'client',1,'active',0,1,NOW())")->execute([$org,$clientId,$name,$email,$phone,password_hash($password,PASSWORD_DEFAULT)]);$userId=(int)$pdo->lastInsertId();
-        $pdo->prepare('UPDATE registration_email_challenges SET consumed_at=NOW(),user_id=?,request_hash=?,code_hash=? WHERE id=?')->execute([$userId,$requestHash,'consumed',$challenge['id']]);
-        $actor=['id'=>$userId,'organization_id'=>$org,'role'=>'client','client_id'=>$clientId];audit($pdo,$actor,'self_registration','clients',$clientId,null,['email_verified'=>true]);recordChangeEvent($pdo,$org,$clientId,'clients','clients',$clientId,'created');
+        if(registrationPhoneClientExists($pdo,$org,$phone))fail('رقم الموبايل مرتبط بعميل مسجل. سجّل الدخول أو تواصل مع الإدارة لتفعيل حسابك.',409,'registration_identity_exists');
+        $pdo->prepare("INSERT INTO clients (organization_id,name,phone1,email,job,color,status,registration_source) VALUES (?,?,?,NULL,?,?,'active','website')")->execute([$org,$name,$phone,$job?:null,nextClientColor($pdo,$org)]);$clientId=(int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,password_changed_at) VALUES (?,?,?,NULL,?,?,'client',1,'active',0,1,NOW())")->execute([$org,$clientId,$name,$phone,password_hash($password,PASSWORD_DEFAULT)]);$userId=(int)$pdo->lastInsertId();
+        $pdo->prepare('UPDATE registration_bot_challenges SET consumed_at=NOW(),user_id=?,request_hash=? WHERE id=?')->execute([$userId,$requestHash,$challenge['id']]);
+        $actor=['id'=>$userId,'organization_id'=>$org,'role'=>'client','client_id'=>$clientId];audit($pdo,$actor,'self_registration','clients',$clientId,null,['bot_verified'=>true,'registration_source'=>'website']);recordChangeEvent($pdo,$org,$clientId,'clients','clients',$clientId,'created');
         $pdo->commit();return ['id'=>$clientId,'client_id'=>$clientId,'user_id'=>$userId,'registered'=>true];
-    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();if($error instanceof PDOException&&($error->errorInfo[1]??0)===1062)fail('البيانات مرتبطة بحساب موجود. سجّل الدخول أو تواصل مع الإدارة.',409,'registration_identity_exists');throw $error;}
+    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();if($error instanceof PDOException&&($error->errorInfo[1]??0)===1062)fail('رقم الموبايل مرتبط بحساب موجود. سجّل الدخول أو تواصل مع الإدارة.',409,'registration_identity_exists');throw $error;}
 }
 
 function intakeApproveRegistration(PDO $pdo,array $actor,array &$request): void {
@@ -226,14 +219,14 @@ function decideIntakeRequest(PDO $pdo,array $actor,int $id,array $payload): arra
 }
 
 function handleRegistrationRoutes(PDO $pdo,array $config,?array $user,string $path,string $method): void {
-    $publicPaths=['/registration/catalog','/registration/availability','/registration/email-code','/registration/verify-email','/registration/complete'];
+    $publicPaths=['/registration/catalog','/registration/availability','/registration/bot-challenge','/registration/email-code','/registration/verify-email','/registration/complete'];
     $isDecision=preg_match('#^/intake-requests/(\d+)/decision$#',$path,$match)===1;
     if(!in_array($path,$publicPaths,true)&&!in_array($path,['/intake-requests','/client/intake-requests'],true)&&!$isDecision)return;
     $org=registrationOrganization($config);
     if($path==='/registration/catalog'&&$method==='GET'){
         if(empty($_COOKIE[csrfCookieName($config)]))setCsrfCookie($config);
         $s=$pdo->prepare('SELECT * FROM services WHERE organization_id=? AND is_active=1 AND COALESCE(is_draft,0)=0 AND archived_at IS NULL ORDER BY price,id');$s->execute([$org]);$services=[];foreach($s->fetchAll() as $row){$snapshot=registrationServiceSnapshot($row);if($snapshot)$services[]=$snapshot;}
-        respond(['services'=>$services,'booking_policy'=>clientBookingPolicy(),'email_verification_available'=>registrationMailerReady($config),'terms_version'=>REGISTRATION_TERMS_VERSION]);
+        respond(['services'=>$services,'booking_policy'=>clientBookingPolicy(),'bot_protection'=>'altcha','email_verification_required'=>false,'terms_version'=>REGISTRATION_TERMS_VERSION]);
     }
     if($path==='/registration/availability'&&$method==='GET'){
         registrationRateLimit($pdo,'availability',requestIpHash(),180,300);
@@ -244,33 +237,10 @@ function handleRegistrationRoutes(PDO $pdo,array $config,?array $user,string $pa
         $user=requireUser($user);requireRole($user,$path==='/client/intake-requests'?['client','applicant']:['owner','admin','operations']);
     }
     requireRegistrationSchema($pdo);
-    if($path==='/registration/email-code'&&$method==='POST'){
-        if(!registrationMailerReady($config))fail('تأكيد البريد غير متاح مؤقتًا. تواصل مع الشركة أو حاول لاحقًا.',503,'email_not_configured');
-        $email=registrationEmail(body()['email']??'');registrationRateLimit($pdo,'email_ip',requestIpHash(),15,3600);registrationRateLimit($pdo,'email_address',$org.':'.$email,5,3600,60);
-        $code=(string)random_int(100000,999999);$token=bin2hex(random_bytes(32));$expires=cairoNow()->modify('+10 minutes')->format('Y-m-d H:i:s');
-        $pdo->beginTransaction();try{
-            $pdo->prepare('UPDATE registration_email_challenges SET revoked_at=NOW() WHERE organization_id=? AND email=? AND verified_at IS NULL AND consumed_at IS NULL AND revoked_at IS NULL')->execute([$org,$email]);
-            $pdo->prepare('INSERT INTO registration_email_challenges (organization_id,challenge_hash,email,code_hash,expires_at) VALUES (?,?,?,?,?)')->execute([$org,hash('sha256',$token),$email,password_hash($code,PASSWORD_DEFAULT),$expires]);$id=(int)$pdo->lastInsertId();$pdo->commit();
-        }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
-        try{sendRegistrationEmailCode($config,$email,$code);}catch(Throwable $error){$pdo->prepare('UPDATE registration_email_challenges SET revoked_at=NOW() WHERE id=?')->execute([$id]);error_log('[Registration email] Delivery failed.');fail('تعذر إرسال رمز التأكيد. حاول بعد قليل.',503,'verification_delivery_failed');}
-        $pdo->exec('DELETE FROM registration_email_challenges WHERE created_at < DATE_SUB(NOW(),INTERVAL 2 DAY)');
-        respond(['challenge_id'=>$token,'resend_after'=>60,'expires_in'=>600]);
-    }
-    if($path==='/registration/verify-email'&&$method==='POST'){
-        $payload=body();$token=(string)($payload['challenge_id']??'');$code=(string)($payload['code']??'');
-        if(!preg_match('/^[a-f0-9]{64}$/',$token)||!preg_match('/^[0-9]{6}$/',$code))fail('أدخل رمز التأكيد المكوّن من 6 أرقام.',422,'verification_code_invalid');
-        registrationRateLimit($pdo,'verify_ip',requestIpHash(),40,900);
-        $pdo->beginTransaction();try{
-            $s=$pdo->prepare('SELECT * FROM registration_email_challenges WHERE challenge_hash=? AND organization_id=? FOR UPDATE');$s->execute([hash('sha256',$token),$org]);$row=$s->fetch();$error=$row?registrationCodeError($row,cairoNow()):'verification_code_invalid';
-            if($error){$pdo->rollBack();fail('الرمز غير صالح أو انتهت مدته. اطلب رمزًا جديدًا.',422,$error);}
-            $pdo->prepare('UPDATE registration_email_challenges SET attempts=attempts+1 WHERE id=?')->execute([$row['id']]);
-            if(!password_verify($code,(string)$row['code_hash'])){$pdo->commit();fail('رمز التأكيد غير صحيح.',422,(int)$row['attempts']+1>=5?'verification_attempts_exhausted':'verification_code_invalid');}
-            $grant=bin2hex(random_bytes(32));$pdo->prepare('UPDATE registration_email_challenges SET verified_at=NOW(),grant_hash=?,grant_expires_at=?,code_hash=? WHERE id=?')->execute([hash('sha256',$grant),cairoNow()->modify('+30 minutes')->format('Y-m-d H:i:s'),'verified',$row['id']]);$pdo->commit();
-            respond(['registration_token'=>$grant,'expires_in'=>1800,'email'=>$row['email']]);
-        }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
-    }
+    if(in_array($path,['/registration/email-code','/registration/verify-email'],true)) fail('التسجيل أصبح برقم الموبايل دون بريد إلكتروني. حدّث الصفحة.',410,'email_verification_removed');
+    if($path==='/registration/bot-challenge'&&$method==='GET') respond(issueRegistrationBotChallenge($pdo,$config));
     if($path==='/registration/complete'&&$method==='POST'){
-        registrationRateLimit($pdo,'complete_ip',requestIpHash(),20,900);
+        registrationRateLimit($pdo,'complete_ip',requestIpHash(),10,3600);
         respond(registrationComplete($pdo,$config,body()),201);
     }
     if(in_array($path,['/intake-requests','/client/intake-requests'],true)&&$method==='GET'){

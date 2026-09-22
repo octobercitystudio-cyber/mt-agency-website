@@ -11,82 +11,44 @@ test('registered primary mobile accepts Egyptian prefixes and Arabic/Persian num
   }
 });
 
-test('password and Google authentication share verified session hydration; linking and incomplete responses never authenticate', async t => {
-  const requests = [];
-  const events = [];
-  const responses = [];
-  const originalFetch = globalThis.fetch;
-  const originalDocument = globalThis.document;
-  globalThis.document = { cookie: 'mt_csrf=csrf-fixture' };
+test('phone and staff passwords hydrate only their own portal; Google methods are removed', async t => {
+  const requests = [], events = [], responses = [];
+  const oldFetch = globalThis.fetch, oldDocument = globalThis.document;
+  globalThis.document = { cookie: 'mt_csrf=fixture' };
   globalThis.fetch = async (url, options) => {
-    requests.push({ url, options });
-    const response = responses.shift();
-    assert.ok(response, 'Every request has an explicit fixture');
+    requests.push({ url, options }); const response = responses.shift(); assert.ok(response);
     return { ok: response.ok !== false, status: response.status || 200, headers: { get: () => null }, json: async () => response.payload };
   };
-  const { data: subscription } = hostingerClient.auth.onAuthStateChange((event, session) => events.push({ event, session }));
-  t.after(() => { globalThis.fetch = originalFetch; globalThis.document = originalDocument; subscription.subscription.unsubscribe(); });
+  const subscription = hostingerClient.auth.onAuthStateChange((event, session) => events.push({ event, session }));
+  t.after(() => { globalThis.fetch = oldFetch; globalThis.document = oldDocument; subscription.data.subscription.unsubscribe(); });
   const auth = hostingerClient.auth;
-  assert.equal((await auth.signInWithPassword({ identifier: 'person@example.com', password: 'fixture' })).error.code, 'validation_error');
+  for (const method of ['getGoogleConfig', 'createGoogleChallenge', 'signInWithGoogle', 'linkGoogleAccount']) assert.equal(auth[method], undefined);
+  assert.equal((await auth.signInWithPassword({ identifier: 'person@example.test', password: 'fixture' })).error.code, 'validation_error');
   assert.equal(requests.length, 0);
-  responses.push({ payload: { data: { user: { id: 44, role: 'client' }, session: { expires_at: '2030-01-01' } } } });
-  const password = await auth.signInWithPassword({ identifier: '٠٠٢٠١٠١٢٣٤٥٦٧٨', password: 'fixture' });
-  assert.equal(password.data.session.user.id, 44);
+  const queue = (role, extra = {}) => responses.push({ payload: { data: { user: { id: 44, role, ...extra }, session: { active: true } } } });
+  queue('client'); const client = await auth.signInWithPassword({ identifier: '٠٠٢٠١٠١٢٣٤٥٦٧٨', password: 'fixture' });
+  assert.equal(client.data.user.role, 'client'); assert.equal(requests.at(-1).url, '/api/auth/login');
   assert.deepEqual(JSON.parse(requests.at(-1).options.body), { identifier: '01012345678', password: 'fixture' });
-  assert.equal(events.length, 1);
-  assert.equal(events[0].event, 'SIGNED_IN');
-  responses.push({ payload: { data: { enabled: false, client_id: null } } });
-  assert.equal((await auth.getGoogleConfig()).data.enabled, false);
-  responses.push({ payload: { data: { challenge_id: 'a'.repeat(64), nonce: 'b'.repeat(64), expires_in: 300 } } });
-  await auth.createGoogleChallenge();
-  assert.equal(requests.at(-1).options.headers['X-CSRF-Token'], 'csrf-fixture');
-  const link = { link_required: true, link_token: 'c'.repeat(64), expires_in: 300 };
-  responses.push({ payload: { data: link } });
-  assert.deepEqual((await auth.signInWithGoogle({ credential: 'explicit-unit-fixture', challenge_id: 'a'.repeat(64) })).data, link);
-  assert.equal(events.length, 1, 'Unlinked Google identity cannot establish a session');
-  responses.push({ payload: { data: { user: { id: 99, role: 'owner' } } } });
-  assert.equal((await auth.signInWithGoogle({ credential: 'explicit-unit-fixture', challenge_id: 'a'.repeat(64) })).error.code, 'api_error');
-  assert.equal(events.length, 1, 'Missing server session cannot hydrate an account');
-  responses.push({ payload: { data: { link_required: true, link_token: '', expires_in: 300 } } });
-  assert.equal((await auth.signInWithGoogle({ credential: 'explicit-unit-fixture', challenge_id: 'a'.repeat(64) })).error.code, 'api_error');
-  responses.push({ ok: false, status: 401, payload: { error: { code: 'invalid_credentials', message: 'رفض الدخول' } } });
-  assert.equal((await auth.linkGoogleAccount({ link_token: link.link_token, phone: '01012345678', password: 'wrong' })).error.code, 'invalid_credentials');
-  assert.equal(events.length, 1);
-  responses.push({ payload: { data: { user: { id: 44, role: 'client', must_change_password: true }, session: { expires_at: '2030-01-01' } } } });
-  const linked = await auth.linkGoogleAccount({ link_token: link.link_token, phone: '+20 1012345678', password: 'fixture' });
-  assert.equal(linked.data.session.user.must_change_password, true);
-  assert.equal(events.length, 2);
-  assert.equal(JSON.parse(requests.at(-1).options.body).phone, '01012345678');
-  assert.equal((await auth.getUser()).data.user.id, 44);
-  responses.push({ payload: { data: { user: { id: 45, role: 'staff' }, session: { expires_at: '2030-01-01' } } } });
-  const returning = await auth.signInWithGoogle({ credential: 'explicit-unit-fixture', challenge_id: 'a'.repeat(64) });
-  assert.equal(returning.error.code, 'invalid_credentials');
-  assert.equal(events.length, 2, 'Staff Google response cannot hydrate client portal');
+  responses.push({ payload: { data: { user: { id: 45, role: 'client' } } } });
+  assert.equal((await auth.signInWithPassword({ phone: '01012345678', password: 'fixture' })).error.code, 'api_error');
   for (const role of ['owner', 'admin', 'operations', 'finance', 'staff']) {
-    responses.push({ payload: { data: { user: { id: 45, role }, session: { expires_at: '2030-01-01' } } } });
-    assert.equal((await auth.signInWithPassword({ phone: '01012345678', password: 'fixture' })).error.code, 'invalid_credentials');
+    queue(role); assert.equal((await auth.signInWithPassword({ phone: '01012345678', password: 'fixture' })).error.code, 'invalid_credentials');
   }
-  assert.equal(events.length, 2, 'Staff password responses cannot hydrate client portal');
   for (const role of ['client', 'applicant']) {
-    responses.push({ payload: { data: { user: { id: 44, role }, session: { expires_at: '2030-01-01' } } } });
-    assert.equal((await auth.signInStaffWithPassword({ identifier: 'client@example.test', password: 'fixture' })).error.code, 'invalid_credentials');
+    queue(role); assert.equal((await auth.signInStaffWithPassword({ identifier: 'client@example.test', password: 'fixture' })).error.code, 'invalid_credentials');
   }
-  assert.equal(events.length, 2, 'Client responses cannot hydrate staff portal');
-  responses.push({ payload: { data: { user: { id: 44, role: 'owner', client_id: 10 }, session: { expires_at: '2030-01-01' } } } });
+  queue('owner', { client_id: 10 });
   assert.equal((await auth.signInStaffWithPassword({ identifier: 'client@example.test', password: 'fixture' })).error.code, 'invalid_credentials');
-  assert.equal(events.length, 2, 'A linked client cannot be treated as staff');
+  assert.equal(events.length, 1, 'Wrong portal or malformed response never hydrates a session');
   for (const role of ['owner', 'admin', 'operations', 'finance', 'staff']) {
-    responses.push({ payload: { data: { user: { id: 45, role }, session: { expires_at: '2030-01-01' } } } });
-    const staff = await auth.signInStaffWithPassword({ identifier: ' OWNER@EXAMPLE.TEST ', password: 'fixture' });
-    assert.equal(staff.data.session.user.role, role);
-    assert.equal(requests.at(-1).url, '/api/auth/staff/login');
+    queue(role); const staff = await auth.signInStaffWithPassword({ identifier: ' OWNER@EXAMPLE.TEST ', password: 'fixture' });
+    assert.equal(staff.data.user.role, role); assert.equal(requests.at(-1).url, '/api/auth/staff/login');
     assert.deepEqual(JSON.parse(requests.at(-1).options.body), { identifier: 'owner@example.test', password: 'fixture' });
   }
-  responses.push({ payload: { data: { user: { id: 45, role: 'staff' }, session: { expires_at: '2030-01-01' } } } });
-  assert.equal((await auth.signInStaffWithPassword({ identifier: '٠٠٢٠١٠١٢٣٤٥٦٧٨', password: 'fixture' })).data.user.role, 'staff');
-  assert.deepEqual(JSON.parse(requests.at(-1).options.body), { identifier: '01012345678', password: 'fixture' });
-  assert.equal(events.length, 8);
-  const requestCount = requests.length;
+  queue('staff'); assert.equal((await auth.signInStaffWithPassword({ identifier: '٠٠٢٠١٠١٢٣٤٥٦٧٨', password: 'fixture' })).data.user.role, 'staff');
+  assert.equal(JSON.parse(requests.at(-1).options.body).identifier, '01012345678');
+  assert.equal(events.length, 7);
+  const count = requests.length;
   assert.equal((await auth.signInStaffWithPassword({ identifier: [], password: 'fixture' })).error.code, 'validation_error');
-  assert.equal(requests.length, requestCount);
+  assert.equal(requests.length, count);
 });

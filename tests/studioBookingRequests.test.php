@@ -13,7 +13,7 @@ $sql=preg_replace('/^\s*(?:UNIQUE KEY|KEY|CONSTRAINT).*\R/m','',$sql);
 $sql=str_replace('BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY','INTEGER PRIMARY KEY AUTOINCREMENT',$sql);
 $sql=preg_replace('/\b(?:BIGINT|SMALLINT) UNSIGNED\b/','INTEGER',$sql);$sql=preg_replace('/,\s*\) ENGINE[^;]+;/m',');',$sql);$pdo->exec($sql);
 $pdo->exec('CREATE UNIQUE INDEX studio_retry ON client_studio_booking_requests(organization_id,user_id,idempotency_key)');
-$signup=['registration_token'=>verifiedGrant($pdo,'studio@example.test'),'name'=>'عميل التصوير','phone'=>'01012345678','job'=>'مهندس','password'=>'TestPass123','password_confirmation'=>'TestPass123'];registrationComplete($pdo,[],$signup);$client=$pdo->query('SELECT * FROM users')->fetch();$owner=['id'=>900,'organization_id'=>1,'role'=>'owner'];
+$signup=['altcha'=>verifiedBotProof($pdo),'name'=>'عميل التصوير','phone'=>'01012345678','job'=>'مهندس','password'=>'TestPass123','password_confirmation'=>'TestPass123'];registrationComplete($pdo,[],$signup);$client=$pdo->query('SELECT * FROM users')->fetch();$owner=['id'=>900,'organization_id'=>1,'role'=>'owner'];
 $service=registrationService($pdo,1,101);
 $first=['date'=>'2030-01-09','start_time'=>'13:00','end_time'=>'15:00','duration_minutes'=>120,'resource_id'=>1];$second=array_replace($first,['date'=>'2030-01-10','start_time'=>'16:00','end_time'=>'17:00','duration_minutes'=>60]);
 $payload=['service_id'=>101,'service_terms_fingerprint'=>$service['terms_fingerprint'],'bookings'=>[$second,$first],'terms_accepted'=>true,'terms_version'=>REGISTRATION_TERMS_VERSION,'idempotency_key'=>'test-studio-request-001'];

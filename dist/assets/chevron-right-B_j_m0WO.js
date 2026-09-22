@@ -1,1 +1,0 @@
-import{fn as e}from"./index-Ce4QW_gl.js";var t=e(`chevron-right`,[[`path`,{d:`m9 18 6-6-6-6`,key:`mthhwq`}]]);export{t};

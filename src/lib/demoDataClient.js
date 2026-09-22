@@ -2514,7 +2514,6 @@ const listeners = new Set();
 export const demoClient = {
   from(table) { return new DemoQueryBuilder(table); },
   auth: {
-    async getGoogleConfig() { return { data: { enabled: false, client_id: null }, error: null }; },
     async signInWithPassword() { return { data: { session: null, user: null }, error: Object.assign(new Error('رقم الموبايل أو كلمة المرور غير صحيحة.'), { code: 'invalid_credentials' }) }; },
     async getSession() { demoCsrfReady = true; if (demoRegistrationUserId) { const user = registrationDemoUser(readDatabase(), demoRegistrationUserId); if (user) demoRole = user.role; return { data: { session: user ? { user } : null }, error: null }; } let preview = null; try { if (typeof sessionStorage !== 'undefined') preview = JSON.parse(sessionStorage.getItem('mt_agency_local_preview_session') || 'null'); } catch { /* invalid preview session */ } return { data: { session: preview?.is_local_preview && preview.role === demoRole ? { user: preview } : null }, error: null }; },
     async getUser() { return { data: { user: null }, error: null }; },

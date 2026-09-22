@@ -1797,7 +1797,7 @@ function nextClientColor(PDO $pdo,int $organizationId): string {
 }
 
 function systemBackupExcludedTables(): array {
-    return ['api_sessions','auth_rate_limits','password_reset_tokens','registration_email_challenges','auth_google_challenges'];
+    return ['api_sessions','auth_rate_limits','password_reset_tokens','registration_email_challenges','auth_google_challenges','registration_bot_challenges'];
 }
 
 function systemBackupChildQueries(): array {
@@ -1890,6 +1890,7 @@ function restoreSystemBackup(PDO $pdo,array $user,array $backup): array {
         }
         $pdo->prepare('DELETE s FROM api_sessions s JOIN users u ON u.id=s.user_id WHERE u.organization_id=? AND u.id<>?')->execute([$organizationId,$ownerId]);
         if(schemaTableExists($pdo,'password_reset_tokens'))$pdo->prepare('DELETE FROM password_reset_tokens WHERE organization_id=?')->execute([$organizationId]);
+        if(schemaTableExists($pdo,'registration_bot_challenges'))$pdo->exec('DELETE FROM registration_bot_challenges');
         if(schemaTableExists($pdo,'auth_google_challenges'))$pdo->exec('DELETE FROM auth_google_challenges');
         $direct=array_reverse(systemBackupDirectTables($pdo));
         foreach($direct as $table){if($table==='users')continue;if($table==='auth_google_identities'){$pdo->prepare('DELETE FROM auth_google_identities WHERE organization_id=? AND user_id<>?')->execute([$organizationId,$ownerId]);continue;}$pdo->prepare("DELETE FROM `$table` WHERE organization_id=?")->execute([$organizationId]);}

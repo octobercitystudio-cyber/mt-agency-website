@@ -484,40 +484,6 @@ export const DataProvider = ({ children }) => {
     return data.user || true;
   };
 
-  const getGoogleConfig = useCallback(async () => {
-    const client = await getDataClient();
-    if (!client.auth.getGoogleConfig) return { enabled: false, client_id: null };
-    const { data, error } = await client.auth.getGoogleConfig();
-    if (error) throw error;
-    return data;
-  }, []);
-
-  const createGoogleChallenge = useCallback(async () => {
-    const client = await getDataClient();
-    const { data, error } = await client.auth.createGoogleChallenge();
-    if (error) throw error;
-    return data;
-  }, []);
-
-  const loginGoogle = useCallback(async credentials => {
-    authRevisionRef.current += 1;
-    const client = await getDataClient();
-    const { data, error } = await client.auth.signInWithGoogle(credentials);
-    if (error) throw error;
-    if (data.link_required) return data;
-    applySession(data.session);
-    return data.user;
-  }, [applySession]);
-
-  const linkGoogle = useCallback(async credentials => {
-    authRevisionRef.current += 1;
-    const client = await getDataClient();
-    const { data, error } = await client.auth.linkGoogleAccount(credentials);
-    if (error) throw error;
-    applySession(data.session);
-    return data.user;
-  }, [applySession]);
-
   const refreshSession = useCallback(async () => {
     const client = await getDataClient();
     const { data, error } = await client.auth.getSession();
@@ -575,10 +541,6 @@ export const DataProvider = ({ children }) => {
       isErpAuth,
       loginErp,
       loginStaff,
-      getGoogleConfig,
-      createGoogleChallenge,
-      loginGoogle,
-      linkGoogle,
       refreshSession,
       logoutErp
     }}>
