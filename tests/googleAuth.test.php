@@ -67,6 +67,48 @@ $pdo->exec("UPDATE users SET phone='+20 10 1234 5678' WHERE id=1");
 reject('phone_already_registered',fn()=>assertLoginMobileAvailable($pdo,'01012345678'));
 check(findPhoneAccount($pdo,'٠١٠١٢٣٤٥٦٧٨')['id']===1,'Formatted legacy phone resolves same user');
 $pdo->exec("UPDATE users SET phone='201012345678' WHERE id=1");
+// Both portals execute the same password and account checks, with fixed server roles.
+foreach (['owner','admin','operations','finance','staff'] as $role) {
+ $pdo->prepare('UPDATE users SET role=? WHERE id=2')->execute([$role]);
+ check(authenticateStaffPassword($pdo,' OWNER@EXAMPLE.TEST ','ClientSecret123')['role']===$role,'Staff email accepts authorized '.$role);
+ check(authenticateStaffPassword($pdo,'٠١٠٠٠٠٠٠٠٠٢','ClientSecret123')['role']===$role,'Staff mobile accepts authorized '.$role);
+ reject('invalid_credentials',fn()=>authenticatePhonePassword($pdo,'01000000002','ClientSecret123'));
+}
+$pdo->exec("UPDATE users SET role='owner',phone=NULL WHERE id=2");
+check(authenticateStaffPassword($pdo,'owner@example.test','ClientSecret123')['id']===2,'Email-only existing owner retains access');
+reject('invalid_credentials',fn()=>authenticateStaffPassword($pdo,'01012345678','ClientSecret123'));
+reject('invalid_credentials',fn()=>authenticateStaffPassword($pdo,'client@example.test','ClientSecret123'));
+reject('validation_error',fn()=>authenticateStaffPassword($pdo,[],'ClientSecret123'));
+reject('validation_error',fn()=>authenticateStaffPassword($pdo,'owner@example.test',[]));
+reject('invalid_credentials',fn()=>authenticateStaffPassword($pdo,'owner@example.test','wrong'));
+$GLOBALS['rateBlocked']=true;reject('login_temporarily_blocked',fn()=>authenticateStaffPassword($pdo,'owner@example.test','ClientSecret123'));$GLOBALS['rateBlocked']=false;
+$pdo->exec('UPDATE users SET is_active=0 WHERE id=2');
+reject('account_disabled',fn()=>authenticateStaffPassword($pdo,'owner@example.test','ClientSecret123'));
+$pdo->exec("UPDATE users SET is_active=1,password_status='temporary',temporary_expires_at='2000-01-01 00:00:00' WHERE id=2");
+reject('invalid_credentials',fn()=>authenticateStaffPassword($pdo,'owner@example.test','ClientSecret123'));
+$pdo->exec("UPDATE users SET password_status='active',temporary_expires_at=NULL,phone='01000000002' WHERE id=2");
+$insert->execute([4,1,null,'Ambiguous email','OWNER@example.test','01000000004',$hash,'staff',1]);
+reject('invalid_credentials',fn()=>authenticateStaffPassword($pdo,'owner@example.test','ClientSecret123'));
+$pdo->exec('DELETE FROM users WHERE id=4');
+$insert->execute([4,1,null,'Applicant','applicant@example.test','01000000004',$hash,'applicant',1]);
+check(authenticatePhonePassword($pdo,'01000000004','ClientSecret123')['role']==='applicant','Legacy applicant uses client entry only');
+reject('invalid_credentials',fn()=>authenticateStaffPassword($pdo,'applicant@example.test','ClientSecret123'));
+$pdo->exec('DELETE FROM users WHERE id=4');
+check((int)$pdo->query('SELECT COUNT(*) FROM api_sessions')->fetchColumn()===0 && empty($GLOBALS['sessionCookies']),'Rejected portal attempts do not issue sessions or cookies');
+check(($GLOBALS['failures']??0)>=12,'Wrong portal attempts count toward normal login limits');
+function callPasswordRoute(PDO $pdo,string $path,array $payload):array {
+ global $index; $config=[];$method='POST';$GLOBALS['payload']=$payload;
+ $marker="if (\$path === '".$path."' && \$method === 'POST') {";
+ $start=strpos($index,$marker); if($start===false)throw new RuntimeException('Missing login route');
+ $end=strpos($index,"\n}",$start); $code=substr($index,$start,$end-$start+2);
+ try {eval($code);} catch(AuthResponse $response){return $response->data;}throw new RuntimeException('No password response');
+}
+reject('invalid_credentials',fn()=>callPasswordRoute($pdo,'/auth/staff/login',['identifier'=>'client@example.test','password'=>'ClientSecret123','role'=>'owner']));
+reject('invalid_credentials',fn()=>callPasswordRoute($pdo,'/auth/login',['phone'=>'01000000002','password'=>'ClientSecret123','portal'=>'staff']));
+$staffSession=callPasswordRoute($pdo,'/auth/staff/login',['identifier'=>'owner@example.test','password'=>'ClientSecret123']);
+check($staffSession['user']['role']==='owner' && isset($staffSession['session']),'Dedicated endpoint issues staff session');
+check(!isset($staffSession['user']['password_hash']),'Staff session never returns credential hash');
+$pdo->exec('DELETE FROM api_sessions');$GLOBALS['sessionCookies']=0;
 check(googleAuthConfiguration([])===['enabled'=>false,'client_id'=>null],'Unconfigured Google fails closed');
 $config=['google_auth'=>['enabled'=>true,'client_id'=>'123456-test.apps.googleusercontent.com']];
 check(googleAuthConfiguration($config)['enabled'],'Configured web client enabled');
@@ -101,7 +143,8 @@ try {
  check((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn()===3,'Google does not create duplicate users');
  reject('google_challenge_expired',fn()=>callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor($claims),'challenge_id'=>$challenge['challenge_id']]));
  reject('invalid_credentials',fn()=>callGoogle($pdo,$config,'/auth/google/link',['link_token'=>$pending['link_token'],'phone'=>'01012345678','password'=>'wrong']));
- check((int)$pdo->query('SELECT COUNT(*) FROM auth_google_identities')->fetchColumn()===0,'Wrong password cannot bind');
+ reject('invalid_credentials',fn()=>callGoogle($pdo,$config,'/auth/google/link',['link_token'=>$pending['link_token'],'phone'=>'01000000002','password'=>'ClientSecret123']));
+ check((int)$pdo->query('SELECT COUNT(*) FROM auth_google_identities')->fetchColumn()===0,'Wrong password or staff account cannot bind');
  $linked=callGoogle($pdo,$config,'/auth/google/link',['link_token'=>$pending['link_token'],'phone'=>'+201012345678','password'=>'ClientSecret123']);
  check($linked['user']['id']===1 && $linked['user']['role']==='client' && isset($linked['session']),'Explicit mobile proof links client and uses normal role-safe session');
  check(!isset($linked['user']['password_hash']),'Credential hash never returned');
@@ -123,6 +166,10 @@ try {
  check(!insertSystemBackupRow($pdo,'auth_google_identities',['id'=>55,'organization_id'=>1,'user_id'=>1,'google_sub'=>'old-owner-google'],1,1),'Restore cannot replace preserved owner Google identity');
  check(insertSystemBackupRow($pdo,'auth_google_identities',['id'=>1,'organization_id'=>1,'user_id'=>2,'google_sub'=>'restored-other-user'],1,1),'Restore reallocates identity row IDs around preserved owner');
  check($pdo->query("SELECT google_sub FROM auth_google_identities WHERE user_id=1")->fetchColumn()==='google-123','Restoration preserves current owner subject');
+ $cookieCount=$GLOBALS['sessionCookies'];$sessionCount=(int)$pdo->query('SELECT COUNT(*) FROM api_sessions')->fetchColumn();
+ $staffGoogle=callGoogle($pdo,$config,'/auth/google/challenge');
+ reject('invalid_credentials',fn()=>callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor(claimsFor($staffGoogle['nonce'],'restored-other-user')),'challenge_id'=>$staffGoogle['challenge_id']]));
+ check($GLOBALS['sessionCookies']===$cookieCount && (int)$pdo->query('SELECT COUNT(*) FROM api_sessions')->fetchColumn()===$sessionCount,'Existing staff Google link cannot create a session');
  date_default_timezone_set('UTC');
  $utc=callGoogle($pdo,$config,'/auth/google/challenge');
  $utcPending=callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor(claimsFor($utc['nonce'],'utc-check')),'challenge_id'=>$utc['challenge_id']]);

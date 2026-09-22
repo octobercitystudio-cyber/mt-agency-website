@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-7eN1kW16.js";import{En as t}from"./index-DzNnf5y_.js";var n=e();function r(){return(0,n.jsx)(t,{to:`/login`,replace:!0})}export{r as default};

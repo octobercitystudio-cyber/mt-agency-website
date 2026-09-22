@@ -412,7 +412,7 @@ export const DataProvider = ({ children }) => {
     await dataClient.auth.signOut();
   };
 
-  const loginErp = async (username, password) => {
+  const loginStaff = async (username, password) => {
     authRevisionRef.current += 1;
     if (import.meta.env.DEV && username === 'local-owner' && password === 'local-preview') {
       const demoClient = await getDemoClient();
@@ -431,6 +431,15 @@ export const DataProvider = ({ children }) => {
       return localOwner;
     }
 
+    const dataClient = await getDataClient();
+    const { data, error } = await dataClient.auth.signInStaffWithPassword({ identifier: username, password });
+    if (error) throw error;
+    applySession(data.session);
+    return data.user;
+  };
+
+  const loginErp = async (username, password) => {
+    authRevisionRef.current += 1;
     if (import.meta.env.DEV && username === 'local-client' && password === 'local-preview') {
       const demoClient = await getDemoClient();
       demoClient.activateDemoMode('client');
@@ -565,6 +574,7 @@ export const DataProvider = ({ children }) => {
       logout,
       isErpAuth,
       loginErp,
+      loginStaff,
       getGoogleConfig,
       createGoogleChallenge,
       loginGoogle,

@@ -84,7 +84,7 @@ const ERPLayout = () => {
 
   const handleLogout = async () => {
     await logoutErp();
-    navigate('/login', { replace: true });
+    navigate('/adminmt/login', { replace: true });
   };
 
   const handleDemoReset = async () => {

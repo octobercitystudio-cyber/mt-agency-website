@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-// Password sign-in has a single identifier: the registered primary mobile.
+// Client password sign-in uses the registered primary mobile. Staff have a separate portal.
 function loginMobile(mixed $value): string {
     if (!is_string($value) || strlen($value) > 100) return '';
     $value = strtr(trim($value), array_combine(preg_split('//u', '٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹', -1, PREG_SPLIT_NO_EMPTY), str_split('01234567890123456789')));
@@ -45,31 +45,60 @@ function findPhoneAccount(PDO $pdo, string $phone): ?array {
     return count($accounts) === 1 ? $accounts[0] : null;
 }
 
+function staffLoginIdentifier(mixed $value): string {
+    if (!is_string($value) || strlen($value) > 254) return '';
+    $value = trim($value);
+    if (filter_var($value, FILTER_VALIDATE_EMAIL)) return strtolower($value);
+    return loginMobile($value);
+}
+
+function authenticatePortalAccount(PDO $pdo, string $identifier, mixed $password, ?array $found, array $roles): array {
+    $temporaryExpired = $found && ($found['password_status'] ?? '') === 'temporary'
+        && !empty($found['temporary_expires_at']) && strtotime((string)$found['temporary_expires_at']) <= time();
+    $passwordValid = $found && password_verify($password, (string)$found['password_hash']);
+    if (!$found || $temporaryExpired || !$passwordValid || !in_array(authorizationRole($found), $roles, true)) {
+        recordLoginFailure($pdo, $identifier, $found);
+        usleep(random_int(300000, 650000));
+        fail('بيانات الدخول غير صحيحة.', 401, 'invalid_credentials');
+    }
+    if (empty($found['is_active'])) {
+        clearAccountLoginLimit($pdo, $identifier);
+        fail('دخول هذا الحساب موقوف. تواصل مع إدارة الشركة لإعادة تفعيله.', 403, 'account_disabled');
+    }
+    $found['role'] = authorizationRole($found);
+    clearAccountLoginLimit($pdo, $identifier);
+    if (password_needs_rehash((string)$found['password_hash'], PASSWORD_DEFAULT)) {
+        $found['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+        $pdo->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([$found['password_hash'], $found['id']]);
+    }
+    return $found;
+}
+
 function authenticatePhonePassword(PDO $pdo, mixed $identifier, mixed $password): array {
     $phone = loginMobile($identifier);
     if ($phone === '' || !is_string($password) || $password === '' || strlen($password) > 1024) {
         fail('أدخل رقم الموبايل المسجل وكلمة المرور. البريد الإلكتروني مخصص لكود التفعيل.', 422, 'validation_error');
     }
     enforceLoginRateLimit($pdo, $phone);
-    $found = findPhoneAccount($pdo, $phone);
-    $temporaryExpired = $found && ($found['password_status'] ?? '') === 'temporary'
-        && !empty($found['temporary_expires_at']) && strtotime((string)$found['temporary_expires_at']) <= time();
-    if (!$found || $temporaryExpired || !password_verify($password, (string)$found['password_hash'])) {
-        recordLoginFailure($pdo, $phone, $found);
-        usleep(random_int(300000, 650000));
-        fail('رقم الموبايل أو كلمة المرور غير صحيحة.', 401, 'invalid_credentials');
+    return authenticatePortalAccount($pdo, $phone, $password, findPhoneAccount($pdo, $phone), ['client', 'applicant']);
+}
+
+function authenticateStaffPassword(PDO $pdo, mixed $identifier, mixed $password): array {
+    $identifier = staffLoginIdentifier($identifier);
+    if ($identifier === '' || !is_string($password) || $password === '' || strlen($password) > 1024) {
+        fail('أدخل البريد الإلكتروني أو رقم الموبايل المسجل وكلمة المرور.', 422, 'validation_error');
     }
-    if (empty($found['is_active'])) {
-        clearAccountLoginLimit($pdo, $phone);
-        fail('دخول هذا الحساب موقوف. تواصل مع إدارة الشركة لإعادة تفعيله.', 403, 'account_disabled');
+    enforceLoginRateLimit($pdo, $identifier);
+    if (str_contains($identifier, '@')) {
+        $stmt = $pdo->prepare('SELECT * FROM users WHERE LOWER(TRIM(email))=? ORDER BY id LIMIT 2');
+        $stmt->execute([$identifier]);
+        $accounts = $stmt->fetchAll();
+        // Do not guess which legacy account owns an ambiguous email.
+        $found = count($accounts) === 1 ? $accounts[0] : null;
+    } else {
+        $found = findPhoneAccount($pdo, $identifier);
     }
-    $found['role'] = authorizationRole($found);
-    clearAccountLoginLimit($pdo, $phone);
-    if (password_needs_rehash((string)$found['password_hash'], PASSWORD_DEFAULT)) {
-        $found['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
-        $pdo->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([$found['password_hash'], $found['id']]);
-    }
-    return $found;
+    return authenticatePortalAccount($pdo, $identifier, $password, $found, ['owner', 'admin', 'operations', 'finance', 'staff']);
 }
 
 function googleAuthConfiguration(array $config): array {
@@ -185,6 +214,7 @@ function requireGoogleChallenge(array|false $row, string $binding, bool $link = 
 }
 
 function googleAccountEligible(array $account, bool $link = false): void {
+    if (!in_array(authorizationRole($account), ['client', 'applicant'], true)) fail('بيانات الدخول غير صحيحة.', 401, 'invalid_credentials');
     if (empty($account['is_active'])) fail('دخول هذا الحساب موقوف. تواصل مع إدارة الشركة.', 403, 'account_disabled');
     if (loginMobile($account['phone'] ?? '') === '') fail('أكمل رقم الموبايل المسجل مع إدارة الشركة قبل الدخول بجوجل.', 409, 'google_phone_required');
     if (($account['password_status'] ?? '') === 'temporary' && !empty($account['temporary_expires_at']) && strtotime($account['temporary_expires_at']) <= time()) {

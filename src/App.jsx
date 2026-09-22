@@ -67,7 +67,7 @@ const ProtectedRoute = ({ children }) => {
 
 const ErpProtectedRoute = ({ children }) => {
   const { currentUser } = useData();
-  if (!ERP_ROLES.includes(currentUser?.role)) return <Navigate to="/login" replace />;
+  if (!ERP_ROLES.includes(currentUser?.role)) return <Navigate to="/adminmt/login" replace />;
   return children;
 };
 

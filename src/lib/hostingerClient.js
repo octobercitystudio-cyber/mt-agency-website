@@ -136,9 +136,15 @@ const notifyAuth = (event, session) => {
   authListeners.forEach((listener) => listener(event, session));
 };
 
-const completeSignIn = data => {
+const CLIENT_LOGIN_ROLES = ['client', 'applicant'];
+const STAFF_LOGIN_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
+
+const completeSignIn = (data, allowedRoles = CLIENT_LOGIN_ROLES) => {
   if (!data?.session || !data?.user?.id || !data.user.role) {
     throw Object.assign(new Error('تعذر تأكيد جلسة الدخول. حاول مرة أخرى.'), { code: 'api_error' });
+  }
+  if (!allowedRoles.includes(data.user.role) || (data.user.client_id && !CLIENT_LOGIN_ROLES.includes(data.user.role))) {
+    throw Object.assign(new Error('بيانات الدخول غير صحيحة.'), { code: 'invalid_credentials' });
   }
   cachedUser = data.user;
   const session = { ...data.session, user: data.user };
@@ -161,6 +167,20 @@ const auth = {
         body: JSON.stringify({ identifier: requireLoginPhone(phone || identifier), password }),
       });
       return completeSignIn(data);
+    } catch (error) {
+      return { data: { session: null, user: null }, error };
+    }
+  },
+
+  async signInStaffWithPassword({ identifier, password }) {
+    try {
+      const value = typeof identifier === 'string' ? identifier.trim() : '';
+      const normalized = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value.toLowerCase() : requireLoginPhone(value);
+      const data = await apiRequest('/auth/staff/login', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: normalized, password }),
+      });
+      return completeSignIn(data, STAFF_LOGIN_ROLES);
     } catch (error) {
       return { data: { session: null, user: null }, error };
     }

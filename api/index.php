@@ -256,7 +256,7 @@ function clearAuthCookies(array $config): void {
 
 function requireCsrf(array $config, string $path, string $method): void {
     if (in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) return;
-    if (in_array($path, ['/auth/login', '/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue', '/cron/booking-tick'], true)) return;
+    if (in_array($path, ['/auth/login', '/auth/staff/login', '/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue', '/cron/booking-tick'], true)) return;
     $cookie = (string)($_COOKIE[csrfCookieName($config)] ?? $_COOKIE['mt_csrf'] ?? '');
     $header = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
     if ($cookie === '' || $header === '' || !hash_equals($cookie, $header)) {
@@ -2173,6 +2173,13 @@ if ($path === '/auth/login' && $method === 'POST') {
     $identifier = $payload['phone'] ?? $payload['identifier'] ?? '';
     $found = authenticatePhonePassword($pdo, $identifier, $payload['password'] ?? null);
     respond(issueLoginSession($pdo, $config, $found, loginMobile($identifier)));
+}
+
+if ($path === '/auth/staff/login' && $method === 'POST') {
+    $payload = body();
+    $identifier = $payload['identifier'] ?? '';
+    $found = authenticateStaffPassword($pdo, $identifier, $payload['password'] ?? null);
+    respond(issueLoginSession($pdo, $config, $found, staffLoginIdentifier($identifier), 'staff_login_succeeded'));
 }
 
 if ($path === '/auth/session' && $method === 'GET') {

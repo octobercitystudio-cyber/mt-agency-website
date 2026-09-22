@@ -73,8 +73,7 @@ export default function UnifiedLogin() {
 
   const routeUser = user => {
     if (['client', 'applicant'].includes(user?.role)) navigate(user.must_change_password ? '/change-password' : clientDestination, { replace: true });
-    else if (user && STAFF_ROLES.includes(user.role)) navigate('/erp', { replace: true });
-    else setError('هذا الحساب لا يملك صلاحية دخول لوحة النظام.');
+    else setError('تعذر الدخول إلى مساحة العملاء بهذا الحساب.');
   };
 
   const cancelLink = () => { setGoogleBusy(false); setLinkRequest(null); setPassword(''); setError(''); setFieldError(''); phoneInput.current?.focus(); };
@@ -112,10 +111,10 @@ export default function UnifiedLogin() {
     } finally { setLoading(false); }
   };
 
-  const handleLocalPreview = async role => {
+  const handleLocalPreview = async () => {
     if (busy) return;
     setLoading(true); setError('');
-    try { routeUser(await loginErp(role === 'owner' ? 'local-owner' : 'local-client', 'local-preview')); }
+    try { routeUser(await loginErp('local-client', 'local-preview')); }
     catch { setError('تعذر فتح المعاينة المحلية.'); }
     finally { setLoading(false); }
   };
@@ -154,7 +153,7 @@ export default function UnifiedLogin() {
       <div className="unified-registration"><span>عميل جديد؟</span><Link className="unified-text-button" to="/register">إنشاء حساب <ArrowDownLeft aria-hidden="true" /></Link></div>
     </section>
     <footer className="unified-login-footer"><Link to="/">العودة للموقع الرئيسي <ArrowRight aria-hidden="true" /></Link></footer>
-    {import.meta.env.DEV && <details className="unified-login-preview"><summary>خيارات المعاينة المحلية</summary><div><button type="button" disabled={busy} onClick={() => handleLocalPreview('owner')}>دخول تجريبي كمالك</button><button type="button" disabled={busy} onClick={() => handleLocalPreview('client')}>دخول تجريبي كعميل</button></div></details>}
+    {import.meta.env.DEV && <details className="unified-login-preview"><summary>خيارات المعاينة المحلية</summary><div><button type="button" disabled={busy} onClick={handleLocalPreview}>دخول تجريبي كعميل</button></div></details>}
     <dialog ref={supportDialog} className="unified-support-dialog" aria-labelledby="login-support-title" aria-describedby="login-support-description">
       <button type="button" className="unified-dialog-close" aria-label="إغلاق النافذة" onClick={() => supportDialog.current.close()}><X aria-hidden="true" /></button>
       <p className="unified-dialog-eyebrow">نساعدك ترجع لحسابك</p><h2 id="login-support-title">استعادة كلمة المرور</h2>
