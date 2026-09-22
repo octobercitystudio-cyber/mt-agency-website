@@ -161,7 +161,7 @@ test('public routes use one persistent shell and preserve private route boundari
 
 test('legacy hashes scroll gracefully while canonical homepage navigation remains route based', async () => {
   const [layout, app, header, footer] = await Promise.all(['src/layouts/PublicLayout.jsx', 'src/App.jsx', 'src/components/Header.jsx', 'src/components/Footer.jsx'].map(load));
-  assert.match(layout, /legacySections = new Set\(\['home', 'about', 'services', 'portfolio', 'studio', 'contact'\]\)/);
+  assert.match(layout, /legacySections = new Set\(\['home', 'about', 'services', 'portfolio', 'studio', 'contact', 'educational-filming'\]\)/);
   assert.match(layout, /pathname === '\/' && legacySections\.has\(section\)/); assert.match(layout, /scrollIntoView/);
   assert.match(app, /pathname === '\/' && window\.location\.hash/); assert.equal(app.includes('replaceState(null'), false);
   assert.match(header, /alternatePublicPath/); assert.match(header, /localizePublicPath/); assert.match(header, /publicPath\('\/services'\)/);

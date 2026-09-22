@@ -7,6 +7,7 @@ import {
   Sparkles, WandSparkles,
 } from 'lucide-react';
 import SEO from '../components/SEO';
+import EducationalBookingSection from '../components/EducationalBookingSection';
 import PublicPortfolioGrid from '../components/PublicPortfolioGrid';
 import { useData } from '../store/DataContext';
 import { AL_MAJD_SOCIAL_PARTNER } from '../data/alMajdSocialPartner';
@@ -89,6 +90,7 @@ export function ServicesIndexPage() {
   return <main id="main-content" className="public-page">
     <SEO title={isEnglish ? 'Production, Marketing and Technology Services' : 'خدمات الإنتاج والتسويق والتقنية'} description={copy.summary} url="/services" section="services" />
     <PageHero eyebrow={copy.eyebrow} title={copy.title} summary={copy.summary} index="10" />
+    <EducationalBookingSection />
     <section className="public-service-index container" aria-labelledby="services-index-title"><div className="public-section-heading"><span>01</span><h2 id="services-index-title">{copy.intro}</h2></div>
       {publicServiceGroups.map(group => <div className="public-service-group" key={group.id}><h3>{isEnglish ? group.en : group.ar}</h3><div>
         {publicServiceCatalog.filter(service => service.group === group.id).map((service) => { const Icon = icons[service.icon] || Sparkles; const localized = isEnglish ? service.en : service.ar; const serviceNumber = publicServiceCatalog.indexOf(service) + 1; return <Link className="public-service-row" to={publicPath(`/services/${service.slug}`, isEnglish)} key={service.slug}>

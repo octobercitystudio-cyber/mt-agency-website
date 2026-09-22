@@ -12,7 +12,7 @@ import { organizationId, siteIdentity, websiteId } from '../seo/siteIdentity';
 import '../components/GoldenTicketTheme.css';
 import '../pages/PublicPages.css';
 
-const legacySections = new Set(['home', 'about', 'services', 'portfolio', 'studio', 'contact']);
+const legacySections = new Set(['home', 'about', 'services', 'portfolio', 'studio', 'contact', 'educational-filming']);
 
 export function PublicScrollManager() {
   const { pathname, hash } = useLocation();

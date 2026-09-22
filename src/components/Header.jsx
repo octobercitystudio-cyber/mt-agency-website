@@ -92,7 +92,7 @@ export default function Header() {
         </li>
         {navLinks.slice(2).map(link => <li key={link.to}><NavLink to={link.to} className="nav-link" tabIndex={drawerTabIndex} onClick={closeNavigation}>{link.label}</NavLink></li>)}
       </ul></nav></div>
-      <div className="top-bar-left"><Link to="/register" className="btn-secondary login-btn" tabIndex={drawerTabIndex} onClick={closeNavigation}>{isEnglish ? 'Register & book' : 'سجّل واحجز'}</Link>{isErpAuth ? <Link to="/erp" className="btn-secondary login-btn" tabIndex={drawerTabIndex} onClick={closeNavigation}><User/> {isEnglish ? 'ERP System' : 'برنامج الشركة'}</Link> : <Link to="/login" className="btn-secondary login-btn" tabIndex={drawerTabIndex} onClick={closeNavigation}><User/> {isEnglish ? 'Login' : 'تسجيل الدخول'}</Link>}</div>
+      <div className="top-bar-left">{isErpAuth ? <Link to="/erp" className="btn-secondary login-btn" tabIndex={drawerTabIndex} onClick={closeNavigation}><User/> {isEnglish ? 'ERP System' : 'برنامج الشركة'}</Link> : <Link to="/login" className="btn-secondary login-btn" tabIndex={drawerTabIndex} onClick={closeNavigation}><User/> {isEnglish ? 'Login' : 'تسجيل الدخول'}</Link>}</div>
     </div>
   </header>;
 }

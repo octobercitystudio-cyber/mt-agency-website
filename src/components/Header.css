@@ -241,7 +241,9 @@
     width: max-content;
     min-width: 260px; /* Large enough to fit the "Get a Quote" button without wrapping */
     max-width: 75vw; /* But don't let it take the whole screen */
-    height: 100vh;
+    height: calc(100vh - var(--public-promo-height, 0px));
+    height: calc(100dvh - var(--public-promo-height, 0px));
+    overscroll-behavior-y: contain;
     flex-direction: column;
     background: rgba(19, 13, 26, 0.98);
     backdrop-filter: blur(20px);
@@ -256,6 +258,8 @@
     display: flex;
   }
   
+  .mobile-nav-wrapper > * { flex-shrink: 0; }
+
   .mobile-nav-wrapper.open {
     transform: translateX(0);
     visibility: visible;

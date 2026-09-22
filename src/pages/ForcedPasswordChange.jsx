@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { KeyRound, ShieldCheck } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { dataClient } from '../dataClient';
 import { CLIENT_PASSWORD_HINT, CLIENT_PASSWORD_MAX_LENGTH, CLIENT_PASSWORD_MIN_LENGTH, isValidClientPassword } from '../lib/clientPasswordPolicy';
+import { safeClientDestination } from '../lib/clientAuthDestination';
 import './ForcedPasswordChange.css';
 
 export default function ForcedPasswordChange() {
@@ -10,6 +11,7 @@ export default function ForcedPasswordChange() {
   const [confirmation, setConfirmation] = useState('');
   const [state, setState] = useState({ busy: false, error: '' });
   const navigate = useNavigate();
+  const location = useLocation();
   const submit = async event => {
     event.preventDefault();
     if (!isValidClientPassword(password)) return setState({ busy: false, error: 'استخدم 6 خانات على الأقل لكلمة المرور.' });
@@ -17,7 +19,7 @@ export default function ForcedPasswordChange() {
     setState({ busy: true, error: '' });
     const { error } = await dataClient.auth.updateUser({ password, confirmPassword: confirmation });
     if (error) return setState({ busy: false, error: error.message || 'تعذر تغيير كلمة المرور.' });
-    navigate('/dashboard', { replace: true });
+    navigate(safeClientDestination(location.search, window.location.origin), { replace: true });
   };
   return <main className="forced-password" dir="rtl">
     <section className="forced-password__card" aria-labelledby="forced-password-title">

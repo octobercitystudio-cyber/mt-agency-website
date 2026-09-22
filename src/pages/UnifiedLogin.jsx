@@ -4,23 +4,11 @@ import { ArrowLeft, ArrowRight, ArrowDownLeft, Eye, EyeOff, LoaderCircle, X } fr
 import { useData } from '../store/DataContext';
 import { normalizeLoginPhone } from '../lib/phoneLogin';
 import { companyPhoneTel, companyPhoneWhatsApp } from '../lib/companyContact';
+import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
 import './UnifiedLogin.css';
 
 const STAFF_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
-const CLIENT_TABS = ['home', 'schedule', 'packages', 'finance', 'offers', 'videos', 'security', 'requests', 'projects', 'history', 'book-studio'];
 const SUPPORT_PHONE = '01114466646';
-const safeClientDestination = search => {
-  const requested = new URLSearchParams(search).get('returnTo');
-  if (!requested) return '/dashboard';
-  try {
-    const url = new URL(requested, window.location.origin);
-    const rawTab = url.searchParams.get('tab') || 'home';
-    const tab = rawTab === 'montage' ? 'videos' : rawTab;
-    if (url.origin !== window.location.origin || url.pathname !== '/dashboard' || !CLIENT_TABS.includes(tab)) return '/dashboard';
-    if (rawTab === 'montage') url.searchParams.set('tab', 'videos');
-    return `${url.pathname}${url.search}`;
-  } catch { return '/dashboard'; }
-};
 
 const loginErrorMessage = loginError => {
   if (loginError?.code === 'validation_error') return 'أدخل رقم الموبايل الأساسي المسجّل بالحساب وكلمة المرور.';
@@ -42,7 +30,7 @@ export default function UnifiedLogin() {
   const { loginErp, isAuthReady, currentUser } = useData();
   const navigate = useNavigate();
   const location = useLocation();
-  const clientDestination = safeClientDestination(location.search);
+  const clientDestination = safeClientDestination(location.search, window.location.origin);
   const phoneInput = useRef(null);
   const passwordInput = useRef(null);
   const supportDialog = useRef(null);
@@ -51,14 +39,14 @@ export default function UnifiedLogin() {
   useEffect(() => {
     if (!isAuthReady || !currentUser?.role) return;
     if (['client', 'applicant'].includes(currentUser.role)) {
-      navigate(currentUser.must_change_password ? '/change-password' : clientDestination, { replace: true });
+      navigate(currentUser.must_change_password ? clientAuthPath('/change-password', clientDestination) : clientDestination, { replace: true });
     } else if (STAFF_ROLES.includes(currentUser.role)) {
       navigate('/erp', { replace: true });
     }
   }, [clientDestination, currentUser, isAuthReady, navigate]);
 
   const routeUser = user => {
-    if (['client', 'applicant'].includes(user?.role)) navigate(user.must_change_password ? '/change-password' : clientDestination, { replace: true });
+    if (['client', 'applicant'].includes(user?.role)) navigate(user.must_change_password ? clientAuthPath('/change-password', clientDestination) : clientDestination, { replace: true });
     else setError('تعذر الدخول إلى مساحة العملاء بهذا الحساب.');
   };
 
@@ -120,7 +108,7 @@ export default function UnifiedLogin() {
         </button>
         <div className="unified-login-feedback" aria-live="polite">{error && <p id="login-error" role="alert">{error}</p>}</div>
       </form>
-      <div className="unified-registration"><span>عميل جديد؟</span><Link className="unified-text-button" to="/register">إنشاء حساب <ArrowDownLeft aria-hidden="true" /></Link></div>
+      <div className="unified-registration"><span>عميل جديد؟</span><Link className="unified-text-button" to={clientAuthPath('/register', clientDestination)}>إنشاء حساب <ArrowDownLeft aria-hidden="true" /></Link></div>
     </section>
     <footer className="unified-login-footer"><Link to="/">العودة للموقع الرئيسي <ArrowRight aria-hidden="true" /></Link></footer>
     {import.meta.env.DEV && <details className="unified-login-preview"><summary>خيارات المعاينة المحلية</summary><div><button type="button" disabled={busy} onClick={handleLocalPreview}>دخول تجريبي كعميل</button></div></details>}

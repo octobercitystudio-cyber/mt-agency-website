@@ -136,7 +136,9 @@ test('owner and client interfaces expose responsive tabs, safe deep links, statu
   for (const tab of ['home', 'schedule', 'packages', 'finance', 'offers', 'videos', 'security', 'requests', 'projects', 'history', 'book-studio']) assert.ok(dashboard.slice(dashboard.indexOf('const CLIENT_TABS'), dashboard.indexOf('const previewDate')).includes(`'${tab}'`));
   assert.doesNotMatch(dashboard, /navigateClient\('montage'\)|activeTab === 'montage'|mode="montage"/);
   assert.match(dashboard, /glance-more-menu/); assert.match(dashboard, /post_production_job_id/); assert.match(dashboard, /searchParams\.get\('tab'\)/);
-  assert.match(login, /returnTo/); assert.match(login, /CLIENT_TABS\.includes\(tab\)/);
+  assert.match(login, /safeClientDestination/);
+  const authDestination = await load('src/lib/clientAuthDestination.js');
+  assert.match(authDestination, /returnTo/); assert.match(authDestination, /CLIENT_TABS\.includes\(tab\)/);
   for (const copy of ['تسليمات الفيديوهات', 'المدة المصورة', 'فترة الاستلام من مقر الشركة', 'روابط الفيديوهات', 'برجاء التحميل في خلال 48 ساعة من الرفع ويتم حذف الروابط بشكل تلقائي ويمكنكم استلامها من مقر الشركة فيما بعد في مدة اقصاها اسبوع من تاريخ التصوير']) assert.ok(client.includes(copy), copy);
   assert.match(client, /target="_blank" rel="noopener noreferrer"/); assert.match(client, /useChangeSync/); assert.match(client, /30000/); assert.match(client, /pickup_availability/); assert.match(client, /available_until/);
   assert.match(clientCss, /@media\(max-width:680px\)/); assert.match(clientCss, /@media\(max-width:350px\)/);
@@ -267,7 +269,7 @@ test('client Drive links are visible at 47:59 and soft-expire exactly at 48:00 w
 
 test('legacy client destinations normalize to videos while preserving the focused job', async () => {
   const [dashboard, login, notifications, worker, api] = await Promise.all([
-    load('src/pages/ClientDashboard.jsx'), load('src/pages/UnifiedLogin.jsx'), load('src/pages/ClientNotifications.jsx'), load('public/sw.js'), load('api/index.php'),
+    load('src/pages/ClientDashboard.jsx'), load('src/lib/clientAuthDestination.js'), load('src/pages/ClientNotifications.jsx'), load('public/sw.js'), load('api/index.php'),
   ]);
   assert.match(dashboard, /requestedTab === 'montage' \? 'videos'/); assert.match(dashboard, /normalized\.set\('tab', 'videos'\)/); assert.match(dashboard, /searchParams\.get\('job'\)/);
   assert.match(login, /rawTab === 'montage' \? 'videos'/); assert.match(login, /url\.searchParams\.set\('tab', 'videos'\)/);

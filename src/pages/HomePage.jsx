@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 import Hero from '../components/Hero';
+import EducationalBookingSection from '../components/EducationalBookingSection';
 import SEO from '../components/SEO';
 
 const About = lazy(() => import('../components/About'));
@@ -20,6 +21,7 @@ export default function HomePage() {
       section="home"
     />
     <Hero />
+    <EducationalBookingSection />
     <Suspense fallback={<div style={{ minHeight: '200vh' }} aria-hidden="true" />}>
       <About />
       <Services />

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CalendarDays, CheckCircle2, ShieldCheck, UserRound } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { normalizeRegistrationDigits } from '../lib/registrationPolicy';
 import { safeUiError } from '../lib/uiError';
 import RegistrationBotCheck from '../components/RegistrationBotCheck';
+import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
 import './PublicRegistration.css';
 
 const emptyForm = { name: '', phone: '', job: '', password: '', password_confirmation: '' };
@@ -19,6 +20,8 @@ const registrationError = error => {
 export default function PublicRegistration() {
   const { loginErp, currentUser } = useData();
   const navigate = useNavigate();
+  const location = useLocation();
+  const clientDestination = safeClientDestination(location.search, window.location.origin);
   const [form, setForm] = useState(emptyForm);
   const [website, setWebsite] = useState('');
   const [botPayload, setBotPayload] = useState('');
@@ -30,8 +33,8 @@ export default function PublicRegistration() {
   const confirmationRef = useRef(null);
   const patch = (key, value) => setForm(previous => ({ ...previous, [key]: value }));
   useEffect(() => {
-    if (['client', 'applicant'].includes(currentUser?.role)) navigate('/dashboard', { replace: true });
-  }, [currentUser, navigate]);
+    if (['client', 'applicant'].includes(currentUser?.role)) navigate(clientDestination, { replace: true });
+  }, [clientDestination, currentUser, navigate]);
   const resetBot = () => { setBotPayload(''); setBotRevision(value => value + 1); };
   const submit = async event => {
     event.preventDefault();
@@ -50,7 +53,7 @@ export default function PublicRegistration() {
       created = true;
       setSuccess(true);
       await loginErp(form.phone, form.password);
-      navigate('/dashboard', { replace: true });
+      navigate(clientDestination, { replace: true });
     } catch (failure) {
       if (created) setError('تم إنشاء حسابك بنجاح. سجّل الدخول برقم الموبايل وكلمة المرور.');
       else { setError(registrationError(failure)); resetBot(); }
@@ -62,13 +65,13 @@ export default function PublicRegistration() {
 
   return <main className="registration-page" dir="rtl">
     <div className="registration-shell">
-      <header className="registration-topbar"><Link to="/" aria-label="الموقع الرئيسي"><img src="/logo.webp" alt="Multi Task Agency"/></Link><span>لديك حساب؟ <Link to="/login">تسجيل الدخول <ArrowLeft size={15}/></Link></span></header>
+      <header className="registration-topbar"><Link to="/" aria-label="الموقع الرئيسي"><img src="/logo.webp" alt="Multi Task Agency"/></Link><span>لديك حساب؟ <Link to={clientAuthPath('/login', clientDestination)}>تسجيل الدخول <ArrowLeft size={15}/></Link></span></header>
       <div className="registration-intro"><span className="registration-kicker">مساحتك في Multi Task</span><h1>حسابك جاهز لبداية جديدة.</h1><p>سجّل بياناتك مرة واحدة، ثم اختر باقتك ومواعيد تصويرك من حسابك.</p></div>
       <div className="registration-grid">
         <section className="registration-form-card" aria-labelledby="registration-title">
           <div className="registration-section-title"><span><UserRound aria-hidden="true"/></span><div><p>تسجيل فوري</p><h2 id="registration-title">نتعرف عليك</h2></div></div>
           {error && <div role={success ? 'status' : 'alert'} className={success ? 'registration-success' : 'registration-error'}>{success && <CheckCircle2 aria-hidden="true"/>}{error}</div>}
-          {success ? <Link className="registration-primary" to="/login">تسجيل الدخول <ArrowLeft aria-hidden="true"/></Link> : <form onSubmit={submit} aria-busy={busy}>
+          {success ? <Link className="registration-primary" to={clientAuthPath('/login', clientDestination)}>تسجيل الدخول <ArrowLeft aria-hidden="true"/></Link> : <form onSubmit={submit} aria-busy={busy}>
             <p className="registration-explainer">بيانات بسيطة وحساب جاهز مباشرة. استخدم رقم واتساب للدخول إلى حسابك بعد التسجيل.</p>
             <fieldset className="registration-form-fields" disabled={busy}>
               <legend className="registration-sr-only">بيانات حساب العميل</legend>

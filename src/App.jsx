@@ -6,6 +6,7 @@ import { DataProvider, useData } from './store/DataContext';
 import PublicLayout from './layouts/PublicLayout';
 import PushNotificationsBridge from './components/PushNotificationsBridge';
 import GlobalContactActions from './components/GlobalContactActions';
+import { safeClientDestination, clientAuthPath } from './lib/clientAuthDestination';
 
 const ERP_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
 
@@ -75,14 +76,16 @@ const ClientProtectedRoute = ({ children }) => {
   const { currentUser } = useData();
   const location = useLocation();
   if (!['client', 'applicant'].includes(currentUser?.role)) return <Navigate to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`} replace />;
-  if (currentUser.must_change_password) return <Navigate to="/change-password" replace />;
+  if (currentUser.must_change_password) return <Navigate to={clientAuthPath('/change-password', `${location.pathname}${location.search}`)} replace />;
   return children;
 };
 
 const ForcedPasswordRoute = ({ children }) => {
   const { currentUser } = useData();
-  if (currentUser?.role !== 'client') return <Navigate to="/login" replace />;
-  if (!currentUser.must_change_password) return <Navigate to="/dashboard" replace />;
+  const location = useLocation();
+  const destination = safeClientDestination(location.search, window.location.origin);
+  if (currentUser?.role !== 'client') return <Navigate to={clientAuthPath('/login', destination)} replace />;
+  if (!currentUser.must_change_password) return <Navigate to={destination} replace />;
   return children;
 };
 

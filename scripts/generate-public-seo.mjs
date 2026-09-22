@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { AL_MAJD_SOCIAL_PARTNER } from '../src/data/alMajdSocialPartner.js';
 import { getServicePortfolio, publicServiceCatalog } from '../src/data/publicServiceCatalog.js';
 import { VERIFIED_PORTFOLIO } from '../src/data/verifiedPortfolio.js';
+import { EDUCATIONAL_BOOKING_COPY, EDUCATIONAL_BOOKING_IMAGE, EDUCATIONAL_BOOKING_SERVICE, EDUCATIONAL_BOOKING_TARGET } from '../src/data/educationalBooking.js';
 import { SITE_URL, organizationId, siteIdentity, websiteId } from '../src/seo/siteIdentity.js';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -84,7 +85,14 @@ const navigation = (locale, currentPath) => {
     : [['الرئيسية', '/'], ['الخدمات', '/services/'], ['أعمالنا', '/portfolio/'], ['الاستديوهات', '/studios/'], ['من نحن', '/about/'], ['تواصل معنا', '/contact/']];
   const otherLocale = locale === 'en' ? 'ar' : 'en';
   const languageLabel = locale === 'en' ? 'العربية' : 'English';
-  return `<header class="top-bar"><div class="top-bar-right"><a class="logo-link" href="${languagePath(locale, '/')}"><img src="/logo.webp" width="50" height="50" alt="Multi Task Agency"></a></div><nav class="header-nav" aria-label="${locale === 'en' ? 'Main navigation' : 'التنقل الرئيسي'}"><ul class="nav-list">${links.map(([label, href]) => `<li><a class="nav-link" href="${languagePath(locale, href)}">${escapeHtml(label)}</a></li>`).join('')}</ul></nav><a class="lang-btn" href="${languagePath(otherLocale, currentPath)}" hreflang="${otherLocale === 'en' ? 'en-EG' : 'ar-EG'}">${languageLabel}</a></header>`;
+  return `<header class="top-bar"><div class="top-bar-right"><a class="logo-link" href="${languagePath(locale, '/')}"><img src="/logo.webp" width="50" height="50" alt="Multi Task Agency"></a></div><nav class="header-nav" aria-label="${locale === 'en' ? 'Main navigation' : 'التنقل الرئيسي'}"><ul class="nav-list">${links.map(([label, href]) => `<li><a class="nav-link" href="${languagePath(locale, href)}">${escapeHtml(label)}</a></li>`).join('')}</ul></nav><div class="top-bar-left"><a class="lang-btn" href="${languagePath(otherLocale, currentPath)}" hreflang="${otherLocale === 'en' ? 'en-EG' : 'ar-EG'}">${languageLabel}</a><a href="/login" class="btn-secondary login-btn">${locale === 'en' ? 'Login' : 'تسجيل الدخول'}</a></div></header>`;
+};
+
+const educationalBookingContent = locale => {
+  const copy = EDUCATIONAL_BOOKING_COPY[locale];
+  const image = EDUCATIONAL_BOOKING_IMAGE;
+  const arrow = locale === 'en' ? '→' : '←';
+  return `<section id="educational-filming" class="educational-booking" aria-labelledby="educational-booking-title"><div class="container educational-booking__layout"><div class="educational-booking__content"><p class="educational-booking__eyebrow">${escapeHtml(copy.eyebrow)}</p><h2 id="educational-booking-title">${escapeHtml(copy.title)}</h2><p class="educational-booking__description">${escapeHtml(copy.description)}</p><ol class="educational-booking__steps" aria-label="${escapeHtml(copy.stepsLabel)}">${copy.steps.map((step, index) => `<li><span aria-hidden="true">${String(index + 1).padStart(2, '0')}</span><strong>${escapeHtml(step)}</strong></li>`).join('')}</ol><a class="educational-booking__action" href="${escapeHtml(EDUCATIONAL_BOOKING_TARGET)}"><span>${escapeHtml(copy.action)}</span><span aria-hidden="true">${arrow}</span></a><p class="educational-booking__note">${escapeHtml(copy.note)}</p><a class="educational-booking__details" href="${languagePath(locale, EDUCATIONAL_BOOKING_SERVICE + '/')}">${escapeHtml(copy.details)}<span aria-hidden="true">${arrow}</span></a></div><figure class="educational-booking__studio"><img src="${escapeHtml(image.url)}" alt="${escapeHtml(locale === 'en' ? image.altEn : image.alt)}" width="1190" height="852" loading="lazy" decoding="async"><figcaption><span>${escapeHtml(copy.imageLabel)}</span><strong>${escapeHtml(copy.imageCaption)}</strong></figcaption></figure></div></section>`;
 };
 
 const servicesList = locale => `<section class="services-section"><div class="container"><h2 class="section-title">${locale === 'en' ? 'Explore our services' : 'استكشف خدماتنا'}</h2><div class="services-grid">${publicServiceCatalog.map(service => {
@@ -158,7 +166,7 @@ const serviceContent = (page, locale) => {
 
 const visiblePage = (page, locale) => {
   const copy = page[locale];
-  const body = page.service ? serviceContent(page, locale) : (page.path === '/' || page.path === '/services/' ? servicesList(locale) : `<section class="public-intro container"><h2>${locale === 'en' ? 'Multi Task Agency in 6th of October City, Giza' : 'Multi Task Agency في مدينة 6 أكتوبر، الجيزة'}</h2><p>${escapeHtml(copy.description)}</p></section>${page.path === '/contact/' ? `<section class="public-contact-info container"><a href="tel:${siteIdentity.telephone}">${siteIdentity.telephone}</a><a href="tel:${siteIdentity.secondaryTelephone}">${siteIdentity.secondaryTelephone}</a><a href="mailto:${siteIdentity.email}">${siteIdentity.email}</a><p>${escapeHtml(siteIdentity.address[locale])}</p></section>` : ''}`);
+  const body = page.service ? serviceContent(page, locale) : (page.path === '/' || page.path === '/services/' ? educationalBookingContent(locale) + servicesList(locale) : `<section class="public-intro container"><h2>${locale === 'en' ? 'Multi Task Agency in 6th of October City, Giza' : 'Multi Task Agency في مدينة 6 أكتوبر، الجيزة'}</h2><p>${escapeHtml(copy.description)}</p></section>${page.path === '/contact/' ? `<section class="public-contact-info container"><a href="tel:${siteIdentity.telephone}">${siteIdentity.telephone}</a><a href="tel:${siteIdentity.secondaryTelephone}">${siteIdentity.secondaryTelephone}</a><a href="mailto:${siteIdentity.email}">${siteIdentity.email}</a><p>${escapeHtml(siteIdentity.address[locale])}</p></section>` : ''}`);
   return `<div class="app-container public-site-shell">${navigation(locale, page.path)}<main id="main-content" class="public-page"><header class="public-editorial-hero"><div class="container public-editorial-hero__grid"><div class="public-editorial-hero__copy"><span class="public-eyebrow">${escapeHtml(copy.eyebrow)}</span><h1>${escapeHtml(copy.h1)}</h1><p>${escapeHtml(copy.summary)}</p></div>${page.service ? `<figure class="public-editorial-hero__media"><img src="${escapeHtml(page.service.heroImage)}" width="800" height="800" alt="${escapeHtml(page.service[locale].heroAlt)}"></figure>` : ''}</div></header>${body}</main></div>`;
 };
 
