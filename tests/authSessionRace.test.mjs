@@ -25,7 +25,7 @@ test('a broken legacy cache cannot blank the login application', () => {
 });
 
 test('login waits for session restoration and routes users by role', () => {
-  assert.match(loginSource, /disabled=\{loading \|\| !isAuthReady\}/);
+  assert.match(loginSource, /disabled=\{loading \|\| !isAuthReady \|\| googleBusy\}/);
   assert.match(loginSource, /STAFF_ROLES\.includes\(user\.role\)/);
   assert.match(loginSource, /STAFF_ROLES\.includes\(currentUser\.role\)/);
   assert.match(loginSource, /loginError\?\.message/);

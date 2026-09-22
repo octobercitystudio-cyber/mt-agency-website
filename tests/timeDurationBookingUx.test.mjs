@@ -85,7 +85,7 @@ test('client booking and reschedule time rows stack without horizontal overflow 
 
 test('client Home renders scheduled duration through the shared formatter', async () => {
   const overview = await load('src/pages/ClientDashboardOverview.jsx');
-  assert.match(overview, /مدة الحجز \{formatDurationMinutes\(duration\)\}/);
+  assert.match(overview, /formatDurationMinutes\(calculateDurationMinutes\(nextBooking.start_time, nextBooking.end_time\)\)/);
   assert.doesNotMatch(overview, /مدة الحجز \{duration\} دقيقة/);
 });
 

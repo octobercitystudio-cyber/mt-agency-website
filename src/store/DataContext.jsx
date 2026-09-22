@@ -1,3 +1,4 @@
+import { requireLoginPhone } from '../lib/phoneLogin';
 import { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../data/studioGalleries';
 import { VERIFIED_PORTFOLIO, VERIFIED_PORTFOLIO_CATEGORIES, withVerifiedPortfolioServiceLinks } from '../data/verifiedPortfolio';
@@ -25,7 +26,7 @@ const getPublicDataClient = () => {
   return publicDataClientPromise;
 };
 
-const isPublicSurface = () => !/^\/(?:login|change-password|reset-password|dashboard|erp(?:\/|$)|adminmt(?:\/|$))/.test(window.location.pathname);
+const isPublicSurface = () => !/^\/(?:login|register|change-password|reset-password|dashboard|erp(?:\/|$)|adminmt(?:\/|$))/.test(window.location.pathname);
 
 const restoreLocalPreviewSession = () => {
   if (!import.meta.env.DEV) return null;
@@ -268,6 +269,9 @@ export const DataProvider = ({ children }) => {
         if (!isCurrent) {
           sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
           applySession(null);
+        } else if (restoredPreview.registration_managed) {
+          const resumed = demoClient.resumeDemoRegistrationSession(restoredPreview);
+          applySession(resumed ? { user: resumed } : null);
         } else if (restoredPreview.credential_managed) {
           demoClient.resumeDemoCredentialSession(restoredPreview);
         } else {
@@ -383,7 +387,7 @@ export const DataProvider = ({ children }) => {
     authRevisionRef.current += 1;
     const dataClient = await getDataClient();
     const { data, error } = await dataClient.auth.signInWithPassword({
-      email: username,
+      phone: requireLoginPhone(username),
       password: password
     });
     if (error) {
@@ -445,8 +449,11 @@ export const DataProvider = ({ children }) => {
       return localClient;
     }
 
+    username = requireLoginPhone(username);
     if (import.meta.env.DEV) {
       const demoClient = await getDemoClient();
+      const registeredUser = await demoClient.authenticateDemoRegistration(username, password);
+      if (registeredUser) { applySession({ user: registeredUser }); return registeredUser; }
       const temporaryClient = await demoClient.authenticateDemoClientCredential(username, password);
       if (temporaryClient) {
         sessionStorage.setItem(LOCAL_PREVIEW_SESSION_KEY, JSON.stringify(temporaryClient));
@@ -457,7 +464,7 @@ export const DataProvider = ({ children }) => {
 
     const dataClient = await getDataClient();
     const { data, error } = await dataClient.auth.signInWithPassword({
-      email: username,
+      phone: requireLoginPhone(username),
       identifier: username,
       password: password
     });
@@ -467,6 +474,49 @@ export const DataProvider = ({ children }) => {
     applySession(data.session);
     return data.user || true;
   };
+
+  const getGoogleConfig = useCallback(async () => {
+    const client = await getDataClient();
+    if (!client.auth.getGoogleConfig) return { enabled: false, client_id: null };
+    const { data, error } = await client.auth.getGoogleConfig();
+    if (error) throw error;
+    return data;
+  }, []);
+
+  const createGoogleChallenge = useCallback(async () => {
+    const client = await getDataClient();
+    const { data, error } = await client.auth.createGoogleChallenge();
+    if (error) throw error;
+    return data;
+  }, []);
+
+  const loginGoogle = useCallback(async credentials => {
+    authRevisionRef.current += 1;
+    const client = await getDataClient();
+    const { data, error } = await client.auth.signInWithGoogle(credentials);
+    if (error) throw error;
+    if (data.link_required) return data;
+    applySession(data.session);
+    return data.user;
+  }, [applySession]);
+
+  const linkGoogle = useCallback(async credentials => {
+    authRevisionRef.current += 1;
+    const client = await getDataClient();
+    const { data, error } = await client.auth.linkGoogleAccount(credentials);
+    if (error) throw error;
+    applySession(data.session);
+    return data.user;
+  }, [applySession]);
+
+  const refreshSession = useCallback(async () => {
+    const client = await getDataClient();
+    const { data, error } = await client.auth.getSession();
+    if (error) throw error;
+    authRevisionRef.current += 1;
+    applySession(data.session);
+    return data.session?.user || null;
+  }, [applySession]);
 
   const logoutErp = async () => {
     if (import.meta.env.DEV && currentUser?.is_local_preview) {
@@ -515,6 +565,11 @@ export const DataProvider = ({ children }) => {
       logout,
       isErpAuth,
       loginErp,
+      getGoogleConfig,
+      createGoogleChallenge,
+      loginGoogle,
+      linkGoogle,
+      refreshSession,
       logoutErp
     }}>
       {children}

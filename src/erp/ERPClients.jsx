@@ -514,7 +514,7 @@ const ERPClients = () => {
                           </div>
                           <div>
                             <div style={{ fontWeight: 'bold', color: 'var(--erp-text-main)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              {client.name}
+                              {client.name}{client.registration_source === 'website' && <span className="client-website-badge">مسجل من الموقع</span>}
                               {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem' }}>نشط</span>}
                               {(client.debt > 0 || client.hasPackageDebt) && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
                             </div>
@@ -564,7 +564,7 @@ const ERPClients = () => {
                       </div>
                       <div className="mobile-client-info">
                         <div className="mobile-client-name" style={{ marginBottom: '2px' }}>
-                          {client.name}
+                          {client.name}{client.registration_source === 'website' && <span className="client-website-badge">مسجل من الموقع</span>}
                           {client.isActive && <span style={{ background: '#198754', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '50rem' }}>نشط</span>}
                           {(client.debt > 0 || client.hasPackageDebt) && <span className="animate__animated animate__flash animate__infinite animate__slower" style={{ background: '#dc3545', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '50rem', fontWeight: 'bold' }}>مستحق</span>}
                         </div>

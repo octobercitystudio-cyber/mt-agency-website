@@ -178,7 +178,7 @@ const ERPDashboard = () => {
       ? request()
       : Promise.resolve({ data: fallback, error: null, skipped: true });
     try {
-      const [bookingsResult, pendingBookings, reschedules, proofs, packages, tasks, sessionEligibility, dashboardKpis] = await Promise.all([
+      const [bookingsResult, pendingBookings, reschedules, proofs, packages, tasks, sessionEligibility, dashboardKpis, intakeRequests, studioRequests] = await Promise.all([
         requestDashboardModule(() => dataClient.from('bookings').select('*').eq('date', today).order('start_time', { ascending: true })),
         requestDashboardModule(() => dataClient.from('bookings').select('id,client_name,status,date,start_time').in('status', ['pending', 'cancel_requested', 'late_cancel_requested']).limit(8)),
         requestDashboardModule(() => scopedRequest(['owner', 'admin', 'operations', 'staff'], () => dataClient.from('reschedule_requests').select('id,booking_id,client_id,status,proposed_date,proposed_start_time').eq('status', 'pending').limit(8))),
@@ -190,12 +190,16 @@ const ERPDashboard = () => {
           () => scopedRequest(['owner', 'admin', 'operations', 'finance'], () => dataClient.request('/dashboard/kpis'), {}),
           { shouldRetryResult: (result) => Boolean(result?.error || result?.data?.partial_errors?.length) },
         ),
+        requestDashboardModule(() => scopedRequest(['owner', 'admin', 'operations'], () => dataClient.request('/intake-requests'), { items: [], pending_count: 0 })),
+        requestDashboardModule(() => scopedRequest(['owner', 'admin', 'operations', 'finance'], () => dataClient.request('/studio-booking-requests'), { items: [], pending_count: 0 })),
       ]);
       if (loadSequence !== loadSequenceRef.current) return;
       const partialKpiFailure = (dashboardKpis.data?.partial_errors || []).length > 0;
-      const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, packages, tasks, sessionEligibility, dashboardKpis].filter((result) => result.error);
+      const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, packages, tasks, sessionEligibility, dashboardKpis, intakeRequests, studioRequests].filter((result) => result.error);
       if (failedModules.length || partialKpiFailure) console.error('Dashboard data modules unavailable:', [...failedModules.map((result) => result.error), ...(dashboardKpis.data?.partial_errors || [])]);
       const actions = [
+        ...(studioRequests.data?.items || []).filter(item => item.package_status === 'pending' || item.bookings.some(row => row.status === 'pending')).slice(0, 8).map(item => ({ id: `studio-${item.id}`, kind: 'booking', title: `طلب تصوير — ${item.client_name}`, meta: `${Number(item.package_status === 'pending') + item.bookings.filter(row => row.status === 'pending').length} قرارات قيد المراجعة`, to: '/erp/requests' })),
+        ...(intakeRequests.data?.items || []).filter(item => ['registration', 'package', 'booking'].some(stage => item[`${stage}_status`] === 'pending')).slice(0, 8).map(item => ({ id: `intake-${item.id}`, kind: 'booking', title: `طلبات العميل — ${item.name}`, meta: `${['registration', 'package', 'booking'].filter(stage => item[`${stage}_status`] === 'pending').length} طلب قيد المراجعة`, to: '/erp/requests' })),
         ...(pendingBookings.data || []).map((item) => ({ ...item, kind: 'booking', title: `${formatBookingStatus(normalizeStatus(item.status))} — ${item.client_name}`, meta: `${formatBookingDate(item.date)} · ${formatTime12(item.start_time, '')}`, to: '/erp/requests' })),
         ...(reschedules.data || []).map((item) => ({ ...item, kind: 'reschedule', title: 'طلب تغيير موعد', meta: `${formatBookingDate(item.proposed_date)} · ${formatTime12(item.proposed_start_time, '')}`, to: '/erp/requests' })),
         ...(proofs.data || []).map((item) => ({ ...item, kind: 'payment', title: 'إثبات تحويل يحتاج مراجعة', meta: money(item.amount), to: '/erp/requests' })),
@@ -205,6 +209,7 @@ const ERPDashboard = () => {
       setState({
         loading: false,
         error: failedModules.length || partialKpiFailure ? 'تعذر تحميل بعض بيانات التشغيل الآن. يمكنك متابعة الأقسام المتاحة أو إعادة المحاولة.' : '',
+        requestCount: Number(studioRequests.data?.pending_count || 0) + Number(intakeRequests.data?.pending_count || 0) + (pendingBookings.data || []).length + (reschedules.data || []).length + (proofs.data || []).length,
         bookings: (bookingsResult.data || []).filter((booking) => isDashboardBookingVisible({ status: normalizeStatus(booking.status) })), actions,
         tasks: tasks.data || [],
         tasksError: tasks.error ? 'تحقق من الاتصال ثم أعد المحاولة.' : '',
@@ -394,7 +399,7 @@ const ERPDashboard = () => {
         </article>
 
         <aside className="ops-panel ops-queue">
-          <div className="ops-panel__heading"><div><span className="ops-kicker">يحتاج قرارًا</span><h2>طابور الإجراءات</h2></div><span className="ops-count">{state.actions.length}</span></div>
+          <div className="ops-panel__heading"><div><span className="ops-kicker">يحتاج قرارًا</span><h2>طابور الإجراءات</h2></div><span className="ops-count">{state.requestCount ?? state.actions.length}</span></div>
           {state.loading ? <div className="ops-skeleton ops-skeleton--list" /> : state.actions.length === 0 ? <div className="ops-empty ops-empty--compact"><Check size={26} /><h3>لا توجد قرارات معلقة</h3><p>صندوق الطلبات مراجع بالكامل.</p></div> : (
             <div className="ops-queue__list">{state.actions.map((item) => <Link to={item.to} key={`${item.kind}-${item.id}`}><span className={`ops-queue__icon ops-queue__icon--${item.kind}`}>{item.kind === 'payment' ? <BadgeDollarSign size={17} /> : <Clock3 size={17} />}</span><div><strong>{item.title}</strong><small>{item.meta}</small></div><ArrowLeft size={16} /></Link>)}</div>
           )}

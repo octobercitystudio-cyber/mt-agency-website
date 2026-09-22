@@ -266,7 +266,7 @@ function legacyImportUsageLedger(PDO $pdo,array $user,array $packageRows,array $
 }
 
 function legacyImportEmployeeMap(PDO $pdo,int $organizationId): array {
-    $stmt=$pdo->prepare("SELECT id,full_name FROM users WHERE organization_id=? AND is_active=1 AND role<>'client'");$stmt->execute([$organizationId]);$users=$stmt->fetchAll();$map=[];foreach($users as $user){$full=legacyImportArabicKey($user['full_name']);foreach(['اشرف','مروه'] as $key)if(str_contains($full,$key))$map[$key][]=(int)$user['id'];}return $map;
+    $stmt=$pdo->prepare("SELECT id,full_name FROM users WHERE organization_id=? AND is_active=1 AND role NOT IN ('client','applicant')");$stmt->execute([$organizationId]);$users=$stmt->fetchAll();$map=[];foreach($users as $user){$full=legacyImportArabicKey($user['full_name']);foreach(['اشرف','مروه'] as $key)if(str_contains($full,$key))$map[$key][]=(int)$user['id'];}return $map;
 }
 
 function legacyImportFinance(PDO $pdo,array $user,array $rows): array {

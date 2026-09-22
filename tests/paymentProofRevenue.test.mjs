@@ -43,7 +43,7 @@ test('approved payment proof becomes one linked client revenue with client and s
 });
 
 test('production approval links finance to the approved payment and prioritizes service labels', async () => {
-  const api = await readFile(new URL('../api/index.php', import.meta.url), 'utf8');
+  const api = await readFile(new URL('../api/index.php', import.meta.url), 'utf8') + await readFile(new URL('../api/payment_proof_review.php', import.meta.url), 'utf8');
   const requests = await readFile(new URL('../src/erp/ERPRequests.jsx', import.meta.url), 'utf8');
   assert.match(api, /'income','client_revenue'/);
   assert.match(api, /'payment',\?,\?,1,\?/);

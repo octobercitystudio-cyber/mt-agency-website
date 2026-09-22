@@ -1,3 +1,7 @@
+import { normalizeLoginPhone } from './phoneLogin.js';
+import { studioBookingDemoRequest } from './studioBookingDemo.js';
+import { registrationDemoRequest, registrationDemoUser, authenticateRegistrationDemo, changeRegistrationDemoPassword } from './registrationDemo.js';
+import { clientWindowError, isClientBookingDateClosed } from './registrationPolicy.js';
 import { normalizePaymentMethod } from './paymentMethods.js';
 import { getProjectStageTemplate } from './projectStageTemplates.js';
 import { allocateFormationExpense, summarizeFormationFund, toCents } from './formationFundMath.js';
@@ -29,6 +33,8 @@ const normalizeDemoServiceBody = (body, before = null) => {
   return { ...body, category, billing_unit: category === 'باقة ريلز' ? 'reel' : 'hour' };
 };
 
+let demoRegistrationUserId = null;
+const currentDemoClientId = database => demoRegistrationUserId ? Number(registrationDemoUser(database || readDatabase(), demoRegistrationUserId)?.client_id || 0) : 1;
 let demoMode = false;
 let demoRole = 'owner';
 let demoUserId = 1;
@@ -115,10 +121,11 @@ const demoClientTimeMinutes = (value, endOfDay = false) => {
   return Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 };
 const validateDemoClientBookingGrid = body => {
+  const policyError = clientWindowError(body); if (policyError) demoClientBookingTimeError(policyError, 'client_booking_outside_hours');
   const rawDuration = String(body.duration_minutes ?? '').trim();
   if (!/^\d+$/.test(rawDuration)) demoClientBookingTimeError('أرسل مدة الحجز بالدقائق.', 'client_booking_duration_required');
   const duration = Number(rawDuration);
-  if (duration < 30 || duration > 1440) demoClientBookingTimeError('مدة حجز العميل يجب أن تكون بين 30 دقيقة و24 ساعة.', 'client_booking_duration_out_of_range');
+  if (duration < 30 || duration > 600) demoClientBookingTimeError('مدة حجز العميل يجب أن تكون بين 30 دقيقة و10 ساعات.', 'client_booking_duration_out_of_range');
   if (duration % 30 !== 0) demoClientBookingTimeError('مدة حجز العميل يجب أن تزيد كل 30 دقيقة.', 'client_booking_duration_increment_invalid');
   const start = demoClientTimeMinutes(body.start_time); const end = demoClientTimeMinutes(body.end_time, true);
   if (start < 0 || start >= 1440 || start % 60 !== 0) demoClientBookingTimeError('وقت بداية حجز العميل يجب أن يكون عند ساعة كاملة ودقائق :00.', 'client_booking_start_grid_invalid');
@@ -229,10 +236,10 @@ const demoClientBookingAvailability = (database, url) => {
   const today = cairoDateKey();
   const startDate = String(url.searchParams.get('start_date') || today);
   const pkg = findById(database, 'client_packages', packageId);
-  if (!pkg || Number(pkg.client_id) !== 1 || pkg.status !== 'active') throw formationDemoError('الباقة غير فعالة أو لا تخص هذا الحساب.', 'invalid_package');
+  if (!pkg || Number(pkg.client_id) !== currentDemoClientId(database) || pkg.status !== 'active') throw formationDemoError('الباقة غير فعالة أو لا تخص هذا الحساب.', 'invalid_package');
   const minimum = 30;
   const increment = 30;
-  if (!Number.isSafeInteger(durationMinutes) || durationMinutes < minimum || durationMinutes > 1440 || durationMinutes % increment !== 0) throw formationDemoError(`المدة المطلوبة يجب ألا تقل عن ${formatDurationMinutes(minimum)} وتكون بزيادات ${formatDurationMinutes(increment)}.`, 'invalid_booking_duration');
+  if (!Number.isSafeInteger(durationMinutes) || durationMinutes < minimum || durationMinutes > 600 || durationMinutes % increment !== 0) throw formationDemoError(`المدة المطلوبة يجب ألا تقل عن ${formatDurationMinutes(minimum)} وتكون بزيادات ${formatDurationMinutes(increment)}.`, 'invalid_booking_duration');
   if (!Number.isSafeInteger(days) || days < 1 || days > 31 || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) || startDate < today) throw formationDemoError('فترة البحث غير صحيحة.', 'availability_window_out_of_range');
   const availableQuantity = demoPackageAvailable(pkg);
   if (pkg.billing_unit === 'hour' ? availableQuantity * 60 + .001 < durationMinutes : availableQuantity < 1) throw formationDemoError('رصيد الباقة المتاح لا يكفي للمدة المطلوبة.', 'insufficient_package_balance');
@@ -245,9 +252,9 @@ const demoClientBookingAvailability = (database, url) => {
   const resultDays = Array.from({ length: days }, (_, offset) => {
     const current = new Date(startValue); current.setDate(current.getDate() + offset); const date = `${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`;
     const inValidity = (!pkg.starts_at && !pkg.expires_at) || (date >= String(pkg.starts_at).slice(0, 10) && date <= String(pkg.expires_at).slice(0, 10) && (pkg.validity_mode_snapshot !== 'shooting_day' || date === String(pkg.starts_at).slice(0, 10)));
-    if (!inValidity) return { date, available: false, slots: [] };
+    if (!inValidity || isClientBookingDateClosed(date)) return { date, available: false, slots: [] };
     const slots = [];
-    for (let start = 0; start + durationMinutes <= 1440; start += 60) {
+    for (let start = 720; start + durationMinutes <= 1320; start += 60) {
       if (date === today && start < nowMinutes) continue;
       const formatTime = value => value === 1440 ? '24:00' : `${pad(Math.floor(value / 60))}:${pad(value % 60)}`;
       const end = start + durationMinutes;
@@ -763,6 +770,7 @@ class DemoQueryBuilder {
 
   async execute() {
     const database = readDatabase();
+    if (['applicant', 'guest'].includes(demoRole) && this.table !== 'app_config') throw formationDemoError('حسابك قيد المراجعة.', 'forbidden');
     const rows = tableRows(database, this.table);
     const matches = row => this.filters.every(({ column, op, value }) => compare(row[column], op, value));
     let result = [];
@@ -944,7 +952,7 @@ const demoValidateDriveLinks = raw => {
   });
 };
 const demoPostProductionRows = (database, clientOnly = false) => tableRows(database, 'post_production_jobs')
-  .filter(job => !clientOnly || Number(job.client_id) === 1 && Number(job.is_client_visible) === 1 && Number(job.needs_review) === 0)
+  .filter(job => !clientOnly || Number(job.client_id) === currentDemoClientId(database) && Number(job.is_client_visible) === 1 && Number(job.needs_review) === 0)
   .map(job => {
     const booking = findById(database, 'bookings', job.booking_id) || {}; const session = tableRows(database, 'booking_sessions').find(row => Number(row.id) === Number(job.booking_session_id)) || {}; const client = findById(database, 'clients', job.client_id) || {}; const pkg = booking.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null;
     const history = tableRows(database, 'post_production_status_history').filter(row => Number(row.post_production_job_id) === Number(job.id)).sort((a, b) => Number(a.version) - Number(b.version));
@@ -1508,6 +1516,12 @@ const demoRequest = async (path, options = {}) => {
   const body = bodyOf(options);
   const url = new URL(path, 'https://demo.local');
   const route = url.pathname;
+  if (/^\/(?:client\/)?studio-booking-requests(?:\/|$)/.test(route)) return studioBookingDemoRequest({ route, method: options.method || 'GET', body, readDatabase, role: demoRole, clientId: currentDemoClientId(database), addRow, writeDatabase, assertAvailable: assertDemoBookingAvailable, addUsage: addDemoPackageUsage, activatePackage: activateDemoPackageOnFirstBooking, mutatePackage: mutateDemoPackageQuantities, audit: demoAudit });
+  if (/^\/(?:registration\/|intake-requests(?:\/|$)|client\/intake-requests$)/.test(route)) {
+  const intakeResult = await registrationDemoRequest({ route, url, method: options.method || 'GET', body, database, role: demoRole, userId: demoUserId, addRow, writeDatabase, assertAvailable: assertDemoBookingAvailable, addUsage: addDemoPackageUsage, activatePackage: activateDemoPackageOnFirstBooking, mutatePackage: mutateDemoPackageQuantities, audit: demoAudit });
+  if (intakeResult !== undefined) return intakeResult;
+  }
+  if (demoRole === 'applicant' || demoRole === 'guest') throw formationDemoError('حسابك قيد المراجعة. تابع صندوق طلباتك.', 'forbidden');
   if (options.method === 'POST' && /^\/(?:finance\/|payments\/|client-packages(?:\/|$)|clients\/\d+\/balance|formation-fund\/|projects\/custom-service|attendance\/employee-accounts\/movements)/.test(route) && !/\/(?:void|legacy-import)$/.test(route)) {
     for (const field of ['method', 'payment_method', 'from_method', 'to_method']) if (Object.hasOwn(body, field) && body[field]) body[field] = requireDemoPaymentMethod(body[field]);
   }
@@ -1614,6 +1628,7 @@ const demoRequest = async (path, options = {}) => {
   if ((match = route.match(/^\/clients\/(\d+)\/credentials\/toggle$/)) && options.method === 'POST') {
     requireDemoOwner(); const client = scopedDemoClient(database, match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found'); if (!client.portal_account_exists) throw formationDemoError('عيّن كلمة مرور أولًا لإنشاء حساب العميل.', 'client_credential_required'); client.portal_enabled = Boolean(body.enabled); client.portal_active_sessions = 0; client.credential_version = Number(client.credential_version || 0) + 1; demoCredentialSessionVersion = null; demoAudit(database, body.enabled ? 'client_portal_enabled' : 'client_portal_disabled', 'users', Number(client.id), null, { client_id: Number(client.id), enabled: Boolean(body.enabled), sessions_revoked: true }); writeDatabase(database); return { enabled: Boolean(body.enabled) };
   }
+  if (route === '/auth/password' && options.method === 'PATCH' && demoRegistrationUserId) { const user = await changeRegistrationDemoPassword(database, demoRegistrationUserId, body); writeDatabase(database); return { updated: true, session: { active: true }, user }; }
   if (route === '/auth/password' && options.method === 'PATCH') {
     if (demoRole !== 'client') throw formationDemoError('غير مصرح.', 'forbidden'); const client = findById(database, 'clients', 1); const forced = Boolean(client?.must_change_password); const next = String(body.password || ''); const confirmation = String(body.confirm_password || '');
     if (next !== confirmation) throw formationDemoError('تأكيد كلمة المرور غير مطابق.', 'password_confirmation_mismatch'); if (!validDemoClientPassword(next)) throw formationDemoError('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.', 'weak_password');
@@ -1712,7 +1727,7 @@ const demoRequest = async (path, options = {}) => {
     }
   }
 
-  if (route === '/users/assignees') return clone(database.users.filter(user => user.role !== 'client'));
+  if (route === '/users/assignees') return clone(database.users.filter(user => !['client', 'applicant'].includes(user.role)));
   if (route === '/users' && (options.method || 'GET') === 'GET') return clone(database.users);
   if (route === '/users' && options.method === 'POST') {
     requireDemoOwner(); const role = String(body.role || 'staff');
@@ -1720,6 +1735,8 @@ const demoRequest = async (path, options = {}) => {
     if (role === 'client' || body.client_id) throw formationDemoError('استخدم قسم الدخول والأمان لإنشاء حساب العميل.', 'use_client_credential_flow');
     if (!validDemoPassword(String(body.password || ''))) throw formationDemoError('كلمة المرور يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 'weak_password');
     const safeBody = Object.fromEntries(Object.entries(body).filter(([field]) => ['full_name', 'email', 'phone', 'permissions'].includes(field)));
+    safeBody.phone = normalizeLoginPhone(body.phone);
+    if (!safeBody.phone) throw formationDemoError('رقم الموبايل الأساسي مطلوب للدخول.', 'validation_error');
     const row = addRow(database, 'users', { ...safeBody, client_id: null, role, is_active: 1 }); writeDatabase(database); return row;
   }
   if ((match = route.match(/^\/users\/(\d+)$/)) && options.method === 'PATCH') {
@@ -1732,6 +1749,7 @@ const demoRequest = async (path, options = {}) => {
     if (body.role && !['owner', 'admin', 'operations', 'finance', 'staff'].includes(body.role)) throw formationDemoError('الدور غير صالح.', 'invalid_role');
     if (body.password && !validDemoPassword(String(body.password))) throw formationDemoError('كلمة المرور يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 'weak_password');
     const allowed = ['full_name', 'email', 'phone', 'role', 'is_active', 'permissions']; const safeBody = Object.fromEntries(Object.entries(body).filter(([field]) => allowed.includes(field)));
+    if (Object.prototype.hasOwnProperty.call(body, 'phone')) { safeBody.phone = normalizeLoginPhone(body.phone); if (!safeBody.phone) throw formationDemoError('رقم الموبايل الأساسي مطلوب للدخول.', 'validation_error'); }
     if (body.password) Object.assign(safeBody, { password_changed_at: nowText(), credential_version: Number(target.credential_version || 0) + 1 });
     Object.assign(target, safeBody, { updated_at: nowText() }); writeDatabase(database); return { id: Number(match[1]) };
   }
@@ -2058,7 +2076,7 @@ const demoRequest = async (path, options = {}) => {
     writeDatabase(database); return { id: project.id, invoice_id: invoice?.id || null, booking_id: booking?.id || null };
   }
   if (route === '/client/projects' && (options.method || 'GET') === 'GET') {
-    const clientId = demoRole === 'client' ? 1 : 1;
+    const clientId = currentDemoClientId(database);
     const projects = database.projects.filter(project => Number(project.client_id) === clientId).map(project => {
       const invoice = project.invoice_id ? findById(database, 'invoices', project.invoice_id) : database.invoices.find(item => Number(item.project_id) === Number(project.id));
       const total = Number(invoice?.total ?? project.agreed_price ?? 0); const paid = Number(invoice?.paid_amount || 0);
@@ -2070,7 +2088,7 @@ const demoRequest = async (path, options = {}) => {
   }
   if (route === '/client/service-history' && (options.method || 'GET') === 'GET') {
     if (demoRole !== 'client') throw formationDemoError('سجل الخدمات متاح للعميل فقط.', 'forbidden');
-    return buildDemoClientServiceHistory(database, Object.fromEntries(url.searchParams.entries()), 1);
+    return buildDemoClientServiceHistory(database, Object.fromEntries(url.searchParams.entries()), currentDemoClientId(database));
   }
   if ((match = route.match(/^\/projects\/(\d+)\/milestones$/)) && options.method === 'POST') {
     const project = findById(database, 'projects', match[1]); if (!project) throw new Error('المشروع غير موجود.');
@@ -2153,7 +2171,7 @@ const demoRequest = async (path, options = {}) => {
   }
   if (route === '/client/booking-availability' && (options.method || 'GET') === 'GET') return demoClientBookingAvailability(database, url);
   if (route === '/bookings/request' && options.method === 'POST') {
-    const clientId = demoRole === 'client' ? 1 : Number(body.client_id || 0);
+    const clientId = demoRole === 'client' ? currentDemoClientId(database) : Number(body.client_id || 0);
     const client = findById(database, 'clients', clientId);
     const service = findById(database, 'services', body.service_id);
     const pkg = body.client_package_id ? findById(database, 'client_packages', body.client_package_id) : database.client_packages.find(item => Number(item.client_id) === clientId && Number(item.service_id) === Number(body.service_id) && item.status === 'active');
@@ -2183,7 +2201,7 @@ const demoRequest = async (path, options = {}) => {
   if ((match = route.match(/^\/bookings\/(\d+)$/)) && options.method === 'DELETE') {
     return deleteDemoBooking(database, match[1]);
   }
-  if ((match = route.match(/^\/bookings\/(\d+)\/cancel-request$/))) { const booking = findById(database, 'bookings', match[1]); const before = clone(booking); booking.status = 'cancel_requested'; demoAudit(database, 'cancel_request', 'bookings', booking.id, before, { ...clone(booking), client_id: booking.client_id }); writeDatabase(database); return booking; }
+  if ((match = route.match(/^\/bookings\/(\d+)\/cancel-request$/))) { const booking = findById(database, 'bookings', match[1]); if (!booking || demoRole === 'client' && Number(booking.client_id) !== currentDemoClientId(database)) throw formationDemoError('الموعد غير موجود.', 'booking_not_found'); if (demoRole === 'client' && booking.status === 'confirmed' && cairoDateTimeToEpoch(`${booking.date}T${String(booking.start_time).slice(0,5)}:00`) - Date.now() < 48 * 3600000) throw formationDemoError('الإلغاء قبل 48 ساعة على الأقل؛ الموعد يظل مؤكدًا وتُخصم مدته من الباقة.', 'late_cancellation'); const before = clone(booking); booking.status = 'cancel_requested'; demoAudit(database, 'cancel_request', 'bookings', booking.id, before, { ...clone(booking), client_id: booking.client_id }); writeDatabase(database); return booking; }
   if ((match = route.match(/^\/bookings\/(\d+)\/admin-reschedule$/))) { const booking = findById(database, 'bookings', match[1]); if (!booking || booking.status !== 'confirmed') throw formationDemoError('الحجز غير موجود أو حالته لا تسمح بتعديل الموعد.', 'invalid_booking_state'); const pkg = booking.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null; const resource = findById(database, 'resources', body.resource_id ?? booking.resource_id); const date = String(body.date || ''); if (!resource || Number(resource.is_active ?? 1) !== 1) throw formationDemoError('المورد المختار غير متاح.', 'invalid_booking_resource'); if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw formationDemoError('الموعد لا يطابق أيام العمل.', 'invalid_booking_time'); if (pkg && (date < String(pkg.starts_at).slice(0, 10) || date > String(pkg.expires_at).slice(0, 10) || (pkg.validity_mode_snapshot === 'shooting_day' && date !== String(pkg.starts_at).slice(0, 10)))) throw formationDemoError('الموعد الجديد خارج صلاحية الباقة.', 'booking_outside_package_validity'); const nextBase = { ...booking, resource_id: Number(resource.id), date, start_time: body.start_time, end_time: body.end_time }; assertDemoBookingAvailable(database, nextBase, booking.id); if (pkg) { const oldHold = demoBookingHeldQuantity(database, booking.id, pkg.id); const oldMinutes = pkg.billing_unit === 'hour' ? demoBookingHeldMinutes(database, booking.id, pkg.id) : null; const nextMinutes = pkg.billing_unit === 'hour' ? demoBookingDurationMinutes(nextBase) : null; const nextQuantity = pkg.billing_unit === 'hour' ? demoSettlementHours(nextMinutes) : Number(booking.requested_quantity || oldHold); const delta = nextQuantity - oldHold; if (delta > demoPackageAvailable(pkg) + 0.000001) throw formationDemoError('رصيد الباقة المتاح لا يكفي للمدة الجديدة.', 'insufficient_package_balance'); mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: nextMinutes - oldMinutes } : { held: delta }); if (oldHold > 0) addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'release', quantity: oldHold, quantity_minutes: oldMinutes, reason: 'تحرير حجز الموعد السابق', event_key: `booking:${booking.id}:reschedule-release:${Date.now()}` }); addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'hold', quantity: nextQuantity, quantity_minutes: nextMinutes, reason: 'حجز الموعد الجديد', event_key: `booking:${booking.id}:reschedule-hold:${Date.now()}` }); booking.requested_quantity = nextQuantity; } Object.assign(booking, { resource_id: Number(resource.id), resource_name: resource.name, date, start_time: body.start_time, end_time: body.end_time, notes: Object.prototype.hasOwnProperty.call(body, 'notes') ? body.notes : booking.notes }); demoAudit(database, 'admin_reschedule', 'bookings', booking.id, null, clone(booking)); writeDatabase(database); return booking; }
   if ((match = route.match(/^\/bookings\/(\d+)\/alternative-decision$/))) { const booking = findById(database, 'bookings', match[1]); const before = clone(booking); const pkg = booking?.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null; if (body.action === 'accept') { assertDemoBookingAvailable(database, booking, booking.id); if (!pkg) throw formationDemoError('الباقة غير موجودة.', 'package_not_found'); activateDemoPackageOnFirstBooking(database, pkg, String(booking.date)); const existingHold = demoBookingHeldQuantity(database, booking.id, pkg.id); const quantity = Number(booking.requested_quantity || 0); if (!existingHold) { if (demoPackageAvailable(pkg) + 0.000001 < quantity) throw formationDemoError('رصيد الباقة المتاح لا يكفي لتأكيد هذا الموعد.', 'insufficient_package_balance'); const minutes = pkg.billing_unit === 'hour' ? demoBookingDurationMinutes(booking) : null; mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: minutes } : { held: quantity }); addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'hold', quantity, quantity_minutes: minutes, reason: 'قبول الموعد البديل', event_key: `booking:${booking.id}:alternative-hold` }); } } booking.status = body.action === 'accept' ? 'confirmed' : 'pending'; demoAudit(database, 'alternative_decision', 'bookings', booking.id, before, { ...clone(booking), client_id: booking.client_id, decision: body.action }); writeDatabase(database); return booking; }
   if (route === '/studio-session-eligibility' && (options.method || 'GET') === 'GET') {
@@ -2240,12 +2258,12 @@ const demoRequest = async (path, options = {}) => {
   if (route === '/studio-sessions/active') {
     const active = database.booking_sessions.filter(item => item.status === 'active').map(item => demoActiveSession(database, item));
     const visible = demoRole === 'client'
-      ? active.filter(item => Number(item.client_id) === 1).map(demoClientActiveSession)
+      ? active.filter(item => Number(item.client_id) === currentDemoClientId(database)).map(demoClientActiveSession)
       : active;
     return { items: visible, server_now: nowIso() };
   }
 
-  if (route === '/reschedule-requests' && options.method === 'POST') { const booking = findById(database, 'bookings', body.booking_id); const row = addRow(database, 'reschedule_requests', { ...body, proposed_date: body.proposed_date || body.date, proposed_start_time: body.proposed_start_time || body.start_time, proposed_end_time: body.proposed_end_time || body.end_time, client_id: body.client_id || booking?.client_id || 1, status: 'pending' }); demoAudit(database, 'create', 'reschedule_requests', row.id, null, clone(row)); writeDatabase(database); return row; }
+  if (route === '/reschedule-requests' && options.method === 'POST') { const booking = findById(database, 'bookings', body.booking_id); if (demoRole === 'client') { if (!booking || Number(booking.client_id) !== currentDemoClientId(database)) throw formationDemoError('الموعد غير موجود.', 'booking_not_found'); const policyError = clientWindowError({ date: body.date || body.proposed_date, start_time: body.start_time || body.proposed_start_time, end_time: body.end_time || body.proposed_end_time }); if (policyError) throw formationDemoError(policyError, 'client_booking_outside_hours'); if (cairoDateTimeToEpoch(`${booking.date}T${String(booking.start_time).slice(0,5)}:00`) - Date.now() < 48 * 3600000) throw formationDemoError('تغيير الموعد قبل 48 ساعة على الأقل.', 'late_reschedule'); } const row = addRow(database, 'reschedule_requests', { ...body, proposed_date: body.proposed_date || body.date, proposed_start_time: body.proposed_start_time || body.start_time, proposed_end_time: body.proposed_end_time || body.end_time, client_id: demoRole === 'client' ? currentDemoClientId(database) : body.client_id || booking?.client_id || 1, status: 'pending' }); demoAudit(database, 'create', 'reschedule_requests', row.id, null, clone(row)); writeDatabase(database); return row; }
   if ((match = route.match(/^\/reschedule-requests\/(\d+)\/decision$/))) { const request = findById(database, 'reschedule_requests', match[1]); const booking = body.action === 'approve' ? findById(database, 'bookings', request.booking_id) : null; if (booking) { const pkg = booking.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null; const nextBooking = { ...booking, date: request.proposed_date, start_time: request.proposed_start_time, end_time: request.proposed_end_time }; assertDemoBookingAvailable(database, nextBooking, booking.id); if (pkg && booking.status === 'confirmed') { const oldHold = demoBookingHeldQuantity(database, booking.id, pkg.id); const oldMinutes = pkg.billing_unit === 'hour' ? demoBookingHeldMinutes(database, booking.id, pkg.id) : null; const nextMinutes = pkg.billing_unit === 'hour' ? demoBookingDurationMinutes(nextBooking) : null; const nextQuantity = pkg.billing_unit === 'hour' ? demoSettlementHours(nextMinutes) : Number(booking.requested_quantity || oldHold); const delta = nextQuantity - oldHold; if (delta > demoPackageAvailable(pkg) + 0.000001) throw formationDemoError('رصيد الباقة المتاح لا يكفي للمدة الجديدة.', 'insufficient_package_balance'); mutateDemoPackageQuantities(pkg, pkg.billing_unit === 'hour' ? { held_minutes: nextMinutes - oldMinutes } : { held: delta }); if (oldHold > 0) addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'release', quantity: oldHold, quantity_minutes: oldMinutes, reason: 'تحرير الموعد السابق', event_key: `booking:${booking.id}:request-release:${request.id}` }); addDemoPackageUsage(database, pkg, { booking_id: booking.id, movement_type: 'hold', quantity: nextQuantity, quantity_minutes: nextMinutes, reason: 'اعتماد الموعد الجديد', event_key: `booking:${booking.id}:request-hold:${request.id}` }); booking.requested_quantity = nextQuantity; } Object.assign(booking, { date: request.proposed_date, start_time: request.proposed_start_time, end_time: request.proposed_end_time }); } request.status = body.action === 'approve' ? 'approved' : 'rejected'; writeDatabase(database); return request; }
 
   if ((match = route.match(/^\/payment-proofs\/(\d+)\/decision$/))) {
@@ -2282,7 +2300,7 @@ const demoRequest = async (path, options = {}) => {
     }
     demoAudit(database, 'payment_proof_decision', 'payment_proofs', proof.id, before, clone(proof)); writeDatabase(database); return proof;
   }
-  if (route === '/payment-proofs' && options.method === 'POST') { const proofFile = body.proof; const accounts = { cash: 'سداد في مقر الشركة', instapay: '01114466646', vodafone_cash: '01094084424' }; const paymentMethod = body.payment_method || 'instapay'; if (!accounts[paymentMethod]) throw formationDemoError('اختر كاش أو انستاباي أو فودافون كاش.', 'invalid_payment_method'); const row = addRow(database, 'payment_proofs', { amount: Number(body.amount || 0), payment_method: paymentMethod, transfer_account_snapshot: accounts[paymentMethod], client_package_id: body.client_package_id ? Number(body.client_package_id) : null, invoice_id: body.invoice_id ? Number(body.invoice_id) : null, client_id: Number(body.client_id || 1), status: 'pending', original_name: proofFile?.name || 'demo-transfer.jpg', mime_type: proofFile?.type || 'image/jpeg' }); demoAudit(database, 'create', 'payment_proofs', row.id, null, clone(row)); writeDatabase(database); return row; }
+  if (route === '/payment-proofs' && options.method === 'POST') { const proofFile = body.proof; const accounts = { cash: 'سداد في مقر الشركة', instapay: '01114466646', vodafone_cash: '01094084424' }; const paymentMethod = body.payment_method || 'instapay'; if (!accounts[paymentMethod]) throw formationDemoError('اختر كاش أو انستاباي أو فودافون كاش.', 'invalid_payment_method'); const row = addRow(database, 'payment_proofs', { amount: Number(body.amount || 0), payment_method: paymentMethod, transfer_account_snapshot: accounts[paymentMethod], client_package_id: body.client_package_id ? Number(body.client_package_id) : null, invoice_id: body.invoice_id ? Number(body.invoice_id) : null, client_id: demoRole === 'client' ? currentDemoClientId(database) : Number(body.client_id || 1), status: 'pending', original_name: proofFile?.name || 'demo-transfer.jpg', mime_type: proofFile?.type || 'image/jpeg' }); demoAudit(database, 'create', 'payment_proofs', row.id, null, clone(row)); writeDatabase(database); return row; }
 
   if ((match = route.match(/^\/payments\/(\d+)\/void$/)) && options.method === 'POST') { const result = demoVoidPayment(database, match[1], body); writeDatabase(database); return result; }
   if ((match = route.match(/^\/payments\/(\d+)\/correct$/)) && options.method === 'POST') {
@@ -2322,7 +2340,7 @@ const demoRequest = async (path, options = {}) => {
     if (sourceType === 'client_package') { const pkg = findById(database, 'client_packages', sourceId); if (!pkg || Number(pkg.client_id) !== clientId) throw formationDemoError('الباقة المحددة لا تخص العميل.', 'invalid_finance_package'); }
     if (sourceType === 'service' && !findById(database, 'services', sourceId)) throw formationDemoError('الخدمة المحددة غير موجودة.', 'invalid_finance_service');
     if (sourceType && !['client_package', 'service'].includes(sourceType)) throw formationDemoError('نوع الربط المالي غير صحيح.', 'invalid_finance_relation');
-    const employee = employeeUserId ? findById(database, 'users', employeeUserId) : null; if (employeeUserId && (!employee || employee.role === 'client' || employee.is_active === 0 || kind !== 'expense')) throw formationDemoError('حساب الموظف المحدد غير صالح لهذا المصروف.', 'invalid_employee_user');
+    const employee = employeeUserId ? findById(database, 'users', employeeUserId) : null; if (employeeUserId && (!employee || ['client', 'applicant'].includes(employee.role) || employee.is_active === 0 || kind !== 'expense')) throw formationDemoError('حساب الموظف المحدد غير صالح لهذا المصروف.', 'invalid_employee_user');
     const type = { income: 'إيراد', expense: 'مصروف', advance_in: 'سداد سلفة', advance_out: 'سحب سلفة', settlement_out: 'سداد مستحقات' }[kind];
     const row = addRow(database, 'finance', { client_id: clientId, employee_user_id: employeeUserId, type, entry_kind: kind, category: employeeUserId ? 'employee_out_of_pocket' : category, amount: centsToMoney(moneyToCents(amount)), method: body.method, detail: body.detail, date: body.date, entity: kind === 'income' ? 'الشركة' : employee?.full_name || body.entity || 'الشركة', source_type: sourceType, source_id: sourceId, is_system: 0, version: 1 });
     writeDatabase(database); return financeDemoEntries(database).find(entry => Number(entry.id) === Number(row.id));
@@ -2330,30 +2348,30 @@ const demoRequest = async (path, options = {}) => {
   if (route === '/finance/transfer') { const correlation = `DEMO-${Date.now()}`; addRow(database, 'finance', { type: 'تحويل صادر', entry_kind: 'transfer_out', category: 'internal_transfer', amount: Number(body.amount), method: body.from_method, detail: body.note || `تحويل إلى ${body.to_method}`, date: body.date, entity: 'الشركة', correlation_id: correlation }); addRow(database, 'finance', { type: 'تحويل وارد', entry_kind: 'transfer_in', category: 'internal_transfer', amount: Number(body.amount), method: body.to_method, detail: body.note || `تحويل من ${body.from_method}`, date: body.date, entity: 'الشركة', correlation_id: `${correlation}-IN` }); writeDatabase(database); return { correlation_id: correlation }; }
 
   if (route === '/offers' && options.method === 'POST') { const items = normalizeDemoOfferItems(body.items); if (!items.length) throw formationDemoError('أضف بندًا واحدًا على الأقل.', 'missing_offer_items'); const subtotalCents = items.reduce((sum, item) => sum + item._total_cents, 0); const discountCents = normalizeDemoOfferDiscount(body.discount, subtotalCents); const offer = addRow(database, 'offers', { client_id: body.client_id, offer_number: `OFF-DEMO-${String(nextId(database.offers)).padStart(3, '0')}`, title: body.title, subtotal: centsToMoney(subtotalCents), discount: centsToMoney(discountCents), total: centsToMoney(subtotalCents - discountCents), valid_until: body.valid_until, status: 'draft', notes: body.notes || '', created_by_role: demoRole }); items.forEach(item => addRow(database, 'offer_items', { ...persistDemoOfferItem(item), offer_id: offer.id })); writeDatabase(database); return offer; }
-  if ((match = route.match(/^\/offers\/(\d+)$/)) && (options.method || 'GET') === 'GET') { const offer = findById(database, 'offers', match[1]); if (demoRole === 'client') { if (!offer || Number(offer.client_id) !== 1 || offer.created_by_role !== 'owner' || !['sent', 'accepted', 'cancelled'].includes(offer.status)) throw formationDemoError('عرض السعر غير موجود.', 'offer_not_found'); return { item: demoClientOfferDto(database, offer, true), server_now: demoCairoNowIso() }; } return { ...clone(offer), items: clone(database.offer_items.filter(item => Number(item.offer_id) === Number(match[1]))) }; }
+  if ((match = route.match(/^\/offers\/(\d+)$/)) && (options.method || 'GET') === 'GET') { const offer = findById(database, 'offers', match[1]); if (demoRole === 'client') { if (!offer || Number(offer.client_id) !== currentDemoClientId(database) || offer.created_by_role !== 'owner' || !['sent', 'accepted', 'cancelled'].includes(offer.status)) throw formationDemoError('عرض السعر غير موجود.', 'offer_not_found'); return { item: demoClientOfferDto(database, offer, true), server_now: demoCairoNowIso() }; } return { ...clone(offer), items: clone(database.offer_items.filter(item => Number(item.offer_id) === Number(match[1]))) }; }
   if ((match = route.match(/^\/offers\/(\d+)$/)) && options.method === 'PATCH') { requireDemoOwner(); const reason = demoReason(body); const offer = findById(database, 'offers', match[1]); if (!offer) throw formationDemoError('عرض السعر غير موجود.', 'offer_not_found'); if (offer.status !== 'draft') throw formationDemoError('لا يمكن تعديل العرض بعد إرساله أو قبوله.', 'offer_not_editable'); const items = normalizeDemoOfferItems(body.items); if (!items.length) throw formationDemoError('أضف بندًا واحدًا على الأقل.', 'missing_offer_items'); const before = clone(offer); const subtotalCents = items.reduce((sum, item) => sum + item._total_cents, 0); const discountCents = normalizeDemoOfferDiscount(body.discount, subtotalCents); Object.assign(offer, { client_id: Number(body.client_id || offer.client_id), title: body.title || offer.title, subtotal: centsToMoney(subtotalCents), discount: centsToMoney(discountCents), total: centsToMoney(subtotalCents - discountCents), valid_until: body.valid_until || null, notes: body.notes || '', version: Number(offer.version || 1) + 1 }); database.offer_items = database.offer_items.filter(item => Number(item.offer_id) !== Number(offer.id)); items.forEach(item => addRow(database, 'offer_items', { ...persistDemoOfferItem(item), offer_id: offer.id })); demoAudit(database, 'owner_update_offer', 'offers', offer.id, before, { ...clone(offer), reason }); writeDatabase(database); return clone(offer); }
   if ((match = route.match(/^\/invoices\/(\d+)$/)) && options.method === 'PATCH') { requireDemoOwner(); const reason = demoReason(body); const invoice = findById(database, 'invoices', match[1]); if (!invoice) throw formationDemoError('الفاتورة غير موجودة.', 'invoice_not_found'); if (invoice.status === 'cancelled') throw formationDemoError('الفاتورة ملغاة ولا تقبل التعديل.', 'invoice_cancelled'); const before = clone(invoice); invoice.due_at = body.due_at || null; invoice.notes = body.notes || ''; invoice.version = Number(invoice.version || 1) + 1; demoAudit(database, 'owner_update_invoice_metadata', 'invoices', invoice.id, before, { ...clone(invoice), reason, financial_values_unchanged: true }); writeDatabase(database); return clone(invoice); }
   if ((match = route.match(/^\/offers\/(\d+)\/send$/))) { const offer = findById(database, 'offers', match[1]); if (!offer || offer.status !== 'draft') throw formationDemoError('لا يمكن إرسال العرض في حالته الحالية.', 'invalid_offer_state'); const before = clone(offer); offer.status = 'sent'; demoAudit(database, 'send', 'offers', offer.id, before, clone(offer)); writeDatabase(database); return offer; }
-  if ((match = route.match(/^\/offers\/(\d+)\/accept$/))) { const offer = findById(database, 'offers', match[1]); if (!offer || (demoRole === 'client' && (Number(offer.client_id) !== 1 || offer.created_by_role !== 'owner' || !['sent', 'accepted'].includes(offer.status)))) throw formationDemoError('العرض غير موجود.', 'offer_not_found'); if (offer.status === 'accepted') { const invoice = database.invoices.find(row => Number(row.offer_id) === Number(offer.id)); if (!invoice) throw formationDemoError('تعذر العثور على نتيجة قبول العرض السابقة.', 'offer_acceptance_incomplete'); return { id: offer.id, status: 'accepted', invoice_id: invoice.id, invoice_number: invoice.invoice_number, idempotent: true }; } if (offer.status !== 'sent') throw formationDemoError('لا يمكن قبول العرض في حالته الحالية.', 'invalid_offer_state'); if (offer.valid_until && cairoDateTimeToEpoch(demoOfferExpiryIso(offer.valid_until)) <= Date.now()) throw formationDemoError('انتهت صلاحية عرض السعر.', 'offer_expired'); const before = clone(offer); offer.status = 'accepted'; offer.accepted_at = nowText(); const invoice = addRow(database, 'invoices', { client_id: offer.client_id, offer_id: offer.id, invoice_number: `INV-DEMO-${String(nextId(database.invoices)).padStart(3, '0')}`, subtotal: offer.subtotal, discount: offer.discount, total: offer.total, paid_amount: 0, issued_at: dateOnly(), due_at: offer.valid_until || dateOnly(7), status: 'issued' }); demoAudit(database, 'accept', 'offers', offer.id, before, clone(offer)); writeDatabase(database); return { id: offer.id, status: 'accepted', invoice_id: invoice.id, invoice_number: invoice.invoice_number, idempotent: false }; }
-  if (route === '/client/offers') { if (demoRole !== 'client') throw formationDemoError('العروض الخاصة متاحة للعميل فقط.', 'forbidden'); const items = database.offers.filter(offer => Number(offer.client_id) === 1 && offer.created_by_role === 'owner' && ['sent', 'accepted', 'cancelled'].includes(offer.status)).map(offer => demoClientOfferDto(database, offer)); return { items: orderDemoClientOffers(items), server_now: demoCairoNowIso() }; }
+  if ((match = route.match(/^\/offers\/(\d+)\/accept$/))) { const offer = findById(database, 'offers', match[1]); if (!offer || (demoRole === 'client' && (Number(offer.client_id) !== currentDemoClientId(database) || offer.created_by_role !== 'owner' || !['sent', 'accepted'].includes(offer.status)))) throw formationDemoError('العرض غير موجود.', 'offer_not_found'); if (offer.status === 'accepted') { const invoice = database.invoices.find(row => Number(row.offer_id) === Number(offer.id)); if (!invoice) throw formationDemoError('تعذر العثور على نتيجة قبول العرض السابقة.', 'offer_acceptance_incomplete'); return { id: offer.id, status: 'accepted', invoice_id: invoice.id, invoice_number: invoice.invoice_number, idempotent: true }; } if (offer.status !== 'sent') throw formationDemoError('لا يمكن قبول العرض في حالته الحالية.', 'invalid_offer_state'); if (offer.valid_until && cairoDateTimeToEpoch(demoOfferExpiryIso(offer.valid_until)) <= Date.now()) throw formationDemoError('انتهت صلاحية عرض السعر.', 'offer_expired'); const before = clone(offer); offer.status = 'accepted'; offer.accepted_at = nowText(); const invoice = addRow(database, 'invoices', { client_id: offer.client_id, offer_id: offer.id, invoice_number: `INV-DEMO-${String(nextId(database.invoices)).padStart(3, '0')}`, subtotal: offer.subtotal, discount: offer.discount, total: offer.total, paid_amount: 0, issued_at: dateOnly(), due_at: offer.valid_until || dateOnly(7), status: 'issued' }); demoAudit(database, 'accept', 'offers', offer.id, before, clone(offer)); writeDatabase(database); return { id: offer.id, status: 'accepted', invoice_id: invoice.id, invoice_number: invoice.invoice_number, idempotent: false }; }
+  if (route === '/client/offers') { if (demoRole !== 'client') throw formationDemoError('العروض الخاصة متاحة للعميل فقط.', 'forbidden'); const items = database.offers.filter(offer => Number(offer.client_id) === currentDemoClientId(database) && offer.created_by_role === 'owner' && ['sent', 'accepted', 'cancelled'].includes(offer.status)).map(offer => demoClientOfferDto(database, offer)); return { items: orderDemoClientOffers(items), server_now: demoCairoNowIso() }; }
   if (route === '/client/promotions' && (options.method || 'GET') === 'GET') {
     if (demoRole !== 'client') throw formationDemoError('عروض الموقع متاحة للعميل فقط.', 'forbidden');
     const now = Date.now();
     const items = tableRows(database, 'promotions')
       .filter(item => item.status === 'active' && !item.archived_at && new Date(item.starts_at).getTime() <= now && new Date(item.ends_at).getTime() > now && (Number(item.popup_enabled) === 1 || Number(item.banner_enabled) === 1))
       .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0))
-      .map(item => ({ ...clone(item), subscribed: tableRows(database, 'promotion_subscriptions').some(row => Number(row.promotion_id) === Number(item.id) && Number(row.client_id) === 1) ? 1 : 0 }));
+      .map(item => ({ ...clone(item), subscribed: tableRows(database, 'promotion_subscriptions').some(row => Number(row.promotion_id) === Number(item.id) && Number(row.client_id) === currentDemoClientId(database)) ? 1 : 0 }));
     return { items, server_now: nowIso() };
   }
   if ((match = route.match(/^\/client\/promotions\/(\d+)\/subscribe$/)) && options.method === 'POST') {
     if (demoRole !== 'client') throw formationDemoError('الاشتراك متاح للعميل فقط.', 'forbidden');
     const promotion = findById(database, 'promotions', match[1]); const now = Date.now();
     if (!promotion || promotion.status !== 'active' || promotion.archived_at || new Date(promotion.starts_at).getTime() > now || new Date(promotion.ends_at).getTime() <= now) throw formationDemoError('هذا العرض غير متاح حاليًا.', 'promotion_not_available');
-    let row = tableRows(database, 'promotion_subscriptions').find(item => Number(item.promotion_id) === Number(promotion.id) && Number(item.client_id) === 1); const created = !row;
+    let row = tableRows(database, 'promotion_subscriptions').find(item => Number(item.promotion_id) === Number(promotion.id) && Number(item.client_id) === currentDemoClientId(database)); const created = !row;
     if (!row) {
-      row = addRow(database, 'promotion_subscriptions', { promotion_id: promotion.id, client_id: 1, status: 'interested' });
-      demoAudit(database, 'create', 'promotion_subscriptions', row.id, null, { client_id: 1, promotion_id: promotion.id, promotion_title: promotion.public_title, status: 'interested' });
-      tableRows(database, 'users').filter(user => user.role === 'owner' && Number(user.is_active ?? 1) === 1).forEach(owner => addRow(database, 'app_notifications', { client_id: 1, audience: 'owner', recipient_user_id: owner.id, type: 'client_promotion_interest', title: 'اشتراك في عرض الشركة', message: `سارة أحمد طلبت الاشتراك في عرض: ${promotion.public_title}.`, entity_type: 'promotion_subscriptions', entity_id: row.id, action_tab: 'offers', payload: { promotion_id: promotion.id, subscription_id: row.id }, severity: 'success', read_at: null, dismissed_at: null }));
+      row = addRow(database, 'promotion_subscriptions', { promotion_id: promotion.id, client_id: currentDemoClientId(database), status: 'interested' });
+      demoAudit(database, 'create', 'promotion_subscriptions', row.id, null, { client_id: currentDemoClientId(database), promotion_id: promotion.id, promotion_title: promotion.public_title, status: 'interested' });
+      tableRows(database, 'users').filter(user => user.role === 'owner' && Number(user.is_active ?? 1) === 1).forEach(owner => addRow(database, 'app_notifications', { client_id: currentDemoClientId(database), audience: 'owner', recipient_user_id: owner.id, type: 'client_promotion_interest', title: 'اشتراك في عرض الشركة', message: `${findById(database, 'clients', currentDemoClientId(database))?.name || 'عميل'} طلب الاشتراك في عرض: ${promotion.public_title}.`, entity_type: 'promotion_subscriptions', entity_id: row.id, action_tab: 'offers', payload: { promotion_id: promotion.id, subscription_id: row.id }, severity: 'success', read_at: null, dismissed_at: null }));
       writeDatabase(database);
     }
     return { id: row.id, promotion_id: promotion.id, subscribed: true, already_subscribed: !created };
@@ -2414,7 +2432,7 @@ const demoRequest = async (path, options = {}) => {
   if ((match = route.match(/^\/post-production\/(\d+)\/pickup-availability$/)) && (options.method || 'GET') === 'GET') {
     if (!['owner', 'admin', 'operations', 'client'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض فترة الاستلام.', 'forbidden');
     const job = findById(database, 'post_production_jobs', match[1]);
-    if (!job || demoRole === 'client' && (Number(job.client_id) !== 1 || Number(job.is_client_visible) !== 1 || Number(job.needs_review) !== 0)) throw formationDemoError('مهمة المونتاج غير موجودة أو غير متاحة.', 'post_production_not_found');
+    if (!job || demoRole === 'client' && (Number(job.client_id) !== currentDemoClientId(database) || Number(job.is_client_visible) !== 1 || Number(job.needs_review) !== 0)) throw formationDemoError('مهمة المونتاج غير موجودة أو غير متاحة.', 'post_production_not_found');
     const current = clone(database.pickup_availability_by_job?.[String(job.id)] || { revision: 0, expires_at: null, windows: [] }); const expired = current.expires_at && new Date(current.expires_at).getTime() <= Date.now(); return expired ? { revision: Number(current.revision || 0), expires_at: current.expires_at, windows: [], expired: true } : { ...current, expired: false };
   }
   if ((match = route.match(/^\/post-production\/(\d+)\/pickup-availability$/)) && options.method === 'PUT') {
@@ -2433,7 +2451,7 @@ const demoRequest = async (path, options = {}) => {
   }
 
   if (route === '/sync' && (options.method || 'GET') === 'GET') {
-    const cursor = Math.max(0, Number(url.searchParams.get('cursor') || 0)); const clientId = demoRole === 'client' ? 1 : null;
+    const cursor = Math.max(0, Number(url.searchParams.get('cursor') || 0)); const clientId = demoRole === 'client' ? currentDemoClientId(database) : null;
     const visible = tableRows(database, 'change_events').filter(event => !clientId || Number(event.client_id) === clientId || event.topic === 'services').sort((a, b) => Number(a.id) - Number(b.id));
     const highWatermark = Math.max(cursor, ...visible.map(event => Number(event.id) || 0));
     const events = visible.filter(event => Number(event.id) > cursor && Number(event.id) <= highWatermark).slice(0, 250);
@@ -2442,21 +2460,21 @@ const demoRequest = async (path, options = {}) => {
   }
   if (route === '/operational-alerts' && (options.method || 'GET') === 'GET') return { items: demoOperationalAlerts(database), generated_at: demoCairoNowIso() };
   if (route === '/app-notifications' && (options.method || 'GET') === 'GET') {
-    if (demoRole === 'client' && demoMaterializePackageLifecycleNotifications(database, 1) > 0) writeDatabase(database);
-    const status = url.searchParams.get('status') || 'all'; const type = url.searchParams.get('type') || ''; const channel = url.searchParams.get('channel') || ''; const cursor = Number(url.searchParams.get('cursor') || 0); const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit') || 20))); const clientId = demoRole === 'client' ? 1 : null;
+    if (demoRole === 'client' && demoMaterializePackageLifecycleNotifications(database, currentDemoClientId(database)) > 0) writeDatabase(database);
+    const status = url.searchParams.get('status') || 'all'; const type = url.searchParams.get('type') || ''; const channel = url.searchParams.get('channel') || ''; const cursor = Number(url.searchParams.get('cursor') || 0); const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit') || 20))); const clientId = demoRole === 'client' ? currentDemoClientId(database) : null;
     let visible = database.app_notifications.filter(item => !item.dismissed_at && (channel === 'client-actions' ? demoRole === 'owner' && item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId) : clientId ? item.audience === 'client' && Number(item.client_id) === clientId : item.audience === 'staff'));
     const unreadCount = visible.filter(item => !item.read_at).length; if (status === 'unread') visible = visible.filter(item => !item.read_at); if (type) visible = visible.filter(item => item.type === type); if (cursor) visible = visible.filter(item => Number(item.id) < cursor); visible.sort((a, b) => Number(b.id) - Number(a.id)); const items = visible.slice(0, limit).map(item => { const safe = {}; ['id', 'type', 'title', 'message', 'entity_type', 'entity_id', 'severity', 'action_tab', 'payload', 'read_at', 'created_at'].forEach(key => { if (Object.prototype.hasOwnProperty.call(item, key)) safe[key] = clone(item[key]); }); if (safe.action_tab === 'montage') safe.action_tab = 'videos'; return safe; });
     return { items, unread_count: unreadCount, next_cursor: visible.length > limit ? Number(items.at(-1)?.id || 0) || null : null };
   }
-  if ((match = route.match(/^\/app-notifications\/(\d+)\/read$/)) && options.method === 'POST') { const item = findById(database, 'app_notifications', match[1]); const scoped = item && !item.dismissed_at && (demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === 1 : item.audience === 'staff' || item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId)); if (scoped && !item.read_at) { item.read_at = nowText(); addRow(database, 'change_events', { client_id: item.client_id || null, topic: 'notifications', entity_type: 'app_notifications', entity_id: item.id, action: 'read' }); } writeDatabase(database); return { read: true, changed: Boolean(scoped) }; }
-  if (route === '/app-notifications/read-all' && options.method === 'POST') { const upToId = Number(body.up_to_id || 0); const channel = body.channel || ''; let changed = 0; database.app_notifications.forEach(item => { const scoped = !item.dismissed_at && !item.read_at && Number(item.id) <= upToId && (channel === 'client-actions' ? demoRole === 'owner' && item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId) : demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === 1 : item.audience === 'staff'); if (scoped) { item.read_at = nowText(); changed += 1; } }); if (changed) addRow(database, 'change_events', { client_id: demoRole === 'client' ? 1 : null, topic: 'notifications', entity_type: 'app_notifications', entity_id: upToId, action: 'read_all' }); writeDatabase(database); return { read: true, changed, up_to_id: upToId }; }
-  if ((match = route.match(/^\/app-notifications\/(\d+)\/dismiss$/)) && options.method === 'POST') { const item = findById(database, 'app_notifications', match[1]); const scoped = item && !item.dismissed_at && (demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === 1 : item.audience === 'staff' || item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId)); if (scoped) { item.dismissed_at = nowText(); item.read_at ||= item.dismissed_at; addRow(database, 'change_events', { client_id: item.client_id || null, topic: 'notifications', entity_type: 'app_notifications', entity_id: item.id, action: 'dismissed' }); } writeDatabase(database); return { dismissed: true, changed: Boolean(scoped) }; }
+  if ((match = route.match(/^\/app-notifications\/(\d+)\/read$/)) && options.method === 'POST') { const item = findById(database, 'app_notifications', match[1]); const scoped = item && !item.dismissed_at && (demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === currentDemoClientId(database) : item.audience === 'staff' || item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId)); if (scoped && !item.read_at) { item.read_at = nowText(); addRow(database, 'change_events', { client_id: item.client_id || null, topic: 'notifications', entity_type: 'app_notifications', entity_id: item.id, action: 'read' }); } writeDatabase(database); return { read: true, changed: Boolean(scoped) }; }
+  if (route === '/app-notifications/read-all' && options.method === 'POST') { const upToId = Number(body.up_to_id || 0); const channel = body.channel || ''; let changed = 0; database.app_notifications.forEach(item => { const scoped = !item.dismissed_at && !item.read_at && Number(item.id) <= upToId && (channel === 'client-actions' ? demoRole === 'owner' && item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId) : demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === currentDemoClientId(database) : item.audience === 'staff'); if (scoped) { item.read_at = nowText(); changed += 1; } }); if (changed) addRow(database, 'change_events', { client_id: demoRole === 'client' ? currentDemoClientId(database) : null, topic: 'notifications', entity_type: 'app_notifications', entity_id: upToId, action: 'read_all' }); writeDatabase(database); return { read: true, changed, up_to_id: upToId }; }
+  if ((match = route.match(/^\/app-notifications\/(\d+)\/dismiss$/)) && options.method === 'POST') { const item = findById(database, 'app_notifications', match[1]); const scoped = item && !item.dismissed_at && (demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === currentDemoClientId(database) : item.audience === 'staff' || item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId)); if (scoped) { item.dismissed_at = nowText(); item.read_at ||= item.dismissed_at; addRow(database, 'change_events', { client_id: item.client_id || null, topic: 'notifications', entity_type: 'app_notifications', entity_id: item.id, action: 'dismissed' }); } writeDatabase(database); return { dismissed: true, changed: Boolean(scoped) }; }
 
   return { demo: true };
 };
 
-export const activateDemoMode = (role = 'owner', userId = 1, organizationId = 1) => { demoMode = true; demoRole = role; demoUserId = Number(userId) || 1; demoOrganizationId = Number(organizationId) || 1; readDatabase(); };
-export const deactivateDemoMode = () => { demoMode = false; demoRole = 'owner'; demoUserId = 1; demoOrganizationId = 1; demoCsrfReady = false; demoCredentialSessionVersion = null; };
+export const activateDemoMode = (role = 'owner', userId = 1, organizationId = 1) => { demoRegistrationUserId = null; demoMode = true; demoRole = role; demoUserId = Number(userId) || 1; demoOrganizationId = Number(organizationId) || 1; readDatabase(); };
+export const deactivateDemoMode = () => { demoRegistrationUserId = null; demoMode = false; demoRole = 'owner'; demoUserId = 1; demoOrganizationId = 1; demoCsrfReady = false; demoCredentialSessionVersion = null; };
 export const isDemoModeActive = () => demoMode;
 export const resetDemoDatabase = () => { demoCsrfReady = false; demoCredentialSessionVersion = null; const database = createDemoDatabase(); writeDatabase(database); return database; };
 export const isDemoCredentialSessionCurrent = user => {
@@ -2470,8 +2488,9 @@ export const resumeDemoCredentialSession = user => {
 };
 export const authenticateDemoClientCredential = async (identifier, password) => {
   if (import.meta.env && !import.meta.env.DEV) return null;
-  const database = readDatabase(); const identity = String(identifier || '').trim().toLowerCase();
-  const client = database.clients.find(item => String(item.phone1 || '') === identity || String(item.email || '').toLowerCase() === identity);
+  const database = readDatabase(); const identity = normalizeLoginPhone(identifier);
+  if (!identity) return null;
+  const client = database.clients.find(item => normalizeLoginPhone(item.phone1) === identity);
   if (!client?.portal_account_exists || client.portal_enabled === false) return null;
   const supplied=await demoSecretHash(password);const forced=Boolean(client.must_change_password);const temporary=client.password_status==='temporary';const verifier=currentDemoVerifier(client);
   if(temporary&&(!client.temporary_expires_at||new Date(client.temporary_expires_at).getTime()<=Date.now()||verifier!==supplied))return null;
@@ -2480,11 +2499,24 @@ export const authenticateDemoClientCredential = async (identifier, password) => 
   return { id:'local-client',client_id:'local-client-preview',full_name:`${client.name} (معاينة محلية)`,email:client.email,phone:client.phone1,role:'client',permissions:['client_portal'],must_change_password:forced,password_status:client.password_status||'active',credential_version:Number(client.credential_version||0),credential_managed:true,is_local_preview:true };
 };
 
+export const authenticateDemoRegistration = async (identifier, password) => {
+  if (import.meta.env && !import.meta.env.DEV) return null;
+  const user = await authenticateRegistrationDemo(readDatabase(), identifier, password);
+  if (!user) return null;
+  activateDemoMode(user.role, user.id); demoRegistrationUserId = user.id; return user;
+};
+export const resumeDemoRegistrationSession = user => {
+  const current = registrationDemoUser(readDatabase(), user.id);
+  if (!current) return null;
+  activateDemoMode(current.role, current.id); demoRegistrationUserId = current.id; return current;
+};
 const listeners = new Set();
 export const demoClient = {
   from(table) { return new DemoQueryBuilder(table); },
   auth: {
-    async getSession() { demoCsrfReady = true; return { data: { session: null }, error: null }; },
+    async getGoogleConfig() { return { data: { enabled: false, client_id: null }, error: null }; },
+    async signInWithPassword() { return { data: { session: null, user: null }, error: Object.assign(new Error('رقم الموبايل أو كلمة المرور غير صحيحة.'), { code: 'invalid_credentials' }) }; },
+    async getSession() { demoCsrfReady = true; if (demoRegistrationUserId) { const user = registrationDemoUser(readDatabase(), demoRegistrationUserId); if (user) demoRole = user.role; return { data: { session: user ? { user } : null }, error: null }; } let preview = null; try { if (typeof sessionStorage !== 'undefined') preview = JSON.parse(sessionStorage.getItem('mt_agency_local_preview_session') || 'null'); } catch { /* invalid preview session */ } return { data: { session: preview?.is_local_preview && preview.role === demoRole ? { user: preview } : null }, error: null }; },
     async getUser() { return { data: { user: null }, error: null }; },
     onAuthStateChange(callback) { listeners.add(callback); return { data: { subscription: { unsubscribe: () => listeners.delete(callback) } } }; },
     async signOut() { deactivateDemoMode(); return { error: null }; },

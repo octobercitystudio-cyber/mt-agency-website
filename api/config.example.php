@@ -24,6 +24,25 @@ return [
         'private_runtime_dir' => dirname(__DIR__, 2) . '/private_runtime/pickup-availability',
         'max_upload_bytes' => 5 * 1024 * 1024,
     ],
+    // Google Identity Services web OAuth client ID (public identifier, no client secret).
+    'google_auth' => [
+        'enabled' => false,
+        'client_id' => getenv('MT_GOOGLE_CLIENT_ID') ?: '',
+        'certificate_cache_dir' => dirname(__DIR__, 2) . '/private_runtime/google-auth',
+    ],
+    'registration' => ['organization_id' => 1],
+    // SMTP account used only for customer email-verification codes.
+    // Keep passwords in server-only config.php or in the named environment variable.
+    'registration_mail' => [
+        'enabled' => false,
+        'host' => 'smtp.hostinger.com',
+        'port' => 465,
+        'encryption' => 'ssl',
+        'username' => 'your-company-mailbox@example.com',
+        'password_env' => 'MT_REGISTRATION_SMTP_PASSWORD',
+        'from_address' => 'your-company-mailbox@example.com',
+        'from_name' => 'Multi Task Agency',
+    ],
     'whatsapp' => [
         'enabled' => false,
         // Keep this configurable so upgrades do not require application-code changes.

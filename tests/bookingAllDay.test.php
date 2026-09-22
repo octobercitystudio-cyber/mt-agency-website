@@ -27,8 +27,9 @@ foreach([['00:00','01:00',60],['08:00','09:15',75],['23:00','24:00',60],['00:00'
 check(!validBusinessBooking('23:00','01:00'),'Overnight interval must use a separate date');
 check(!validBusinessBooking('08:00','08:15'),'Minimum duration lost');
 check(!validBusinessBooking('24:00','24:00'),'Invalid start accepted');
-check(validateClientBookingTimeGrid('00:00','24:00',1440)===1440,'Full-day client booking rejected');
-check(validateClientBookingTimeGrid('08:00','09:30',90)===90,'Morning client booking rejected');
+rejected(fn()=>validateClientBookingTimeGrid('00:00','24:00',1440),'client_booking_duration_out_of_range');
+check(validateClientBookingTimeGrid('12:00','22:00',600)===600,'Client opening hours rejected');
+rejected(fn()=>validateClientBookingTimeGrid('08:00','09:30',90),'client_booking_outside_hours');
 rejected(fn()=>validateClientBookingTimeGrid('08:15','09:15',60),'client_booking_start_grid_invalid');
 rejected(fn()=>validateClientBookingTimeGrid('23:00','01:00',120),'client_booking_after_midnight');
 rejected(fn()=>validateBookingSchedule($pdo,1,1,'2027-02-05','08:00','09:00',60,15,null,$package,false),'booking_outside_package_validity');

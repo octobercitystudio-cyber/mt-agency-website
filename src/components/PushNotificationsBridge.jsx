@@ -31,7 +31,7 @@ export default function PushNotificationsBridge() {
 
   useEffect(() => {
     let disposed = false;
-    if (!currentUser || !pushEnvironmentSupported()) {
+    if (!currentUser || currentUser.role === 'applicant' || !pushEnvironmentSupported()) {
       registrationRef.current = '';
       return undefined;
     }
@@ -60,7 +60,7 @@ export default function PushNotificationsBridge() {
   }, [currentPrincipal, currentUser]);
 
   useEffect(() => {
-    if (!currentUser || !('serviceWorker' in navigator)) return undefined;
+    if (!currentUser || currentUser.role === 'applicant' || !('serviceWorker' in navigator)) return undefined;
     const receiveBadge = event => {
       if (event.data?.type === 'MT_PUSH_BADGE') syncAppBadge(event.data.unread_count);
     };
@@ -88,6 +88,6 @@ export default function PushNotificationsBridge() {
     setVisible(false);
   };
 
-  if (!currentUser || !visible) return null;
+  if (!currentUser || currentUser.role === 'applicant' || !visible) return null;
   return <PushNotificationPrompt status={status} message={message} onEnable={enable} onDismiss={dismiss} />;
 }

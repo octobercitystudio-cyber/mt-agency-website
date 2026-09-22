@@ -47,7 +47,7 @@ export default function ERPProjects(){
     if(failed?.error)setError(safeUiError(failed.error,'تعذر تحميل مساحة المشروعات الآن.'));else{setProjects(results[0].data||[]);setTasks(results[1].data||[]);setContent(results[2].data||[]);setClients(results[3].data||[])}
     const extras=await Promise.all([dataClient.from('project_items').select('*').order('sort_order',{ascending:true}),dataClient.from('project_milestones').select('*').order('sort_order',{ascending:true}),dataClient.from('bookings').select('*').order('date',{ascending:true}),dataClient.from('invoices').select('*').order('issued_at',{ascending:false})]);
     if(!extras[0].error)setProjectItems(extras[0].data||[]);if(!extras[1].error)setMilestones(extras[1].data||[]);if(!extras[2].error)setBookings(extras[2].data||[]);if(!extras[3].error)setInvoices(extras[3].data||[]);
-    if(canManage){const result=await dataClient.request('/users/assignees',{method:'GET'});if(!result.error)setUsers((result.data||[]).filter(user=>user.is_active!==false&&user.role!=='client'));else setUsers(currentUser?[currentUser]:[]);}else setUsers(currentUser?[currentUser]:[]);
+    if(canManage){const result=await dataClient.request('/users/assignees',{method:'GET'});if(!result.error)setUsers((result.data||[]).filter(user=>user.is_active!==false&&!['client','applicant'].includes(user.role)));else setUsers(currentUser?[currentUser]:[]);}else setUsers(currentUser?[currentUser]:[]);
     setLoading(false);
   },[canManage,currentUser]);
   // Remote workspace data must be synchronized when the authenticated identity changes.

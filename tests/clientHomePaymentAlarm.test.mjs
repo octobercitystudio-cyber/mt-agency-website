@@ -53,20 +53,14 @@ test('due package items identify each package and its exact remaining balance', 
   ]);
 });
 
-test('home DOM and visual order place appointment first and alarm before packages', async () => {
-  const [overview, css] = await Promise.all([
-    load('src/pages/ClientDashboardOverview.jsx'),
-    load('src/pages/ClientDashboard.css'),
-  ]);
-  const appointment = overview.indexOf('className={`client-next-home');
+test('approved home keeps the next appointment first and payment alarm before the financial summary', async () => {
+  const overview = await load('src/pages/ClientDashboardOverview.jsx');
+  const appointment = overview.indexOf('glance-next-main');
   const alarm = overview.indexOf('<ClientPaymentDueAlarm');
-  const packages = overview.indexOf('<ClientPackageCards');
-  assert.ok(appointment >= 0 && appointment < alarm && alarm < packages);
-  assert.match(css, /\.client-next-home\{order:0\}/);
-  assert.match(css, /\.client-payment-due-alarm\{order:1/);
-  assert.match(css, /\.client-packages-home\{order:2\}/);
+  const finance = overview.indexOf('glance-finance-title');
+  assert.ok(appointment >= 0 && appointment < alarm && alarm < finance);
+  assert.match(overview, /<ClientPaymentDueAlarm packages=\{activePackages\} onNavigate=\{onNavigate\}/);
 });
-
 test('alarm uses the exact copy, live alert semantics, finance action, and reduced motion', async () => {
   const [overview, css, api, demo] = await Promise.all([
     load('src/pages/ClientDashboardOverview.jsx'),

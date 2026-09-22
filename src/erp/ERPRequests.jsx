@@ -1,3 +1,4 @@
+import { StudioBookingRequestCards } from '../components/StudioBookingRequests';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Banknote, CalendarClock, CalendarDays, Check, CheckCircle2, Eye, Focus, Inbox, LockKeyhole, RefreshCw, RotateCcw, Send, ShieldCheck, X, XCircle } from 'lucide-react';
@@ -5,6 +6,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import arCalendarLocale from '@fullcalendar/core/locales/ar';
+import { IntakeRequestCards } from '../components/IntakeRequests';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import { safeUiError } from '../lib/uiError';
@@ -41,8 +43,8 @@ export default function ERPRequests() {
   const canOperations = ['owner', 'admin', 'operations'].includes(role);
   const canFinance = ['owner', 'admin', 'finance'].includes(role);
   const isOwner = role === 'owner';
-  const [data, setData] = useState({ bookings: [], bookingBlocks: [], reschedules: [], proofs: [], clients: [], packages: [] });
-  const [activeTab, setActiveTab] = useState(canOperations ? 'bookings' : 'proofs');
+  const [data, setData] = useState({ bookings: [], bookingBlocks: [], reschedules: [], proofs: [], clients: [], packages: [], intakes: [], intakePending: 0, studio: [], studioPending: 0 });
+  const [activeTab, setActiveTab] = useState('studio');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [decision, setDecision] = useState(emptyDecision);
@@ -63,14 +65,16 @@ export default function ERPRequests() {
       canOperations ? dataClient.request('/booking-blocks', { method: 'GET' }) : Promise.resolve({ data: [] }),
       canOperations ? dataClient.from('client_packages').select('id,name,billing_unit') : Promise.resolve({ data: [] }),
     ];
-    const [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult] = await Promise.all(queries);
-    const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult].find(result => result.error);
+    queries.push(canOperations ? dataClient.request('/intake-requests') : Promise.resolve({ data: { items: [], pending_count: 0 } }));
+    queries.push(dataClient.request('/studio-booking-requests'));
+    const [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult, intakeResult, studioResult] = await Promise.all(queries);
+    const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult, intakeResult, studioResult].find(result => result.error);
     if (failed?.error) {
       setError(safeUiError(failed.error, 'تعذر تحميل بعض الطلبات الآن. أعد المحاولة بعد قليل.'));
       if (showLoading) setLoading(false);
       return null;
     }
-    const nextData = { bookings: bookingsResult.data || [], bookingBlocks: blocksResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [], packages: packagesResult.data || [] };
+    const nextData = { studio: studioResult.data?.items || [], studioPending: Number(studioResult.data?.pending_count || 0), intakes: intakeResult.data?.items || [], intakePending: Number(intakeResult.data?.pending_count || 0), bookings: bookingsResult.data || [], bookingBlocks: blocksResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [], packages: packagesResult.data || [] };
     setData(nextData);
     if (showLoading) setLoading(false);
     return nextData;
@@ -95,16 +99,18 @@ export default function ERPRequests() {
       blocks: source.bookingBlocks,
     });
   };
-  const counts = { bookings: pendingBookings.length, reschedules: data.reschedules.length, cancellations: cancellations.length, proofs: data.proofs.length };
+  const counts = { studio: data.studioPending, intakes: data.intakePending, bookings: pendingBookings.length, reschedules: data.reschedules.length, cancellations: cancellations.length, proofs: data.proofs.length };
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
   const tabs = useMemo(() => [
+    { key: 'studio', label: 'طلبات التصوير', icon: Inbox },
     ...(canOperations ? [
+      ...(data.intakes.length ? [{ key: 'intakes', label: 'تسجيلات سابقة', icon: Inbox }] : []),
       { key: 'bookings', label: 'حجوزات جديدة', icon: CalendarDays },
       { key: 'reschedules', label: 'تغيير المواعيد', icon: RotateCcw },
       { key: 'cancellations', label: 'طلبات الإلغاء', icon: XCircle },
     ] : []),
     ...(canFinance ? [{ key: 'proofs', label: 'إثباتات التحويل', icon: Banknote }] : []),
-  ], [canFinance, canOperations]);
+  ], [canFinance, canOperations, data.intakes.length]);
 
   const focusRequestOnCalendar = (kind, item, source = data) => {
     const original = kind === 'reschedule' ? source.bookings.find(booking => Number(booking.id) === Number(item.booking_id)) : item;
@@ -229,7 +235,7 @@ export default function ERPRequests() {
       actions={<button onClick={() => fetchRequests(true)} disabled={loading}><RefreshCw size={17} className={loading ? 'requests-spin' : ''}/> تحديث</button>}
     />
 
-    <section className="requests-summary" aria-label="ملخص الطلبات">
+    <section className="requests-summary" aria-label="ملخص الطلبات المعلقة" style={{ '--requests-summary-columns': tabs.length + 1 }}>
       <article className="total"><Inbox/><div><span>إجمالي قيد المراجعة</span><strong>{total}</strong></div></article>
       {tabs.map(({ key, label, icon: Icon }) => <button key={key} onClick={() => setActiveTab(key)} className={activeTab === key ? 'active' : ''}><Icon/><div><span>{label}</span><strong>{counts[key]}</strong></div></button>)}
     </section>
@@ -282,6 +288,8 @@ export default function ERPRequests() {
 
     <main className="requests-workspace">
       {loading ? <LoadingState/> : <>
+        {activeTab === 'studio' && <><p className="requests-intake-caption"><strong>{data.studio.filter(item => item.package_status === 'pending' || item.bookings.some(row => row.status === 'pending')).length} طلب تصوير بانتظار المراجعة</strong><span>العداد يجمع قرارات الباقات والمواعيد المعلقة؛ كل موعد له قرار مستقل.</span></p><StudioBookingRequestCards items={data.studio} role={role} onChanged={() => fetchRequests(false)}/></>}
+        {activeTab === 'intakes' && <><p className="requests-intake-caption"><strong>{data.intakes.filter(item => ['registration', 'package', 'booking'].some(stage => item[`${stage}_status`] === 'pending')).length} عميل بانتظار المراجعة</strong><span>كل عميل في بطاقة واحدة. الأرقام في العدادات تمثل طلبات التسجيل والباقة والموعد المعلقة، وكل طلب يُحسب مرة واحدة.</span></p><IntakeRequestCards items={data.intakes} admin onChanged={() => fetchRequests(false)}/></>}
         {activeTab === 'bookings' && <RequestGrid empty={!pendingBookings.length} emptyLabel="لا توجد حجوزات جديدة بانتظار التأكيد.">{pendingBookings.map(item => { const availability = requestAvailability('booking', item); const blocked = availability.status !== 'available'; return <RequestCard key={item.id} tone="amber" icon={CalendarDays} title={item.client_name} badge="بانتظار التأكيد" meta={[bookingPackageName(item), item.service, formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, `المدة المطلوبة: ${formatDurationMinutes(item.duration_minutes || 0)}`]} note={item.notes} onFocus={() => focusRequestOnCalendar('booking', item)}><button className="calendar-focus" onClick={() => focusRequestOnCalendar('booking', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidateForRequest('booking', item)} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `booking-${item.id}`} title={blocked ? 'لا يمكن التأكيد قبل اختيار موعد متاح' : ''} onClick={() => openDecision('booking', 'confirm', item)}><Check/> {checkingId === `booking-${item.id}` ? 'جارٍ التحقق...' : 'تأكيد'}</button><button className="alternative" onClick={() => navigate('/erp/bookings')}><CalendarClock/> موعد بديل</button><button className="reject" onClick={() => openDecision('booking', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
 
         {activeTab === 'reschedules' && <RequestGrid empty={!data.reschedules.length} emptyLabel="لا توجد طلبات تغيير موعد.">{data.reschedules.map(item => { const old = bookingById(item.booking_id); const availability = requestAvailability('reschedule', item); const candidate = candidateForRequest('reschedule', item, old); const blocked = availability.status !== 'available'; return <RequestCard key={item.id} tone="blue" icon={RotateCcw} title={clientName(item.client_id)} badge="طلب تغيير" meta={[]} note={item.reason} onFocus={() => focusRequestOnCalendar('reschedule', item)}><div className="requests-time-change"><div><span>الموعد الحالي</span><strong>{formatBookingDate(old?.date)}</strong><small>{time(old?.start_time)} – {time(old?.end_time)}</small></div><i>←</i><div><span>الموعد المقترح</span><strong>{formatBookingDate(item.proposed_date)}</strong><small>{time(item.proposed_start_time)} – {time(item.proposed_end_time)}</small></div></div><button className="calendar-focus" onClick={() => focusRequestOnCalendar('reschedule', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidate} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `reschedule-${item.id}`} title={blocked ? 'لا يمكن قبول موعد متعارض' : ''} onClick={() => openDecision('reschedule', 'approve', item)}><Check/> {checkingId === `reschedule-${item.id}` ? 'جارٍ التحقق...' : 'قبول التغيير'}</button><button className="reject" onClick={() => openDecision('reschedule', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}

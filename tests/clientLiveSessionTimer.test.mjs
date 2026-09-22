@@ -122,11 +122,11 @@ test('shared client timer renders HH:MM:SS accessibly and stays intact on small 
   assert.match(styles, /@media\(max-width:360px\)[\s\S]*client-appointment-live__timer\{[^}]*grid-column:1/);
 });
 
-test('client home leads with the next appointment and transforms that appointment card in place', async () => {
+test('client home transforms the actual next appointment into its live session in place', async () => {
   const overview = await load('src/pages/ClientDashboardOverview.jsx');
-  assert.ok(overview.indexOf('className={`client-next-home') < overview.indexOf('<ClientPackageCards'));
-  assert.match(overview, /activeSession \? 'تم بدء جلسة التصوير' : 'موعد التصوير القادم'/);
-  assert.match(overview, /activeSession \? <span className="client-status client-status--live">جاري التصوير<\/span>/);
+  assert.ok(overview.indexOf('glance-next-main') < overview.indexOf('glance-package-band'));
+  assert.match(overview, /activeSession \? 'جلسة التصوير جارية الآن' : 'موعد التصوير القادم'/);
+  assert.match(overview, /activeSession \? 'جاري التصوير' : nextStatus.label/);
+  assert.match(overview, /sessionByBookingId\?\.get\(Number\(nextBooking.id\)\)/);
   assert.equal((overview.match(/<ClientAppointmentLiveStatus/g) || []).length, 1);
-  assert.equal((overview.match(/\{!activeSession && <button/g) || []).length, 2);
 });

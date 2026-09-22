@@ -23,7 +23,7 @@ test('client availability demo is private, role scoped, bounded, and keeps pendi
   assert.deepEqual(Object.keys(result.data).sort(), ['days', 'duration_minutes', 'package', 'server_time']);
   assert.deepEqual(Object.keys(result.data.package).sort(), ['available_quantity', 'billing_unit', 'booking_increment_minutes', 'expires_at', 'id', 'minimum_booking_minutes', 'name', 'starts_at']);
   assert.ok(result.data.days.length === 21);
-  assert.ok(result.data.days.some(day => day.available && new Date(`${day.date}T12:00:00`).getDay() === 5), 'Friday must be bookable like every other day');
+  assert.ok(result.data.days.filter(day => new Date(`${day.date}T12:00:00`).getDay() === 5).every(day => !day.available && !day.slots.length), 'Friday is closed for clients');
   for (const day of result.data.days) {
     assert.deepEqual(Object.keys(day).sort(), ['available', 'date', 'slots']);
     for (const slot of day.slots) {
@@ -198,16 +198,16 @@ test('production availability route and guided UI enforce the privacy contract w
 test('manual client time resolves one exact connected slot and supports opening and closing boundaries', () => {
   const slots = [
     { start_time: '12:00', end_time: '12:30', resource_id: 1 },
-    { start_time: '23:00', end_time: '24:00', resource_id: 2 },
+    { start_time: '21:00', end_time: '22:00', resource_id: 2 },
     { start_time: '13:00', end_time: '13:30', resource_id: 1 },
     { start_time: '13:30', end_time: '14:00', resource_id: 1 },
   ];
   assert.equal(resolveClientBookingTime({ startTime: '12:00', durationMinutes: 30, slots }).slot?.resource_id, 1);
-  assert.equal(resolveClientBookingTime({ startTime: '23:00', durationMinutes: 60, slots }).endTime, '24:00');
-  assert.equal(resolveClientBookingTime({ startTime: '23:00', durationMinutes: 60, slots }).slot?.resource_id, 2);
+  assert.equal(resolveClientBookingTime({ startTime: '21:00', durationMinutes: 60, slots }).endTime, '22:00');
+  assert.equal(resolveClientBookingTime({ startTime: '21:00', durationMinutes: 60, slots }).slot?.resource_id, 2);
   assert.equal(resolveClientBookingTime({ startTime: '13:00', durationMinutes: 60, slots }).errorCode, 'unavailable', 'separate half-hour suggestions are never composed');
   assert.equal(resolveClientBookingTime({ startTime: '12:30', durationMinutes: 30, slots }).errorCode, 'start_grid_invalid');
-  assert.equal(resolveClientBookingTime({ startTime: '23:00', durationMinutes: 90, slots }).errorCode, 'after_midnight');
+  assert.equal(resolveClientBookingTime({ startTime: '21:00', durationMinutes: 90, slots }).errorCode, 'outside_hours');
 });
 
 test('duration keeps real typing drafts and commits minutes to zero or thirty', () => {
@@ -258,6 +258,6 @@ test('demo client request independently enforces the whole-hour and half-hour du
   await reject({ duration_minutes: 15 }, 'client_booking_duration_out_of_range');
   await reject({ duration_minutes: 45 }, 'client_booking_duration_increment_invalid');
   await reject({ duration_minutes: 60 }, 'client_booking_duration_mismatch');
-  await reject({ start_time: '23:00', end_time: '01:00', duration_minutes: 120 }, 'client_booking_after_midnight');
+  await reject({ start_time: '23:00', end_time: '01:00', duration_minutes: 120 }, 'client_booking_outside_hours');
   deactivateDemoMode();
 });

@@ -54,12 +54,14 @@ const ERPLayout = () => {
       queries.push(dataClient.from('reschedule_requests').select('id').eq('status', 'pending'));
     }
     if (canSeeFinanceRequests) queries.push(dataClient.from('payment_proofs').select('id').eq('status', 'pending'));
+    if (canSeeOperationsRequests) queries.push(dataClient.request('/intake-requests'));
+    queries.push(dataClient.request('/studio-booking-requests'));
     const results = await Promise.all(queries);
     let total = 0;
     results.forEach((result, index) => {
       if (!result.data) return;
       if (canSeeOperationsRequests && index === 0) total += result.data.filter(item => ['pending', 'cancel_requested', 'late_cancel_requested'].includes(item.status)).length;
-      else total += result.data.length;
+      else total += Array.isArray(result.data) ? result.data.length : Number(result.data.pending_count || 0);
     });
     setRequestsCount(total);
   }, [canOpenRequests, canSeeFinanceRequests, canSeeOperationsRequests]);

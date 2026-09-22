@@ -1,0 +1,135 @@
+<?php
+declare(strict_types=1);
+date_default_timezone_set('Africa/Cairo');
+final class AuthFailure extends RuntimeException { public function __construct(public string $apiCode, public int $status) { parent::__construct($apiCode); } }
+final class AuthResponse extends RuntimeException { public function __construct(public array $data) { parent::__construct('response'); } }
+function fail(string $message,int $status=400,string $code='error'): never { throw new AuthFailure($code,$status); }
+function respond(array $data,int $status=200): never { throw new AuthResponse($data); }
+function body(): array { return $GLOBALS['payload'] ?? []; }
+function csrfCookieName(array $config): string { return 'mt_csrf'; }
+function sessionCookieName(array $config): string { return 'mt_session'; }
+function isSecureRequest(array $config): bool { return false; }
+function requestIpHash(): string { return 'test-ip'; }
+function requestUserAgentHash(): string { return 'test-agent'; }
+function enforceLoginRateLimit(PDO $pdo,string $identity): void { if (!empty($GLOBALS['rateBlocked'])) fail('',429,'login_temporarily_blocked'); }
+function recordLoginFailure(PDO $pdo,string $identity,?array $user=null): void { $GLOBALS['failures'] = ($GLOBALS['failures'] ?? 0)+1; }
+function clearAccountLoginLimit(PDO $pdo,string $identity): void {}
+function registrationRateLimit(...$args): void {}
+function setSessionCookie(...$args): void { $GLOBALS['sessionCookies'] = ($GLOBALS['sessionCookies'] ?? 0)+1; }
+function setCsrfCookie(...$args): string { return 'csrf'; }
+function attendanceCheckIn(...$args): void {}
+function audit(...$args): void {}
+function schemaTableColumns(PDO $pdo,string $table): array { return array_column($pdo->query('PRAGMA table_info('.$table.')')->fetchAll(),'name'); }
+function schemaTableExists(PDO $pdo,string $table): bool { $q=$pdo->prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?");$q->execute([$table]);return (bool)$q->fetchColumn(); }
+$index=file_get_contents(__DIR__.'/../api/index.php');
+foreach(['normalizePhone','loginPhoneCandidates','loginIdentity','authorizationRole','credentialSafeUser','issueLoginSession','clearAuthCookies','insertSystemBackupRow'] as $name){if(!preg_match('/^function '.preg_quote($name,'/').'\b.*?^\}/ms',$index,$m))throw new RuntimeException('Missing '.$name);eval($m[0]);}
+require __DIR__.'/../api/client_contacts.php';
+require __DIR__.'/../api/auth_identity.php';
+final class AuthPDO extends PDO {
+ public function __construct(){parent::__construct('sqlite::memory:');$this->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);}
+ private function sql(string $sql): string { return str_ireplace([' FOR UPDATE','NOW()','DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)'],['','CURRENT_TIMESTAMP',"datetime('now','-1 day')"],$sql); }
+ public function prepare(string $query,array $options=[]): PDOStatement|false{return parent::prepare($this->sql($query),$options);}
+ public function exec(string $statement): int|false{return parent::exec($this->sql($statement));}
+}
+$pdo=new AuthPDO();
+$pdo->exec(<<<'SQL'
+CREATE TABLE users(id INTEGER PRIMARY KEY,organization_id INTEGER,client_id INTEGER,full_name TEXT,email TEXT,phone TEXT,password_hash TEXT,role TEXT,is_active INTEGER DEFAULT 1,password_status TEXT DEFAULT 'active',must_change_password INTEGER DEFAULT 0,credential_version INTEGER DEFAULT 1,temporary_expires_at TEXT,last_login_at TEXT);
+CREATE TABLE auth_google_identities(id INTEGER PRIMARY KEY,organization_id INTEGER,user_id INTEGER UNIQUE,google_sub TEXT UNIQUE);
+CREATE TABLE auth_google_challenges(id INTEGER PRIMARY KEY,challenge_hash TEXT UNIQUE,nonce_hash TEXT,browser_hash TEXT,expires_at TEXT,consumed_at TEXT,google_sub TEXT,link_hash TEXT UNIQUE,link_expires_at TEXT,linked_at TEXT);
+CREATE TABLE api_sessions(id INTEGER PRIMARY KEY,user_id INTEGER,credential_version INTEGER,token_hash TEXT,ip_hash TEXT,user_agent_hash TEXT,expires_at TEXT,last_used_at TEXT);
+CREATE TABLE auth_security_events(id INTEGER PRIMARY KEY,organization_id INTEGER,user_id INTEGER,event_type TEXT,identifier_hash TEXT,ip_hash TEXT,user_agent_hash TEXT);
+SQL);
+$checks=0;
+function check(bool $ok,string $message):void{global $checks;if(!$ok)throw new RuntimeException($message);$checks++;}
+function reject(string $code,callable $run):void{try{$run();throw new RuntimeException('Expected '.$code);}catch(AuthFailure $e){check($e->apiCode===$code,'Expected '.$code.' got '.$e->apiCode);}}
+function callGoogle(PDO $pdo,array $config,string $path,array $payload=[],string $method='POST'):array{$GLOBALS['payload']=$payload;try{handleGoogleAuth($pdo,$config,$path,$method);}catch(AuthResponse $response){return $response->data;}throw new RuntimeException('No response');}
+foreach(['01012345678','+20 10 1234 5678','00201012345678','١٠١٢٣٤٥٦٧٨','۰۱۰۱۲۳۴۵۶۷۸','(010) 1234-5678'] as $phone)check(loginMobile($phone)==='01012345678','Mobile normalization '.$phone);
+foreach(['customer@example.com','abc01012345678','01012345678x','++201012345678','123','',null,1234567890,[]] as $invalid)check(loginMobile($invalid)==='','Invalid identifier rejected');
+check(loginPhoneCandidates('customer@example.com')===[],'No email fallback');
+check(in_array('201012345678',loginPhoneCandidates('01012345678'),true),'Legacy international mobile lookup');
+$hash=password_hash('ClientSecret123',PASSWORD_DEFAULT);
+$insert=$pdo->prepare('INSERT INTO users(id,organization_id,client_id,full_name,email,phone,password_hash,role,is_active) VALUES(?,?,?,?,?,?,?,?,?)');
+$insert->execute([1,1,10,'Client','client@example.test','201012345678',$hash,'owner',1]);
+$insert->execute([2,1,null,'Owner','owner@example.test','01000000002',$hash,'owner',1]);
+$insert->execute([3,1,30,'Disabled','disabled@example.test','01000000003',$hash,'client',0]);
+$client=authenticatePhonePassword($pdo,'٠١٠١٢٣٤٥٦٧٨','ClientSecret123');
+check((int)$client['id']===1 && $client['role']==='client','Primary normalized phone authenticates with client-role boundary');
+reject('validation_error',fn()=>authenticatePhonePassword($pdo,'client@example.test','ClientSecret123'));
+reject('invalid_credentials',fn()=>authenticatePhonePassword($pdo,'01012345678','incorrect'));
+reject('account_disabled',fn()=>authenticatePhonePassword($pdo,'01000000003','ClientSecret123'));
+$GLOBALS['rateBlocked']=true;reject('login_temporarily_blocked',fn()=>authenticatePhonePassword($pdo,'01012345678','ClientSecret123'));$GLOBALS['rateBlocked']=false;
+$insert->execute([4,1,null,'Duplicate','duplicate@example.test','01012345678',$hash,'staff',1]);
+reject('invalid_credentials',fn()=>authenticatePhonePassword($pdo,'01012345678','ClientSecret123'));
+$pdo->exec('DELETE FROM users WHERE id=4');
+reject('phone_already_registered',fn()=>assertLoginMobileAvailable($pdo,'01012345678'));
+assertLoginMobileAvailable($pdo,'01012345678',1);check(true,'Same user may retain own canonical mobile');
+$pdo->exec("UPDATE users SET phone='+20 10 1234 5678' WHERE id=1");
+reject('phone_already_registered',fn()=>assertLoginMobileAvailable($pdo,'01012345678'));
+check(findPhoneAccount($pdo,'٠١٠١٢٣٤٥٦٧٨')['id']===1,'Formatted legacy phone resolves same user');
+$pdo->exec("UPDATE users SET phone='201012345678' WHERE id=1");
+check(googleAuthConfiguration([])===['enabled'=>false,'client_id'=>null],'Unconfigured Google fails closed');
+$config=['google_auth'=>['enabled'=>true,'client_id'=>'123456-test.apps.googleusercontent.com']];
+check(googleAuthConfiguration($config)['enabled'],'Configured web client enabled');
+reject('google_auth_not_configured',fn()=>callGoogle($pdo,[],'/auth/google/challenge'));
+check(callGoogle($pdo,[],'/auth/google/config',[],'GET')['enabled']===false,'Disabled public config readable');
+$_COOKIE['mt_csrf']=str_repeat('c',64);$_SERVER['HTTP_X_CSRF_TOKEN']='wrong';
+reject('csrf_failed',fn()=>callGoogle($pdo,$config,'/auth/google/challenge'));
+$_SERVER['HTTP_X_CSRF_TOKEN']=$_COOKIE['mt_csrf'];
+$directory=sys_get_temp_dir().'/mta-google-test-'.bin2hex(random_bytes(8));mkdir($directory,0700);
+$opensslConfig=$directory.'/openssl.cnf';file_put_contents($opensslConfig,"[req]\ndistinguished_name=req_distinguished_name\n[req_distinguished_name]\n");
+$key=openssl_pkey_new(['private_key_bits'=>2048,'private_key_type'=>OPENSSL_KEYTYPE_RSA,'config'=>$opensslConfig]);if(!$key)throw new RuntimeException('RSA fixture generation failed');
+$public=openssl_pkey_get_details($key)['key'];
+file_put_contents($directory.'/google-certificates.json',json_encode(['expires_at'=>time()+3600,'keys'=>['test-key'=>$public]]));
+$config['google_auth']['certificate_cache_dir']=$directory;
+function tokenFor(array $claims,array $headers=[]):string{global $key;$b64=fn($text)=>rtrim(strtr(base64_encode($text),'+/','-_'),'=');$signed=$b64(json_encode(array_replace(['alg'=>'RS256','kid'=>'test-key','typ'=>'JWT'],$headers))).'.'.$b64(json_encode($claims));openssl_sign($signed,$signature,$key,OPENSSL_ALGO_SHA256);return $signed.'.'.$b64($signature);}
+function claimsFor(string $nonce,string $subject='google-123'):array{return ['iss'=>'https://accounts.google.com','aud'=>'123456-test.apps.googleusercontent.com','sub'=>$subject,'iat'=>time()-1,'exp'=>time()+300,'nonce'=>$nonce,'email'=>'owner@example.test','email_verified'=>true];}
+try {
+ $challenge=callGoogle($pdo,$config,'/auth/google/challenge');$claims=claimsFor($challenge['nonce']);
+ check(strlen($challenge['challenge_id'])===64 && strlen($challenge['nonce'])===64,'Random nonce challenge returned');
+ $keys=['test-key'=>$public];$nonceHash=hash('sha256',$challenge['nonce']);
+ check(verifyGoogleCredential(tokenFor($claims),$config['google_auth']['client_id'],$nonceHash,$keys)['sub']==='google-123','Real RS256 signature verified');
+ foreach([['iss'=>'evil.test'],['aud'=>'other.apps.googleusercontent.com'],['exp'=>time()-30],['iat'=>time()+1000],['nonce'=>'wrong'],['sub'=>''],['aud'=>[$config['google_auth']['client_id'],'other'] ],['azp'=>'wrong']] as $changes)reject('invalid_google_credential',fn()=>verifyGoogleCredential(tokenFor(array_replace($claims,$changes)),$config['google_auth']['client_id'],$nonceHash,$keys));
+ reject('invalid_google_credential',fn()=>verifyGoogleCredential(tokenFor($claims,['alg'=>'HS256']),$config['google_auth']['client_id'],$nonceHash,$keys));
+ reject('invalid_google_credential',fn()=>verifyGoogleCredential(tokenFor($claims,['kid'=>'unknown']),$config['google_auth']['client_id'],$nonceHash,$keys));
+ $tampered=tokenFor($claims);$parts=explode('.',$tampered);$parts[2]=str_repeat('A',strlen($parts[2]));
+ reject('invalid_google_credential',fn()=>verifyGoogleCredential(implode('.',$parts),$config['google_auth']['client_id'],$nonceHash,$keys));
+ $_COOKIE['mt_csrf']=$_SERVER['HTTP_X_CSRF_TOKEN']=str_repeat('d',64);
+ reject('google_challenge_expired',fn()=>callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor($claims),'challenge_id'=>$challenge['challenge_id']]));
+ $_COOKIE['mt_csrf']=$_SERVER['HTTP_X_CSRF_TOKEN']=str_repeat('c',64);
+ $pending=callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor($claims),'challenge_id'=>$challenge['challenge_id']]);
+ check($pending['link_required'] && empty($GLOBALS['sessionCookies']),'Unlinked identity yields pending link, never email auto-link or session');
+ check((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn()===3,'Google does not create duplicate users');
+ reject('google_challenge_expired',fn()=>callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor($claims),'challenge_id'=>$challenge['challenge_id']]));
+ reject('invalid_credentials',fn()=>callGoogle($pdo,$config,'/auth/google/link',['link_token'=>$pending['link_token'],'phone'=>'01012345678','password'=>'wrong']));
+ check((int)$pdo->query('SELECT COUNT(*) FROM auth_google_identities')->fetchColumn()===0,'Wrong password cannot bind');
+ $linked=callGoogle($pdo,$config,'/auth/google/link',['link_token'=>$pending['link_token'],'phone'=>'+201012345678','password'=>'ClientSecret123']);
+ check($linked['user']['id']===1 && $linked['user']['role']==='client' && isset($linked['session']),'Explicit mobile proof links client and uses normal role-safe session');
+ check(!isset($linked['user']['password_hash']),'Credential hash never returned');
+ reject('google_challenge_expired',fn()=>callGoogle($pdo,$config,'/auth/google/link',['link_token'=>$pending['link_token'],'phone'=>'01012345678','password'=>'ClientSecret123']));
+ $again=callGoogle($pdo,$config,'/auth/google/challenge');
+ $signed=callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor(claimsFor($again['nonce'])),'challenge_id'=>$again['challenge_id']]);
+ check($signed['user']['id']===1 && !$signed['user']['must_change_password'],'Returning Google subject enters same client account');
+ $pdo->exec('UPDATE users SET is_active=0 WHERE id=1');$blocked=callGoogle($pdo,$config,'/auth/google/challenge');
+ reject('account_disabled',fn()=>callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor(claimsFor($blocked['nonce'])),'challenge_id'=>$blocked['challenge_id']]));
+ $pdo->exec('UPDATE users SET is_active=1,must_change_password=1 WHERE id=1');$forced=callGoogle($pdo,$config,'/auth/google/challenge');
+ $forceResult=callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor(claimsFor($forced['nonce'])),'challenge_id'=>$forced['challenge_id']]);
+ check($forceResult['user']['must_change_password'],'Google preserves forced password change');
+ $pdo->exec('UPDATE users SET must_change_password=0 WHERE id=1');
+ $other=callGoogle($pdo,$config,'/auth/google/challenge');$otherPending=callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor(claimsFor($other['nonce'],'google-other')),'challenge_id'=>$other['challenge_id']]);
+ reject('google_already_linked',fn()=>callGoogle($pdo,$config,'/auth/google/link',['link_token'=>$otherPending['link_token'],'phone'=>'01012345678','password'=>'ClientSecret123']));
+ check((int)$pdo->query('SELECT COUNT(*) FROM auth_google_identities')->fetchColumn()===1,'Conflicting Google does not replace prior link');
+ $expired=callGoogle($pdo,$config,'/auth/google/challenge');$pdo->exec("UPDATE auth_google_challenges SET expires_at='2000-01-01 00:00:00' WHERE consumed_at IS NULL");
+ reject('google_challenge_expired',fn()=>callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor(claimsFor($expired['nonce'])),'challenge_id'=>$expired['challenge_id']]));
+ check(!insertSystemBackupRow($pdo,'auth_google_identities',['id'=>55,'organization_id'=>1,'user_id'=>1,'google_sub'=>'old-owner-google'],1,1),'Restore cannot replace preserved owner Google identity');
+ check(insertSystemBackupRow($pdo,'auth_google_identities',['id'=>1,'organization_id'=>1,'user_id'=>2,'google_sub'=>'restored-other-user'],1,1),'Restore reallocates identity row IDs around preserved owner');
+ check($pdo->query("SELECT google_sub FROM auth_google_identities WHERE user_id=1")->fetchColumn()==='google-123','Restoration preserves current owner subject');
+ date_default_timezone_set('UTC');
+ $utc=callGoogle($pdo,$config,'/auth/google/challenge');
+ $utcPending=callGoogle($pdo,$config,'/auth/google/login',['credential'=>tokenFor(claimsFor($utc['nonce'],'utc-check')),'challenge_id'=>$utc['challenge_id']]);
+ check($utcPending['link_required'],'Challenge TTL is independent of PHP default timezone');
+ date_default_timezone_set('Africa/Cairo');
+ $_COOKIE['mt_session']='expired';$_COOKIE['__Host-mt_session']='expired';$_COOKIE['__Host-mt_csrf']='stale';
+ clearAuthCookies([]);
+ check(!isset($_COOKIE['mt_csrf']) && !isset($_COOKIE['mt_session']),'Expired session removes incoming CSRF so auth/session bootstraps fresh cookie');
+ echo "PASS $checks Google/mobile authentication checks\n";
+} finally { unlink($directory.'/google-certificates.json');unlink($opensslConfig);rmdir($directory); }

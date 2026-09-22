@@ -79,7 +79,7 @@ export default function EmployeeFinanceAccounts({ month, canManage }) {
 
   useEffect(() => { const timer = window.setTimeout(load, 0); return () => window.clearTimeout(timer); }, [load]);
   if (!canManage) return null;
-  const employeeAccounts = state.accounts.filter(account => !['owner', 'client'].includes(account.user?.role));
+  const employeeAccounts = state.accounts.filter(account => !['owner', 'client', 'applicant'].includes(account.user?.role));
 
   return <section className="employee-finance-section" aria-labelledby="employee-finance-title">
     <header className="employee-finance-heading"><div><span>تسوية الموظفين</span><h2 id="employee-finance-title">حسابات الموظفين</h2><p>كل مصروف دفعه الموظف، أو سلفة حصل عليها، أو سداد يظهر بالقيد نفسه ورقمه في الحسابات.</p></div><WalletCards aria-hidden="true" /></header>

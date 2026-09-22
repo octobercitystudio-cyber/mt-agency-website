@@ -2,6 +2,11 @@
 declare(strict_types=1);
 require_once __DIR__ . '/client_contacts.php';
 require_once __DIR__ . '/payment_methods.php';
+require_once __DIR__ . '/client_booking_policy.php';
+require_once __DIR__ . '/client_registration.php';
+require_once __DIR__ . '/auth_identity.php';
+require_once __DIR__ . '/payment_proof_review.php';
+require_once __DIR__ . '/studio_booking_requests.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -109,12 +114,13 @@ function validateClientBookingTimeGrid(string $start, string $end, mixed $rawDur
     $durationText=trim((string)$rawDuration);
     if($durationText===''||!ctype_digit($durationText))fail('أرسل مدة الحجز بالدقائق.',422,'client_booking_duration_required');
     $duration=(int)$durationText;
-    if($duration<30||$duration>1440)fail('مدة حجز العميل يجب أن تكون بين 30 دقيقة و24 ساعة.',422,'client_booking_duration_out_of_range');
+    if($duration<30||$duration>600)fail('مدة حجز العميل يجب أن تكون بين 30 دقيقة و10 ساعات.',422,'client_booking_duration_out_of_range');
     if($duration%30!==0)fail('مدة حجز العميل يجب أن تزيد كل 30 دقيقة.',422,'client_booking_duration_increment_invalid');
     $startMinutes=businessTimeMinutes($start);$endMinutes=businessTimeMinutes($end,true);
     if($startMinutes<0||$startMinutes>=1440||$startMinutes%60!==0)fail('وقت بداية حجز العميل يجب أن يكون عند ساعة كاملة ودقائق :00.',422,'client_booking_start_grid_invalid');
     if($endMinutes<0||$endMinutes%30!==0)fail('وقت نهاية حجز العميل يجب أن ينتهي عند :00 أو :30.',422,'client_booking_end_grid_invalid');
     if($endMinutes<=$startMinutes||$endMinutes>1440)fail('لا يمكن أن يمتد حجز العميل لما بعد منتصف الليل.',422,'client_booking_after_midnight');
+    if($startMinutes<720||$endMinutes>1320)fail('حجز العملاء متاح من 12 ظهرًا إلى 10 مساءً.',422,'client_booking_outside_hours');
     $computed=$endMinutes-$startMinutes;
     if($computed!==$duration)fail('المدة المرسلة لا تطابق وقت البداية والنهاية المحسوب.',422,'client_booking_duration_mismatch');
     return $computed;
@@ -180,17 +186,7 @@ function validateBookingSchedule(
 }
 
 function loginPhoneCandidates(string $identifier): array {
-    if (str_contains($identifier, '@')) return [];
-    $digits = preg_replace('/\D+/', '', $identifier) ?? '';
-    $national = normalizePhone($identifier);
-    if ($national === '') return [];
-    $candidates = [$digits, $national];
-    if (str_starts_with($national, '0') && strlen($national) === 11) {
-        $subscriber = substr($national, 1);
-        $candidates[] = '20' . $subscriber;
-        $candidates[] = '0020' . $subscriber;
-    }
-    return array_values(array_unique(array_filter($candidates)));
+    return identityPhoneCandidates($identifier);
 }
 
 function whatsappPhone(string $phone): string {
@@ -247,6 +243,7 @@ function setCsrfCookie(array $config, ?string $token = null): string {
 
 function clearAuthCookies(array $config): void {
     foreach (array_unique([sessionCookieName($config), csrfCookieName($config), 'mt_session', 'mt_csrf']) as $name) {
+        unset($_COOKIE[$name]);
         setcookie($name, '', [
             'expires' => time() - 3600,
             'path' => '/',
@@ -505,7 +502,7 @@ function clientBookingAvailability(PDO $pdo, array $user, int $packageId, int $d
     if(!$first||$first->format('Y-m-d')!==$startDate)fail('تاريخ بداية البحث غير صحيح.',422,'invalid_availability_start');
     $today=$now->setTime(0,0);
     if($first<$today)$first=$today;
-    if($durationMinutes<30||$durationMinutes>1440||$durationMinutes%30!==0)fail('مدة الحجز يجب أن تكون بين 30 دقيقة و24 ساعة، بزيادات 30 دقيقة.',422,'invalid_booking_duration');
+    if($durationMinutes<30||$durationMinutes>600||$durationMinutes%30!==0)fail('مدة الحجز يجب أن تكون بين 30 دقيقة و10 ساعات، بزيادات 30 دقيقة.',422,'invalid_booking_duration');
 
     $packageStmt=$pdo->prepare("SELECT cp.*,s.name AS service_name,s.minimum_booking_minutes,s.booking_increment_minutes FROM client_packages cp JOIN services s ON s.id=cp.service_id AND s.organization_id=cp.organization_id AND s.is_active=1 WHERE cp.id=? AND cp.client_id=? AND cp.organization_id=? AND cp.status='active' LIMIT 1");
     $packageStmt->execute([$packageId,$clientId,$organizationId]);$package=$packageStmt->fetch();
@@ -544,10 +541,10 @@ function clientBookingAvailability(PDO $pdo, array $user, int $packageId, int $d
 
     $days=[];
     for($offset=0;$offset<$windowDays;$offset++){
-        $dateValue=$first->modify('+'.$offset.' days');$date=$dateValue->format('Y-m-d');$slots=[];$validDate=true;
+        $dateValue=$first->modify('+'.$offset.' days');$date=$dateValue->format('Y-m-d');$slots=[];$validDate=$dateValue->format('w')!=='5';
         if($validDate&&$starts!==''&&($date<$starts||$date>$expires||(($package['validity_mode_snapshot']??'rolling')==='shooting_day'&&$date!==$starts)))$validDate=false;
         if($validDate){
-            for($candidate=0;$candidate+$durationMinutes<=1440;$candidate+=60){
+            for($candidate=720;$candidate+$durationMinutes<=1320;$candidate+=60){
                 if($date===$now->format('Y-m-d')&&$candidate<($now->format('G')*60+(int)$now->format('i')))continue;
                 foreach($resourceIds as $resourceId){$free=true;for($minute=$candidate;$minute<$candidate+$durationMinutes;$minute+=15)if(!empty($occupied[$date][$resourceId][$minute])){$free=false;break;}
                     if($free){$format=fn(int $value):string=>$value===1440?'24:00':sprintf('%02d:%02d',intdiv($value,60),$value%60);$slots[]=['start_time'=>$format($candidate),'end_time'=>$format($candidate+$durationMinutes),'resource_id'=>$resourceId];break;}
@@ -1569,7 +1566,7 @@ function attendanceWorkingWeekdays(mixed $value): array {
 }
 
 function attendancePolicy(PDO $pdo, array $user, bool $create = true): ?array {
-    if (in_array($user['role'], ['client','owner'], true)) return null;
+    if (in_array($user['role'], ['client','applicant','owner'], true)) return null;
     $stmt = $pdo->prepare('SELECT * FROM attendance_policies WHERE organization_id=? AND user_id=? LIMIT 1');
     $stmt->execute([$user['organization_id'], $user['id']]);
     $policy = $stmt->fetch();
@@ -1583,7 +1580,7 @@ function attendancePolicy(PDO $pdo, array $user, bool $create = true): ?array {
 }
 
 function attendanceCheckIn(PDO $pdo, array $user): ?array {
-    if (in_array($user['role'], ['client','owner'], true)) return null;
+    if (in_array($user['role'], ['client','applicant','owner'], true)) return null;
     $policy = attendancePolicy($pdo, $user, true);
     if (!$policy) return ['tracked'=>false, 'policy'=>$policy];
     $now = cairoNow(); $date = $now->format('Y-m-d');
@@ -1613,7 +1610,7 @@ function attendanceCheckIn(PDO $pdo, array $user): ?array {
 }
 
 function attendanceCheckOut(PDO $pdo, array $user): ?array {
-    if (in_array($user['role'], ['client','owner'], true)) return null;
+    if (in_array($user['role'], ['client','applicant','owner'], true)) return null;
     $now=cairoNow();$date=$now->format('Y-m-d');
     $yesterday=$now->modify('-1 day')->format('Y-m-d');
     $stmt=$pdo->prepare('SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date IN (?,?) AND check_in_at IS NOT NULL ORDER BY work_date DESC LIMIT 1');$stmt->execute([$user['organization_id'],$user['id'],$date,$yesterday]);$record=$stmt->fetch();
@@ -1666,7 +1663,7 @@ function attendanceSummary(PDO $pdo, array $viewer, string $month, ?int $request
     $owner = $viewer['role'] === 'owner';
     $targetId = $owner ? $requestedUserId : (int)$viewer['id'];
     $params=[$viewer['organization_id']];
-    $where="u.organization_id=? AND u.is_active=1 AND u.role NOT IN ('client','owner')";
+    $where="u.organization_id=? AND u.is_active=1 AND u.role NOT IN ('client','owner','applicant')";
     if($targetId){$where.=' AND u.id=?';$params[]=$targetId;}
     $stmt=$pdo->prepare("SELECT u.id AS employee_id,u.full_name,u.role,p.* FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE $where ORDER BY u.full_name");$stmt->execute($params);$people=$stmt->fetchAll();
     $monthStart=new DateTimeImmutable($month.'-01',new DateTimeZone('Africa/Cairo'));$monthEnd=$monthStart->modify('last day of this month');$today=cairoNow()->setTime(0,0);$yesterday=$today->modify('-1 day');$absenceCutoff=$monthEnd<$yesterday?$monthEnd:$yesterday;
@@ -1800,7 +1797,7 @@ function nextClientColor(PDO $pdo,int $organizationId): string {
 }
 
 function systemBackupExcludedTables(): array {
-    return ['api_sessions','auth_rate_limits','password_reset_tokens'];
+    return ['api_sessions','auth_rate_limits','password_reset_tokens','registration_email_challenges','auth_google_challenges'];
 }
 
 function systemBackupChildQueries(): array {
@@ -1865,6 +1862,7 @@ function insertSystemBackupRow(PDO $pdo,string $table,array $row,int $organizati
     if(in_array('organization_id',$columns,true))$values['organization_id']=$organizationId;
     if($table==='organizations')$values['id']=$organizationId;
     if($table==='users'&&(int)($values['id']??0)===$currentOwnerId)return false;
+    if($table==='auth_google_identities'){if((int)($values['user_id']??0)===$currentOwnerId)return false;unset($values['id']);}
     if(!$values)return false;
     $names=array_keys($values);$quoted=array_map(fn($column)=>'`'.$column.'`',$names);$marks=implode(',',array_fill(0,count($names),'?'));
     $sql='INSERT INTO `'.$table.'` ('.implode(',',$quoted).') VALUES ('.$marks.')';
@@ -1892,8 +1890,9 @@ function restoreSystemBackup(PDO $pdo,array $user,array $backup): array {
         }
         $pdo->prepare('DELETE s FROM api_sessions s JOIN users u ON u.id=s.user_id WHERE u.organization_id=? AND u.id<>?')->execute([$organizationId,$ownerId]);
         if(schemaTableExists($pdo,'password_reset_tokens'))$pdo->prepare('DELETE FROM password_reset_tokens WHERE organization_id=?')->execute([$organizationId]);
+        if(schemaTableExists($pdo,'auth_google_challenges'))$pdo->exec('DELETE FROM auth_google_challenges');
         $direct=array_reverse(systemBackupDirectTables($pdo));
-        foreach($direct as $table){if($table==='users')continue;$pdo->prepare("DELETE FROM `$table` WHERE organization_id=?")->execute([$organizationId]);}
+        foreach($direct as $table){if($table==='users')continue;if($table==='auth_google_identities'){$pdo->prepare('DELETE FROM auth_google_identities WHERE organization_id=? AND user_id<>?')->execute([$organizationId,$ownerId]);continue;}$pdo->prepare("DELETE FROM `$table` WHERE organization_id=?")->execute([$organizationId]);}
         $pdo->prepare('DELETE FROM users WHERE organization_id=? AND id<>?')->execute([$organizationId,$ownerId]);
         foreach($backup['tables'] as $table=>$rows)foreach($rows as $row)if(is_array($row)&&insertSystemBackupRow($pdo,$table,$row,$organizationId,$ownerId))$restored++;
         audit($pdo,$user,'restore_system_backup','organizations',$organizationId,null,['backup_exported_at'=>$backup['exported_at']??null,'checksum'=>$backup['checksum'],'restored_rows'=>$restored]);
@@ -1903,7 +1902,7 @@ function restoreSystemBackup(PDO $pdo,array $user,array $backup): array {
 }
 
 $resources = [
-    'clients' => ['org' => true, 'clientScoped' => true, 'scopeColumn' => 'id', 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => ['owner','admin','operations'], 'columns' => ['id','organization_id','name','company_name','contact_person','phone1','phone2','additional_phones','email','job','address','city','tax_number','commercial_registration','preferred_contact','whatsapp_opt_in','whatsapp_opt_in_at','color','notes','debt','credit','points','points_updated_at','dismissed_alerts','status','created_at','updated_at']],
+    'clients' => ['org' => true, 'clientScoped' => true, 'scopeColumn' => 'id', 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => ['owner','admin','operations'], 'columns' => ['id','organization_id','name','company_name','contact_person','phone1','phone2','additional_phones','email','job','registration_source','address','city','tax_number','commercial_registration','preferred_contact','whatsapp_opt_in','whatsapp_opt_in_at','color','notes','debt','credit','points','points_updated_at','dismissed_alerts','status','created_at','updated_at']],
     'services' => ['org' => true, 'read' => ['owner','admin','operations','finance','staff','client'], 'write' => [], 'columns' => ['id','organization_id','name','category','billing_unit','price','total_hours','payment_due_hours','deposit_percent','overage_price','total_reels','validity_days','package_validity_mode','minimum_booking_minutes','booking_increment_minutes','auto_start_timer','is_active','is_draft','archive_reason','archived_by','archived_at','version','created_at','updated_at']],
     'resources' => ['org' => true, 'read' => ['owner','admin','operations','staff','client'], 'write' => ['owner','admin'], 'columns' => ['id','organization_id','name','type','is_active','created_at']],
     'client_packages' => ['org' => true, 'clientScoped' => true, 'read' => ['owner','admin','operations','finance','client'], 'write' => [], 'columns' => ['id','organization_id','client_id','service_id','source_invoice_id','name','notes','billing_unit','purchased_quantity','purchased_minutes','held_quantity','held_minutes','consumed_quantity','consumed_minutes','payment_due_quantity','payment_due_minutes','validity_mode_snapshot','validity_days_snapshot','deposit_percent_snapshot','overage_price_snapshot','total_price','overage_amount','paid_amount','starts_at','expires_at','status','archive_reason','archived_by','archived_at','version','created_at','updated_at']],
@@ -1964,6 +1963,11 @@ $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = routePath();
 requireCsrf($config, $path, $method);
 $user = sessionUser($pdo, $config);
+
+// Email-verified applicants can track only their own intake until staff approval.
+if ($user && $user['role'] === 'applicant') {
+    if (!registrationApplicantRouteAllowed($path,$method)) fail('طلب التسجيل قيد المراجعة. يمكنك متابعة حالة طلباتك فقط.',403,'registration_pending');
+}
 
 if ($user && !empty($user['must_change_password']) && !in_array($path, ['/auth/session','/auth/password','/auth/logout','/health'], true)) {
     fail('يلزم تحديث كلمة المرور قبل متابعة استخدام الحساب.', 403, 'password_change_required');
@@ -2122,49 +2126,18 @@ if ($path === '/auth/bootstrap' && $method === 'POST') {
     if (!hash_equals($setupKey, (string)($payload['setup_key'] ?? ''))) fail('مفتاح الإعداد غير صحيح.', 403, 'invalid_setup_key');
     if ((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() > 0) fail('تم إعداد حساب المالك بالفعل.', 409, 'already_bootstrapped');
     $name = trim((string)($payload['full_name'] ?? ''));
+    $phone = loginMobile($payload['phone'] ?? '');
+    if ($phone === '') fail('رقم موبايل المالك مطلوب للدخول.', 422, 'invalid_login_phone');
     $email = strtolower(trim((string)($payload['email'] ?? '')));
     $password = (string)($payload['password'] ?? '');
     if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !validPassword($password)) fail('الاسم والبريد وكلمة مرور قوية من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا مطلوبة.', 422, 'validation_error');
-    $stmt = $pdo->prepare("INSERT INTO users (organization_id, full_name, email, password_hash, role) VALUES (1, ?, ?, ?, 'owner')");
-    $stmt->execute([$name, $email, password_hash($password, PASSWORD_DEFAULT)]);
+    $stmt = $pdo->prepare("INSERT INTO users (organization_id, full_name, email, phone, password_hash, role) VALUES (1, ?, ?, ?, ?, 'owner')");
+    $stmt->execute([$name, $email, $phone, password_hash($password, PASSWORD_DEFAULT)]);
     respond(['created' => true], 201);
 }
 
-if ($path === '/auth/login' && $method === 'POST') {
-    $payload = body();
-    $identifier = trim((string)($payload['identifier'] ?? $payload['email'] ?? ''));
-    $password = (string)($payload['password'] ?? '');
-    if ($identifier === '' || $password === '') fail('أدخل رقم الهاتف أو البريد وكلمة المرور.', 422, 'validation_error');
-    enforceLoginRateLimit($pdo, $identifier);
-    $phoneCandidates = loginPhoneCandidates($identifier);
-    $params = [$identifier];
-    $phoneSql = '';
-    if ($phoneCandidates) {
-        $marks = implode(',', array_fill(0, count($phoneCandidates), '?'));
-        $cleanPhone = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'(',''),')',''),'+',''),'.','')";
-        $phoneSql = " OR $cleanPhone IN ($marks)";
-        array_push($params, ...$phoneCandidates);
-    }
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE (LOWER(email) = LOWER(?)$phoneSql) ORDER BY is_active DESC, id DESC LIMIT 1");
-    $stmt->execute($params);
-    $found = $stmt->fetch();
-    if ($found) $found['role'] = authorizationRole($found);
-    $temporaryExpired = $found && ($found['password_status'] ?? '') === 'temporary'
-        && !empty($found['temporary_expires_at']) && strtotime((string)$found['temporary_expires_at']) <= time();
-    if (!$found || $temporaryExpired || !password_verify($password, $found['password_hash'])) {
-        recordLoginFailure($pdo, $identifier, $found ?: null);
-        usleep(random_int(300000, 650000));
-        fail('بيانات الدخول غير صحيحة.', 401, 'invalid_credentials');
-    }
-    if (empty($found['is_active'])) {
-        clearAccountLoginLimit($pdo, $identifier);
-        usleep(random_int(300000, 650000));
-        fail('دخول هذا الحساب موقوف. تواصل مع إدارة الشركة لإعادة تفعيله.', 403, 'account_disabled');
-    }
-    clearAccountLoginLimit($pdo, $identifier);
-    if (password_needs_rehash((string)$found['password_hash'], PASSWORD_DEFAULT)) {
-        $pdo->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([password_hash($password, PASSWORD_DEFAULT), $found['id']]);
-    }
+function issueLoginSession(PDO $pdo, array $config, array $found, string $identifier, string $eventType = 'login_succeeded'): array {
+    $found['role'] = authorizationRole($found);
     $rawToken = bin2hex(random_bytes(32));
     $days = max(1, min(7, (int)($config['app']['session_days'] ?? 7)));
     $expiry = (new DateTimeImmutable("+$days days"))->format('Y-m-d H:i:s');
@@ -2189,8 +2162,17 @@ if ($path === '/auth/login' && $method === 'POST') {
     setSessionCookie($config, $rawToken, $days);
     setCsrfCookie($config);
     $pdo->prepare('INSERT INTO auth_security_events (organization_id,user_id,event_type,identifier_hash,ip_hash,user_agent_hash) VALUES (?,?,?,?,?,?)')
-        ->execute([$found['organization_id'], $found['id'], 'login_succeeded', hash('sha256', loginIdentity($identifier)), requestIpHash(), requestUserAgentHash()]);
-    respond(['session' => ['expires_at' => $expiry], 'user' => credentialSafeUser($found)]);
+        ->execute([$found['organization_id'], $found['id'], $eventType, hash('sha256', loginIdentity($identifier)), requestIpHash(), requestUserAgentHash()]);
+    return ['session' => ['expires_at' => $expiry], 'user' => credentialSafeUser($found)];
+}
+
+handleGoogleAuth($pdo, $config, $path, $method);
+
+if ($path === '/auth/login' && $method === 'POST') {
+    $payload = body();
+    $identifier = $payload['phone'] ?? $payload['identifier'] ?? '';
+    $found = authenticatePhonePassword($pdo, $identifier, $payload['password'] ?? null);
+    respond(issueLoginSession($pdo, $config, $found, loginMobile($identifier)));
 }
 
 if ($path === '/auth/session' && $method === 'GET') {
@@ -2367,6 +2349,8 @@ require_once __DIR__ . '/post_production.php';
 require_once __DIR__ . '/session_settlement.php';
 require_once __DIR__ . '/legacy_import.php';
 
+handleRegistrationRoutes($pdo, $config, $user, $path, $method);
+handleStudioBookingRoutes($pdo, $config, $user, $path, $method);
 handlePostProductionRoutes($pdo, $config, $user, $path, $method);
 handleLegacyImportRoutes($pdo, $config, $user, $path, $method);
 
@@ -2706,7 +2690,7 @@ function enrichedFinanceEntry(PDO $pdo, int $organizationId, array $entry): arra
     $entry['package_ids']=array_keys($packages);$entry['package_names']=$packageNames;$entry['service_ids']=array_keys($services);$entry['service_names']=$serviceNames;
     $entry['invoice_ids']=array_keys($invoices);$entry['invoice_numbers']=$invoiceNumbers;$entry['project_ids']=array_keys($projects);$entry['project_names']=$projectNames;$entry['payment_ids']=array_keys($payments);$entry['payment_references']=array_values($payments);$entry['payment_proof_ids']=array_keys($proofs);$entry['payment_proof_references']=array_values($proofs);
     $entry['source_labels']=$sourceLabels;$entry['source_label']=$sourceLabels[0]??null;$entry['source_extra_count']=max(0,count($sourceLabels)-1);
-    if(!empty($entry['employee_user_id'])){$employee=$pdo->prepare("SELECT id,full_name FROM users WHERE id=? AND organization_id=? AND role<>'client' LIMIT 1");$employee->execute([(int)$entry['employee_user_id'],$organizationId]);if($row=$employee->fetch()){$entry['employee_user_id']=(int)$row['id'];$entry['employee_name']=$row['full_name'];}}
+    if(!empty($entry['employee_user_id'])){$employee=$pdo->prepare("SELECT id,full_name FROM users WHERE id=? AND organization_id=? AND role NOT IN ('client','applicant') LIMIT 1");$employee->execute([(int)$entry['employee_user_id'],$organizationId]);if($row=$employee->fetch()){$entry['employee_user_id']=(int)$row['id'];$entry['employee_name']=$row['full_name'];}}
     return $entry;
 }
 
@@ -2737,7 +2721,7 @@ function employeeFinanceSchemaStatus(PDO $pdo): array {
 function employeeFinanceAccountSnapshot(PDO $pdo,int $organizationId,string $month): array {
     $schema=employeeFinanceSchemaStatus($pdo);
     if(!$schema['ready'])return ['month'=>$month,'accounts'=>[],'unlinked_legacy_count'=>0,'schema_ready'=>false,'migration_required'=>'027_employee_finance_accounts.sql'];
-    $users=$pdo->prepare("SELECT id,full_name,role FROM users WHERE organization_id=? AND is_active=1 AND role NOT IN ('client','owner') ORDER BY full_name,id");
+    $users=$pdo->prepare("SELECT id,full_name,role FROM users WHERE organization_id=? AND is_active=1 AND role NOT IN ('client','owner','applicant') ORDER BY full_name,id");
     $users->execute([$organizationId]);$accounts=[];
     $rows=$pdo->prepare("SELECT id,employee_user_id,entry_kind,category,amount,method,detail,date,source_type,source_id FROM finance WHERE organization_id=? AND employee_user_id IS NOT NULL AND voided_at IS NULL AND (entry_kind IS NULL OR entry_kind<>'reversal') ORDER BY date DESC,id DESC");
     $rows->execute([$organizationId]);$byUser=[];foreach($rows->fetchAll() as $row)$byUser[(int)$row['employee_user_id']][]=$row;
@@ -2794,7 +2778,7 @@ if ($path === '/attendance/employee-accounts' && $method === 'GET') {
 
 if ($path === '/attendance/employee-accounts/movements' && $method === 'POST') {
     $user=requireUser($user);requireRole($user,['owner','admin']);$payload=body();$organizationId=(int)$user['organization_id'];if(!employeeFinanceSchemaStatus($pdo)['ready'])fail('تحديث قاعدة بيانات حسابات الموظفين رقم 027 مطلوب قبل تسجيل المعاملة.',503,'employee_finance_migration_required');$employeeUserId=(int)($payload['employee_user_id']??0);$semanticKind=(string)($payload['kind']??'');$kinds=['out_of_pocket'=>['expense','مصروف','employee_out_of_pocket'],'advance_out'=>['advance_out','سحب سلفة','employee_advance'],'advance_in'=>['advance_in','سداد سلفة','employee_advance_repayment'],'settlement_out'=>['settlement_out','سداد مستحقات','employee_settlement']];if(!isset($kinds[$semanticKind]))fail('نوع معاملة الموظف غير صحيح.',422,'invalid_employee_finance_kind');$amountCents=packageMoneyCents($payload['amount']??0);if($amountCents<=0)fail('أدخل مبلغًا أكبر من صفر وبدقة قرشين.',422,'invalid_employee_finance_amount');$date=trim((string)($payload['date']??''));if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))fail('تاريخ المعاملة غير صحيح.',422,'invalid_employee_finance_date');$method=requirePaymentMethod($payload['method']??'');$detail=mb_substr(trim((string)($payload['detail']??'')),0,255);if($method===''||$detail==='')fail('طريقة الدفع والبيان مطلوبان.',422,'employee_finance_fields_required');$idempotencyKey=trim((string)($payload['idempotency_key']??''));if(!preg_match('/^[A-Za-z0-9:_-]{12,120}$/',$idempotencyKey))fail('مفتاح حفظ المعاملة غير صحيح.',422,'invalid_idempotency_key');$correlation='employee-finance:'.$idempotencyKey;[$entryKind,$type,$category]=$kinds[$semanticKind];
-    $pdo->beginTransaction();try{$employeeStmt=$pdo->prepare("SELECT id,full_name,role FROM users WHERE id=? AND organization_id=? AND is_active=1 AND role NOT IN ('client','owner') FOR UPDATE");$employeeStmt->execute([$employeeUserId,$organizationId]);$employee=$employeeStmt->fetch();if(!$employee)fail('حساب الموظف غير موجود أو غير نشط.',422,'invalid_employee_user');$existingStmt=$pdo->prepare('SELECT * FROM finance WHERE organization_id=? AND correlation_id=? FOR UPDATE');$existingStmt->execute([$organizationId,$correlation]);if($existing=$existingStmt->fetch()){$same=(int)$existing['employee_user_id']===$employeeUserId&&(string)$existing['entry_kind']===$entryKind&&packageMoneyCents($existing['amount'])===$amountCents&&(string)$existing['method']===$method&&(string)$existing['detail']===$detail&&(string)$existing['date']===$date;if(!$same)fail('تم استخدام مفتاح الحفظ نفسه لمعاملة مختلفة.',409,'idempotency_mismatch');$pdo->commit();respond(['id'=>(int)$existing['id'],'idempotent'=>true,'account'=>employeeFinanceAccountSnapshot($pdo,$organizationId,substr($date,0,7))]);}
+    $pdo->beginTransaction();try{$employeeStmt=$pdo->prepare("SELECT id,full_name,role FROM users WHERE id=? AND organization_id=? AND is_active=1 AND role NOT IN ('client','owner','applicant') FOR UPDATE");$employeeStmt->execute([$employeeUserId,$organizationId]);$employee=$employeeStmt->fetch();if(!$employee)fail('حساب الموظف غير موجود أو غير نشط.',422,'invalid_employee_user');$existingStmt=$pdo->prepare('SELECT * FROM finance WHERE organization_id=? AND correlation_id=? FOR UPDATE');$existingStmt->execute([$organizationId,$correlation]);if($existing=$existingStmt->fetch()){$same=(int)$existing['employee_user_id']===$employeeUserId&&(string)$existing['entry_kind']===$entryKind&&packageMoneyCents($existing['amount'])===$amountCents&&(string)$existing['method']===$method&&(string)$existing['detail']===$detail&&(string)$existing['date']===$date;if(!$same)fail('تم استخدام مفتاح الحفظ نفسه لمعاملة مختلفة.',409,'idempotency_mismatch');$pdo->commit();respond(['id'=>(int)$existing['id'],'idempotent'=>true,'account'=>employeeFinanceAccountSnapshot($pdo,$organizationId,substr($date,0,7))]);}
         $insert=$pdo->prepare("INSERT INTO finance (organization_id,employee_user_id,type,entry_kind,category,amount,method,detail,date,entity,source_type,source_id,correlation_id,is_system,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,'employee_account',?,?,0,?)");$insert->execute([$organizationId,$employeeUserId,$type,$entryKind,$category,packageMoney($amountCents),$method,$detail,$date,$employee['full_name'],$employeeUserId,$correlation,$user['id']]);$id=(int)$pdo->lastInsertId();audit($pdo,$user,'create_employee_finance','finance',$id,null,['employee_user_id'=>$employeeUserId,'kind'=>$semanticKind,'amount'=>packageMoney($amountCents),'date'=>$date,'correlation_id'=>$correlation]);$pdo->commit();respond(['id'=>$id,'idempotent'=>false,'account'=>employeeFinanceAccountSnapshot($pdo,$organizationId,substr($date,0,7))],201);
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
@@ -2805,7 +2789,7 @@ if ($path === '/finance/manual' && $method === 'POST') {
     if($clientId){$lookup=$pdo->prepare("SELECT id FROM clients WHERE id=? AND organization_id=? AND status<>'archived'");$lookup->execute([$clientId,$user['organization_id']]);if(!$lookup->fetch())fail('العميل المحدد غير موجود.',422,'invalid_finance_client');}
     if($sourceType==='client_package'){$lookup=$pdo->prepare('SELECT id,client_id FROM client_packages WHERE id=? AND organization_id=?');$lookup->execute([$sourceId,$user['organization_id']]);$package=$lookup->fetch();if(!$package||!$clientId||(int)$package['client_id']!==$clientId)fail('الباقة المحددة لا تخص العميل.',422,'invalid_finance_package');}
     if($sourceType==='service'){$lookup=$pdo->prepare('SELECT id FROM services WHERE id=? AND organization_id=? AND is_active=1');$lookup->execute([$sourceId,$user['organization_id']]);if(!$lookup->fetch())fail('الخدمة المحددة غير موجودة.',422,'invalid_finance_service');}
-    $date=(string)($payload['date']??date('Y-m-d'));if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))fail('تاريخ الحركة غير صحيح.',422,'invalid_finance_date');$method=requirePaymentMethod($payload['method']??'');if($method==='')fail('طريقة الدفع مطلوبة.',422,'missing_payment_method');$detail=trim((string)($payload['detail']??''));if($detail==='')fail('بيان الحركة مطلوب.',422,'missing_finance_detail');$entity=$kind==='income'?'الشركة':trim((string)($payload['entity']??'الشركة'));if($employeeUserId){if($kind!=='expense')fail('ربط الموظف متاح للمصروف المدفوع من جيبه فقط.',422,'invalid_employee_finance_kind');$employee=$pdo->prepare("SELECT id,full_name FROM users WHERE id=? AND organization_id=? AND is_active=1 AND role NOT IN ('client','owner')");$employee->execute([$employeeUserId,$user['organization_id']]);$employeeRow=$employee->fetch();if(!$employeeRow)fail('حساب الموظف المحدد غير موجود.',422,'invalid_employee_user');$entity=$employeeRow['full_name'];$category='employee_out_of_pocket';}
+    $date=(string)($payload['date']??date('Y-m-d'));if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))fail('تاريخ الحركة غير صحيح.',422,'invalid_finance_date');$method=requirePaymentMethod($payload['method']??'');if($method==='')fail('طريقة الدفع مطلوبة.',422,'missing_payment_method');$detail=trim((string)($payload['detail']??''));if($detail==='')fail('بيان الحركة مطلوب.',422,'missing_finance_detail');$entity=$kind==='income'?'الشركة':trim((string)($payload['entity']??'الشركة'));if($employeeUserId){if($kind!=='expense')fail('ربط الموظف متاح للمصروف المدفوع من جيبه فقط.',422,'invalid_employee_finance_kind');$employee=$pdo->prepare("SELECT id,full_name FROM users WHERE id=? AND organization_id=? AND is_active=1 AND role NOT IN ('client','owner','applicant')");$employee->execute([$employeeUserId,$user['organization_id']]);$employeeRow=$employee->fetch();if(!$employeeRow)fail('حساب الموظف المحدد غير موجود.',422,'invalid_employee_user');$entity=$employeeRow['full_name'];$category='employee_out_of_pocket';}
     $pdo->beginTransaction();try{$type=match($kind){'income'=>'إيراد','advance_in'=>'سداد سلفة','advance_out'=>'سحب سلفة','settlement_out'=>'سداد مستحقات',default=>'مصروف'};
         $hasEmployeeColumn=schemaColumnExists($pdo,'finance','employee_user_id');
         if($employeeUserId&&!$hasEmployeeColumn)fail('ربط مصروف الموظف يحتاج تشغيل ترحيل قاعدة البيانات 027 أولًا.',503,'employee_finance_migration_required');
@@ -2857,7 +2841,7 @@ if ($path === '/cron/booking-tick' && $method === 'POST') {
 if ($path === '/attendance/today' && $method === 'GET') {
     $user=requireUser($user);if($user['role']==='client')fail('الحضور غير متاح لحسابات العملاء.',403,'forbidden');
     $date=cairoNow()->format('Y-m-d');$self=null;$team=[];if($user['role']!=='owner'){$selfStmt=$pdo->prepare('SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date=? LIMIT 1');$selfStmt->execute([$user['organization_id'],$user['id'],$date]);$self=$selfStmt->fetch()?:null;}
-    if($user['role']==='owner'){$stmt=$pdo->prepare("SELECT u.id user_id,u.full_name,u.role,COALESCE(p.track_attendance,1) track_attendance,r.id record_id,r.check_in_at,r.check_out_at,r.status,r.late_minutes,r.early_leave_minutes FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id LEFT JOIN attendance_records r ON r.organization_id=u.organization_id AND r.user_id=u.id AND r.work_date=? WHERE u.organization_id=? AND u.is_active=1 AND u.role NOT IN ('client','owner') ORDER BY u.full_name");$stmt->execute([$date,$user['organization_id']]);$team=$stmt->fetchAll();}
+    if($user['role']==='owner'){$stmt=$pdo->prepare("SELECT u.id user_id,u.full_name,u.role,COALESCE(p.track_attendance,1) track_attendance,r.id record_id,r.check_in_at,r.check_out_at,r.status,r.late_minutes,r.early_leave_minutes FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id LEFT JOIN attendance_records r ON r.organization_id=u.organization_id AND r.user_id=u.id AND r.work_date=? WHERE u.organization_id=? AND u.is_active=1 AND u.role NOT IN ('client','owner','applicant') ORDER BY u.full_name");$stmt->execute([$date,$user['organization_id']]);$team=$stmt->fetchAll();}
     respond(['work_date'=>$date,'self'=>$self,'team'=>$team]);
 }
 
@@ -2880,18 +2864,18 @@ if ($path === '/attendance/summary' && $method === 'GET') {
 
 if ($path === '/attendance/records' && $method === 'GET') {
     $user=requireUser($user);if($user['role']==='client')fail('الحضور غير متاح لحسابات العملاء.',403,'forbidden');$month=validMonth((string)($_GET['month']??cairoNow()->format('Y-m')));$target=isset($_GET['user_id'])?(int)$_GET['user_id']:(int)$user['id'];if($user['role']!=='owner'&&$target!==(int)$user['id'])fail('يمكنك عرض سجل حضورك فقط.',403,'forbidden');
-    $stmt=$pdo->prepare("SELECT r.*,u.full_name,u.role FROM attendance_records r JOIN users u ON u.id=r.user_id WHERE r.organization_id=? AND r.user_id=? AND r.work_date LIKE ? AND u.role NOT IN ('client','owner') ORDER BY r.work_date DESC");$stmt->execute([$user['organization_id'],$target,$month.'-%']);$records=$stmt->fetchAll();
+    $stmt=$pdo->prepare("SELECT r.*,u.full_name,u.role FROM attendance_records r JOIN users u ON u.id=r.user_id WHERE r.organization_id=? AND r.user_id=? AND r.work_date LIKE ? AND u.role NOT IN ('client','owner','applicant') ORDER BY r.work_date DESC");$stmt->execute([$user['organization_id'],$target,$month.'-%']);$records=$stmt->fetchAll();
     $a=$pdo->prepare('SELECT a.*,c.full_name created_by_name FROM attendance_adjustments a JOIN users c ON c.id=a.created_by WHERE a.organization_id=? AND a.user_id=? AND a.adjustment_month=? ORDER BY a.created_at DESC');$a->execute([$user['organization_id'],$target,$month]);$adjustments=$a->fetchAll();$activeAdjustments=array_values(array_filter($adjustments,fn($adjustment)=>empty($adjustment['voided_at'])));$records=array_map(fn($record)=>attendanceRecordWithLateness($record,$activeAdjustments),$records);respond(['month'=>$month,'records'=>$records,'adjustments'=>$adjustments]);
 }
 
 if ($path === '/attendance/policies' && $method === 'GET') {
     $user=requireUser($user);if($user['role']==='client')fail('الحضور غير متاح لحسابات العملاء.',403,'forbidden');$target=isset($_GET['user_id'])?(int)$_GET['user_id']:(int)$user['id'];if($user['role']!=='owner'&&$target!==(int)$user['id'])fail('يمكنك عرض سياسة حضورك فقط.',403,'forbidden');
-    if($user['role']==='owner'&&!isset($_GET['user_id'])){$stmt=$pdo->prepare("SELECT p.*,u.id user_id,u.full_name,u.role,u.is_active FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.organization_id=? AND u.role NOT IN ('client','owner') ORDER BY u.full_name");$stmt->execute([$user['organization_id']]);respond($stmt->fetchAll());}
-    $stmt=$pdo->prepare("SELECT p.*,u.id user_id,u.full_name,u.role,u.is_active FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.organization_id=? AND u.id=? AND u.role NOT IN ('client','owner') LIMIT 1");$stmt->execute([$user['organization_id'],$target]);$policy=$stmt->fetch();if(!$policy)fail('الموظف غير موجود.',404);respond($policy);
+    if($user['role']==='owner'&&!isset($_GET['user_id'])){$stmt=$pdo->prepare("SELECT p.*,u.id user_id,u.full_name,u.role,u.is_active FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.organization_id=? AND u.role NOT IN ('client','owner','applicant') ORDER BY u.full_name");$stmt->execute([$user['organization_id']]);respond($stmt->fetchAll());}
+    $stmt=$pdo->prepare("SELECT p.*,u.id user_id,u.full_name,u.role,u.is_active FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.organization_id=? AND u.id=? AND u.role NOT IN ('client','owner','applicant') LIMIT 1");$stmt->execute([$user['organization_id'],$target]);$policy=$stmt->fetch();if(!$policy)fail('الموظف غير موجود.',404);respond($policy);
 }
 
 if ($path === '/attendance/policies' && $method === 'PUT') {
-    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$target=(int)($payload['user_id']??0);$stmt=$pdo->prepare("SELECT id,role FROM users WHERE id=? AND organization_id=? AND role NOT IN ('client','owner') LIMIT 1");$stmt->execute([$target,$user['organization_id']]);$employee=$stmt->fetch();if(!$employee)fail('الموظف غير موجود أو حساب مالك/عميل.',404);
+    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$target=(int)($payload['user_id']??0);$stmt=$pdo->prepare("SELECT id,role FROM users WHERE id=? AND organization_id=? AND role NOT IN ('client','owner','applicant') LIMIT 1");$stmt->execute([$target,$user['organization_id']]);$employee=$stmt->fetch();if(!$employee)fail('الموظف غير موجود أو حساب مالك/عميل.',404);
     $start='12:00';$end=normalizeBusinessTime($payload['scheduled_end']??'24:00',true);if($end===''||businessTimeMinutes($end,true)<=businessTimeMinutes($start))fail('ساعة نهاية العمل يجب أن تكون بعد 12 ظهرًا.',422,'invalid_schedule');$weekdays=array_values(array_unique(array_map('intval',$payload['working_weekdays']??[0,1,2,3,4])));foreach($weekdays as $day)if($day<0||$day>6)fail('أيام العمل غير صحيحة.',422);
     $beforeStmt=$pdo->prepare('SELECT * FROM attendance_policies WHERE organization_id=? AND user_id=?');$beforeStmt->execute([$user['organization_id'],$target]);$before=$beforeStmt->fetch()?:null;
     $sql="INSERT INTO attendance_policies (organization_id,user_id,track_attendance,scheduled_start,scheduled_end,working_weekdays,grace_minutes,monthly_salary,expected_working_days,absence_multiplier,late_multiplier,early_leave_deduction_enabled,effective_from,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE track_attendance=VALUES(track_attendance),scheduled_start=VALUES(scheduled_start),scheduled_end=VALUES(scheduled_end),working_weekdays=VALUES(working_weekdays),grace_minutes=VALUES(grace_minutes),monthly_salary=VALUES(monthly_salary),expected_working_days=VALUES(expected_working_days),absence_multiplier=VALUES(absence_multiplier),late_multiplier=VALUES(late_multiplier),early_leave_deduction_enabled=VALUES(early_leave_deduction_enabled),effective_from=VALUES(effective_from)";
@@ -2901,7 +2885,7 @@ if ($path === '/attendance/policies' && $method === 'PUT') {
 if (preg_match('#^/attendance/records/(\d+)/lateness$#',$path,$m)&&$method==='POST') {
     $user=requireUser($user);requireRole($user,['owner']);$id=(int)$m[1];$payload=body();$action=trim((string)($payload['action']??''));$reason=trim((string)($payload['reason']??''));if(!in_array($action,['waive','restore'],true))fail('إجراء التأخير غير صحيح.',422,'invalid_lateness_action');if(mb_strlen($reason)<5)fail('سبب الإجراء مطلوب ويجب أن يكون واضحًا.',422,'lateness_reason_required');$organizationId=(int)$user['organization_id'];
     $pdo->beginTransaction();try{
-        $stmt=$pdo->prepare("SELECT r.*,u.full_name FROM attendance_records r JOIN users u ON u.id=r.user_id AND u.organization_id=r.organization_id WHERE r.id=? AND r.organization_id=? AND u.role NOT IN ('client','owner') FOR UPDATE");$stmt->execute([$id,$organizationId]);$record=$stmt->fetch();if(!$record){$pdo->rollBack();fail('سجل الحضور غير موجود.',404,'attendance_record_not_found');}
+        $stmt=$pdo->prepare("SELECT r.*,u.full_name FROM attendance_records r JOIN users u ON u.id=r.user_id AND u.organization_id=r.organization_id WHERE r.id=? AND r.organization_id=? AND u.role NOT IN ('client','owner','applicant') FOR UPDATE");$stmt->execute([$id,$organizationId]);$record=$stmt->fetch();if(!$record){$pdo->rollBack();fail('سجل الحضور غير موجود.',404,'attendance_record_not_found');}
         $month=substr((string)$record['work_date'],0,7);$adjustments=attendanceActiveAdjustmentRows($pdo,$organizationId,(int)$record['user_id'],$month);$lateness=attendanceLatenessBreakdown($record);$waiverNet=attendanceWaiverNetCents($adjustments,$id);
         if($action==='waive'){$amountCents=-max(0,$lateness['gross_cents']+$waiverNet);$adjustmentType='late_waiver';if($lateness['gross_cents']<=0){$pdo->rollBack();fail('هذا اليوم لا يحتوي على تأخير مستحق للخصم.',422,'lateness_not_chargeable');}}
         else{$amountCents=max(0,-$waiverNet);$adjustmentType='late_waiver_reversal';}
@@ -2930,7 +2914,7 @@ if ($path === '/attendance/records/manual' && $method === 'PUT') {
     $normalizeStamp=function(mixed $value)use($workDate):?string{$stamp=trim((string)($value??''));if($stamp==='')return null;$stamp=str_replace('T',' ',$stamp);if(!preg_match('/^\d{4}-\d{2}-\d{2} ([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/',$stamp)||substr($stamp,0,10)!==$workDate)fail('وقت الحضور أو الانصراف يجب أن يكون داخل اليوم المحدد.',422,'invalid_attendance_time');return strlen($stamp)===16?$stamp.':00':$stamp;};
     $checkIn=$normalizeStamp($payload['check_in_at']??null);$checkOut=$normalizeStamp($payload['check_out_at']??null);if(in_array($status,['absent','authorized_leave'],true)){$checkIn=null;$checkOut=null;}elseif(!$checkIn||!$checkOut)fail('وقت الدخول والانصراف مطلوبان عند تسجيل يوم حضور يدوي.',422,'manual_attendance_times_required');if($checkIn&&$checkOut&&$checkOut<$checkIn)fail('وقت الانصراف لا يمكن أن يسبق وقت الدخول.',422,'invalid_attendance_range');
     $pdo->beginTransaction();try{
-        $employeeStmt=$pdo->prepare("SELECT u.id,u.full_name,u.role,p.id policy_id,p.track_attendance,p.scheduled_start,p.scheduled_end,p.working_weekdays,p.grace_minutes,p.monthly_salary,p.expected_working_days,p.absence_multiplier,p.late_multiplier,p.early_leave_deduction_enabled FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.id=? AND u.organization_id=? AND u.role NOT IN ('client','owner') FOR UPDATE");$employeeStmt->execute([$target,$organizationId]);$employee=$employeeStmt->fetch();if(!$employee)fail('الموظف غير موجود.',404,'attendance_employee_not_found');
+        $employeeStmt=$pdo->prepare("SELECT u.id,u.full_name,u.role,p.id policy_id,p.track_attendance,p.scheduled_start,p.scheduled_end,p.working_weekdays,p.grace_minutes,p.monthly_salary,p.expected_working_days,p.absence_multiplier,p.late_multiplier,p.early_leave_deduction_enabled FROM users u LEFT JOIN attendance_policies p ON p.organization_id=u.organization_id AND p.user_id=u.id WHERE u.id=? AND u.organization_id=? AND u.role NOT IN ('client','owner','applicant') FOR UPDATE");$employeeStmt->execute([$target,$organizationId]);$employee=$employeeStmt->fetch();if(!$employee)fail('الموظف غير موجود.',404,'attendance_employee_not_found');
         $beforeStmt=$pdo->prepare('SELECT * FROM attendance_records WHERE organization_id=? AND user_id=? AND work_date=? FOR UPDATE');$beforeStmt->execute([$organizationId,$target,$workDate]);$before=$beforeStmt->fetch()?:null;
         $scheduledStart='12:00';$scheduledEnd=normalizeBusinessTime((string)($employee['scheduled_end']??'24:00'),true)?:'24:00';$grace=15;$snapshot=json_encode(['scheduled_start'=>$scheduledStart,'scheduled_end'=>$scheduledEnd,'working_weekdays'=>json_decode((string)($employee['working_weekdays']??'[0,1,2,3,4]'),true)?:[0,1,2,3,4],'grace_minutes'=>$grace,'late_rounding_minutes'=>30,'late_unit_amount'=>10,'monthly_salary'=>(float)($employee['monthly_salary']??0),'expected_working_days'=>(int)($employee['expected_working_days']??26),'absence_multiplier'=>(float)($employee['absence_multiplier']??1),'late_multiplier'=>1,'early_leave_deduction_enabled'=>(bool)($employee['early_leave_deduction_enabled']??0)],JSON_UNESCAPED_UNICODE);
         $late=0;$early=0;$zone=new DateTimeZone('Africa/Cairo');if($checkIn){$rawLate=attendanceRawLateMinutes($workDate,$scheduledStart,$checkIn);$lateCharge=attendanceLateCharge($rawLate,$grace);$late=$lateCharge['units']>0?$rawLate:0;}if($checkOut){$endDate=new DateTimeImmutable($workDate.' '.$scheduledEnd,$zone);$outDate=new DateTimeImmutable($checkOut,$zone);$early=max(0,(int)floor(($endDate->getTimestamp()-$outDate->getTimestamp())/60));}
@@ -2942,7 +2926,7 @@ if ($path === '/attendance/records/manual' && $method === 'PUT') {
 }
 
 if ($path === '/attendance/adjustments' && $method === 'POST') {
-    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$target=(int)($payload['user_id']??0);$month=validMonth((string)($payload['month']??''));$reason=trim((string)($payload['reason']??''));$amount=(float)($payload['amount']??0);if($target<=0||mb_strlen($reason)<5||$amount==0.0)fail('الموظف والمبلغ وسبب واضح مطلوبون.',422,'validation_error');$stmt=$pdo->prepare("SELECT id FROM users WHERE id=? AND organization_id=? AND role NOT IN ('client','owner')");$stmt->execute([$target,$user['organization_id']]);if(!$stmt->fetch())fail('الموظف غير موجود.',404);
+    $user=requireUser($user);requireRole($user,['owner']);$payload=body();$target=(int)($payload['user_id']??0);$month=validMonth((string)($payload['month']??''));$reason=trim((string)($payload['reason']??''));$amount=(float)($payload['amount']??0);if($target<=0||mb_strlen($reason)<5||$amount==0.0)fail('الموظف والمبلغ وسبب واضح مطلوبون.',422,'validation_error');$stmt=$pdo->prepare("SELECT id FROM users WHERE id=? AND organization_id=? AND role NOT IN ('client','owner','applicant')");$stmt->execute([$target,$user['organization_id']]);if(!$stmt->fetch())fail('الموظف غير موجود.',404);
     $stmt=$pdo->prepare('INSERT INTO attendance_adjustments (organization_id,user_id,attendance_record_id,adjustment_month,adjustment_type,amount,minutes,reason,created_by) VALUES (?,?,?,?,?,?,?,?,?)');$stmt->execute([$user['organization_id'],$target,$payload['attendance_record_id']??null,$month,$amount>0?'deduction':'credit',$amount,(int)($payload['minutes']??0),$reason,$user['id']]);$id=(int)$pdo->lastInsertId();audit($pdo,$user,'create','attendance_adjustments',$id,null,['user_id'=>$target,'month'=>$month,'amount'=>$amount,'reason'=>$reason]);respond(['id'=>$id],201);
 }
 
@@ -2992,8 +2976,11 @@ if ($path === '/users' && $method === 'POST') {
     if (!validPassword($password)) fail('كلمة المرور يجب أن تكون من 12 حرفًا على الأقل وتحتوي حروفًا وأرقامًا.', 422, 'weak_password');
     if ($role === 'client') fail('أنشئ حساب العميل من قسم الدخول والأمان المخصص له.', 422, 'use_client_credential_flow');
     if (!empty($payload['client_id'])) fail('استخدم قسم الدخول والأمان لإنشاء حساب مرتبط بعميل.', 422, 'use_client_credential_flow');
+    $phone = loginMobile($payload['phone'] ?? '');
+    if ($phone === '') fail('رقم الموبايل مطلوب لتسجيل الدخول.', 422, 'invalid_login_phone');
+    assertLoginMobileAvailable($pdo, $phone);
     $stmt = $pdo->prepare('INSERT INTO users (organization_id, client_id, full_name, email, phone, password_hash, role, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$user['organization_id'], null, trim((string)$payload['full_name']), $payload['email'] ?: null, isset($payload['phone']) ? normalizePhone((string)$payload['phone']) : null, password_hash($password, PASSWORD_DEFAULT), $role, json_encode($payload['permissions'] ?? [], JSON_UNESCAPED_UNICODE)]);
+    $stmt->execute([$user['organization_id'], null, trim((string)$payload['full_name']), $payload['email'] ?: null, $phone, password_hash($password, PASSWORD_DEFAULT), $role, json_encode($payload['permissions'] ?? [], JSON_UNESCAPED_UNICODE)]);
     $id = (int)$pdo->lastInsertId(); audit($pdo, $user, 'create', 'users', $id, null, ['role'=>$role,'full_name'=>$payload['full_name']]);
     respond(['id' => $id], 201);
 }
@@ -3006,8 +2993,9 @@ if (preg_match('#^/users/(\d+)$#', $path, $m) && $method === 'PATCH') {
     $resultingClient=(isset($payload['role'])&&$payload['role']==='client')||!empty($payload['client_id']);
     if(($currentOrLinkedClient||$resultingClient)&&clientCredentialMutationRequested($payload))fail('استخدم قسم الدخول والأمان لتغيير بيانات دخول العميل.',422,'use_client_credential_flow');
     if(array_key_exists('client_id',$payload))fail('ربط المستخدم بالعميل لا يتغير من مسار المستخدمين العام.',422,'use_client_credential_flow');
+    if(array_key_exists('phone',$payload)){ $payload['phone']=loginMobile($payload['phone']); if($payload['phone']==='')fail('رقم الموبايل مطلوب لتسجيل الدخول.',422,'invalid_login_phone'); assertLoginMobileAvailable($pdo,$payload['phone'],$targetId); }
     $updates=[];$params=[];
-    foreach(['full_name','email','phone','role','is_active'] as $field){if(array_key_exists($field,$payload)){$updates[]="`$field`=?";$params[]=$field==='phone'?normalizePhone((string)$payload[$field]):$payload[$field];}}
+    foreach(['full_name','email','phone','role','is_active'] as $field){if(array_key_exists($field,$payload)){$updates[]="`$field`=?";$params[]=$payload[$field];}}
     if(isset($payload['role'])&&!in_array($payload['role'],['owner','admin','operations','finance','staff','client'],true))fail('الدور غير صالح.',422);
     $removesOwner=$before['role']==='owner'&&((isset($payload['role'])&&$payload['role']!=='owner')||(array_key_exists('is_active',$payload)&&empty($payload['is_active'])));
     if($removesOwner){$activeOwners=$pdo->prepare("SELECT COUNT(*) FROM users WHERE organization_id=? AND role='owner' AND is_active=1 AND id<>?");$activeOwners->execute([$user['organization_id'],$targetId]);if((int)$activeOwners->fetchColumn()<1)fail('لا يمكن تعطيل أو تخفيض صلاحية آخر مالك نشط.',409,'last_owner_protected');}
@@ -3452,8 +3440,8 @@ if (preg_match('#^/clients/(\d+)/credentials/password$#',$path,$m)&&$method==='P
     if(!validClientPassword($next))fail('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.',422,'weak_password');
     $limit=$pdo->prepare("SELECT COUNT(*) FROM audit_logs WHERE organization_id=? AND user_id=? AND action='client_password_set' AND created_at>DATE_SUB(NOW(),INTERVAL 15 MINUTE)");$limit->execute([$user['organization_id'],$user['id']]);if((int)$limit->fetchColumn()>=10)fail('تم الوصول للحد الآمن لتغيير كلمات المرور. حاول بعد 15 دقيقة.',429,'credential_change_rate_limited');
     $pdo->beginTransaction();
-    try{$client=$pdo->prepare('SELECT id,name,email,phone1 FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$client->execute([$clientId,$user['organization_id']]);$clientRow=$client->fetch();if(!$clientRow){$pdo->rollBack();fail('العميل غير موجود.',404,'client_not_found');}$clientPhone=normalizePhone((string)$clientRow['phone1'])?:trim((string)$clientRow['phone1']);
-        $stmt=$pdo->prepare("SELECT * FROM users WHERE client_id=? AND organization_id=? AND role='client' FOR UPDATE");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();$accessEnabled=$account?!empty($account['is_active']):false;
+    try{$client=$pdo->prepare('SELECT id,name,email,phone1 FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$client->execute([$clientId,$user['organization_id']]);$clientRow=$client->fetch();if(!$clientRow){$pdo->rollBack();fail('العميل غير موجود.',404,'client_not_found');}$clientPhone=loginMobile((string)$clientRow['phone1']);if($clientPhone==='')fail('أضف رقم موبايل صحيحًا للعميل أولًا.',422,'invalid_login_phone');
+        $stmt=$pdo->prepare("SELECT * FROM users WHERE client_id=? AND organization_id=? AND role='client' FOR UPDATE");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();assertLoginMobileAvailable($pdo,$clientPhone,$account?(int)$account['id']:null);$accessEnabled=$account?!empty($account['is_active']):false;
         if($account){$hasCurrentHash=trim((string)$account['password_hash'])!=='';if($hasCurrentHash&&password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.',422,'password_reuse');}if($hasCurrentHash&&passwordWasUsed($pdo,(int)$account['organization_id'],(int)$account['id'],$next)){$pdo->rollBack();fail('لا يمكن إعادة استخدام كلمة مرور سابقة.',422,'password_history_reuse');}if($hasCurrentHash)retainPasswordHash($pdo,$account,'owner_password_set');$accountId=(int)$account['id'];$version=(int)$account['credential_version']+1;$pdo->prepare("UPDATE users SET full_name=?,email=?,phone=?,password_hash=?,password_changed_at=NOW(),password_status='active',must_change_password=0,temporary_expires_at=NULL,credential_version=? WHERE id=?")->execute([$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($next,PASSWORD_DEFAULT),$version,$accountId]);}
         else{$pdo->prepare("INSERT INTO users (organization_id,client_id,full_name,email,phone,password_hash,role,is_active,password_status,must_change_password,credential_version,password_changed_at) VALUES (?,?,?,?,?,?,'client',0,'active',0,1,NOW())")->execute([$user['organization_id'],$clientId,$clientRow['name'],$clientRow['email'],$clientPhone,password_hash($next,PASSWORD_DEFAULT)]);$accountId=(int)$pdo->lastInsertId();}
         $pdo->prepare('DELETE FROM api_sessions WHERE user_id=?')->execute([$accountId]);$pdo->prepare('UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND used_at IS NULL')->execute([$accountId]);
@@ -3634,37 +3622,7 @@ if (preg_match('#^/bookings/(\d+)/cancel-decision$#',$path,$m)&&$method==='POST'
 }
 
 if (preg_match('#^/payment-proofs/(\d+)/decision$#',$path,$m)&&$method==='POST'){
-    $user=requireUser($user);requireRole($user,['owner']);$id=(int)$m[1];$payload=body();$action=(string)($payload['action']??'');if(!in_array($action,['approve','reject'],true))fail('القرار غير صالح.',422);
-    $pdo->beginTransaction();try{
-        $stmt=$pdo->prepare("SELECT p.*,c.name AS client_name FROM payment_proofs p JOIN clients c ON c.id=p.client_id AND c.organization_id=p.organization_id WHERE p.id=? AND p.organization_id=? AND p.status='pending' FOR UPDATE");$stmt->execute([$id,$user['organization_id']]);$proof=$stmt->fetch();if(!$proof){$pdo->rollBack();fail('الإثبات غير موجود أو تمت مراجعته.',404);}
-        $status=$action==='approve'?'approved':'rejected';$paymentId=null;
-        if($status==='approved'){
-            $hasPackage=!empty($proof['client_package_id']);$hasInvoice=!empty($proof['invoice_id']);if($hasPackage===$hasInvoice){$pdo->rollBack();fail('يجب أن يكون إثبات التحويل مرتبطًا بباقة أو فاتورة واحدة.',422,'invalid_payment_target');}
-            $amountCents=packageMoneyCents($proof['amount']);if($amountCents<=0){$pdo->rollBack();fail('مبلغ التحويل غير صالح.',422,'invalid_payment_amount');}$amount=packageMoney($amountCents);
-            $packageId=null;$invoiceId=null;$allocations=[];
-            if($hasPackage){
-                $stmt=$pdo->prepare('SELECT * FROM client_packages WHERE id=? AND organization_id=? AND client_id=? FOR UPDATE');$stmt->execute([(int)$proof['client_package_id'],$user['organization_id'],$proof['client_id']]);$target=$stmt->fetch();if(!$target){$pdo->rollBack();fail('الباقة المرتبطة بالتحويل غير موجودة.',404);}
-                $outstandingCents=max(0,packageMoneyCents($target['total_price'])+packageMoneyCents($target['overage_amount'])-packageMoneyCents($target['paid_amount']));if($amountCents>$outstandingCents){$pdo->rollBack();fail('مبلغ التحويل يتجاوز الرصيد المتبقي على الباقة.',422,'payment_exceeds_outstanding');}
-                $packageId=(int)$target['id'];
-                $remainingForPackageCents=$amountCents;if(!empty($target['source_invoice_id'])){$stmt=$pdo->prepare('SELECT * FROM invoices WHERE id=? AND organization_id=? AND client_id=? FOR UPDATE');$stmt->execute([(int)$target['source_invoice_id'],$user['organization_id'],$proof['client_id']]);$sourceInvoice=$stmt->fetch();if(!$sourceInvoice){$pdo->rollBack();fail('الفاتورة الأصلية المرتبطة بالباقة غير موجودة.',404,'source_invoice_missing');}$invoiceOutstandingCents=max(0,packageMoneyCents($sourceInvoice['total'])-packageMoneyCents($sourceInvoice['paid_amount']));$invoiceAllocatedCents=min($amountCents,$invoiceOutstandingCents);if($invoiceAllocatedCents>0){$invoiceId=(int)$sourceInvoice['id'];$newInvoicePaidCents=packageMoneyCents($sourceInvoice['paid_amount'])+$invoiceAllocatedCents;$invoiceStatus=$newInvoicePaidCents>=packageMoneyCents($sourceInvoice['total'])?'paid':$sourceInvoice['status'];$pdo->prepare('UPDATE invoices SET paid_amount=?,status=? WHERE id=?')->execute([packageMoney($newInvoicePaidCents),$invoiceStatus,$invoiceId]);$allocations[]=[$packageId,$invoiceId,packageMoney($invoiceAllocatedCents)];$remainingForPackageCents-=$invoiceAllocatedCents;}}
-                if($remainingForPackageCents>0)$allocations[]=[$packageId,null,packageMoney($remainingForPackageCents)];
-                $pdo->prepare('UPDATE client_packages SET paid_amount=paid_amount+? WHERE id=?')->execute([$amount,$packageId]);
-            }
-            else{
-                $stmt=$pdo->prepare('SELECT * FROM invoices WHERE id=? AND organization_id=? AND client_id=? FOR UPDATE');$stmt->execute([(int)$proof['invoice_id'],$user['organization_id'],$proof['client_id']]);$target=$stmt->fetch();if(!$target){$pdo->rollBack();fail('الفاتورة المرتبطة بالتحويل غير موجودة.',404);}
-                $outstandingCents=max(0,packageMoneyCents($target['total'])-packageMoneyCents($target['paid_amount']));if($amountCents>$outstandingCents){$pdo->rollBack();fail('مبلغ التحويل يتجاوز الرصيد المتبقي على الفاتورة.',422,'payment_exceeds_outstanding');}
-                $invoiceId=(int)$target['id'];$newPaidCents=packageMoneyCents($target['paid_amount'])+$amountCents;$invoiceStatus=$newPaidCents>=packageMoneyCents($target['total'])?'paid':$target['status'];$pdo->prepare('UPDATE invoices SET paid_amount=?,status=? WHERE id=?')->execute([packageMoney($newPaidCents),$invoiceStatus,$invoiceId]);
-                $packageStmt=$pdo->prepare('SELECT id,total_price,paid_amount FROM client_packages WHERE source_invoice_id=? AND organization_id=? AND client_id=? ORDER BY id FOR UPDATE');$packageStmt->execute([$invoiceId,$user['organization_id'],$proof['client_id']]);$remainingAllocationCents=$amountCents;foreach($packageStmt->fetchAll() as $linkedPackage){if($remainingAllocationCents<=0)break;$packageOutstandingCents=max(0,packageMoneyCents($linkedPackage['total_price'])-packageMoneyCents($linkedPackage['paid_amount']));$allocatedCents=min($remainingAllocationCents,$packageOutstandingCents);if($allocatedCents>0){$allocated=packageMoney($allocatedCents);$pdo->prepare('UPDATE client_packages SET paid_amount=paid_amount+? WHERE id=?')->execute([$allocated,$linkedPackage['id']]);$allocations[]=[(int)$linkedPackage['id'],$invoiceId,$allocated];$remainingAllocationCents-=$allocatedCents;}}
-                if($remainingAllocationCents>0)$allocations[]=[null,$invoiceId,packageMoney($remainingAllocationCents)];
-            }
-            $proofMethod=in_array((string)($proof['payment_method']??''),['cash','instapay','vodafone_cash'],true)?(string)$proof['payment_method']:'bank_transfer';
-            $methodLabel=['cash'=>'كاش','instapay'=>'انستاباي','vodafone_cash'=>'فودافون كاش','bank_transfer'=>'تحويل بنكي'][$proofMethod];
-            $pdo->prepare("INSERT INTO payments (organization_id,client_id,client_name,amount,method,status,reference,reviewed_by,reviewed_at) VALUES (?,?,?,?,?,'approved',?,?,NOW())")->execute([$user['organization_id'],$proof['client_id'],$proof['client_name'],$amount,$proofMethod,'proof-'.$id,$user['id']]);$paymentId=(int)$pdo->lastInsertId();
-            $pdo->prepare("INSERT INTO finance (organization_id,client_id,type,entry_kind,category,amount,method,detail,date,entity,source_type,source_id,correlation_id,is_system,created_by) VALUES (?,?,?,'income','client_revenue',?,?,?,?,?,'payment',?,?,1,?)")->execute([$user['organization_id'],$proof['client_id'],'إيراد',$amount,$methodLabel,'دفعة معتمدة من العميل '.$proof['client_name'].' عبر إثبات تحويل رقم '.$id,date('Y-m-d'),'الشركة',$paymentId,'payment:'.$paymentId,$user['id']]);
-            $allocationStmt=$pdo->prepare('INSERT INTO payment_allocations (organization_id,client_id,payment_id,payment_proof_id,client_package_id,invoice_id,amount) VALUES (?,?,?,?,?,?,?)');foreach($allocations as [$allocatedPackage,$allocatedInvoice,$allocatedAmount])$allocationStmt->execute([$user['organization_id'],$proof['client_id'],$paymentId,$id,$allocatedPackage,$allocatedInvoice,$allocatedAmount]);
-        }
-        $pdo->prepare('UPDATE payment_proofs SET payment_id=?,status=?,admin_note=?,reviewed_by=?,reviewed_at=NOW() WHERE id=? AND status=\'pending\'')->execute([$paymentId,$status,$payload['note']??null,$user['id'],$id]);if($status==='approved')dismissSettledPackageNotifications($pdo,(int)$user['organization_id'],(int)$proof['client_id']);audit($pdo,$user,'payment_proof_decision','payment_proofs',$id,$proof,['status'=>$status,'payment_id'=>$paymentId]);if($status==='approved')queueClientWhatsAppSummary($pdo,(int)$user['organization_id'],(int)$proof['client_id']);$pdo->commit();respond(['id'=>$id,'status'=>$status,'payment_id'=>$paymentId]);
-    }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    $user=requireUser($user);respond(reviewPaymentProof($pdo,$user,(int)$m[1],body()));
 }
 
 if ($path === '/projects/custom-service' && $method === 'POST') {
@@ -3803,6 +3761,7 @@ if ($path === '/bookings/request' && $method === 'POST') {
     if ($clientId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $start === '' || $end === '') fail('بيانات الموعد غير مكتملة.', 422);
     $startTs = strtotime("$date $start:00");
     $minutes = $user['role']==='client' ? validateClientBookingTimeGrid($start,$end,$payload['duration_minutes']??null) : bookingDurationMinutes($start, $end);
+    if ($user['role']==='client') requireClientBookingWindow($date,$start,$end);
     if ($startTs < time() - 300) fail('لا يمكن إنشاء حجز في وقت سابق.', 422, 'past_booking');
     $stmt = $pdo->prepare('SELECT id, name FROM clients WHERE id = ? AND organization_id = ? AND status = ?');
     $stmt->execute([$clientId, $user['organization_id'], 'active']); $client = $stmt->fetch();
@@ -3840,11 +3799,12 @@ if ($path === '/reschedule-requests' && $method === 'POST') {
     $date = (string)($payload['date'] ?? $payload['proposed_date'] ?? '');
     $start = normalizeBusinessTime($payload['start_time'] ?? $payload['proposed_start_time'] ?? '');
     $end = normalizeBusinessTime($payload['end_time'] ?? $payload['proposed_end_time'] ?? '', true);
+    requireClientBookingWindow($date,$start,$end);
     $pdo->beginTransaction();try{
         $stmt = $pdo->prepare("SELECT b.*,cp.starts_at AS package_starts_at,cp.expires_at AS package_expires_at,cp.validity_mode_snapshot,COALESCE(s.minimum_booking_minutes,60) AS minimum_booking_minutes,COALESCE(s.booking_increment_minutes,15) AS booking_increment_minutes FROM bookings b LEFT JOIN client_packages cp ON cp.id=b.client_package_id AND cp.organization_id=b.organization_id LEFT JOIN services s ON s.id=b.service_id AND s.organization_id=b.organization_id WHERE b.id = ? AND b.organization_id=? AND b.client_id = ? AND b.status IN ('confirmed','alternative_proposed') FOR UPDATE");
         $stmt->execute([$bookingId,$user['organization_id'],$user['client_id']]);$booking=$stmt->fetch();if(!$booking){$pdo->rollBack();fail('الحجز غير موجود أو لا يمكن تغييره.',404);}
         $minimum=max(15,(int)$booking['minimum_booking_minutes']);$increment=max(15,(int)$booking['booking_increment_minutes']);$packageValidity=empty($booking['client_package_id'])?null:['starts_at'=>$booking['package_starts_at'],'expires_at'=>$booking['package_expires_at'],'validity_mode_snapshot'=>$booking['validity_mode_snapshot']];$minutes=validateBookingSchedule($pdo,(int)$user['organization_id'],(int)$booking['resource_id'],$date,$start,$end,$minimum,$increment,$bookingId,$packageValidity,true);
-        $hoursUntilBooking=(strtotime($booking['date'].' '.$booking['start_time'])-time())/3600;if($hoursUntilBooking<48){$pdo->rollBack();fail('يجب طلب تغيير الموعد قبل الحجز بـ48 ساعة. تواصل مع الإدارة للاستثناء.',422,'late_reschedule');}
+        if(clientBookingNoticeIsLate($booking)){$pdo->rollBack();fail('يجب طلب تغيير الموعد قبل الحجز بـ48 ساعة. تواصل مع الإدارة للاستثناء.',422,'late_reschedule');}
         $existing=$pdo->prepare("SELECT id FROM reschedule_requests WHERE booking_id=? AND organization_id=? AND status='pending' LIMIT 1 FOR UPDATE");$existing->execute([$bookingId,$user['organization_id']]);if($existing->fetch()){$pdo->rollBack();fail('يوجد طلب تغيير قيد المراجعة بالفعل.',409);}
         $stmt=$pdo->prepare("INSERT INTO reschedule_requests (organization_id,booking_id,client_id,proposed_date,proposed_start_time,proposed_end_time,reason,status) VALUES (?,?,?,?,?,?,?,'pending')");$stmt->execute([$user['organization_id'],$bookingId,$user['client_id'],$date,"$start:00","$end:00",trim((string)($payload['reason']??''))]);
         $id=(int)$pdo->lastInsertId();audit($pdo,$user,'create','reschedule_requests',$id,null,['client_id'=>(int)$user['client_id'],'booking_id'=>$bookingId,'date'=>$date,'start'=>$start]);$pdo->commit();respond(['id'=>$id,'status'=>'pending'],201);
@@ -3856,7 +3816,8 @@ if (preg_match('#^/bookings/(\d+)/cancel-request$#', $path, $m) && $method === '
     $bookingId=(int)$m[1];$pdo->beginTransaction();try{
         $stmt=$pdo->prepare("SELECT * FROM bookings WHERE id=? AND organization_id=? AND client_id=? AND status IN ('pending','confirmed','alternative_proposed') FOR UPDATE");
         $stmt->execute([$bookingId,$user['organization_id'],$user['client_id']]);$booking=$stmt->fetch();if(!$booking){$pdo->rollBack();fail('الحجز غير موجود أو لا يمكن حذفه.',404);}
-        $hoursUntil=(strtotime($booking['date'].' '.$booking['start_time'])-time())/3600;$newStatus=$hoursUntil>=48?'cancel_requested':'late_cancel_requested';
+        if(clientCancellationIsLate($booking)){$pdo->rollBack();fail('يجب طلب الإلغاء قبل الموعد بـ48 ساعة على الأقل. يبقى الحجز مؤكدًا وتُحتسب ساعاته من الباقة. تواصل مع الإدارة لأي استثناء.',422,'late_cancellation');}
+        $newStatus=clientBookingNoticeIsLate($booking)?'late_cancel_requested':'cancel_requested';
         $pdo->prepare('UPDATE bookings SET status=? WHERE id=? AND organization_id=?')->execute([$newStatus,$bookingId,$user['organization_id']]);
         $pdo->prepare('INSERT INTO booking_status_history (booking_id, from_status, to_status, note, changed_by) VALUES (?, ?, ?, ?, ?)')->execute([$bookingId,$booking['status'],$newStatus,'طلب حذف الموعد من العميل',$user['id']]);
         audit($pdo,$user,'cancel_request','bookings',$bookingId,$booking,['client_id'=>(int)$user['client_id'],'status'=>$newStatus]);$pdo->commit();respond(['id'=>$bookingId,'status'=>$newStatus]);
@@ -3966,7 +3927,7 @@ if (preg_match('#^/data/([a-z_]+)$#', $path, $m)) {
     $table = $m[1];
     if (!isset($resources[$table])) fail('المورد المطلوب غير متاح.',404,'unknown_resource');
     $definition = $resources[$table];
-    $isPublicConfig = !$user && $table === 'app_config' && $method === 'GET';
+    $isPublicConfig = (!$user || $user['role']==='applicant') && $table === 'app_config' && $method === 'GET';
     if (!$isPublicConfig) {
         $user = requireUser($user);
         $roles = $method === 'GET' ? $definition['read'] : $definition['write'];
@@ -4092,7 +4053,7 @@ if (preg_match('#^/data/([a-z_]+)$#', $path, $m)) {
             }
             if($table==='services'){$unit=(string)($row['billing_unit']??((float)($row['total_reels']??0)>0?'reel':'hour'));if(!in_array($unit,['hour','reel','day','month','project'],true))fail('وحدة الخدمة غير صحيحة.',422,'invalid_billing_unit');$row['billing_unit']=$unit;$minimum=max(15,(int)($row['minimum_booking_minutes']??60));$increment=max(15,(int)($row['booking_increment_minutes']??15));if($minimum%15!==0||$increment%15!==0)fail('حدود الحجز يجب أن تكون بزيادات 15 دقيقة.',422,'invalid_booking_policy');$row['minimum_booking_minutes']=$minimum;$row['booking_increment_minutes']=$increment;$row['deposit_percent']=max(0,min(100,(float)($row['deposit_percent']??0)));$row['overage_price']=max(0,(float)($row['overage_price']??0));}
             $allowed=array_values(array_intersect(array_keys($row),$definition['columns']));
-            $allowed=array_values(array_diff($allowed,['id','created_at','updated_at','organization_id']));
+            $allowed=array_values(array_diff($allowed,['id','created_at','updated_at','organization_id','registration_source']));
             if($definition['org']??false){$row['organization_id']=$user['organization_id'];$allowed[]='organization_id';}
             if(($definition['clientScoped']??false)&&$user['role']==='client'){$row['client_id']=$user['client_id'];if(!in_array('client_id',$allowed,true))$allowed[]='client_id';}
             if(in_array('created_by',$definition['columns'],true)&&!isset($row['created_by'])){$row['created_by']=$user['id'];$allowed[]='created_by';}
@@ -4108,7 +4069,7 @@ if (preg_match('#^/data/([a-z_]+)$#', $path, $m)) {
         if($table==='finance'){$where.=' AND is_system=0';$immutableFinance=['entry_kind','source_type','source_id','correlation_id','is_system','reversed_entry_id'];foreach($immutableFinance as $field)unset($values[$field]);if(isset($values['amount'])&&(float)$values['amount']<=0)fail('مبلغ الحركة يجب أن يكون أكبر من صفر.',422,'invalid_finance_amount');}
         if($table==='services'){if(isset($values['billing_unit'])&&!in_array($values['billing_unit'],['hour','reel','day','month','project'],true))fail('وحدة الخدمة غير صحيحة.',422,'invalid_billing_unit');foreach(['minimum_booking_minutes','booking_increment_minutes'] as $field)if(isset($values[$field])&&((int)$values[$field]<15||(int)$values[$field]%15!==0))fail('حدود الحجز يجب أن تكون بزيادات 15 دقيقة.',422,'invalid_booking_policy');if(isset($values['deposit_percent']))$values['deposit_percent']=max(0,min(100,(float)$values['deposit_percent']));if(isset($values['overage_price']))$values['overage_price']=max(0,(float)$values['overage_price']);}
         if($table==='bookings'&&(isset($values['start_time'])||isset($values['end_time']))){$start=normalizeBusinessTime($values['start_time']??'');$end=normalizeBusinessTime($values['end_time']??'',true);if(!validBusinessBooking($start,$end))fail('موعد الحجز يجب أن يكون خلال اليوم بالكامل، بحد أدنى ساعة وبزيادات 15 دقيقة.',422,'invalid_booking_time');$values['start_time']=$start.':00';$values['end_time']=$end.':00';$values['duration_minutes']=bookingDurationMinutes($start,$end);$values['requested_quantity']=$values['duration_minutes']/60;}
-        if(!is_array($values))$values=$payload;if($table==='projects'&&isset($values['status'])&&!in_array($values['status'],['planning','active','on_hold','completed','cancelled'],true))fail('حالة المشروع غير صحيحة.',422,'invalid_project_state');if($table==='projects'&&isset($values['progress_percent']))$values['progress_percent']=max(0,min(100,(int)$values['progress_percent']));if($table==='project_tasks'&&isset($values['status'])&&!in_array($values['status'],['todo','in_progress','review','done','blocked'],true))fail('حالة المهمة غير صحيحة.',422,'invalid_task_state');if($table==='project_milestones'&&isset($values['status'])&&!in_array($values['status'],['pending','in_progress','review','completed','blocked'],true))fail('حالة مرحلة المشروع غير صحيحة.',422,'invalid_milestone_status');if($table==='project_milestones'&&isset($values['progress_percent']))$values['progress_percent']=max(0,min(100,(int)$values['progress_percent']));if($table==='content_items'&&isset($values['status'])&&!in_array($values['status'],['idea','draft','in_review','approved','scheduled','published','rejected','cancelled'],true))fail('حالة المحتوى غير صحيحة.',422,'invalid_content_state');$allowed=array_values(array_intersect(array_keys($values),$definition['columns']));$immutable=['id','organization_id','created_at','updated_at','client_id'];if(in_array($table,['project_tasks','content_items','project_items','project_milestones'],true))$immutable[]='project_id';if($table==='projects'){array_push($immutable,'client_package_id','invoice_id');}$allowed=array_values(array_diff($allowed,$immutable));if(in_array($table,['project_tasks','project_milestones'],true)&&$user['role']==='staff'){$allowed=array_values(array_intersect($allowed,['status','progress_percent','completed_at','client_note']));if($table==='project_tasks'){$where.=' AND assigned_to = ?';$params[]=$user['id'];}}
+        if(!is_array($values))$values=$payload;if($table==='projects'&&isset($values['status'])&&!in_array($values['status'],['planning','active','on_hold','completed','cancelled'],true))fail('حالة المشروع غير صحيحة.',422,'invalid_project_state');if($table==='projects'&&isset($values['progress_percent']))$values['progress_percent']=max(0,min(100,(int)$values['progress_percent']));if($table==='project_tasks'&&isset($values['status'])&&!in_array($values['status'],['todo','in_progress','review','done','blocked'],true))fail('حالة المهمة غير صحيحة.',422,'invalid_task_state');if($table==='project_milestones'&&isset($values['status'])&&!in_array($values['status'],['pending','in_progress','review','completed','blocked'],true))fail('حالة مرحلة المشروع غير صحيحة.',422,'invalid_milestone_status');if($table==='project_milestones'&&isset($values['progress_percent']))$values['progress_percent']=max(0,min(100,(int)$values['progress_percent']));if($table==='content_items'&&isset($values['status'])&&!in_array($values['status'],['idea','draft','in_review','approved','scheduled','published','rejected','cancelled'],true))fail('حالة المحتوى غير صحيحة.',422,'invalid_content_state');$allowed=array_values(array_intersect(array_keys($values),$definition['columns']));$immutable=['id','organization_id','created_at','updated_at','client_id','registration_source'];if(in_array($table,['project_tasks','content_items','project_items','project_milestones'],true))$immutable[]='project_id';if($table==='projects'){array_push($immutable,'client_package_id','invoice_id');}$allowed=array_values(array_diff($allowed,$immutable));if(in_array($table,['project_tasks','project_milestones'],true)&&$user['role']==='staff'){$allowed=array_values(array_intersect($allowed,['status','progress_percent','completed_at','client_note']));if($table==='project_tasks'){$where.=' AND assigned_to = ?';$params[]=$user['id'];}}
         if(!$allowed)fail('لا توجد حقول صالحة للتحديث.',422); $set=[];$setParams=[];foreach($allowed as $c){$set[]='`'.$c.'` = ?';$setParams[]=is_array($values[$c])?json_encode($values[$c],JSON_UNESCAPED_UNICODE):$values[$c];}
         $stmt=$pdo->prepare("UPDATE `$table` SET ".implode(',',$set)." WHERE $where");$stmt->execute(array_merge($setParams,$params));audit($pdo,$user,'update',$table,null,null,$values);respond(['updated'=>$stmt->rowCount()]);
     }

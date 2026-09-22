@@ -12,17 +12,17 @@ const setupBrowser = () => {
   return storage;
 };
 
-test('client dashboard owns the requested four simple pages and appointment actions', async () => {
+test('client dashboard owns the approved client sections and appointment actions', async () => {
   const [dashboard, overview, finance, offers, css] = await Promise.all([
     load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboardOverview.jsx'), load('src/pages/ClientFinanceView.jsx'), load('src/pages/ClientOfferTickets.jsx'), load('src/pages/ClientDashboard.css'),
   ]);
   const nav = dashboard.slice(dashboard.indexOf('<nav aria-label="التنقل الرئيسي"'), dashboard.indexOf('</nav>'));
-  for (const label of ['الرئيسية', 'المواعيد', 'المالية', 'العروض']) assert.match(nav, new RegExp(label));
-  assert.doesNotMatch(nav, /الباقات والخدمات|سجل الخدمات/);
-  for (const label of ['موعد التصوير القادم', 'مدة الحجز', 'إجمالي الباقة', 'المستخدم', 'إجمالي التكلفة', 'المتبقي']) assert.ok(overview.includes(label), label);
+  for (const label of ['الرئيسية', 'المواعيد', 'باقاتي', 'المدفوعات', 'العروض']) assert.match(nav, new RegExp(label));
+  assert.match(nav, /سجل الخدمات/);
+  for (const label of ['موعد التصوير القادم', 'إجمالي الباقة', 'المستخدم', 'إجمالي التكلفة', 'المتبقي']) assert.ok(overview.includes(label), label);
   assert.doesNotMatch(overview, /notifications|client-home-notification-card/); assert.match(overview, /نقاط حسابك/);
   assert.equal((dashboard.match(/<ClientNotifications/g) || []).length, 1);
-  assert.match(dashboard, /<div className="client-topbar-actions"><ClientNotifications/);
+  assert.match(dashboard, /<ClientNotifications key=\{clientId\} clientId=\{clientId\}/);
   assert.match(dashboard, /client-topbar-points/); assert.match(dashboard, /formatClientPoints\(client\?\.points\)/);
   assert.doesNotMatch(overview, /<aside className="client-home-focus-side">/);
   assert.match(css, /\.client-topbar-points\{[^}]*background:#f2ebff/);

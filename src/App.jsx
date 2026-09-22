@@ -11,6 +11,9 @@ const ERP_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
 
 const PrivateSurface = ({ children }) => <><Helmet><meta name="robots" content="noindex, nofollow" /></Helmet>{children}</>;
 
+const PublicRegistration = lazy(() => import('./pages/PublicRegistration'));
+const ApplicantDashboard = lazy(() => import('./pages/ApplicantDashboard'));
+const ClientSurface = () => { const { currentUser } = useData(); return currentUser?.role === 'applicant' ? <ApplicantDashboard /> : <ClientDashboard />; };
 const UnifiedLogin = lazy(() => import('./pages/UnifiedLogin'));
 const ForcedPasswordChange = lazy(() => import('./pages/ForcedPasswordChange'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -71,7 +74,7 @@ const ErpProtectedRoute = ({ children }) => {
 const ClientProtectedRoute = ({ children }) => {
   const { currentUser } = useData();
   const location = useLocation();
-  if (currentUser?.role !== 'client') return <Navigate to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`} replace />;
+  if (!['client', 'applicant'].includes(currentUser?.role)) return <Navigate to={`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`} replace />;
   if (currentUser.must_change_password) return <Navigate to="/change-password" replace />;
   return children;
 };
@@ -148,10 +151,11 @@ function App() {
               <Route path="contact" element={<ContactPage />} />
               <Route path="*" element={<PublicNotFound />} />
             </Route>)}
+            <Route path="/register" element={<PrivateSurface><PublicRegistration /></PrivateSurface>} />
             <Route path="/login" element={<PrivateSurface><UnifiedLogin /></PrivateSurface>} />
             <Route path="/change-password" element={<PrivateSurface><ForcedPasswordRoute><ForcedPasswordChange /></ForcedPasswordRoute></PrivateSurface>} />
             <Route path="/reset-password" element={<PrivateSurface><ResetPassword /></PrivateSurface>} />
-            <Route path="/dashboard" element={<PrivateSurface><ClientProtectedRoute><ClientDashboard /></ClientProtectedRoute></PrivateSurface>} />
+            <Route path="/dashboard" element={<PrivateSurface><ClientProtectedRoute><ClientSurface /></ClientProtectedRoute></PrivateSurface>} />
             <Route path="/adminmt/login" element={<PrivateSurface><AdminLogin /></PrivateSurface>} />
             <Route 
               path="/erp/*" 

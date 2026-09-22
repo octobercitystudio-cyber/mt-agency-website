@@ -133,9 +133,9 @@ test('owner and client interfaces expose responsive tabs, safe deep links, statu
   assert.match(owner, /expected_version/); assert.match(owner, /expected_revision/); assert.match(owner, /valid_next_statuses/);
   assert.match(owner, /OwnerProgressRail/); assert.match(ownerCss, /owner-production-rail/);
   assert.match(ownerCss, /@media\(max-width:1100px\)/); assert.match(ownerCss, /@media\(max-width:768px\)/); assert.match(ownerCss, /@media\(max-width:430px\)/);
-  assert.match(dashboard, /CLIENT_TABS = \['home', 'schedule', 'finance', 'offers', 'videos', 'security'\]/);
+  for (const tab of ['home', 'schedule', 'packages', 'finance', 'offers', 'videos', 'security', 'requests', 'projects', 'history', 'book-studio']) assert.ok(dashboard.slice(dashboard.indexOf('const CLIENT_TABS'), dashboard.indexOf('const previewDate')).includes(`'${tab}'`));
   assert.doesNotMatch(dashboard, /navigateClient\('montage'\)|activeTab === 'montage'|mode="montage"/);
-  assert.match(dashboard, /client-nav-more/); assert.match(dashboard, /post_production_job_id/); assert.match(dashboard, /searchParams\.get\('tab'\)/);
+  assert.match(dashboard, /glance-more-menu/); assert.match(dashboard, /post_production_job_id/); assert.match(dashboard, /searchParams\.get\('tab'\)/);
   assert.match(login, /returnTo/); assert.match(login, /CLIENT_TABS\.includes\(tab\)/);
   for (const copy of ['تسليمات الفيديوهات', 'المدة المصورة', 'فترة الاستلام من مقر الشركة', 'روابط الفيديوهات', 'برجاء التحميل في خلال 48 ساعة من الرفع ويتم حذف الروابط بشكل تلقائي ويمكنكم استلامها من مقر الشركة فيما بعد في مدة اقصاها اسبوع من تاريخ التصوير']) assert.ok(client.includes(copy), copy);
   assert.match(client, /target="_blank" rel="noopener noreferrer"/); assert.match(client, /useChangeSync/); assert.match(client, /30000/); assert.match(client, /pickup_availability/); assert.match(client, /available_until/);

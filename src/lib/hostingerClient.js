@@ -1,3 +1,4 @@
+import { requireLoginPhone } from './phoneLogin.js';
 import { sharedReadRequestScheduler } from './readRequestScheduler.js';
 
 const API_BASE = (import.meta.env?.VITE_API_URL || '/api').replace(/\/$/, '');
@@ -135,20 +136,56 @@ const notifyAuth = (event, session) => {
   authListeners.forEach((listener) => listener(event, session));
 };
 
+const completeSignIn = data => {
+  if (!data?.session || !data?.user?.id || !data.user.role) {
+    throw Object.assign(new Error('تعذر تأكيد جلسة الدخول. حاول مرة أخرى.'), { code: 'api_error' });
+  }
+  cachedUser = data.user;
+  const session = { ...data.session, user: data.user };
+  notifyAuth('SIGNED_IN', session);
+  return { data: { session, user: data.user }, error: null };
+};
+
+const googleRequest = async (path, body) => {
+  try {
+    const data = await apiRequest(path, body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) });
+    return { data, error: null };
+  } catch (error) { return { data: null, error }; }
+};
+
 const auth = {
-  async signInWithPassword({ email, password, identifier }) {
+  async signInWithPassword({ phone, password, identifier }) {
     try {
       const data = await apiRequest('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ identifier: identifier || email, password }),
+        body: JSON.stringify({ identifier: requireLoginPhone(phone || identifier), password }),
       });
-      cachedUser = data.user;
-      const session = { ...data.session, user: data.user };
-      notifyAuth('SIGNED_IN', session);
-      return { data: { session, user: data.user }, error: null };
+      return completeSignIn(data);
     } catch (error) {
       return { data: { session: null, user: null }, error };
     }
+  },
+
+  getGoogleConfig() { return googleRequest('/auth/google/config'); },
+  createGoogleChallenge() { return googleRequest('/auth/google/challenge', {}); },
+  async signInWithGoogle({ credential, challenge_id }) {
+    const result = await googleRequest('/auth/google/login', { credential, challenge_id });
+    if (result.error) return result;
+    if (result.data?.link_required === true) {
+      if (!/^[a-f0-9]{64}$/.test(result.data.link_token || '') || !(result.data.expires_in > 0)) {
+        return { data: null, error: Object.assign(new Error('تعذر بدء ربط الحساب.'), { code: 'api_error' }) };
+      }
+      return { data: { link_required: true, link_token: result.data.link_token, expires_in: result.data.expires_in }, error: null };
+    }
+    try { return completeSignIn(result.data); }
+    catch (error) { return { data: null, error }; }
+  },
+  async linkGoogleAccount({ link_token, phone, password }) {
+    try {
+      const result = await googleRequest('/auth/google/link', { link_token, phone: requireLoginPhone(phone), password });
+      if (result.error) return result;
+      return completeSignIn(result.data);
+    } catch (error) { return { data: null, error }; }
   },
 
   async getSession() {

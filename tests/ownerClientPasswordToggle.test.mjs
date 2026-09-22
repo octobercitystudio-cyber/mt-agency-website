@@ -17,7 +17,7 @@ test('owner-set password works while enabled and repeated login never changes ac
   const first = 'OwnerChosen2026A'; const second = 'OwnerChanged2027B';
   assert.equal((await setPassword(1, first)).data.access_enabled, true);
   const session = await authenticateDemoClientCredential('01012345678', first); assert.ok(session);
-  await demoClient.auth.signOut(); assert.ok(await authenticateDemoClientCredential('sara@example.com', first));
+  await demoClient.auth.signOut(); assert.equal(await authenticateDemoClientCredential('sara@example.com', first), null); assert.ok(await authenticateDemoClientCredential('+20 1012345678', first));
   activateDemoMode('owner'); assert.equal((await credentialMeta(1)).data.access_enabled, true);
   assert.equal((await setPassword(1, second)).data.access_enabled, true); assert.equal(resumeDemoCredentialSession(session), false); assert.equal(await authenticateDemoClientCredential('01012345678', first), null);
 });

@@ -1,7 +1,7 @@
 import { timeToMinutes } from '../lib/businessFormat.js';
 
 export const CLIENT_BOOKING_MINUTES_MIN = 30;
-export const CLIENT_BOOKING_MINUTES_MAX = 1440;
+export const CLIENT_BOOKING_MINUTES_MAX = 600;
 export const CLIENT_BOOKING_MINUTES_STEP = 30;
 
 const formatMinuteValue = value => value === 1440
@@ -33,11 +33,11 @@ export const resolveClientBookingTime = ({ startTime, durationMinutes, slots = [
   if (!startTime) return { errorCode: 'start_required', endTime: '', slot: null };
   const startMinutes = timeToMinutes(compactTime(startTime));
   if (!Number.isSafeInteger(startMinutes) || startMinutes < 0) return { errorCode: 'start_invalid', endTime: '', slot: null };
-  if (startMinutes >= 1440 || startMinutes % 60 !== 0) {
+  if (startMinutes < 720 || startMinutes >= 1320 || startMinutes % 60 !== 0) {
     return { errorCode: 'start_grid_invalid', endTime: '', slot: null };
   }
   const endMinutes = startMinutes + durationMinutes;
-  if (endMinutes > 1440) return { errorCode: 'after_midnight', endTime: '', slot: null };
+  if (endMinutes > 1320) return { errorCode: 'outside_hours', endTime: '', slot: null };
   const endTime = formatMinuteValue(endMinutes);
   const slot = slots.find(item => compactTime(item.start_time) === compactTime(startTime) && compactTime(item.end_time) === endTime) || null;
   return { errorCode: slot ? '' : 'unavailable', endTime, slot };

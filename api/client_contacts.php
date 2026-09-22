@@ -37,3 +37,15 @@ function requireClientPhonesSchema(PDO $pdo): void {
         if($locked){$release=$pdo->prepare('SELECT RELEASE_LOCK(?)');$release->execute([$lockName]);}
     }
 }
+
+function requireClientRegistrationSourceSchema(PDO $pdo): void {
+    if(schemaColumnExists($pdo,'clients','registration_source'))return;
+    if($pdo->inTransaction())throw new RuntimeException('Client source migration must run before a transaction.');
+    $lock=$pdo->prepare('SELECT GET_LOCK(?,10)');$lock->execute(['mta_042_registration_source']);
+    if((int)$lock->fetchColumn()!==1)fail('يجري تجهيز تسجيل العملاء. حاول بعد لحظات.',503,'registration_schema_busy');
+    try{
+        // Recheck without the metadata cache after acquiring the cross-request lock.
+        $s=$pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='clients' AND COLUMN_NAME='registration_source'");$s->execute();
+        if((int)$s->fetchColumn()===0)$pdo->exec("ALTER TABLE clients ADD COLUMN registration_source VARCHAR(20) NOT NULL DEFAULT 'manual'");
+    }finally{$pdo->prepare('SELECT RELEASE_LOCK(?)')->execute(['mta_042_registration_source']);}
+}

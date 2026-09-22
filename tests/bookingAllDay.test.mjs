@@ -21,44 +21,32 @@ test('booking times cover the entire day while blank input defaults to evening',
   assert.equal(time12To24('2:00', 'am'), '02:00');
 });
 
-test('client time entry supports morning and a full day without spilling into another date', () => {
-  const slots = [{ start_time: '00:00', end_time: '24:00', resource_id: 1 }, { start_time: '08:00', end_time: '09:30', resource_id: 1 }];
-  assert.equal(clientDurationError(1440), '');
-  assert.equal(clientDurationError(1470), 'duration_too_long');
-  assert.equal(resolveClientBookingTime({ startTime: '00:00', durationMinutes: 1440, slots }).slot?.resource_id, 1);
-  assert.equal(resolveClientBookingTime({ startTime: '08:00', durationMinutes: 90, slots }).slot?.resource_id, 1);
-  assert.equal(resolveClientBookingTime({ startTime: '01:00', durationMinutes: 1440, slots }).errorCode, 'after_midnight');
+test('client booking hours are noon to ten while admin remains all-day', () => {
+  const slots = [{ start_time: '12:00', end_time: '22:00', resource_id: 1 }];
+  assert.equal(clientDurationError(600), '');
+  assert.equal(clientDurationError(630), 'duration_too_long');
+  assert.equal(resolveClientBookingTime({ startTime: '12:00', durationMinutes: 600, slots }).slot?.resource_id, 1);
+  assert.equal(resolveClientBookingTime({ startTime: '08:00', durationMinutes: 90, slots }).errorCode, 'start_grid_invalid');
+  assert.equal(resolveClientBookingTime({ startTime: '21:00', durationMinutes: 90, slots }).errorCode, 'outside_hours');
 });
 
-test('Friday availability includes midnight and morning; saved requests still respect blocks and package validity', async () => {
+test('clients cannot request Friday or off-hours even with sufficient package balance', async () => {
   const storage = new Map();
   globalThis.localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) };
-  globalThis.window = { dispatchEvent() {} };
-  globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
+  globalThis.window = { dispatchEvent() {} }; globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
   const { demoClient, resetDemoDatabase, activateDemoMode, deactivateDemoMode } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); activateDemoMode('client');
-  const key = 'mt_agency_erp_demo_v12';
-  const db = JSON.parse(storage.get(key));
-  const pkg = db.client_packages.find(p => p.id === 201);
-  Object.assign(pkg, { starts_at: '2027-01-01', expires_at: '2027-01-31', purchased_quantity: 40, purchased_minutes: 2400, held_quantity: 0, held_minutes: 0, consumed_quantity: 0, consumed_minutes: 0 });
-  db.bookings = []; db.booking_blocks = []; db.booking_slots = []; db.package_usage_ledger = [];
-  storage.set(key, JSON.stringify(db));
-  const request = (route, body) => demoClient.request(route, { method: 'POST', body: JSON.stringify(body) });
-  const availability = minutes => demoClient.request(`/client/booking-availability?client_package_id=201&duration_minutes=${minutes}&days=1&start_date=2027-01-08`);
-  const full = await availability(1440);
-  assert.equal(full.error, null); assert.deepEqual(full.data.days[0].slots.map(s => [s.start_time, s.end_time]), [['00:00', '24:00']]);
-  const morning = await availability(60);
-  assert.equal(morning.data.days[0].slots.length, 24);
-  const slot = morning.data.days[0].slots.find(s => s.start_time === '08:00');
-  const body = { ...slot, date: '2027-01-08', client_package_id: 201, service_id: 101, duration_minutes: 60 };
-  const saved = await request('/bookings/request', body); assert.equal(saved.error, null);
-  activateDemoMode('owner');
-  const block = await request('/booking-blocks', { date: body.date, resource_id: slot.resource_id, start_time: '08:00', end_time: '09:00', idempotency_key: 'friday-morning-block-0001' });
-  assert.equal(block.error, null);
-  activateDemoMode('client');
-  assert.equal((await availability(60)).data.days[0].slots.some(s => s.start_time === '08:00'), false);
-  assert.equal((await request('/bookings/request', body)).error?.code, 'booking_conflict');
-  const expired = await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=60&days=1&start_date=2027-02-05');
-  assert.equal(expired.data.days[0].available, false);
+  const key = 'mt_agency_erp_demo_v12'; const db = JSON.parse(storage.get(key));
+  Object.assign(db.client_packages.find(p => p.id === 201), { starts_at: '2027-01-01', expires_at: '2027-01-31', purchased_quantity: 40, purchased_minutes: 2400, held_quantity: 0, held_minutes: 0, consumed_quantity: 0, consumed_minutes: 0 });
+  db.bookings = []; db.booking_blocks = []; db.booking_slots = []; db.package_usage_ledger = []; storage.set(key, JSON.stringify(db));
+  const request = body => demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify(body) });
+  const friday = await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=60&days=1&start_date=2027-01-08');
+  assert.equal(friday.error, null); assert.equal(friday.data.days[0].available, false);
+  const saturday = await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=60&days=1&start_date=2027-01-09');
+  assert.equal(saturday.data.days[0].slots.length, 10); assert.equal(saturday.data.days[0].slots[0].start_time, '12:00'); assert.equal(saturday.data.days[0].slots.at(-1).end_time, '22:00');
+  const base = { client_package_id: 201, service_id: 101, resource_id: 1, duration_minutes: 60, start_time: '12:00', end_time: '13:00' };
+  assert.equal((await request({ ...base, date: '2027-01-08' })).error?.code, 'client_booking_outside_hours');
+  assert.equal((await request({ ...base, date: '2027-01-09', start_time: '08:00', end_time: '09:00' })).error?.code, 'client_booking_outside_hours');
+  assert.equal((await request({ ...base, date: '2027-01-09' })).error, null);
   deactivateDemoMode();
 });

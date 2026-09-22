@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ClientStudioRequests from '../components/StudioBookingRequests';
+import ClientStudioBooking from './ClientStudioBooking';
+import { CLIENT_BOOKING_POLICY_LABEL, clientWindowError } from '../lib/registrationPolicy';
 import { dataClient } from '../dataClient';
 import {
   CalendarDays, CheckCircle2, CircleDollarSign, Clock3, Home,
-  Film, KeyRound, LogOut, Megaphone, Menu, RefreshCw, RotateCcw, Send, Sparkles, X, XCircle
+  Film, FolderKanban, History, Inbox, KeyRound, Package, Plus, LogOut, Megaphone, Menu, RefreshCw, RotateCcw, Send, Sparkles, X, XCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
-import ClientDashboardOverview from './ClientDashboardOverview';
+import ClientDashboardOverview, { ClientPackageCards } from './ClientDashboardOverview';
 import ClientFinanceView from './ClientFinanceView';
 import ClientProjectsView from './ClientProjectsView';
 import './ClientProjectsView.css';
 import ClientServiceHistory from './ClientServiceHistory';
 import useChangeSync from '../hooks/useChangeSync';
 import {
-  BUSINESS_HOURS_LABEL,
+
   formatBookingDate,
   formatClientPoints,
   formatEGP,
@@ -53,7 +56,7 @@ const STATUS_META = {
 
 const initialBooking = { client_package_id: '', date: '', start_time: '12:00', end_time: '13:00', notes: '' };
 const initialReschedule = { booking: null, date: '', start_time: '12:00', end_time: '13:00', reason: '' };
-const CLIENT_TABS = ['home', 'schedule', 'finance', 'offers', 'videos', 'security'];
+const CLIENT_TABS = ['home', 'schedule', 'packages', 'finance', 'offers', 'videos', 'security', 'requests', 'projects', 'history', 'book-studio'];
 const previewDate = (days = 0) => {
   const date = new Date();
   date.setHours(12, 0, 0, 0);
@@ -116,12 +119,19 @@ export default function ClientDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, logout } = useData();
   const clientId = currentUser?.client_id;
-  const isLocalPreview = import.meta.env.DEV && currentUser?.role === 'client' && currentUser?.is_local_preview;
+  const isLocalPreview = import.meta.env.DEV && currentUser?.role === 'client' && currentUser?.is_local_preview && !currentUser?.registration_managed;
   const requestedTab = searchParams.get('tab') || 'home';
   const normalizedRequestedTab = requestedTab === 'montage' ? 'videos' : requestedTab;
   const activeTab = CLIENT_TABS.includes(normalizedRequestedTab) ? normalizedRequestedTab : 'home';
   const highlightedPostProductionJobId = Math.max(0, Number(searchParams.get('job') || 0));
   const [moreOpen, setMoreOpen] = useState(false);
+  const [detailBookingId, setDetailBookingId] = useState(null);
+  useEffect(() => {
+    if (!moreOpen) return undefined;
+    const closeOnEscape = event => { if (event.key === 'Escape') setMoreOpen(false); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [moreOpen]);
   useEffect(() => {
     if (requestedTab !== 'montage') return;
     const normalized = new URLSearchParams(searchParams); normalized.set('tab', 'videos');
@@ -274,7 +284,7 @@ export default function ClientDashboard() {
   const futureBookings = useMemo(() => visibleBookings
     .filter(item => {
       const startTime = normalizeTime(item.start_time);
-      if (!item.date || !startTime || item.status === 'completed') return false;
+      if (!item.date || !startTime || !['pending', 'confirmed', 'alternative_proposed', 'cancel_requested', 'late_cancel_requested', 'in_progress'].includes(item.status)) return false;
       return new Date(`${item.date}T${startTime}:00`) >= new Date();
     })
     .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`)), [visibleBookings]);
@@ -284,6 +294,8 @@ export default function ClientDashboard() {
   );
 
   const orderedBookings = useMemo(() => [...bookingsWithSettlements].sort((a, b) => `${b.date || ''}${b.start_time || ''}`.localeCompare(`${a.date || ''}${a.start_time || ''}`)), [bookingsWithSettlements]);
+
+  const detailBooking = orderedBookings.find(booking => Number(booking.id) === Number(detailBookingId)) || upcomingBookings.find(booking => Number(booking.id) === Number(detailBookingId));
 
   const serviceForPackage = (pkg) => services.find(service => Number(service.id) === Number(pkg.service_id));
 
@@ -300,9 +312,11 @@ export default function ClientDashboard() {
     const increment = Math.max(15, Number(service?.booking_increment_minutes || 15));
     const duration = calculateDurationMinutes(reschedule.start_time, reschedule.end_time);
     if (!isValidBusinessBooking(reschedule.start_time, reschedule.end_time, minimum) || duration % increment !== 0) {
-      showNotice('error', `الموعد البديل يجب أن يكون ${BUSINESS_HOURS_LABEL}، بحد أدنى ${formatDurationMinutes(minimum)} وبزيادات ${formatDurationMinutes(increment)}.`);
+      showNotice('error', `الموعد البديل يجب أن يكون ${CLIENT_BOOKING_POLICY_LABEL}، بحد أدنى ${formatDurationMinutes(minimum)} وبزيادات ${formatDurationMinutes(increment)}.`);
       return;
     }
+    const policyError = clientWindowError({ date: reschedule.date, start_time: reschedule.start_time, end_time: reschedule.end_time, duration_minutes: duration });
+    if (policyError) { showNotice('error', policyError); return; }
     setActionBusy(`reschedule-${reschedule.booking.id}`);
     const { error } = await dataClient.request('/reschedule-requests', {
       method: 'POST', body: JSON.stringify({ booking_id: reschedule.booking.id, date: reschedule.date,
@@ -443,40 +457,41 @@ export default function ClientDashboard() {
     navigate('/login', { replace: true });
   };
 
-  if (!clientId) return <div className="client-state"><Clock3 /><p>جارٍ التحقق من الجلسة...</p></div>;
-  if (loading && !client) return <div className="client-state"><RefreshCw className="client-spin" /><p>نجهز لوحة حسابك...</p></div>;
-  if (loadError && !client) return <div className="client-state client-state--error"><XCircle /><h2>تعذر تحميل لوحة الحساب</h2><p>{loadError}</p><button onClick={fetchClientData}>إعادة المحاولة</button></div>;
+  if (!clientId) return <div className="client-state client-state--glance" dir="rtl" role="status"><Clock3 /><p>جارٍ التحقق من الجلسة...</p></div>;
+  if (loading && !client) return <div className="client-state client-state--glance" dir="rtl" role="status"><RefreshCw className="client-spin" /><p>نجهز لوحة حسابك...</p></div>;
+  if (loadError && !client) return <div className="client-state client-state--glance client-state--error" dir="rtl" role="alert"><XCircle /><h2>تعذر تحميل لوحة الحساب</h2><p>{loadError}</p><button onClick={() => fetchClientData()}>إعادة المحاولة</button></div>;
 
   return (
-    <div className={`client-app client-app--calm client-app--calm-${activeTab}${activeTab === 'home' ? ' client-app--calm-home' : ''}`} dir="rtl">
+    <div className={`client-app client-app--glance client-app--calm client-app--calm-${activeTab}${activeTab === 'home' ? ' client-app--calm-home' : ''}`} dir="rtl">
       <aside className="client-sidebar">
-        <div className="client-brand"><img src="/logo.webp" alt="MT Agency" /><div><strong>MT Agency</strong><span>مساحة العميل</span></div></div>
+        <div className="client-brand"><img src="/logo.webp" alt="شعار Multi Task Agency" /><div><strong>Multi Task</strong><span>Agency</span></div></div>
+        <div className="glance-sidebar-client"><span className="glance-avatar" aria-hidden="true">{String(client?.name || currentUser?.full_name || 'ع').trim().charAt(0)}</span><div><strong>{client?.name || currentUser?.full_name}</strong><small>مساحتك الإبداعية</small></div></div>
         <nav aria-label="التنقل الرئيسي">
-          {[
-            ['home', Home, 'الرئيسية'], ['schedule', CalendarDays, 'المواعيد'],
-            ['finance', CircleDollarSign, 'المالية'], ['offers', Megaphone, 'العروض'],
-          ].map(([key, Icon, label]) => <button key={key} aria-label={label} title={label} className={activeTab === key ? 'active' : ''} onClick={() => navigateClient(key)}><Icon size={19}/><span className="client-nav-label">{label}</span></button>)}
-          <button type="button" aria-label="الفيديوهات" title="الفيديوهات" className={`client-nav-secondary${activeTab === 'videos' ? ' active' : ''}`} onClick={() => navigateClient('videos')}><Film size={19}/><span className="client-nav-label">الفيديوهات</span></button>
-          <button type="button" aria-label="الأمان" title="الأمان" className={`client-nav-security${activeTab === 'security' ? ' active' : ''}`} onClick={() => navigateClient('security')}><KeyRound size={19}/><span className="client-nav-label">الأمان</span></button>
-          <button type="button" className={`client-nav-more${moreOpen || ['videos', 'security'].includes(activeTab) ? ' active' : ''}`} aria-label="المزيد من صفحات حسابك" aria-expanded={moreOpen} onClick={() => setMoreOpen(open => !open)}><Menu size={19}/><span className="client-nav-label">المزيد</span></button>
+          {[['home', Home, 'الرئيسية'], ['schedule', CalendarDays, 'المواعيد'], ['packages', Package, 'باقاتي'], ['finance', CircleDollarSign, 'المدفوعات'], ['requests', Inbox, 'طلباتي'], ['videos', Film, 'التسليمات']].map(([key, Icon, label]) => <button key={key} aria-current={activeTab === key ? 'page' : undefined} className={activeTab === key ? 'active' : ''} onClick={() => navigateClient(key)}><Icon size={20}/><span>{label}</span></button>)}
+          <span className="glance-nav-heading">المزيد لحسابك</span>
+          {[['projects', FolderKanban, 'خدماتي الحالية'], ['offers', Megaphone, 'العروض'], ['history', History, 'سجل الخدمات'], ['security', KeyRound, 'حسابي والأمان']].map(([key, Icon, label]) => <button key={key} aria-current={activeTab === key ? 'page' : undefined} className={activeTab === key ? 'active' : ''} onClick={() => navigateClient(key)}><Icon size={20}/><span>{label}</span></button>)}
         </nav>
-        {moreOpen && <div className="client-nav-more-menu" role="menu" aria-label="صفحات إضافية"><button type="button" role="menuitem" className={activeTab === 'videos' ? 'active' : ''} onClick={() => navigateClient('videos')}><Film/> تسليمات الفيديوهات</button><button type="button" role="menuitem" className={activeTab === 'security' ? 'active' : ''} onClick={() => navigateClient('security')}><KeyRound/> الأمان</button></div>}
         <button className="client-logout" onClick={handleLogout}><LogOut size={18}/> تسجيل الخروج</button>
       </aside>
-
+      <nav className="glance-mobile-nav" aria-label="التنقل الرئيسي للهاتف">{[['home', Home, 'الرئيسية'], ['schedule', CalendarDays, 'المواعيد'], ['packages', Package, 'باقاتي']].map(([key, Icon, label]) => <button key={key} aria-current={activeTab === key ? 'page' : undefined} className={activeTab === key ? 'active' : ''} onClick={() => navigateClient(key)}><Icon/><span>{label}</span></button>)}<button className={moreOpen || !['home', 'schedule', 'packages'].includes(activeTab) ? 'active' : ''} aria-expanded={moreOpen} aria-controls="glance-more-menu" onClick={() => setMoreOpen(open => !open)}><Menu/><span>المزيد</span></button></nav>
+      {moreOpen && <section id="glance-more-menu" className="glance-more-menu" aria-label="صفحات حسابك"><header><h2>المزيد لحسابك</h2><button type="button" aria-label="إغلاق قائمة المزيد" onClick={() => setMoreOpen(false)}><X/></button></header>{[['finance', CircleDollarSign, 'المدفوعات'], ['requests', Inbox, 'طلباتي'], ['videos', Film, 'التسليمات'], ['projects', FolderKanban, 'خدماتي الحالية'], ['offers', Megaphone, 'العروض'], ['history', History, 'سجل الخدمات'], ['security', KeyRound, 'حسابي والأمان']].map(([key, Icon, label]) => <button type="button" key={key} onClick={() => navigateClient(key)}><Icon/>{label}</button>)}<button type="button" className="glance-more-logout" onClick={handleLogout}><LogOut/>تسجيل الخروج</button></section>}
       <main className="client-main">
+        <div className="glance-utility"><div className="glance-mobile-brand"><img src="/logo.webp" alt="شعار Multi Task Agency"/><strong>Multi Task<span>Agency</span></strong></div><span className="glance-today"><CalendarDays/>{new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Cairo' }).format(new Date())}</span><ClientNotifications key={clientId} clientId={clientId} onNavigate={navigateClient}/></div>
         <header className={`client-topbar ${activeTab === 'home' ? 'client-topbar--home' : ''}`}>
-          <div className="client-topbar-profile"><span className="client-mobile-avatar" aria-hidden="true">{String(client?.name || currentUser?.full_name || 'ع').trim().charAt(0)}</span><div><span className="client-eyebrow">حسابك في Multi Task</span><div className="client-topbar-name-row"><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><span className="client-topbar-points" aria-label={`${formatClientPoints(client?.points)} نقطة`}><Sparkles aria-hidden="true"/><strong>{formatClientPoints(client?.points)}</strong><span>نقطة</span></span></div><p>باقاتك وموعدك ورصيدك أمامك ببساطة.</p></div></div>
-          <div className="client-topbar-actions"><ClientNotifications key={clientId} clientId={clientId} onNavigate={navigateClient}/></div>
+          <div className="client-topbar-profile"><div><div className="client-topbar-name-row"><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><span className="client-topbar-points" aria-label={`${formatClientPoints(client?.points)} نقطة`}><Sparkles aria-hidden="true"/><strong>{formatClientPoints(client?.points)}</strong><span>نقطة</span></span></div><p>كل ما يخص تصويرك، في نظرة واحدة.</p></div></div>
+          <button type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>احجز موعد تصوير</button>
         </header>
 
         {isLocalPreview && <div className="client-notice client-notice--success" role="status">معاينة عميل محلية ببيانات تمثيلية — تُحفظ الإجراءات على هذا الجهاز لتجربة دورة العمل كاملة.</div>}
         {notice && <div className={`client-notice client-notice--${notice.type}`} role="status">{notice.message}</div>}
-        {loadError && <div className="client-notice client-notice--error">تعذر تحديث بعض البيانات. <button onClick={fetchClientData}>حاول مجددًا</button></div>}
+        {loadError && <div className="client-notice client-notice--error">تعذر تحديث بعض البيانات. <button onClick={() => fetchClientData()}>حاول مجددًا</button></div>}
 
         {activeTab === 'home' && <ClientDashboardOverview
           client={client}
           activePackages={activePackages}
+          financialPackages={packages}
+          invoices={invoices}
+          onViewBooking={setDetailBookingId}
           upcomingBookings={upcomingBookings}
           projects={projects}
           sessionByBookingId={sessionByBookingId}
@@ -493,6 +508,8 @@ export default function ClientDashboard() {
           {upcomingBookings[0] ? <section className="client-next-appointment"><div><span>الموعد القادم</span><strong>{format(new Date(`${upcomingBookings[0].date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</strong><p>{timeLabel(upcomingBookings[0].start_time)} – {timeLabel(upcomingBookings[0].end_time)} · {formatDurationMinutes(calculateDurationMinutes(upcomingBookings[0].start_time, upcomingBookings[0].end_time))}</p></div><StatusBadge status={upcomingBookings[0].status}/></section> : <div className="client-empty client-empty--compact"><CalendarDays/><p>لا يوجد موعد قادم.</p></div>}
           <section className="client-appointment-cards" aria-labelledby="all-client-bookings"><div className="client-section-head"><div><span>الأحدث أولًا</span><h2 id="all-client-bookings">كل مواعيدك</h2></div></div>{orderedBookings.map(booking => <BookingRow key={booking.id} booking={booking} session={sessionByBookingId.get(Number(booking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>)}{!orderedBookings.length && <div className="client-empty"><CalendarDays/><h3>لم تطلب أي حجز بعد</h3></div>}</section>
         </section>}
+
+        {activeTab === 'packages' && <ClientPackageCards packages={packages} points={client?.points} onBookPackage={packageId => { setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) })); setBookingOpen(true); }} />}
 
         {activeTab === 'projects' && <ClientProjectsView
           client={client}
@@ -516,13 +533,16 @@ export default function ClientDashboard() {
         {activeTab === 'finance' && <ClientFinanceView activePackages={activePackages} financialPackages={packages} invoices={invoices} payments={payments} proofs={proofs} projects={projects} offers={offers} proofForm={proofForm} proofBusy={proofBusy} onProofFormChange={updates => setProofForm(previous => ({ ...previous, ...updates }))} onSubmitProof={uploadProof} onSelectTarget={selectPaymentTarget} />}
         {activeTab === 'videos' && <ClientPostProduction highlightJobId={highlightedPostProductionJobId} />}
         {activeTab === 'security' && <ClientSecuritySettings />}
+        {activeTab === 'requests' && <ClientStudioRequests/>}
+        {activeTab === 'book-studio' && <ClientStudioBooking onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
       </main>
 
+      {detailBookingId && detailBooking && <BookingDetailDialog booking={detailBooking} packageName={packages.find(pkg => Number(pkg.id) === Number(detailBooking.client_package_id))?.name} onClose={() => setDetailBookingId(null)}><BookingRow booking={detailBooking} session={sessionByBookingId.get(Number(detailBooking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(detailBooking, action)} onReschedule={() => { setDetailBookingId(null); setReschedule({ ...initialReschedule, booking: detailBooking, date: detailBooking.date, start_time: normalizeTime(detailBooking.start_time), end_time: normalizeTime(detailBooking.end_time, { endOfDay: true }) }); }} onCancel={() => { setDetailBookingId(null); requestCancel(detailBooking); }}/></BookingDetailDialog>}
       {bookingOpen && <ClientBookingDialog open packages={activePackages} services={services} initialPackageId={bookingForm.client_package_id} triggerRef={bookingTriggerRef} onClose={() => setBookingOpen(false)} onSuccess={fetchClientData} showNotice={showNotice}/>}
 
       {offerDetail && <div className="client-modal client-offer-modal" onMouseDown={event => { if (event.target === event.currentTarget) closeOfferDetail(); }}><section ref={offerDialogRef} className="client-modal-card client-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="client-offer-title"><button className="client-modal-close" onClick={closeOfferDetail} aria-label="إغلاق تفاصيل العرض"><X/></button>{offerDetailBusy ? <div className="client-empty"><RefreshCw className="client-spin"/><h3>جارٍ تحميل العرض</h3></div> : <ClientOfferDetails offer={offerDetail} serverOffset={offerServerOffset} busy={acceptBusy} confirm={acceptConfirm} onConfirm={() => setAcceptConfirm(true)} onCancelConfirm={() => setAcceptConfirm(false)} onAccept={acceptOffer}/>}</section></div>}
 
-      {reschedule.booking && <div className="client-modal" role="dialog" aria-modal="true" aria-label="طلب تغيير موعد"><div className="client-modal-card"><button className="client-modal-close" onClick={() => setReschedule(initialReschedule)} aria-label="إغلاق"><XCircle/></button><span className="client-eyebrow"><RotateCcw size={15}/> تغيير الموعد</span><h2>اختر الموعد البديل</h2><p>الموعد الحالي: {formatBookingDate(reschedule.booking.date)}، {timeLabel(reschedule.booking.start_time)}</p><form onSubmit={submitReschedule}><label>اليوم والتاريخ<input required type="date" min={format(new Date(), 'yyyy-MM-dd')} value={reschedule.date} onChange={e => setReschedule({ ...reschedule, date: e.target.value })}/></label><div className="client-time-fields"><label>الوقت من<BusinessTimeSelect required min="00:00" max="23:00" value={reschedule.start_time} onChange={e => setReschedule({ ...reschedule, start_time: e.target.value })}/></label><label>الوقت إلى<BusinessTimeSelect required min="00:15" max="24:00" value={reschedule.end_time} onChange={e => setReschedule({ ...reschedule, end_time: e.target.value })}/></label></div><label>ملاحظة اختيارية<textarea rows="3" value={reschedule.reason} onChange={e => setReschedule({ ...reschedule, reason: e.target.value })}/></label><p className="client-policy"><Clock3/> تغيير أو إلغاء الموعد يكون قبل 48 ساعة. الاستثناءات تُراجع مع الإدارة.</p><button className="client-primary" disabled={Boolean(actionBusy)}><Send/> إرسال الطلب</button></form></div></div>}
+      {reschedule.booking && <div className="client-modal" role="dialog" aria-modal="true" aria-label="طلب تغيير موعد"><div className="client-modal-card"><button className="client-modal-close" onClick={() => setReschedule(initialReschedule)} aria-label="إغلاق"><XCircle/></button><span className="client-eyebrow"><RotateCcw size={15}/> تغيير الموعد</span><h2>اختر الموعد البديل</h2><p>الموعد الحالي: {formatBookingDate(reschedule.booking.date)}، {timeLabel(reschedule.booking.start_time)}</p><form onSubmit={submitReschedule}><label>اليوم والتاريخ<input required type="date" min={format(new Date(), 'yyyy-MM-dd')} value={reschedule.date} onChange={e => setReschedule({ ...reschedule, date: e.target.value })}/></label><div className="client-time-fields"><label>الوقت من<BusinessTimeSelect required min="12:00" max="21:00" value={reschedule.start_time} onChange={e => setReschedule({ ...reschedule, start_time: e.target.value })}/></label><label>الوقت إلى<BusinessTimeSelect required min="12:30" max="22:00" value={reschedule.end_time} onChange={e => setReschedule({ ...reschedule, end_time: e.target.value })}/></label></div><label>ملاحظة اختيارية<textarea rows="3" value={reschedule.reason} onChange={e => setReschedule({ ...reschedule, reason: e.target.value })}/></label><p className="client-policy"><Clock3/> تغيير أو إلغاء الموعد قبل 48 ساعة على الأقل. بعدها يبقى مؤكدًا وتُخصم مدته من الباقة.</p><button className="client-primary" disabled={Boolean(actionBusy)}><Send/> إرسال الطلب</button></form></div></div>}
       {cancelConfirm && <div className="client-modal" role="dialog" aria-modal="true" aria-labelledby="client-cancel-title"><section className="client-modal-card client-cancel-dialog"><span className="client-cancel-dialog__icon"><XCircle/></span><h2 id="client-cancel-title">هل تريد إلغاء الموعد؟</h2><p>{formatBookingDate(cancelConfirm.date)} · {timeLabel(cancelConfirm.start_time)} – {timeLabel(cancelConfirm.end_time)}</p><div><button type="button" onClick={() => setCancelConfirm(null)} disabled={Boolean(actionBusy)}>الرجوع</button><button type="button" className="danger" onClick={confirmCancel} disabled={Boolean(actionBusy)}>{actionBusy ? 'جارٍ الإرسال...' : 'نعم، إرسال طلب الإلغاء'}</button></div></section></div>}
     </div>
   );
@@ -533,4 +553,17 @@ function BookingRow({ booking, session, serverOffset, busy, onAlternativeDecisio
   const canCancel = !isLive && ['pending', 'confirmed', 'alternative_proposed'].includes(booking.status);
   const settlement=booking.settlement;const outcome={none:'ضمن رصيد الباقة',new_package:'تمت إضافته إلى باقة جديدة',existing_package:'تم نقله إلى باقة أخرى',package_overage:'تم احتسابه كوقت إضافي',custom_invoice:'تم إصدار فاتورة منفصلة',custom_project:'تم إدراجه كخدمة مستقلة',waive:'تمت تسويته دون رسوم'}[settlement?.settlement_mode];
   return <article className={`client-booking-row${isLive ? ' client-booking-row--live' : ''}`} data-booking-id={booking.id}><div className="client-booking-date"><span>{format(new Date(`${booking.date}T12:00`), 'EEEE', { locale: ar })}</span><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${booking.date}T12:00`), 'MMM yyyy', { locale: ar })}</small></div><div className="client-booking-info">{isLive ? <span className="client-status client-status--live">جاري التصوير</span> : <StatusBadge status={booking.status}/>}<h3>{booking.service}</h3><p><CalendarDays size={15}/>{format(new Date(`${booking.date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</p><p><Clock3 size={15}/>{timeLabel(booking.start_time)} – {timeLabel(booking.end_time)} · {formatDurationMinutes(calculateDurationMinutes(booking.start_time, booking.end_time))}</p>{session&&<ClientAppointmentLiveStatus session={session} serverOffset={serverOffset} compact />}{settlement&&<div className="client-session-settlement"><strong>الوقت الفعلي {formatDurationMinutes(settlement.actual_minutes)}</strong><span>مغطى {formatDurationMinutes(settlement.covered_minutes)}{Number(settlement.excess_minutes)>0?` · زائد ${formatDurationMinutes(settlement.excess_minutes)}`:''}</span><small>{settlement.client_note||outcome}</small>{Number(settlement.amount_due)>0&&<b>المستحق {formatEGP(settlement.amount_due)}</b>}</div>}</div>{(canChange || canCancel) && <div className="client-booking-actions">{booking.status === 'alternative_proposed' && <><button disabled={Boolean(busy)} onClick={() => onAlternativeDecision('accept')}><CheckCircle2/> قبول الموعد</button><button className="danger" disabled={Boolean(busy)} onClick={() => onAlternativeDecision('reject')}><RotateCcw/> موعد آخر</button></>}{booking.status !== 'alternative_proposed' && canChange && <button disabled={Boolean(busy)} onClick={onReschedule}><RotateCcw/> تغيير الموعد</button>}{canCancel && <button className="danger" disabled={Boolean(busy)} onClick={onCancel}><XCircle/> {busy === `cancel-${booking.id}` ? 'جارٍ...' : 'إلغاء'}</button>}</div>}</article>;
+}
+
+function BookingDetailDialog({ booking, packageName, onClose, children }) {
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const trigger = document.activeElement;
+    dialog.showModal();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { dialog.close(); document.body.style.overflow = previousOverflow; trigger?.focus?.(); };
+  }, []);
+  return <dialog ref={dialogRef} className="glance-booking-detail client-modal-card" aria-labelledby="glance-booking-detail-title" onCancel={onClose} onClick={event => { if (event.target === event.currentTarget) { const bounds = event.currentTarget.getBoundingClientRect(); if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose(); } }}><header><h2 id="glance-booking-detail-title">تفاصيل الموعد</h2><button type="button" aria-label="إغلاق تفاصيل الموعد" onClick={onClose}><X/></button></header>{children}<dl className="glance-booking-detail-meta">{packageName && <div><dt>الباقة</dt><dd>{packageName}</dd></div>}<div><dt>المكان</dt><dd>{booking.resource_name || booking.studio_name || booking.location || (booking.resource_id ? `استديو #${booking.resource_id}` : 'استديو الشركة')}</dd></div>{booking.notes && <div><dt>ملاحظات الحجز</dt><dd>{booking.notes}</dd></div>}</dl></dialog>;
 }

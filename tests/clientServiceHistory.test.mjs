@@ -119,29 +119,26 @@ test('demo and production contracts reject staff access and derive client scope 
   for (const hidden of ['started_by', 'ended_by', 'created_by', 'internal_cost', 'internal_note', 'adjustment_reason', 'audit_logs']) assert.equal(route.includes(`'${hidden}'`), false, `${hidden} must not be selected or returned`);
 });
 
-test('client navigation exposes offers directly while Home keeps simple shortcuts', async () => {
-  const [dashboard, overview, css, view] = await Promise.all([
-    load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboardOverview.jsx'), load('src/pages/ClientDashboard.css'), load('src/pages/ClientServiceHistory.jsx'),
+test('client sidebar retains offers and service history while home links to actual account data', async () => {
+  const [dashboard, overview, view] = await Promise.all([
+    load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboardOverview.jsx'), load('src/pages/ClientServiceHistory.jsx'),
   ]);
-  const navigation = dashboard.slice(dashboard.indexOf("['home', Home"), dashboard.indexOf('].map(([key, Icon, label])'));
-  assert.doesNotMatch(navigation, /'history'|'projects'/);
-  assert.match(overview, /onNavigate\('offers'\)/);
-  assert.match(css, /grid-template-columns:repeat\(5,minmax\(0,1fr\)\)!important/);
-  assert.match(css, /@media\(max-width:800px\)[\s\S]*\.client-nav-security\{display:none\}[\s\S]*\.client-nav-more\{display:flex\}/);
+  assert.match(dashboard, /\['offers', Megaphone, 'العروض'\]/);
+  assert.match(dashboard, /\['history', History, 'سجل الخدمات'\]/);
+  assert.match(overview, /onNavigate\('finance'\)/);
+  assert.match(overview, /onNavigate\('packages'\)/);
   assert.match(view, /سجل الخدمات/);
   assert.match(view, /كل ما تم تنفيذه أو تسليمه لك في مكان واحد/);
   assert.match(view, /<details><summary>عرض التفاصيل<\/summary>/);
 });
-
-test('client primary navigation is exactly home, appointments, finance, and offers', async () => {
-  const [dashboard, css] = await Promise.all([load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientDashboard.css')]);
-  const navigation = dashboard.slice(dashboard.indexOf("['home', Home"), dashboard.indexOf('].map(([key, Icon, label])'));
-  assert.match(navigation, /\['offers', Megaphone, 'العروض'\]/);
-  assert.doesNotMatch(navigation, /'projects'|'history'|'أعمالي'/);
-  assert.equal((navigation.match(/\['(?:home|schedule|finance|offers)'/g) || []).length, 4);
-  assert.match(dashboard, /aria-label=\{label\} title=\{label\}/);
+test('client mobile navigation keeps direct home, appointment and package access with More for account pages', async () => {
+  const dashboard = await load('src/pages/ClientDashboard.jsx');
+  const start = dashboard.indexOf('<nav className="glance-mobile-nav"');
+  const navigation = dashboard.slice(start, dashboard.indexOf('</nav>', start));
+  for (const key of ["'home'", "'schedule'", "'packages'"]) assert.ok(navigation.includes(key));
+  assert.match(navigation, /aria-expanded=\{moreOpen\}/);
+  assert.match(navigation, /aria-controls="glance-more-menu"/);
   assert.match(dashboard, /activeTab === 'projects'/);
+  assert.match(dashboard, /activeTab === 'history'/);
   assert.match(dashboard, /navigateClient\(key\)/);
-  assert.match(css, /@media\(min-width:681px\) and \(max-width:800px\)/);
-  assert.match(css, /@media\(max-width:340px\)/);
 });

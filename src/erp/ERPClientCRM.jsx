@@ -74,7 +74,7 @@ function ClientDirectoryItem({ client, checked, onToggle, onOpen, onBook, onEdit
       <button className="client-crm-item__profile" type="button" onClick={onOpen} aria-label={`فتح تفاصيل ${client.name}`}>
         <ClientAvatar client={client} />
         <span className="client-crm-item__identity">
-          <span className="client-crm-item__name"><strong>{client.name}</strong>{client.isActive && <StatusPill tone="success">نشط</StatusPill>}{hasDue && <StatusPill tone="danger">مستحق</StatusPill>}</span>
+          <span className="client-crm-item__name"><strong>{client.name}</strong>{client.registration_source === 'website' && <span className="client-website-badge">مسجل من الموقع</span>}{client.isActive && <StatusPill tone="success">نشط</StatusPill>}{hasDue && <StatusPill tone="danger">مستحق</StatusPill>}</span>
           <span><BriefcaseBusiness size={14} /> {client.job || 'نوع العميل غير مسجل'}</span>
         </span>
       </button>
@@ -147,7 +147,7 @@ export function ClientProfileDrawer({
           <button className="client-crm-close" type="button" onClick={onClose} aria-label="إغلاق تفاصيل العميل"><X /></button>
           <div className="client-crm-profile-head__identity">
             <ClientAvatar client={client} large />
-            <div><span>ملف العميل</span><h2 id="client-profile-title">{client.name}</h2><p>{client.job || 'نوع العميل غير مسجل'} · {client.phone1 || 'دون هاتف'}</p></div>
+            <div><span>ملف العميل</span><h2 id="client-profile-title">{client.name}</h2>{client.registration_source === 'website' && <span className="client-website-badge">مسجل من الموقع</span>}<p>{client.job || 'نوع العميل غير مسجل'} · {client.phone1 || 'دون هاتف'}</p></div>
           </div>
           <div className="client-crm-profile-head__badges">{client.isActive && <StatusPill tone="success">نشط حاليًا</StatusPill>}{hasDue && <StatusPill tone="danger">لديه مستحقات</StatusPill>}</div>
           <div className="client-crm-profile-head__actions">

@@ -18,7 +18,7 @@ test('client home shows next appointment first, safe points, and direct package 
   assert.match(dashboard, /<ClientDashboardOverview[\s\S]*?client=\{client\}/);
   assert.match(businessFormat, /Number\.isFinite\(points\) \? points : 0/);
   assert.match(businessFormat, /maximumFractionDigits: 2/);
-  assert.ok(overview.indexOf('client-next-home') < overview.indexOf('<ClientPackageCards'));
+  assert.ok(overview.indexOf('glance-next-main') < overview.indexOf('glance-package-band'));
   for (const label of ['إجمالي الباقة', 'المستخدم', 'إجمالي التكلفة', 'المتبقي', 'محجوز لمواعيد', 'متاح الآن', 'المدفوع', 'المتبقي المالي', 'بداية الصلاحية', 'نهاية الصلاحية', 'نظام الصلاحية', 'نقاط حسابك']) assert.ok(overview.includes(label), `missing ${label}`);
   assert.doesNotMatch(overview, /pkg\.notes/);
   assert.match(overview, /pkg\.client_notes/);
@@ -26,15 +26,13 @@ test('client home shows next appointment first, safe points, and direct package 
   assert.match(css, /min-height:54px/);
 });
 
-test('the four primary pages are home, appointments, finance, and offers', async () => {
+test('approved client navigation retains account workflows and adds separate package access', async () => {
   const dashboard = await load('src/pages/ClientDashboard.jsx');
   const nav = dashboard.slice(dashboard.indexOf('<nav aria-label="التنقل الرئيسي"'), dashboard.indexOf('</nav>'));
-  for (const key of ["'home'", "'schedule'", "'finance'", "'offers'"]) assert.ok(nav.includes(key));
-  assert.doesNotMatch(nav, /'history'|'projects'/);
-  const overview = await load('src/pages/ClientDashboardOverview.jsx');
-  assert.match(overview, /onNavigate\('offers'\)/);
+  for (const key of ["'home'", "'schedule'", "'packages'", "'finance'", "'offers'", "'requests'", "'videos'", "'security'"]) assert.ok(nav.includes(key));
+  assert.match(dashboard, /aria-controls="glance-more-menu"/);
+  assert.match(dashboard, /onClick=\{handleLogout\}/);
 });
-
 test('owner creation forms keep a short default path and collapsed advanced controls', async () => {
   const [packages, custom] = await Promise.all([load('src/erp/ERPPackages.jsx'), load('src/erp/CustomServiceForm.jsx')]);
   assert.match(packages, /packages-quick-dialog/);

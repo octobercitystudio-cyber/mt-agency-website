@@ -15,6 +15,7 @@ const GlobalContactActions = () => {
   const surface = pathname === '/dashboard' ? 'client' : 'standard';
 
   if (isErpDashboard) return null;
+  if (['/register', '/dashboard', '/login', '/adminmt/login', '/change-password', '/reset-password'].includes(pathname)) return null;
 
   return (
     <nav

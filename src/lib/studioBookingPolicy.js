@@ -1,0 +1,34 @@
+import { cairoDateKey, calculateDurationMinutes } from './businessFormat.js';
+import { cairoDateTimeToEpoch } from './promotionTime.js';
+import { clientWindowError, isClientBookingDateClosed } from './registrationPolicy.js';
+export const STUDIO_TRANSFER_ACCOUNT = '01094084424';
+export const STUDIO_PROOF_MAX_BYTES = 5 * 1024 * 1024;
+export const STUDIO_SUCCESS_MESSAGE = 'تم إرسال طلبك بنجاح، وبانتظار تأكيد الحجز خلال ساعة من ساعات العمل الرسمية: من 12 ظهرًا إلى 10 مساءً، والجمعة إجازة.';
+export const sortedStudioBookings = rows => [...rows].sort((a, b) => `${a.date} ${a.start_time}`.localeCompare(`${b.date} ${b.start_time}`));
+export const studioSelectedMinutes = rows => rows.reduce((sum, row) => sum + Number(row.duration_minutes || 0), 0);
+export const validateStudioBookings = (service, bookings, requireOne = true) => {
+  if (!service) return 'اختر باقة تصوير أولًا.';
+  if (!bookings.length) return requireOne ? 'أضف موعد تصوير واحدًا على الأقل.' : '';
+  if (bookings.length > 30) return 'الحد الأقصى 30 موعدًا في الطلب الواحد.';
+  const sorted = sortedStudioBookings(bookings); const first = sorted[0].date; if (!/^\d{4}-\d{2}-\d{2}$/.test(first) || !Number.isFinite(new Date(`${first}T12:00:00Z`).getTime())) return 'اختر تاريخًا صحيحًا.';
+  const expiry = new Date(`${first}T12:00:00Z`); expiry.setUTCDate(expiry.getUTCDate() + Math.max(1, Number(service.validity_days || 1)) - 1); const endDate = expiry.toISOString().slice(0, 10);
+  for (let index = 0; index < sorted.length; index++) {
+    const row = sorted[index]; const policyError = clientWindowError(row); if (policyError) return policyError;
+    if (row.date < cairoDateKey() || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) return 'اختر تاريخًا قادمًا صحيحًا.';
+    const duration = Number(row.duration_minutes); if (!Number.isInteger(duration) || duration < 30 || duration % 30 || duration !== calculateDurationMinutes(row.start_time, row.end_time)) return 'راجع مدة الموعد ووقت بدايته ونهايته.';
+    if ((service.kind === 'daily' || service.package_validity_mode === 'shooting_day') && row.date !== first) return 'مواعيد الباقة اليومية يجب أن تكون في يوم واحد.';
+    if (row.date > endDate) return 'أحد المواعيد خارج صلاحية الباقة، المحسوبة من أول موعد مقترح.';
+    if (sorted.slice(0, index).some(prior => prior.date === row.date && prior.start_time < row.end_time && prior.end_time > row.start_time)) return 'يوجد موعد مكرر أو متداخل في اختياراتك.';
+  }
+  return studioSelectedMinutes(sorted) > Math.round(Number(service.total_hours) * 60) ? 'إجمالي المواعيد يتجاوز ساعات الباقة. قلّل المدة أو احذف موعدًا.' : '';
+};
+export const validateStudioProof = file => !file ? 'أرفق صورة إيصال التحويل لإرسال الطلب.' : !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ? 'الصورة يجب أن تكون JPEG أو PNG أو WebP.' : file.size <= 0 || file.size > STUDIO_PROOF_MAX_BYTES ? 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.' : '';
+export const studioBookingReady = (request, appointment) => request.package_status === 'approved' && appointment.status === 'pending' && !sortedStudioBookings(request.bookings).some(row => row.status === 'pending' && `${row.date} ${row.start_time}` < `${appointment.date} ${appointment.start_time}`);
+const shiftDay = date => { const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
+export const studioReviewDeadline = (now = new Date()) => {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(now).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  let date = `${parts.year}-${parts.month}-${parts.day}`; let seconds = Number(parts.hour) * 3600 + Number(parts.minute) * 60 + Number(parts.second); let remaining = 3600;
+  while (remaining > 0) { if (isClientBookingDateClosed(date) || seconds >= 22 * 3600) { date = shiftDay(date); seconds = 12 * 3600; continue; } seconds = Math.max(seconds, 12 * 3600); const used = Math.min(remaining, 22 * 3600 - seconds); remaining -= used; seconds += used; if (remaining) { date = shiftDay(date); seconds = 12 * 3600; } }
+  const time = `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  return new Date(cairoDateTimeToEpoch(`${date}T${time}`)).toISOString();
+};

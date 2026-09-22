@@ -1,3 +1,4 @@
+import { normalizeLoginPhone } from '../lib/phoneLogin';
 import { useState, useEffect, useRef } from 'react';
 import Cropper from 'cropperjs';
 import { AlertTriangle, CloudCog, DatabaseBackup, Download, RefreshCw, Settings, ShieldCheck, Upload } from 'lucide-react';
@@ -81,7 +82,7 @@ const ERPSettings = () => {
     if (isOwner) {
       const [{ data: uData, error: usersError }, { data: resourceData }] = await Promise.all([dataClient.request('/users', { method: 'GET' }), dataClient.from('resources').select('*').order('id')]);
       if (usersError) setUserState({ busy: false, type: 'error', message: usersError.message || 'تعذر تحميل حسابات النظام.' });
-      else setUsers(uData || []);
+      else setUsers((uData || []).filter(user => user.role !== 'applicant'));
       setResources(resourceData || []);
     } else {
       setUsers([]);
@@ -233,8 +234,8 @@ const ERPSettings = () => {
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!isOwner) return;
-    if (!addUserForm.email.trim() && !addUserForm.phone.trim()) {
-      setUserState({ busy: false, type: 'error', message: 'أدخل البريد الإلكتروني أو رقم الهاتف على الأقل.' });
+    if (!normalizeLoginPhone(addUserForm.phone)) {
+      setUserState({ busy: false, type: 'error', message: 'أدخل رقم الموبايل الأساسي للحساب؛ يُستخدم لتسجيل الدخول.' });
       return;
     }
     if (addUserForm.password.length < 10) {
@@ -243,7 +244,7 @@ const ERPSettings = () => {
     }
     setUserState({ busy: true, type: '', message: '' });
     const { error } = await dataClient.request('/users', { method: 'POST', body: JSON.stringify({
-      full_name: addUserForm.full_name, email: addUserForm.email || null, phone: addUserForm.phone || null,
+      full_name: addUserForm.full_name, email: addUserForm.email || null, phone: normalizeLoginPhone(addUserForm.phone),
       password: addUserForm.password, role: addUserForm.role,
     }) });
     if (error) {
@@ -253,7 +254,7 @@ const ERPSettings = () => {
     setAddUserForm({ full_name: '', email: '', phone: '', password: '', role: 'staff' });
     setUserState({ busy: false, type: 'success', message: 'تم إنشاء الحساب بأمان.' });
     const { data } = await dataClient.request('/users', { method: 'GET' });
-    setUsers(data || []);
+    setUsers((data || []).filter(user => user.role !== 'applicant'));
     window.setTimeout(() => window.bootstrap.Modal.getInstance(document.getElementById('addUserModal'))?.hide(), 700);
   };
 
@@ -276,7 +277,8 @@ const ERPSettings = () => {
 
   const saveSystemUser = async event => {
     event.preventDefault(); if (!editingUser) return;
-    const values = { full_name: editingUser.full_name, email: editingUser.email || null, phone: editingUser.phone || null, role: editingUser.role, is_active: Number(editingUser.is_active) };
+    if (!normalizeLoginPhone(editingUser.phone)) { setUserState({ busy: false, type: 'error', message: 'أدخل رقم الموبايل الأساسي للحساب.' }); return; }
+    const values = { full_name: editingUser.full_name, email: editingUser.email || null, phone: normalizeLoginPhone(editingUser.phone), role: editingUser.role, is_active: Number(editingUser.is_active) };
     if (editingUser.password) values.password = editingUser.password;
     await updateSystemUser(editingUser.id, values);
     window.bootstrap.Modal.getInstance(document.getElementById('editSystemUserModal'))?.hide();
@@ -523,7 +525,7 @@ const ERPSettings = () => {
 
       {isOwner ? <div className="setting-section">
         <div className="section-title">
-          <div><span><i className="fas fa-users-cog text-primary me-2"></i> الأدوار وحسابات الدخول</span><small className="d-block text-muted mt-1" style={{fontSize: '.72rem'}}>حسابات العملاء منفصلة عن المالك والموظفين، ولا يمكن منح العميل صلاحيات الإدارة من هذه الصفحة.</small></div>
+          <div><span><i className="fas fa-users-cog text-primary me-2"></i> الأدوار وحسابات الدخول</span><small className="d-block text-muted mt-1" style={{fontSize: '.72rem'}}>طلبات التسجيل قيد المراجعة تُدار من صندوق الطلبات. حسابات العملاء منفصلة عن المالك والموظفين، ولا يمكن منح العميل صلاحيات الإدارة من هذه الصفحة.</small></div>
           <button className="btn btn-dark rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addUserModal" onClick={() => setUserState({ busy: false, type: '', message: '' })}>
             <i className="fas fa-user-plus me-1"></i> مستخدم جديد
           </button>
@@ -841,7 +843,7 @@ const ERPSettings = () => {
                 <label className="small fw-bold text-muted mb-1">البريد الإلكتروني</label>
                 <input type="email" className="form-control border-0 py-2 font-monospace shadow-sm" style={{direction: 'ltr'}} value={addUserForm.email} onChange={e => setAddUserForm({...addUserForm, email: e.target.value})} placeholder="name@company.com" />
               </div>
-              <div className="mb-3"><label className="small fw-bold text-muted mb-1">رقم الهاتف</label><input type="tel" className="form-control border-0 py-2 font-monospace shadow-sm" style={{direction:'ltr'}} value={addUserForm.phone} onChange={e => setAddUserForm({...addUserForm, phone:e.target.value})} placeholder="01xxxxxxxxx"/><small className="text-muted">أدخل البريد أو الهاتف على الأقل؛ أيهما يمكن استخدامه للدخول.</small></div>
+              <div className="mb-3"><label className="small fw-bold text-muted mb-1">رقم الهاتف</label><input type="tel" className="form-control border-0 py-2 font-monospace shadow-sm" style={{direction:'ltr'}} value={addUserForm.phone} onChange={e => setAddUserForm({...addUserForm, phone:e.target.value})} placeholder="01xxxxxxxxx" required/><small className="text-muted">رقم الموبايل مطلوب للدخول. البريد اختياري للتواصل والإشعارات.</small></div>
               <div className="mb-3">
                 <label className="small fw-bold text-muted mb-1">كلمة المرور</label>
                 <input type="password" minLength="10" autoComplete="new-password" className="form-control border-0 py-2 shadow-sm" value={addUserForm.password} onChange={e => setAddUserForm({...addUserForm, password: e.target.value})} required placeholder="10 أحرف على الأقل" />
@@ -859,7 +861,7 @@ const ERPSettings = () => {
         </div>
       </div>}
 
-      {isOwner && <div className="modal fade" id="editSystemUserModal" tabIndex="-1" data-bs-backdrop="static"><div className="modal-dialog modal-dialog-centered"><form onSubmit={saveSystemUser} className="modal-content border-0 shadow-lg rounded-5"><div className="modal-header bg-dark text-white border-0 p-4"><h5 className="fw-bold m-0">تعديل حساب المستخدم</h5><button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div className="modal-body p-4 bg-light">{editingUser&&<><label className="small fw-bold mb-1">الاسم بالكامل</label><input className="form-control mb-3" required value={editingUser.full_name||''} onChange={e=>setEditingUser({...editingUser,full_name:e.target.value})}/><label className="small fw-bold mb-1">البريد الإلكتروني</label><input type="email" dir="ltr" className="form-control mb-3" value={editingUser.email||''} onChange={e=>setEditingUser({...editingUser,email:e.target.value})}/><label className="small fw-bold mb-1">رقم الهاتف</label><input dir="ltr" className="form-control mb-3" value={editingUser.phone||''} onChange={e=>setEditingUser({...editingUser,phone:e.target.value})}/><label className="small fw-bold mb-1">الدور</label><select className="form-select mb-3" value={editingUser.role} onChange={e=>setEditingUser({...editingUser,role:e.target.value})}>{Object.entries(ROLE_DETAILS).map(([value,meta])=><option key={value} value={value}>{meta.label}</option>)}</select><label className="small fw-bold mb-1">الحالة</label><select className="form-select mb-3" value={Number(editingUser.is_active)} onChange={e=>setEditingUser({...editingUser,is_active:Number(e.target.value)})}><option value="1">نشط</option><option value="0">موقوف</option></select><label className="small fw-bold mb-1">كلمة مرور جديدة (اختياري)</label><input type="password" minLength="10" autoComplete="new-password" className="form-control mb-4" value={editingUser.password||''} onChange={e=>setEditingUser({...editingUser,password:e.target.value})}/><button className="btn btn-primary w-100 py-3" disabled={userState.busy}>{userState.busy?'جارٍ الحفظ...':'حفظ كل التعديلات'}</button></>}</div></form></div></div>}
+      {isOwner && <div className="modal fade" id="editSystemUserModal" tabIndex="-1" data-bs-backdrop="static"><div className="modal-dialog modal-dialog-centered"><form onSubmit={saveSystemUser} className="modal-content border-0 shadow-lg rounded-5"><div className="modal-header bg-dark text-white border-0 p-4"><h5 className="fw-bold m-0">تعديل حساب المستخدم</h5><button type="button" className="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div className="modal-body p-4 bg-light">{editingUser&&<><label className="small fw-bold mb-1">الاسم بالكامل</label><input className="form-control mb-3" required value={editingUser.full_name||''} onChange={e=>setEditingUser({...editingUser,full_name:e.target.value})}/><label className="small fw-bold mb-1">البريد الإلكتروني</label><input type="email" dir="ltr" className="form-control mb-3" value={editingUser.email||''} onChange={e=>setEditingUser({...editingUser,email:e.target.value})}/><label className="small fw-bold mb-1">رقم الهاتف</label><input required type="tel" inputMode="tel" dir="ltr" className="form-control mb-3" value={editingUser.phone||''} onChange={e=>setEditingUser({...editingUser,phone:e.target.value})}/><label className="small fw-bold mb-1">الدور</label><select className="form-select mb-3" value={editingUser.role} onChange={e=>setEditingUser({...editingUser,role:e.target.value})}>{Object.entries(ROLE_DETAILS).map(([value,meta])=><option key={value} value={value}>{meta.label}</option>)}</select><label className="small fw-bold mb-1">الحالة</label><select className="form-select mb-3" value={Number(editingUser.is_active)} onChange={e=>setEditingUser({...editingUser,is_active:Number(e.target.value)})}><option value="1">نشط</option><option value="0">موقوف</option></select><label className="small fw-bold mb-1">كلمة مرور جديدة (اختياري)</label><input type="password" minLength="10" autoComplete="new-password" className="form-control mb-4" value={editingUser.password||''} onChange={e=>setEditingUser({...editingUser,password:e.target.value})}/><button className="btn btn-primary w-100 py-3" disabled={userState.busy}>{userState.busy?'جارٍ الحفظ...':'حفظ كل التعديلات'}</button></>}</div></form></div></div>}
     </>
   );
 };

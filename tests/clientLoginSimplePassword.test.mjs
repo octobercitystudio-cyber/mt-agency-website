@@ -36,18 +36,19 @@ test('demo client login accepts an enabled account and rejects wrong or disabled
 });
 
 test('the simpler client policy never weakens owner or staff passwords', async () => {
-  const weakStaff = await demoClient.request('/users', { method: 'POST', body: JSON.stringify({ full_name: 'موظف اختبار', email: 'staff-policy@test.local', role: 'staff', password: 'abcdef' }) });
+  const weakStaff = await demoClient.request('/users', { method: 'POST', body: JSON.stringify({ full_name: 'موظف اختبار', email: 'staff-policy@test.local', phone: '01055550123', role: 'staff', password: 'abcdef' }) });
   assert.equal(weakStaff.error?.code, 'weak_password');
-  const strongStaff = await demoClient.request('/users', { method: 'POST', body: JSON.stringify({ full_name: 'موظف اختبار', email: 'staff-policy@test.local', role: 'staff', password: 'StaffSecure2026' }) });
+  const strongStaff = await demoClient.request('/users', { method: 'POST', body: JSON.stringify({ full_name: 'موظف اختبار', email: 'staff-policy@test.local', phone: '01055550123', role: 'staff', password: 'StaffSecure2026' }) });
   assert.equal(strongStaff.error, null);
 });
 
 test('production login uses Hostinger /api by default and preserves explicit access authority', async () => {
-  const [provider, hostinger, env, api] = await Promise.all([
+  const [provider, hostinger, env, api, identity] = await Promise.all([
     load('src/dataClient.js'),
     load('src/lib/hostingerClient.js'),
     load('.env.example'),
     load('api/index.php'),
+    load('api/auth_identity.php'),
   ]);
   const loginBlock = api.slice(api.indexOf("$path === '/auth/login'"), api.indexOf("$path === '/auth/session'"));
   assert.match(provider, /hostingerClient/);
@@ -58,9 +59,9 @@ test('production login uses Hostinger /api by default and preserves explicit acc
   assert.doesNotMatch(env, /VITE_DATA_PROVIDER|VITE_SUPABASE/);
   assert.match(api, /function validClientPassword[\s\S]*?\$length >= 6[\s\S]*?\$length <= 128/);
   assert.match(api, /function validPassword[\s\S]*?\$length >= 12[\s\S]*?preg_match\('\/\[\\p\{L\}\]\//);
-  assert.match(loginBlock, /loginPhoneCandidates\(\$identifier\)/);
-  assert.match(loginBlock, /account_disabled/);
-  assert.ok(loginBlock.indexOf('password_verify') < loginBlock.indexOf('account_disabled'), 'disabled status is disclosed only after the supplied password is verified');
+  assert.match(loginBlock, /authenticatePhonePassword/);
+  assert.match(identity, /account_disabled/);
+  assert.ok(identity.indexOf('password_verify') < identity.indexOf('account_disabled'), 'disabled status is disclosed only after the supplied password is verified');
   assert.doesNotMatch(loginBlock, /WHERE is_active = 1/);
   assert.doesNotMatch(loginBlock, /UPDATE users SET is_active/);
 });

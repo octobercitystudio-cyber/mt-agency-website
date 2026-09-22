@@ -28,10 +28,10 @@ test('lateness keeps 15 minutes free then charges each started half hour at EGP 
 test('server applies attendance on login to employees only and keeps the fixed rule authoritative', async () => {
   const api = await load('api/index.php');
   assert.match(api, /attendanceCheckIn\(\$pdo, \['id'=>\(int\)\$found\['id'\]/);
-  assert.match(api, /in_array\(\$user\['role'\], \['client','owner'\], true\)/);
+  assert.match(api, /in_array\(\$user\['role'\], \['client','applicant','owner'\], true\)/);
   assert.match(api, /\$scheduledStart = '12:00';\s*\$graceMinutes = 15;/);
   assert.match(api, /if \(\$rawLateMinutes <= \$graceMinutes\).*?ceil\(\$rawLateMinutes \/ 30\).*?'amount_cents'=>\$units \* 1000/s);
-  assert.match(api, /u\.role NOT IN \('client','owner'\)/);
+  assert.match(api, /u\.role NOT IN \('client','owner','applicant'\)/);
   assert.match(api, /'late_billable_half_hours'=>\$lateUnits/);
   assert.match(api, /\/attendance\/records\/\(\\d\+\)\/lateness/);
   assert.match(api, /requireRole\(\$user,\['owner'\]\)/);

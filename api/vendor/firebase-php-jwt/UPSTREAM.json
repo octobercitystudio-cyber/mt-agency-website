@@ -1,0 +1,22 @@
+{
+  "files": {
+    "src/JWT.php": "1a20906648ac9d97ddac6b4180810dbe86c36ee40762b99a2a3bcddd92335154",
+    "src/CachedKeySet.php": "835406341fb1b5770330e103ae41106a5cb04ce41eb2976fee008e0441213854",
+    "src/BeforeValidException.php": "77fe003a44eb941bfd2fac7399f8ca761511a2ad49117f093ef12489b6f09cd0",
+    "composer.json": "53cb729de9ad7bda729cc89d51b66108662ccb343e12fe12514a9a1c779ef3ce",
+    "LICENSE": "00e641cb185172e752bb3ab744925502c099dca06c9ecf53ea6fba941a65910c",
+    "src/JWTExceptionWithPayloadInterface.php": "899678f85fe560248895cf921b70ec95ad87b68d5c4da4ff561870d6942cacac",
+    "src/ExpiredException.php": "fe92315afbde5a898deabc1562b0f1bc3793bade3c2e61231619aa4849cf476d",
+    "src/JWK.php": "4fca0bfad36bc88aef57da6cbe08dfee75d31c705d58935b355c65d40035b9f9",
+    "src/Key.php": "7ce0ce63763a4c1104279c50eec08b920214f62426774aea7d77a26f084e1023",
+    "src/SignatureInvalidException.php": "fc624b17bf730387079c3b25dd282743259bd3c6c20920e007879412c85ebdee"
+  },
+  "version": "7.1.1",
+  "source": "https://github.com/googleapis/php-jwt",
+  "tag_object": {
+    "sha": "9bc93bd7e3ee5bead4cd23c365ec12f3c1fb0a6a",
+    "type": "commit",
+    "url": "https://api.github.com/repos/googleapis/php-jwt/git/commits/9bc93bd7e3ee5bead4cd23c365ec12f3c1fb0a6a"
+  },
+  "package": "firebase/php-jwt"
+}
