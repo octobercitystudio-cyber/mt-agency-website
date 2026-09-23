@@ -76,8 +76,8 @@ const foregroundNotification = async payload => {
   const notification = payload?.notification || {};
   await registration.showNotification(notification.title || data.title || 'MT Agency', {
     body: notification.body || data.body || 'لديك تحديث جديد في حسابك.',
-    icon: '/app-icon.svg',
-    badge: '/app-icon-monochrome.svg',
+    icon: '/app-icon-192.png?v=104',
+    badge: '/app-icon-monochrome.png?v=104',
     dir: 'rtl',
     lang: 'ar',
     tag: data.is_test === '1' ? 'mt-notification-test' : data.notification_id ? `mt-notification-${data.notification_id}` : `mt-notification-${Date.now()}`,
