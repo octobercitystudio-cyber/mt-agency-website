@@ -1,6 +1,6 @@
 import { timeToMinutes } from '../lib/businessFormat.js';
 
-export const CLIENT_BOOKING_MINUTES_MIN = 30;
+export const CLIENT_BOOKING_MINUTES_MIN = 60;
 export const CLIENT_BOOKING_MINUTES_MAX = 600;
 export const CLIENT_BOOKING_MINUTES_STEP = 30;
 

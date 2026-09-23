@@ -20,12 +20,12 @@ test('client availability demo is private, role scoped, bounded, and keeps pendi
   const path = '/client/booking-availability?client_package_id=201&duration_minutes=60&days=21';
   const result = await demoClient.request(path, { method: 'GET' });
   assert.equal(result.error, null);
-  assert.deepEqual(Object.keys(result.data).sort(), ['days', 'duration_minutes', 'package', 'server_time']);
+  assert.deepEqual(Object.keys(result.data).sort(), ['booking_policy', 'days', 'duration_minutes', 'package', 'server_time']);
   assert.deepEqual(Object.keys(result.data.package).sort(), ['available_quantity', 'billing_unit', 'booking_increment_minutes', 'expires_at', 'id', 'minimum_booking_minutes', 'name', 'starts_at']);
   assert.ok(result.data.days.length === 21);
   assert.ok(result.data.days.filter(day => new Date(`${day.date}T12:00:00`).getDay() === 5).every(day => !day.available && !day.slots.length), 'Friday is closed for clients');
   for (const day of result.data.days) {
-    assert.deepEqual(Object.keys(day).sort(), ['available', 'date', 'slots']);
+    assert.deepEqual(Object.keys(day).sort(), ['available', 'busy_intervals', 'date', 'has_client_booking', 'slots', 'unavailable_reason']);
     for (const slot of day.slots) {
       assert.deepEqual(Object.keys(slot).sort(), ['end_time', 'resource_id', 'start_time']);
       assert.equal(slot.start_time.slice(3, 5), '00', 'client starts are offered on whole hours only');
@@ -41,7 +41,9 @@ test('client availability demo is private, role scoped, bounded, and keeps pendi
   assert.equal(pending.data.client_id, 1, 'the authenticated demo client, not a submitted id, owns the request');
   assert.equal(pending.data.status, 'pending');
   const afterPending = await demoClient.request(path, { method: 'GET' });
-  assert.ok(afterPending.data.days.find(day => day.date === chosenDay.date).slots.some(slot => slot.start_time === chosen.start_time && slot.end_time === chosen.end_time), 'pending does not reserve capacity');
+  const ownDay = afterPending.data.days.find(day => day.date === chosenDay.date);
+  assert.equal(ownDay.has_client_booking, true); assert.equal(ownDay.unavailable_reason, 'already_booked'); assert.deepEqual(ownDay.slots, []);
+  assert.deepEqual(ownDay.busy_intervals, chosenDay.busy_intervals, 'pending blocks this customer date but does not reserve shared capacity');
 
   const wrongPackage = await demoClient.request('/client/booking-availability?client_package_id=203&duration_minutes=60&days=7');
   assert.equal(wrongPackage.error?.code, 'invalid_package');
@@ -112,16 +114,16 @@ test('legacy quarter-hour occupancy blocks overlapping whole-hour client candida
   installBrowserStubs();
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); activateDemoMode('client');
-  const baseline = (await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=30&days=21')).data;
+  const baseline = (await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=60&days=21')).data;
   const target = baseline.days.find(day => day.slots.some(slot => slot.start_time === '12:00'));
   assert.ok(target, 'the fixture must include a noon candidate before the legacy overlap');
   const database = JSON.parse(localStorage.getItem('mt_agency_erp_demo_v12'));
   database.resources.filter(resource => Number(resource.is_active ?? 1) === 1).forEach((resource, index) => database.bookings.push({
     id: 9900 + index, organization_id: 1, client_id: 2, resource_id: resource.id, date: target.date,
-    start_time: '12:15', end_time: '12:45', status: 'confirmed', client_name: 'محجوب عن العميل',
+    start_time: '12:15', end_time: '13:15', status: 'confirmed', client_name: 'محجوب عن العميل',
   }));
   localStorage.setItem('mt_agency_erp_demo_v12', JSON.stringify(database));
-  const updated = (await demoClient.request(`/client/booking-availability?client_package_id=201&duration_minutes=30&days=1&start_date=${target.date}`)).data.days[0];
+  const updated = (await demoClient.request(`/client/booking-availability?client_package_id=201&duration_minutes=60&days=1&start_date=${target.date}`)).data.days[0];
   assert.equal(updated.slots.some(slot => slot.start_time === '12:00'), false);
   deactivateDemoMode();
 });
@@ -143,70 +145,34 @@ test('final submit rechecks a stale availability snapshot and returns a conflict
   deactivateDemoMode();
 });
 
-test('production availability route and guided UI enforce the privacy contract without schema changes', async () => {
-  const [api, dialog, dashboard, css, demo, requests] = await Promise.all([
-    load('api/index.php'), load('src/pages/ClientBookingDialog.jsx'), load('src/pages/ClientDashboard.jsx'),
-    load('src/pages/ClientDashboard.css'), load('src/lib/demoDataClient.js'), load('src/erp/ERPRequests.jsx'),
+test('production calendar routes require a client and use the shared calendar in both booking flows', async () => {
+  const [api, calendarApi, dialog, dashboard, wizard, calendar] = await Promise.all([
+    load('api/index.php'), load('api/client_calendar.php'), load('src/pages/ClientBookingDialog.jsx'),
+    load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientStudioBooking.jsx'), load('src/components/ClientAvailabilityCalendar.jsx'),
   ]);
   const route = api.slice(api.indexOf("if ($path === '/client/booking-availability'"), api.indexOf("if ($path === '/bookings/request'"));
   assert.match(route, /requireRole\(\$user,\['client'\]\)/);
-  assert.match(api, /function clientBookingAvailability/);
-  assert.match(api, /FROM booking_slots bs JOIN bookings b/);
-  assert.match(api, /cp\.id=\? AND cp\.client_id=\? AND cp\.organization_id=\?/);
-  assert.match(api, /status IN \('confirmed','in_progress','cancel_requested','late_cancel_requested'\)/);
-  assert.match(api, /booking_blocks[\s\S]*status='active'/);
-  assert.match(api, /windowDays=max\(\$minimumWindow,min\(\$maximumWindow,\$windowDays\)\)/);
-  assert.match(api, /'slots'=>\$slots/);
-  assert.doesNotMatch(api.slice(api.indexOf('function clientBookingAvailability'), route.length + api.indexOf('function clientBookingAvailability')), /client_name|booking_id|block_id|resource_name/);
-  assert.match(demo, /route === '\/client\/booking-availability'/);
-  assert.match(dialog, /احجز موعد تصوير/);
-  assert.match(dialog, /الطلب يحتاج موافقة الإدارة/);
-  assert.match(dialog, /تتسع لمدة الجلسة كاملة ومتّصلة في اليوم نفسه، ولا يتم تقسيم الساعات/);
-  assert.match(dialog, /type="number"[^>]+inputMode="numeric"/);
-  assert.match(dialog, /هذا الموعد لم يعد متاحًا، اختر موعدًا آخر/);
-  assert.match(dialog, /aria-live="polite"/);
-  assert.match(dashboard, /<ClientBookingDialog/);
-  assert.match(css, /@media\(max-width:340px\)/);
-  assert.match(css, /client-booking-concierge[\s\S]*margin-bottom:76px/);
-  assert.match(requests, /bookingPackageName\(item\)/);
-  assert.match(requests, /المدة المطلوبة: \$\{formatDurationMinutes/);
-  assert.match(dialog, /className="client-booking-submit-error" role="alert" aria-live="assertive"/);
-  assert.ok(dialog.indexOf('client-booking-submit-error') < dialog.indexOf('<form onSubmit={submit}'), 'the persistent error region stays above changing availability content');
-  assert.match(dialog, /event\.key !== 'Tab'/);
-  assert.match(dialog, /node\.setAttribute\('inert', ''\)/);
-  assert.match(dialog, /document\.addEventListener\('focusin'/);
-  assert.match(dialog, /trigger\?\.isConnected/);
-  assert.doesNotMatch(dashboard, /navigateClient\('schedule'\); setBookingOpen\(true\)/);
-  assert.match(css, /client-booking-submit\{background:#2676c9!important/);
-  assert.match(css, /client-booking-submit-error\{position:sticky;top:0;z-index:4/);
-  assert.match(css, /client-booking-package-list small[\s\S]*font-size:12px!important/);
-  assert.match(css, /prefers-reduced-motion:reduce\)\{\.client-spin\{animation:none!important/);
-  assert.match(requests, /requestedDurationMinutes = item/);
-  assert.match(requests, /calculateDurationMinutes\(start, end\)/);
-  assert.match(demo, /demoRole === 'client' \|\| status === 'confirmed'/);
-  assert.match(api, /\$user\['role'\]==='client'\|\|\$status==='confirmed'/);
-  assert.match(api, /validateClientBookingTimeGrid/);
-  assert.match(api, /client_booking_start_grid_invalid/);
-  assert.match(api, /client_booking_duration_mismatch/);
-  assert.match(dialog, /<BusinessTimeSelect[^>]+step=\{60\}/);
-  assert.match(dialog, /ينتهي الموعد|النهاية/);
-  assert.match(dialog, /الدقائق ثابتة/);
-  assert.doesNotMatch(dialog, /client-available-slots[^\n]+\.map/);
-  assert.doesNotMatch(route, /(?:INSERT|UPDATE|DELETE)\s+/i);
+  assert.match(route, /booking_id/); assert.doesNotMatch(route, /(?:INSERT|UPDATE|DELETE)\s+/i);
+  assert.match(calendarApi, /busy_intervals/); assert.match(calendarApi, /requireClientSingleDate/);
+  assert.match(dialog, /<ClientAvailabilityCalendar/); assert.match(wizard, /<ClientAvailabilityCalendar/);
+  assert.match(dashboard, /<ClientBookingDialog/); assert.match(dialog, /\/reschedule-requests/);
+  assert.match(dialog, /event\.key !== 'Tab'/); assert.match(dialog, /node\.setAttribute\('inert', ''\)/);
+  assert.match(dialog, /document\.addEventListener\('focusin'/); assert.match(dialog, /trigger\?\.isConnected/);
+  assert.match(calendar, /busy_intervals/); assert.doesNotMatch(calendar, /client_name|booking.title|booking.notes/);
 });
 
 test('manual client time resolves one exact connected slot and supports opening and closing boundaries', () => {
   const slots = [
-    { start_time: '12:00', end_time: '12:30', resource_id: 1 },
+    { start_time: '12:00', end_time: '13:00', resource_id: 1 },
     { start_time: '21:00', end_time: '22:00', resource_id: 2 },
     { start_time: '13:00', end_time: '13:30', resource_id: 1 },
     { start_time: '13:30', end_time: '14:00', resource_id: 1 },
   ];
-  assert.equal(resolveClientBookingTime({ startTime: '12:00', durationMinutes: 30, slots }).slot?.resource_id, 1);
+  assert.equal(resolveClientBookingTime({ startTime: '12:00', durationMinutes: 60, slots }).slot?.resource_id, 1);
   assert.equal(resolveClientBookingTime({ startTime: '21:00', durationMinutes: 60, slots }).endTime, '22:00');
   assert.equal(resolveClientBookingTime({ startTime: '21:00', durationMinutes: 60, slots }).slot?.resource_id, 2);
   assert.equal(resolveClientBookingTime({ startTime: '13:00', durationMinutes: 60, slots }).errorCode, 'unavailable', 'separate half-hour suggestions are never composed');
-  assert.equal(resolveClientBookingTime({ startTime: '12:30', durationMinutes: 30, slots }).errorCode, 'start_grid_invalid');
+  assert.equal(resolveClientBookingTime({ startTime: '12:30', durationMinutes: 60, slots }).errorCode, 'start_grid_invalid');
   assert.equal(resolveClientBookingTime({ startTime: '21:00', durationMinutes: 90, slots }).errorCode, 'outside_hours');
 });
 
@@ -217,47 +183,42 @@ test('duration keeps real typing drafts and commits minutes to zero or thirty', 
   assert.equal(clientDurationError(clientDurationMinutesFromDraft('0', minuteDraft)), 'duration_too_short');
   minuteDraft += '0';
   assert.equal(clientDurationMinutesFromDraft('0', minuteDraft), 30, 'sequential typing must form 30 rather than normalize the first digit away');
-  assert.equal(clientDurationError(clientDurationMinutesFromDraft('0', minuteDraft)), '');
+  assert.equal(clientDurationError(clientDurationMinutesFromDraft('0', minuteDraft)), 'duration_too_short');
+  assert.equal(clientDurationError(clientDurationMinutesFromDraft('1', minuteDraft)), '');
   assert.equal(normalizeClientMinuteDraft('3'), '0');
   assert.equal(normalizeClientMinuteDraft('30'), '30');
 });
 
-test('client manual input clears stale availability and uses truthful whole-hour help with large period controls', async () => {
-  const [dialog, control, css] = await Promise.all([
-    load('src/pages/ClientBookingDialog.jsx'), load('src/components/BusinessTimeSelect.jsx'), load('src/components/BusinessTimeSelect.css'),
-  ]);
-  assert.match(dialog, /example="2:00"/);
-  assert.doesNotMatch(dialog, /example="2:30"|مثال صحيح: 1:30/);
-  assert.match(dialog, /value=\{minutes\} onChange=\{event => updateDurationDraft\(hours, event\.target\.value\)\}/);
-  assert.match(control, /setErrorMessage\(message\);\s*emit\(event, ''\)/);
-  assert.match(dialog, /startTime && bookingTime\.endTime/);
+test('calendar selections clear stale availability and retain a visible error and summary', async () => {
+  const dialog = await load('src/pages/ClientBookingDialog.jsx');
+  assert.match(dialog, /setStartTime\(''\)/); assert.match(dialog, /setAvailability\(emptyAvailability\)/);
   assert.match(dialog, /selectedSlot && <section className="client-booking-summary"/);
-  assert.match(dialog, /disabled=\{busy \|\| !selectedSlot\}/);
-  assert.match(css, /business-time-period button\{min-width:44px;min-height:44px/);
-  assert.doesNotMatch(css, /business-time-period button\{min-width:(?:3[0-9]|4[0-3])px/);
+  assert.match(dialog, /disabled=\{busy \|\| !selectedSlot \|\| availability.loading/);
+  assert.match(dialog, /client-booking-submit-error" role="alert"/);
+  assert.match(dialog, /reloadAvailability\(\); setSubmitError\(dateError\)/);
 });
 
 test('demo client request independently enforces the whole-hour and half-hour duration contract', async () => {
   installBrowserStubs();
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); activateDemoMode('client');
-  const availability = (await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=30&days=21')).data;
-  assert.equal(availability.package.minimum_booking_minutes, 30);
+  const availability = (await demoClient.request('/client/booking-availability?client_package_id=201&duration_minutes=60&days=21')).data;
+  assert.equal(availability.package.minimum_booking_minutes, 60);
   assert.equal(availability.package.booking_increment_minutes, 30);
   const day = availability.days.find(item => item.slots.length); const resourceId = day.slots[0].resource_id;
   const base = { client_package_id: 201, service_id: 101, resource_id: resourceId, date: day.date };
   const reject = async (overrides, code) => {
-    const result = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ ...base, start_time: '12:00', end_time: '12:30', duration_minutes: 30, ...overrides }) });
+    const result = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ ...base, start_time: '12:00', end_time: '13:00', duration_minutes: 60, ...overrides }) });
     assert.equal(result.error?.code, code);
     assert.equal(result.error?.status, 422);
   };
-  await reject({ start_time: '12:15', end_time: '12:45' }, 'client_booking_start_grid_invalid');
-  await reject({ start_time: '12:30', end_time: '13:00' }, 'client_booking_start_grid_invalid');
+  await reject({ start_time: '12:15', end_time: '13:15' }, 'client_booking_start_grid_invalid');
+  await reject({ start_time: '12:30', end_time: '13:30' }, 'client_booking_start_grid_invalid');
   await reject({ end_time: '12:15' }, 'client_booking_end_grid_invalid');
   await reject({ end_time: '12:45', duration_minutes: 60 }, 'client_booking_end_grid_invalid');
   await reject({ duration_minutes: 15 }, 'client_booking_duration_out_of_range');
-  await reject({ duration_minutes: 45 }, 'client_booking_duration_increment_invalid');
-  await reject({ duration_minutes: 60 }, 'client_booking_duration_mismatch');
-  await reject({ start_time: '23:00', end_time: '01:00', duration_minutes: 120 }, 'client_booking_outside_hours');
+  await reject({ duration_minutes: 75 }, 'client_booking_duration_increment_invalid');
+  await reject({ duration_minutes: 90 }, 'client_booking_duration_mismatch');
+  await reject({ start_time: '23:00', end_time: '01:00', duration_minutes: 120 }, 'client_booking_after_midnight');
   deactivateDemoMode();
 });

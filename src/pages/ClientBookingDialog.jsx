@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, PackageCheck, RefreshCw, Send, ShieldCheck, X } from 'lucide-react';
-import BusinessTimeSelect from '../components/BusinessTimeSelect';
+import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, PackageCheck, RefreshCw, Send, ShieldCheck, X } from 'lucide-react';
+import ClientAvailabilityCalendar from '../components/ClientAvailabilityCalendar';
+import { clientNoticeIsLate } from '../lib/clientBookingNotice';
 import { dataClient } from '../dataClient';
-import { cairoDateKey, formatBookingDate, formatDurationMinutes, formatPackageQuantity, formatTime12 } from '../lib/businessFormat';
+import { calculateDurationMinutes, formatBookingDate, formatDurationMinutes, formatPackageQuantity, formatTime12 } from '../lib/businessFormat';
 import { clientDurationError, clientDurationMinutesFromDraft, normalizeClientMinuteDraft, resolveClientBookingTime } from './clientBookingTime';
+import { earliestClientBookingDate, clientBookingDateError } from '../lib/clientBookingDate';
 import { packageBookingMonthWindow, shiftBookingMonth } from '../lib/packageBookingCalendar';
 
 const emptyAvailability = { data: null, loading: false, error: '' };
@@ -14,13 +16,14 @@ const availableQuantity = pkg => pkg?.billing_unit === 'hour'
   ? Math.max(0, packageMinutes(pkg, 'purchased') - packageMinutes(pkg, 'held') - packageMinutes(pkg, 'consumed')) / 60
   : Math.max(0, Number(pkg?.purchased_quantity || 0) - Number(pkg?.held_quantity || 0) - Number(pkg?.consumed_quantity || 0));
 
-export default function ClientBookingDialog({ open, packages = [], initialPackageId = '', triggerRef, onClose, onSuccess, showNotice }) {
+export default function ClientBookingDialog({ open, packages = [], initialPackageId = '', booking = null, triggerRef, onClose, onSuccess, showNotice }) {
   const dialogRef = useRef(null);
   const submitErrorRef = useRef(null);
   const busyRef = useRef(false);
-  const [packageId, setPackageId] = useState(String(initialPackageId || ''));
-  const [hours, setHours] = useState('0');
-  const [minutes, setMinutes] = useState('30');
+  const [packageId, setPackageId] = useState(String(booking?.client_package_id || initialPackageId || (booking ? '0' : '')));
+  const initialDuration = booking ? Math.max(60, calculateDurationMinutes(booking.start_time, booking.end_time)) : 60;
+  const [hours, setHours] = useState(String(Math.floor(initialDuration / 60)));
+  const [minutes, setMinutes] = useState(String(initialDuration % 60));
   const [selectedDate, setSelectedDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [notes, setNotes] = useState('');
@@ -31,9 +34,16 @@ export default function ClientBookingDialog({ open, packages = [], initialPackag
   const [submitError, setSubmitError] = useState('');
   useEffect(() => { busyRef.current = busy; }, [busy]);
 
-  const eligiblePackages = useMemo(() => packages.filter(pkg => ['hour', 'reel'].includes(pkg.billing_unit) && availableQuantity(pkg) > 0), [packages]);
+  const eligiblePackages = useMemo(() => booking ? [packages.find(pkg => Number(pkg.id) === Number(booking.client_package_id)) || { id: 0, name: booking.service || 'موعد تصوير', billing_unit: 'hour', purchased_quantity: 10 }] : packages.filter(pkg => ['hour', 'reel'].includes(pkg.billing_unit) && availableQuantity(pkg) > 0), [packages, booking]);
   const selectedPackage = eligiblePackages.find(pkg => String(pkg.id) === String(packageId));
-  const todayKey = cairoDateKey();
+  const estimatedAvailableMinutes = (availableQuantity(selectedPackage) * 60) + (booking ? initialDuration : 0);
+  const serverPackage = availability.data?.package;
+  const serverAvailableQuantity = serverPackage && String(serverPackage.id) === String(packageId) && Number.isFinite(Number(serverPackage.available_quantity)) ? Math.max(0, Number(serverPackage.available_quantity)) : null;
+  const availableMinutes = serverAvailableQuantity === null ? estimatedAvailableMinutes : serverAvailableQuantity * 60;
+  const displayedQuantity = pkg => String(pkg.id) === String(packageId) && serverAvailableQuantity !== null ? serverAvailableQuantity : availableQuantity(pkg);
+  const noticeLate = Boolean(booking && clientNoticeIsLate(booking));
+  const [todayKey, setEarliestDate] = useState(earliestClientBookingDate);
+  useEffect(() => { const refresh = () => setEarliestDate(earliestClientBookingDate()); const timer = window.setInterval(refresh, 30000); window.addEventListener('focus', refresh); return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); }; }, []);
   const monthWindow = useMemo(
     () => packageBookingMonthWindow(selectedPackage, availabilityMonth, todayKey),
     [availabilityMonth, selectedPackage, todayKey],
@@ -41,7 +51,7 @@ export default function ClientBookingDialog({ open, packages = [], initialPackag
   const durationDraftMinutes = clientDurationMinutesFromDraft(hours, minutes);
   const durationMinutes = Number.isFinite(durationDraftMinutes) ? Math.max(0, durationDraftMinutes) : 0;
   const durationRuleError = clientDurationError(durationMinutes);
-  const durationValid = Boolean(selectedPackage) && !durationRuleError && (selectedPackage.billing_unit !== 'hour' || availableQuantity(selectedPackage) * 60 + .001 >= durationMinutes);
+  const durationValid = Boolean(selectedPackage) && !durationRuleError && !noticeLate && (selectedPackage.billing_unit !== 'hour' || estimatedAvailableMinutes + .001 >= durationMinutes);
   const selectedDay = availability.data?.days?.find(day => day.date === selectedDate);
   const bookingTime = useMemo(() => resolveClientBookingTime({ startTime, durationMinutes, slots: selectedDay?.slots || [] }), [durationMinutes, selectedDay?.slots, startTime]);
   const selectedSlot = bookingTime.slot;
@@ -54,13 +64,13 @@ export default function ClientBookingDialog({ open, packages = [], initialPackag
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setAvailability({ data: null, loading: true, error: '' });
-      const query = new URLSearchParams({ client_package_id: String(packageId), duration_minutes: String(durationMinutes), start_date: monthWindow.startDate, days: String(monthWindow.days) });
+      const query = new URLSearchParams({ ...(booking ? { booking_id: String(booking.id) } : {}), client_package_id: String(packageId), duration_minutes: String(durationMinutes), start_date: monthWindow.startDate, days: String(monthWindow.days) });
       const { data, error } = await dataClient.request(`/client/booking-availability?${query}`, { method: 'GET', signal: controller.signal });
       if (controller.signal.aborted) return;
       setAvailability(error ? { data: null, loading: false, error: error.message || 'تعذر تحميل المواعيد المتاحة.' } : { data, loading: false, error: '' });
     }, 350);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [open, packageId, durationMinutes, durationValid, availabilityRevision, monthWindow.days, monthWindow.startDate]);
+  }, [open, booking, packageId, durationMinutes, durationValid, availabilityRevision, monthWindow.days, monthWindow.startDate]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -101,12 +111,13 @@ export default function ClientBookingDialog({ open, packages = [], initialPackag
     if (!next || amount < 0 && !monthWindow.canPrevious || amount > 0 && !monthWindow.canNext) return;
     setAvailabilityMonth(next); setSelectedDate(''); setStartTime(''); setSubmitError(''); setAvailability(emptyAvailability);
   };
-  const monthLabel = monthWindow.month ? new Intl.DateTimeFormat('ar-EG', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${monthWindow.month}T12:00:00Z`)) : '';
   const submit = async event => {
-    event.preventDefault(); if (!selectedPackage || !selectedSlot || !selectedDate) return;
+    event.preventDefault(); if (busyRef.current || !selectedPackage || !selectedSlot || !selectedDate || availability.loading || noticeLate) return;
+    const dateError = clientBookingDateError(selectedDate); if (dateError) { reloadAvailability(); setSubmitError(dateError); return; }
+    busyRef.current = true;
     setBusy(true);
-    const { error } = await dataClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({
-      client_package_id: Number(selectedPackage.id), service_id: Number(selectedPackage.service_id), service: selectedPackage.name,
+    const { error } = await dataClient.request(booking ? '/reschedule-requests' : '/bookings/request', { method: 'POST', body: JSON.stringify({
+      ...(booking ? { booking_id: Number(booking.id), reason: notes } : {}), client_package_id: Number(selectedPackage.id), service_id: Number(selectedPackage.service_id), service: selectedPackage.name,
       resource_id: Number(selectedSlot.resource_id), date: selectedDate, start_time: selectedSlot.start_time, end_time: selectedSlot.end_time, duration_minutes: durationMinutes, notes,
       ...(selectedPackage.billing_unit === 'reel' ? { requested_reels: 1 } : {}),
     }) });
@@ -116,40 +127,34 @@ export default function ClientBookingDialog({ open, packages = [], initialPackag
         ? 'هذا الموعد لم يعد متاحًا، اختر موعدًا آخر.'
         : error.message || 'تعذر إرسال طلب الحجز.';
       setSubmitError(message);
-      if (error.status === 409 || error.code === 'booking_conflict') { setAvailability(emptyAvailability); setAvailabilityRevision(value => value + 1); }
+      if (error.status === 409 || ['booking_conflict', 'client_day_already_booked'].includes(error.code)) { setSelectedDate(''); setStartTime(''); setAvailability(emptyAvailability); setAvailabilityRevision(value => value + 1); }
       window.requestAnimationFrame(() => { submitErrorRef.current?.focus(); submitErrorRef.current?.scrollIntoView({ block: 'nearest' }); });
       return;
     }
     onSuccess(); onClose();
-    showNotice('success', 'تم إرسال طلب الحجز للإدارة، وسيصلك إشعار بعد المراجعة.');
+    showNotice('success', booking ? 'تم إرسال طلب تغيير الموعد للإدارة. يبقى موعدك الحالي مؤكدًا حتى اعتماد البديل.' : 'تم إرسال طلب الحجز للإدارة، وسيصلك إشعار بعد المراجعة.');
   };
 
   if (!open) return null;
   return <div className="client-modal client-booking-concierge" onMouseDown={event => event.target === event.currentTarget && !busy && onClose()}>
     <section ref={dialogRef} className="client-modal-card client-booking-request-dialog" role="dialog" aria-modal="true" aria-labelledby="client-booking-request-title">
       <button className="client-modal-close" type="button" onClick={onClose} disabled={busy} aria-label="إغلاق نافذة الحجز"><X/></button>
-      <header className="client-booking-dialog-head"><span className="client-eyebrow"><CalendarDays/> حجز جديد</span><h2 id="client-booking-request-title">احجز موعد تصوير</h2><p>اختر الباقة، حدّد المدة، ثم اختر الموعد المناسب لك.</p><span className="client-approval-badge"><ShieldCheck/> الطلب يحتاج موافقة الإدارة</span></header>
+      <header className="client-booking-dialog-head"><span className="client-eyebrow"><CalendarDays/> {booking ? 'تغيير الموعد' : 'حجز جديد'}</span><h2 id="client-booking-request-title">{booking ? 'اختر الموعد البديل' : 'احجز موعد تصوير'}</h2><p>{booking ? `موعدك الحالي: ${formatBookingDate(booking.date)}، ${formatTime12(booking.start_time)}. يبقى مؤكدًا حتى اعتماد التغيير.` : 'اختر الباقة، حدّد المدة، ثم اختر موعدًا متاحًا من التقويم.'}</p><span className="client-approval-badge"><ShieldCheck/> الطلب يحتاج موافقة الإدارة</span></header>
+      {noticeLate && <p className="client-booking-submit-error" role="alert">لا يمكن تعديل الموعد قبل أقل من 48 ساعة فعلية، دون احتساب يوم الجمعة.</p>}
       {submitError && <div ref={submitErrorRef} className="client-booking-submit-error" role="alert" aria-live="assertive" tabIndex="-1"><AlertTriangle/><span>{submitError}</span></div>}
       {!eligiblePackages.length ? <div className="client-booking-state" role="status"><PackageCheck/><h3>لا توجد باقة متاحة للحجز</h3><p>تحتاج إلى باقة تصوير فعالة وبها رصيد متاح.</p></div> : <form onSubmit={submit} className="client-booking-guided-form">
         <div className="client-booking-steps">
-          <fieldset className="client-booking-step"><legend><b>1</b> اختر الباقة</legend><div className="client-booking-package-list">{eligiblePackages.map(pkg => <label key={pkg.id} className={String(pkg.id) === String(packageId) ? 'selected' : ''}><input type="radio" name="booking-package" value={pkg.id} checked={String(pkg.id) === String(packageId)} onChange={() => { setPackageId(String(pkg.id)); setAvailabilityMonth(''); setSelectedDate(''); setStartTime(''); setSubmitError(''); setAvailability(emptyAvailability); }}/><span><strong>{pkg.name}</strong><small>المتاح: {formatPackageQuantity(availableQuantity(pkg), pkg.billing_unit)}{pkg.expires_at ? ` · حتى ${formatBookingDate(pkg.expires_at)}` : ' · تبدأ مع أول حجز'}</small></span><CheckCircle2/></label>)}</div></fieldset>
-          <fieldset className="client-booking-step" disabled={!selectedPackage}><legend><b>2</b> حدّد مدة الجلسة</legend><div className="client-duration-inputs"><label>الساعات<input type="number" min="0" max="10" step="1" inputMode="numeric" value={hours} onChange={event => updateDurationDraft(event.target.value, minutes)} onBlur={() => setHours(String(Math.min(10, Math.floor(Math.max(0, Number(hours || 0))))))}/></label><label>الدقائق<input type="number" min="0" max="30" step="30" inputMode="numeric" value={minutes} onChange={event => updateDurationDraft(hours, event.target.value)} onBlur={() => setMinutes(normalizeClientMinuteDraft(minutes))}/></label></div><p className={durationValid ? 'client-duration-total valid' : 'client-duration-total'}><Clock3/> المدة المطلوبة: <strong>{formatDurationMinutes(durationMinutes)}</strong></p><small>الحد الأدنى 30 دقيقة، والزيادة كل 30 دقيقة.</small>{durationRuleError && <em>اختر مدة من 30 دقيقة إلى 10 ساعات بزيادات 30 دقيقة.</em>}{selectedPackage?.billing_unit === 'hour' && availableQuantity(selectedPackage) * 60 + .001 < durationMinutes && <em>رصيد الباقة لا يكفي لهذه المدة.</em>}</fieldset>
+          <fieldset className="client-booking-step" disabled={Boolean(booking)}><legend><b>1</b> اختر الباقة</legend><div className="client-booking-package-list">{eligiblePackages.map(pkg => <label key={pkg.id} className={String(pkg.id) === String(packageId) ? 'selected' : ''}><input type="radio" name="booking-package" value={pkg.id} checked={String(pkg.id) === String(packageId)} onChange={() => { setPackageId(String(pkg.id)); setAvailabilityMonth(''); setSelectedDate(''); setStartTime(''); setSubmitError(''); setAvailability(emptyAvailability); }}/><span><strong>{pkg.name}</strong><small>المتاح: {formatPackageQuantity(displayedQuantity(pkg), pkg.billing_unit)}{pkg.expires_at ? ` · حتى ${formatBookingDate(pkg.expires_at)}` : ' · تبدأ مع أول حجز'}</small></span><CheckCircle2/></label>)}</div></fieldset>
+          <fieldset className="client-booking-step" disabled={!selectedPackage}><legend><b>2</b> حدّد مدة الجلسة</legend><div className="client-duration-inputs"><label>الساعات<input type="number" min="0" max="10" step="1" inputMode="numeric" value={hours} onChange={event => updateDurationDraft(event.target.value, minutes)} onBlur={() => setHours(String(Math.min(10, Math.floor(Math.max(0, Number(hours || 0))))))}/></label><label>الدقائق<input type="number" min="0" max="30" step="30" inputMode="numeric" value={minutes} onChange={event => updateDurationDraft(hours, event.target.value)} onBlur={() => setMinutes(normalizeClientMinuteDraft(minutes))}/></label></div><p className={durationValid ? 'client-duration-total valid' : 'client-duration-total'}><Clock3/> المدة المطلوبة: <strong>{formatDurationMinutes(durationMinutes)}</strong></p><small>الحد الأدنى ساعة واحدة، والزيادة كل 30 دقيقة.</small>{durationRuleError && <em>اختر مدة من ساعة إلى 10 ساعات بزيادات 30 دقيقة.</em>}{selectedPackage?.billing_unit === 'hour' && availableMinutes + .001 < durationMinutes && <em>رصيد الباقة لا يكفي لهذه المدة.</em>}</fieldset>
         </div>
         <fieldset className="client-booking-step client-availability-step" disabled={!durationValid}><legend><b>3</b> اختر اليوم والموعد</legend>
           <p className="client-booking-continuous-note"><Clock3/> تظهر المواعيد التي تتسع لمدة الجلسة كاملة ومتّصلة في اليوم نفسه، ولا يتم تقسيم الساعات.</p>
-          <nav className="client-booking-month-nav" aria-label="التنقل بين شهور الحجز">
-            <button type="button" onClick={() => moveAvailabilityMonth(-1)} disabled={!monthWindow.canPrevious || availability.loading} aria-label="الشهر السابق"><ChevronRight/><span>السابق</span></button>
-            <div><strong>{monthLabel}</strong><small>{selectedPackage?.expires_at ? `يمكن الحجز حتى ${formatBookingDate(selectedPackage.expires_at)}` : 'تبدأ الصلاحية مع أول حجز مؤكد'}</small></div>
-            <button type="button" onClick={() => moveAvailabilityMonth(1)} disabled={!monthWindow.canNext || availability.loading} aria-label="الشهر التالي"><span>التالي</span><ChevronLeft/></button>
-          </nav>
-          <p className="client-booking-month-balance"><PackageCheck/> الرصيد المتاح لهذه الباقة: <strong>{formatPackageQuantity(availableQuantity(selectedPackage), selectedPackage?.billing_unit)}</strong></p>
-          <div aria-live="polite">{availability.loading && <div className="client-booking-state compact"><RefreshCw className="client-spin"/><p>نبحث عن المواعيد التي تناسب مدتك...</p></div>}{availability.error && <div className="client-booking-state compact error"><p>{availability.error}</p><button type="button" onClick={reloadAvailability}><RefreshCw/> إعادة المحاولة</button></div>}</div>
-          {availability.data && <><div className="client-available-days" aria-label={`الأيام المتاحة في ${monthLabel}`}>{availability.data.days.map(day => <button type="button" key={day.date} disabled={!day.available} className={selectedDate === day.date ? 'selected' : ''} onClick={() => { setSelectedDate(day.date); setStartTime(''); setSubmitError(''); }}><span>{new Intl.DateTimeFormat('ar-EG', { weekday: 'short', timeZone: 'Africa/Cairo' }).format(new Date(`${day.date}T12:00:00`))}</span><strong>{new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'short', timeZone: 'Africa/Cairo' }).format(new Date(`${day.date}T12:00:00`))}</strong><small>{day.available ? 'متاح' : 'غير متاح'}</small></button>)}</div>{!availability.data.days.some(day => day.available) && <div className="client-booking-state compact"><CalendarDays/><p>{monthWindow.canNext ? 'لا توجد مواعيد تناسب هذه المدة في هذا الشهر. يمكنك الانتقال إلى الشهر التالي.' : 'لا توجد مواعيد مناسبة حتى نهاية صلاحية الباقة. جرّب مدة أقصر.'}</p></div>}</>}
-          {selectedDay?.available && <div className="client-booking-manual-time"><div className="client-booking-time-heading"><div><h3>وقت البداية يوم {formatBookingDate(selectedDate)}</h3><p>اكتب الساعة بنظام 12 ساعة. مواعيد العميل من 12 ظهرًا إلى 10 مساءً.</p></div><span aria-label="دقائق البداية ثابتة صفر">الدقائق ثابتة <b>:00</b></span></div><label htmlFor="client-booking-start-time">بداية الموعد</label><BusinessTimeSelect id="client-booking-start-time" min="12:00" max="21:00" step={60} value={startTime} defaultPeriod="pm" example="2:00" onChange={event => { setStartTime(event.target.value); setSubmitError(''); }} aria-describedby="client-booking-time-guidance client-booking-time-state" aria-invalid={Boolean(startTime && ['start_invalid', 'start_grid_invalid', 'outside_hours', 'unavailable'].includes(bookingTime.errorCode))}/><small id="client-booking-time-guidance">مثال صحيح: 1:00 م. البداية من 12 ظهرًا، والنهاية حتى 10 مساءً، عدا الجمعة. الدقائق دائمًا :00.</small>{startTime && bookingTime.endTime && <section className="client-booking-timeline" aria-label="خط زمني للموعد"><div><span>البداية</span><strong>{formatTime12(startTime)}</strong></div><ArrowLeft aria-hidden="true"/><div><span>المدة</span><strong>{formatDurationMinutes(durationMinutes)}</strong></div><ArrowLeft aria-hidden="true"/><div><span>النهاية</span><strong>{formatTime12(bookingTime.endTime)}</strong></div></section>}<div id="client-booking-time-state" className={`client-booking-time-state ${selectedSlot ? 'available' : bookingTime.errorCode === 'start_required' ? 'incomplete' : 'error'}`} role={selectedSlot ? 'status' : 'alert'} aria-live="polite">{selectedSlot ? <><CheckCircle2/> الموعد متاح كاملًا ومتصلًا.</> : bookingTime.errorCode === 'start_required' ? <><Clock3/> أدخل وقت بداية صحيحًا لإكمال الحجز.</> : bookingTime.errorCode === 'start_invalid' ? <><AlertTriangle/> اكتب ساعة صحيحة بنظام 12 ساعة.</> : bookingTime.errorCode === 'start_grid_invalid' ? <><AlertTriangle/> يجب أن يبدأ الموعد عند ساعة كاملة ودقائق :00.</> : bookingTime.errorCode === 'outside_hours' ? <><AlertTriangle/> هذه المدة تنتهي بعد 10 مساءً. اختر وقتًا أبكر.</> : <><AlertTriangle/> الفترة المحسوبة غير متاحة كاملة. جرّب ساعة بداية أخرى.</>}</div></div>}
+          <ClientAvailabilityCalendar monthWindow={monthWindow} data={availability.data} loading={availability.loading} error={availability.error} onRetry={reloadAvailability} onMonthChange={moveAvailabilityMonth} selectedDate={selectedDate} onDateChange={date => { setSelectedDate(date); setStartTime(''); setSubmitError(''); }} selectedSlot={selectedSlot} onSlotChange={slot => { setStartTime(slot.start_time); setSubmitError(''); }} durationMinutes={durationMinutes} disabled={!durationValid || busy} validityLabel={selectedPackage?.expires_at ? `الحجز حتى ${formatBookingDate(selectedPackage.expires_at)}، بما يشمل الشهور القادمة` : 'تبدأ صلاحية الباقة مع أول حجز مؤكد'}/>
         </fieldset>
         {selectedSlot && <section className="client-booking-summary" aria-live="polite"><CheckCircle2/><div><span>ملخص طلبك</span><strong>{selectedPackage.name}</strong><p>{formatBookingDate(selectedDate)} · من {formatTime12(selectedSlot.start_time)} إلى {formatTime12(selectedSlot.end_time)} · {formatDurationMinutes(durationMinutes)}</p></div></section>}
         <label className="client-booking-notes">ملاحظات اختيارية<textarea rows="3" maxLength="1000" value={notes} onChange={event => setNotes(event.target.value)} placeholder="أي تجهيزات أو تفاصيل تساعد فريق التصوير"/></label>
-        <button className="client-primary client-booking-submit" disabled={busy || !selectedSlot}>{busy ? <RefreshCw className="client-spin"/> : <Send/>}{busy ? 'جارٍ إرسال الطلب...' : 'إرسال طلب الحجز'}</button>
+        <p className="client-policy"><Clock3/> التعديل أو الإلغاء قبل الموعد بـ 48 ساعة فعلية على الأقل، دون احتساب يوم الجمعة.</p>
+        <button className="client-primary client-booking-submit" disabled={busy || !selectedSlot || availability.loading || noticeLate}>{busy ? <RefreshCw className="client-spin"/> : <Send/>}{busy ? 'جارٍ إرسال الطلب...' : booking ? 'إرسال طلب تغيير الموعد' : 'إرسال طلب الحجز'}</button>
       </form>}
     </section>
   </div>;

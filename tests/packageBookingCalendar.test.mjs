@@ -55,17 +55,18 @@ test('client and admin booking interfaces expose package-aware future navigation
   const [dialog, modal, api, css] = await Promise.all([
     load('src/pages/ClientBookingDialog.jsx'),
     load('src/erp/ERPAddBookingModal.jsx'),
-    load('api/index.php'),
+    load('api/client_calendar.php'),
     load('src/pages/ClientDashboard.css'),
   ]);
-  const availabilityFunction = api.slice(api.indexOf('function clientBookingAvailability'), api.indexOf('function bookingBlockDate'));
-  assert.match(dialog, /className="client-booking-month-nav"/);
+  const availabilityFunction = api;
+  const calendar = await load('src/components/ClientAvailabilityCalendar.jsx');
+  assert.match(calendar, /onMonthChange/);
   assert.match(dialog, /start_date: monthWindow\.startDate/);
   assert.match(dialog, /days: String\(monthWindow\.days\)/);
-  assert.match(dialog, /الرصيد المتاح لهذه الباقة/);
+  assert.match(dialog, /المتاح:/);
   assert.match(modal, /validRange=\{calendarValidRange\}/);
   assert.match(modal, /يمكنك الانتقال لأي شهر/);
   assert.match(css, /client-booking-month-nav button\{min-width:82px;min-height:44px/);
   assert.doesNotMatch(availabilityFunction, /\+90 days|خلال 90 يومًا فقط/);
-  assert.match(availabilityFunction, /\$maximumWindow=31/);
+  assert.match(availabilityFunction, /\$days>31/);
 });

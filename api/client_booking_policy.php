@@ -1,12 +1,13 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/client_booking_date.php';
 
 const CLIENT_BOOKING_OPEN_MINUTE = 720;
 const CLIENT_BOOKING_CLOSE_MINUTE = 1320;
 const CLIENT_CANCELLATION_HOURS = 48;
 
 function clientBookingPolicy(): array {
-    return ['opens'=>'12:00','closes'=>'22:00','closed_weekday'=>5,'cancellation_hours'=>48];
+    return ['opens'=>'12:00','closes'=>'22:00','closed_weekday'=>5,'cancellation_hours'=>48,'notice_excludes_friday'=>true,'minimum_booking_minutes'=>60,'one_session_per_day'=>true];
 }
 
 function clientBookingWindowError(string $date, string $start, string $end, ?DateTimeImmutable $now = null): ?array {
@@ -21,18 +22,27 @@ function clientBookingWindowError(string $date, string $start, string $end, ?Dat
     return null;
 }
 
-function requireClientBookingWindow(string $date, string $start, string $end): void {
-    $error = clientBookingWindowError($date,$start,$end);
+function requireClientBookingWindow(string $date, string $start, string $end, bool $newRequest = true): void {
+    $error = clientBookingWindowError($date,$start,$end,cairoNow());
+    if (!$error && $newRequest) $error = clientBookingDateError($date,cairoNow());
     if ($error) fail($error[1],422,$error[0]);
 }
 
+function clientBookingNoticeSeconds(array $booking, ?DateTimeImmutable $now = null): int {
+    $zone=new DateTimeZone('Africa/Cairo');
+    $start=DateTimeImmutable::createFromFormat('!Y-m-d H:i',(string)$booking['date'].' '.substr((string)$booking['start_time'],0,5),$zone);
+    $now=($now??new DateTimeImmutable('now',$zone))->setTimezone($zone);
+    if(!$start||$start<=$now)return 0;
+    $seconds=0;$cursor=$now;
+    while($cursor<$start){$next=$cursor->modify('tomorrow')->setTime(0,0);if($next>$start)$next=$start;if($cursor->format('w')!=='5')$seconds+=$next->getTimestamp()-$cursor->getTimestamp();$cursor=$next;if($seconds>=CLIENT_CANCELLATION_HOURS*3600)return $seconds;}
+    return $seconds;
+}
 function clientBookingNoticeIsLate(array $booking, ?DateTimeImmutable $now = null): bool {
-    $zone = new DateTimeZone('Africa/Cairo');
-    $start = DateTimeImmutable::createFromFormat('!Y-m-d H:i', (string)$booking['date'].' '.substr((string)$booking['start_time'],0,5), $zone);
-    $now ??= new DateTimeImmutable('now', $zone);
-    return !$start || $start->getTimestamp() - $now->getTimestamp() < CLIENT_CANCELLATION_HOURS * 3600;
+    return clientBookingNoticeSeconds($booking,$now)<CLIENT_CANCELLATION_HOURS*3600;
 }
 
 function clientCancellationIsLate(array $booking, ?DateTimeImmutable $now = null): bool {
     return ($booking['status'] ?? '') === 'confirmed' && clientBookingNoticeIsLate($booking,$now);
 }
+
+require_once __DIR__.'/client_calendar.php';

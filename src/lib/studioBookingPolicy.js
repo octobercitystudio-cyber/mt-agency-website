@@ -1,4 +1,5 @@
-import { cairoDateKey, calculateDurationMinutes } from './businessFormat.js';
+import { calculateDurationMinutes } from './businessFormat.js';
+import { clientBookingDateError } from './clientBookingDate.js';
 import { cairoDateTimeToEpoch } from './promotionTime.js';
 import { clientWindowError, isClientBookingDateClosed } from './registrationPolicy.js';
 export const STUDIO_TRANSFER_ACCOUNT = '01094084424';
@@ -14,11 +15,11 @@ export const validateStudioBookings = (service, bookings, requireOne = true) => 
   const expiry = new Date(`${first}T12:00:00Z`); expiry.setUTCDate(expiry.getUTCDate() + Math.max(1, Number(service.validity_days || 1)) - 1); const endDate = expiry.toISOString().slice(0, 10);
   for (let index = 0; index < sorted.length; index++) {
     const row = sorted[index]; const policyError = clientWindowError(row); if (policyError) return policyError;
-    if (row.date < cairoDateKey() || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) return 'اختر تاريخًا قادمًا صحيحًا.';
-    const duration = Number(row.duration_minutes); if (!Number.isInteger(duration) || duration < 30 || duration % 30 || duration !== calculateDurationMinutes(row.start_time, row.end_time)) return 'راجع مدة الموعد ووقت بدايته ونهايته.';
+    const dateError = clientBookingDateError(row.date); if (dateError) return dateError;
+    const duration = Number(row.duration_minutes); if (!Number.isInteger(duration) || duration < 60 || duration % 30 || duration !== calculateDurationMinutes(row.start_time, row.end_time)) return 'راجع مدة الموعد ووقت بدايته ونهايته.';
     if ((service.kind === 'daily' || service.package_validity_mode === 'shooting_day') && row.date !== first) return 'مواعيد الباقة اليومية يجب أن تكون في يوم واحد.';
     if (row.date > endDate) return 'أحد المواعيد خارج صلاحية الباقة، المحسوبة من أول موعد مقترح.';
-    if (sorted.slice(0, index).some(prior => prior.date === row.date && prior.start_time < row.end_time && prior.end_time > row.start_time)) return 'يوجد موعد مكرر أو متداخل في اختياراتك.';
+    if (sorted.slice(0, index).some(prior => prior.date === row.date)) return 'يمكن حجز فترة واحدة متصلة فقط في اليوم. عدّل مدة الموعد بدل إضافة فترة أخرى.';
   }
   return studioSelectedMinutes(sorted) > Math.round(Number(service.total_hours) * 60) ? 'إجمالي المواعيد يتجاوز ساعات الباقة. قلّل المدة أو احذف موعدًا.' : '';
 };

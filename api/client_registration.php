@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/registration_bot.php';
 require_once __DIR__.'/auth_identity.php';
 
-const REGISTRATION_TERMS_VERSION = '2026-09-22';
+const REGISTRATION_TERMS_VERSION = '2026-09-23';
 
 function registrationApplicantRouteAllowed(string $path, string $method): bool {
     return ($method==='GET' && in_array($path,['/auth/session','/client/intake-requests','/registration/catalog','/registration/availability','/data/app_config','/health'],true))
@@ -57,7 +57,7 @@ function registrationServiceSnapshot(array $service): ?array {
     $kind=$daily?'daily':(in_array($category,['تصوير بالساعة','تصوير ساعة','بالساعة','hourly','hour'],true)?'hourly':'monthly');
     $priceCents=max(0,packageMoneyCents($service['price']??0));$percent=50.0;$due=max(0,(float)($service['payment_due_hours']??0));$hours=(float)$service['total_hours'];
     if ($due>$hours || $priceCents<=0) return null;
-    $snapshot=['id'=>(int)$service['id'],'name'=>(string)$service['name'],'kind'=>$kind,'billing_unit'=>'hour','price'=>packageMoney($priceCents),'total_hours'=>$hours,'validity_days'=>$daily?1:max(1,(int)$service['validity_days']),'package_validity_mode'=>$daily?'shooting_day':'rolling','deposit_percent'=>$percent,'deposit_amount'=>packageMoney((int)ceil($priceCents/2)),'payment_due_hours'=>$due,'payment_due_text'=>$due>0?'يستحق باقي المبلغ عند استهلاك '.arabicDurationMinutes((int)round($due*60)).' من الباقة.':'يُحدد موعد سداد الباقي مع الإدارة عند اعتماد الطلب.','minimum_booking_minutes'=>30,'booking_increment_minutes'=>30,'overage_price'=>packageMoney(max(0,packageMoneyCents($service['overage_price']??0)))];
+    $snapshot=['id'=>(int)$service['id'],'name'=>(string)$service['name'],'kind'=>$kind,'billing_unit'=>'hour','price'=>packageMoney($priceCents),'total_hours'=>$hours,'validity_days'=>$daily?1:max(1,(int)$service['validity_days']),'package_validity_mode'=>$daily?'shooting_day':'rolling','deposit_percent'=>$percent,'deposit_amount'=>packageMoney((int)ceil($priceCents/2)),'payment_due_hours'=>$due,'payment_due_text'=>$due>0?'يستحق باقي المبلغ عند استهلاك '.arabicDurationMinutes((int)round($due*60)).' من الباقة.':'يُحدد موعد سداد الباقي مع الإدارة عند اعتماد الطلب.','minimum_booking_minutes'=>60,'booking_increment_minutes'=>30,'overage_price'=>packageMoney(max(0,packageMoneyCents($service['overage_price']??0)))];
     $snapshot['terms_fingerprint']=hash('sha256',json_encode($snapshot,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
     return $snapshot;
 }
@@ -69,9 +69,10 @@ function registrationService(PDO $pdo,int $org,int $id): array {
 }
 
 function registrationAvailability(PDO $pdo,int $org,array $service,string $date,int $duration): array {
-    if($duration<30 || $duration>600 || $duration%30!==0 || $duration>(int)round($service['total_hours']*60)) fail('مدة التصوير لا تتوافق مع ساعات الباقة أو فترة العمل.',422,'invalid_booking_duration');
+    if($duration<60 || $duration>600 || $duration%30!==0 || $duration>(int)round($service['total_hours']*60)) fail('مدة التصوير لا تتوافق مع ساعات الباقة أو فترة العمل.',422,'invalid_booking_duration');
     $zone=new DateTimeZone('Africa/Cairo');$day=DateTimeImmutable::createFromFormat('!Y-m-d',$date,$zone);$now=cairoNow();
     if(!$day || $day->format('Y-m-d')!==$date || $day<$now->setTime(0,0) || $day>$now->modify('+3 years')) fail('اختر تاريخًا صحيحًا في المستقبل.',422,'invalid_booking_date');
+    if($dateError=clientBookingDateError($date,$now))fail($dateError[1],422,$dateError[0]);
     $slots=[];$result=['date'=>$date,'duration_minutes'=>$duration,'available'=>false,'slots'=>[],'booking_policy'=>clientBookingPolicy()];
     if($day->format('w')==='5') return $result;
     $resources=$pdo->prepare("SELECT id FROM resources WHERE organization_id=? AND type='studio' AND is_active=1 ORDER BY id");$resources->execute([$org]);$resourceIds=array_map('intval',$resources->fetchAll(PDO::FETCH_COLUMN));
@@ -180,7 +181,7 @@ function intakeApprovePackage(PDO $pdo,array $actor,array &$request): void {
 function intakeApproveBooking(PDO $pdo,array $actor,array &$request): void {
     $org=(int)$actor['organization_id'];$clientId=(int)$request['client_id'];$booking=json_decode((string)$request['booking_snapshot'],true);
     if(!$booking || empty($request['client_package_id']))fail('بيانات طلب الموعد غير مكتملة.',409,'invalid_booking_request');
-    requireClientBookingWindow($booking['date'],$booking['start_time'],$booking['end_time']);
+    requireClientBookingWindow($booking['date'],$booking['start_time'],$booking['end_time'],false);
     $minutes=validateClientBookingTimeGrid($booking['start_time'],$booking['end_time'],$booking['duration_minutes']);$quantity=$minutes/60;
     $s=$pdo->prepare("SELECT * FROM client_packages WHERE id=? AND client_id=? AND organization_id=? AND status='active' FOR UPDATE");$s->execute([$request['client_package_id'],$clientId,$org]);$package=$s->fetch();if(!$package)fail('الباقة غير متاحة للحجز.',409,'invalid_package');
     validateBookingSchedule($pdo,$org,(int)$booking['resource_id'],$booking['date'],$booking['start_time'],$booking['end_time'],30,30,null,$package,true);

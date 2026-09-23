@@ -44,11 +44,14 @@ test('every client mutation creates one independently scoped notification for ea
   const packageDate = upcoming.toISOString().slice(0,10);
   Object.assign(state.bookings.find(row => row.id === 301), { date: packageDate, start_time: '18:00', end_time: '19:00' });
   Object.assign(state.bookings.find(row => row.id === 302), { date: packageDate, start_time: '20:00', end_time: '21:00', client_id: 1 });
+  const emptyDay = new Date(upcoming); emptyDay.setDate(emptyDay.getDate() + 2); if (emptyDay.getDay() === 5) emptyDay.setDate(emptyDay.getDate() + 1);
+  const newDate = emptyDay.toISOString().slice(0,10);
+  state.client_packages.find(row => row.id === 201).expires_at = '2027-12-31';
   storage.set('mt_agency_erp_demo_v12', JSON.stringify(state));
-  const booking = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_package_id: 201, service_id: 101, resource_id: 1, date: packageDate, start_time: '12:00', end_time: '13:00', duration_minutes: 60 }) }); assert.equal(booking.error, null);
+  const booking = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_package_id: 201, service_id: 101, resource_id: 1, date: newDate, start_time: '12:00', end_time: '13:00', duration_minutes: 60 }) }); assert.equal(booking.error, null);
   assert.equal((await demoClient.request('/reschedule-requests', { method: 'POST', body: JSON.stringify({ booking_id: 301, date: '2026-12-22', start_time: '13:00', end_time: '14:00' }) })).error, null);
   assert.equal((await demoClient.request('/bookings/302/cancel-request', { method: 'POST', body: '{}' })).error, null);
-  activateDemoMode('owner', 1); assert.equal((await demoClient.request(`/bookings/${booking.data.id}/decision`, { method: 'POST', body: JSON.stringify({ action: 'alternative', date: packageDate, start_time: '13:00', end_time: '14:00' }) })).error, null);
+  activateDemoMode('owner', 1); assert.equal((await demoClient.request(`/bookings/${booking.data.id}/decision`, { method: 'POST', body: JSON.stringify({ action: 'alternative', date: newDate, start_time: '13:00', end_time: '14:00' }) })).error, null);
   activateDemoMode('client'); assert.equal((await demoClient.request(`/bookings/${booking.data.id}/alternative-decision`, { method: 'POST', body: JSON.stringify({ action: 'accept' }) })).error, null);
   assert.equal((await demoClient.request('/offers/801/accept', { method: 'POST', body: '{}' })).error, null);
   const proofBody = new FormData(); proofBody.append('client_package_id', '201'); proofBody.append('amount', '100'); proofBody.append('proof', new Blob(['demo'], { type: 'image/jpeg' }), 'transfer.jpg');
@@ -85,7 +88,7 @@ test('production contracts scope owner recipients, delete transactionally, and g
   assert.match(api, /notifyOwnersOfClientAction/); assert.match(api, /recipient_user_id=\?/); assert.match(api, /audience='owner'/); assert.match(api, /deleteEligibleBooking/); assert.match(api, /booking_session_protected/); assert.match(api, /DELETE FROM reschedule_requests/); assert.match(api, /booking_deleted/); assert.match(api, /WHERE id=\? AND organization_id=\? AND client_id=\? FOR UPDATE/); assert.match(api, /legacy_booking_cancellation_retired/); assert.match(api, /cancellation_reason_not_supported/);
   assert.match(packages, /detailsRequestRef/); assert.match(packages, /detailsRequestRef\.current\.token !== token/); assert.match(packages, /detailsRequestRef\.current\.packageId !== normalizedId/); assert.match(packages, /14 يومًا تقويميًا/); assert.doesNotMatch(packages, /14 يوم عمل/);
   assert.match(ownerUi, /createPortal/); assert.match(ownerUi, /isolateBackground: true/); assert.match(ownerUi, /captureNotificationOpen/); assert.match(clientUi, /captureNotificationOpen/); assert.match(ownerCss, /owner-notifications__backdrop\{z-index:3000\}/); assert.match(modalHook, /element\.inert = true/); assert.match(modalHook, /aria-hidden/);
-  assert.doesNotMatch(bookingDialog, /if \(isLocalPreview\) return/); assert.match(bookingDialog, /\/bookings\/request/); assert.match(dashboard, /\/reschedule-requests/); assert.match(dashboard, /\/payment-proofs/); assert.match(demo, /rolling_first_booking/);
+  assert.doesNotMatch(bookingDialog, /if \(isLocalPreview\) return/); assert.match(bookingDialog, /\/bookings\/request/); assert.match(bookingDialog, /\/reschedule-requests/); assert.match(dashboard, /\/payment-proofs/); assert.match(demo, /rolling_first_booking/);
 });
 
 test('legacy demo cancellation cannot retain a cancelled row or accept a reason', async () => {

@@ -1,0 +1,20 @@
+[
+ {"name":"winter before midnight","now":"2026-01-15T21:59:59.999Z","today":"2026-01-15","tomorrow":"2026-01-16"},
+ {"name":"winter at midnight","now":"2026-01-15T22:00:00Z","today":"2026-01-16","tomorrow":"2026-01-17"},
+ {"name":"summer before midnight","now":"2026-09-23T20:59:59.999Z","today":"2026-09-23","tomorrow":"2026-09-24"},
+ {"name":"summer at midnight","now":"2026-09-23T21:00:00Z","today":"2026-09-24","tomorrow":"2026-09-25"},
+ {"name":"month boundary before midnight","now":"2026-09-30T20:59:59Z","today":"2026-09-30","tomorrow":"2026-10-01"},
+ {"name":"month boundary at midnight","now":"2026-09-30T21:00:00Z","today":"2026-10-01","tomorrow":"2026-10-02"},
+ {"name":"year boundary before midnight","now":"2026-12-31T21:59:59Z","today":"2026-12-31","tomorrow":"2027-01-01"},
+ {"name":"year boundary at midnight","now":"2026-12-31T22:00:00Z","today":"2027-01-01","tomorrow":"2027-01-02"},
+ {"name":"leap day","now":"2028-02-28T10:00:00Z","today":"2028-02-28","tomorrow":"2028-02-29"},
+ {"name":"after leap day","now":"2028-02-29T10:00:00Z","today":"2028-02-29","tomorrow":"2028-03-01"},
+ {"name":"non leap February","now":"2027-02-28T10:00:00Z","today":"2027-02-28","tomorrow":"2027-03-01"},
+ {"name":"DST spring before skipped midnight","now":"2026-04-23T21:59:59Z","today":"2026-04-23","tomorrow":"2026-04-24"},
+ {"name":"DST spring after skipped midnight","now":"2026-04-23T22:00:00Z","today":"2026-04-24","tomorrow":"2026-04-25"},
+ {"name":"DST autumn first 23 hour","now":"2026-10-29T20:59:59Z","today":"2026-10-29","tomorrow":"2026-10-30"},
+ {"name":"DST autumn repeated 23 hour","now":"2026-10-29T21:00:00Z","today":"2026-10-29","tomorrow":"2026-10-30"},
+ {"name":"DST autumn midnight","now":"2026-10-29T22:00:00Z","today":"2026-10-30","tomorrow":"2026-10-31"},
+ {"name":"caller timezone behind Cairo","now":"2026-09-23T14:00:00-07:00","today":"2026-09-24","tomorrow":"2026-09-25"},
+ {"name":"caller timezone ahead of Cairo","now":"2026-09-24T09:00:00+14:00","today":"2026-09-23","tomorrow":"2026-09-24"}
+]

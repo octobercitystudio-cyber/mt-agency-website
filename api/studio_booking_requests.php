@@ -42,7 +42,7 @@ function normalizedStudioDates(mixed $rows,array $service): array {
     $first=$dates[0]['date'];$last=packageValidityEnd($first,(int)$service['validity_days'],$service['package_validity_mode']);
     foreach($dates as $i=>$date){
         if($date['date']>$last)fail('كل المواعيد يجب أن تقع داخل صلاحية الباقة بدءًا من أول موعد.',422,'booking_outside_package_validity');
-        if($i>0&&$date['date']===$dates[$i-1]['date']&&$date['start_time']<$dates[$i-1]['end_time'])fail('يوجد تداخل بين المواعيد التي اخترتها.',422,'studio_dates_overlap');
+        if($i>0&&$date['date']===$dates[$i-1]['date'])fail('يمكن حجز جلسة واحدة متصلة فقط لكل يوم.',422,'client_day_already_booked');
     }
     return $dates;
 }
@@ -72,7 +72,7 @@ function submitStudioBookingRequest(PDO $pdo,array $user,array $payload,array $p
         if($old=$s->fetch()){if(!hash_equals($old['request_hash'],$hash))fail('مفتاح الحفظ مرتبط بطلب مختلف.',409,'idempotency_mismatch');$pdo->commit();return studioRequestResult($old)+['_proof_retained'=>false];}
         $service=studioService($pdo,$org,$serviceId);if(!hash_equals($service['terms_fingerprint'],$fingerprint))fail('تم تحديث سعر الباقة أو شروطها. راجع التفاصيل الجديدة ثم وافق عليها.',409,'service_terms_changed');
         $dates=normalizedStudioDates($payload['bookings']??null,$service);
-        foreach($dates as $date){registrationBooking($pdo,$org,$service,$date);validateBookingSchedule($pdo,$org,$date['resource_id'],$date['date'],$date['start_time'],$date['end_time'],30,30,null,null,true);}
+        foreach($dates as $date){requireClientSingleDate($pdo,$org,$clientId,$date['date']);registrationBooking($pdo,$org,$service,$date);validateBookingSchedule($pdo,$org,$date['resource_id'],$date['date'],$date['start_time'],$date['end_time'],60,30,null,null,true);}
         $due=studioReviewDeadline()->format('Y-m-d H:i:s');
         $s=$pdo->prepare('INSERT INTO client_studio_booking_requests (organization_id,client_id,user_id,service_id,service_snapshot,deposit_amount,payment_method,transfer_account,proof_path,proof_mime,proof_original_name,proof_hash,idempotency_key,request_hash,terms_version,terms_accepted_at,review_due_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?)');
         $s->execute([$org,$clientId,$user['id'],$serviceId,json_encode($service,JSON_UNESCAPED_UNICODE),$service['deposit_amount'],'vodafone_cash',STUDIO_TRANSFER_ACCOUNT,$proof['path'],$proof['mime'],$proof['original_name'],$proof['hash'],$key,$hash,REGISTRATION_TERMS_VERSION,$due]);$id=(int)$pdo->lastInsertId();
@@ -102,9 +102,10 @@ function approveStudioPackage(PDO $pdo,array $actor,array &$request,array $paylo
 
 function approveStudioDate(PDO $pdo,array $actor,array $request,array $booking): int {
     $org=(int)$actor['organization_id'];$clientId=(int)$request['client_id'];
+    lockClientCalendar($pdo,$org,$clientId);requireClientSingleDate($pdo,$org,$clientId,(string)$booking['date'],0,(int)$booking['id']);
     $s=$pdo->prepare("SELECT id FROM client_studio_booking_dates WHERE request_id=? AND organization_id=? AND status='pending' AND id<? LIMIT 1");$s->execute([$request['id'],$org,$booking['id']]);if($s->fetch())fail('راجع المواعيد بالترتيب، بدءًا من أقرب موعد لتحديد بداية صلاحية الباقة.',409,'earlier_booking_pending');
     $booking['start_time']=normalizeBusinessTime($booking['start_time']);$booking['end_time']=normalizeBusinessTime($booking['end_time'],true);
-    requireClientBookingWindow($booking['date'],$booking['start_time'],$booking['end_time']);$minutes=validateClientBookingTimeGrid($booking['start_time'],$booking['end_time'],$booking['duration_minutes']);$quantity=$minutes/60;
+    requireClientBookingWindow($booking['date'],$booking['start_time'],$booking['end_time'],false);$minutes=validateClientBookingTimeGrid($booking['start_time'],$booking['end_time'],$booking['duration_minutes']);$quantity=$minutes/60;
     $s=$pdo->prepare("SELECT * FROM client_packages WHERE id=? AND client_id=? AND organization_id=? AND status='active' FOR UPDATE");$s->execute([$request['client_package_id'],$clientId,$org]);$package=$s->fetch();if(!$package)fail('الباقة غير متاحة للحجز.',409,'invalid_package');
     validateBookingSchedule($pdo,$org,(int)$booking['resource_id'],$booking['date'],$booking['start_time'],$booking['end_time'],30,30,null,$package,true);
     if(packageAvailableQuantity($package)+0.0001<$quantity)fail('رصيد الباقة لا يكفي لهذا الموعد.',422,'insufficient_package_balance');

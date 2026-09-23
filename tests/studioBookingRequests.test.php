@@ -69,11 +69,11 @@ $rejectedRow=studioBookingRequestList($pdo,$client)['items'][0];check($rejectedR
 check(studioBookingRequestList($pdo,$client)['pending_count']===0,'Rejected request no longer counted pending');
 failure('client_booking_friday_closed',fn()=>normalizedStudioDates([array_replace($first,['date'=>'2030-01-11'])],$service));
 failure('client_booking_outside_hours',fn()=>normalizedStudioDates([array_replace($first,['start_time'=>'11:00'])],$service));
-failure('studio_dates_overlap',fn()=>normalizedStudioDates([$first,array_replace($first,['start_time'=>'14:00','end_time'=>'16:00'])],$service));
+failure('client_day_already_booked',fn()=>normalizedStudioDates([$first,array_replace($first,['start_time'=>'14:00','end_time'=>'16:00'])],$service));
 failure('insufficient_package_balance',fn()=>normalizedStudioDates([$first,$second],array_replace($service,['total_hours'=>2])));
 failure('booking_outside_package_validity',fn()=>normalizedStudioDates([$first,array_replace($second,['date'=>'2030-04-10'])],$service));
 failure('booking_outside_package_validity',fn()=>normalizedStudioDates([$first,$second],array_replace($service,['validity_days'=>1,'package_validity_mode'=>'shooting_day'])));
-check(count(normalizedStudioDates([$first,array_replace($first,['start_time'=>'15:00','end_time'=>'17:00'])],$service))===2,'Adjacent appointments do not conflict');
+failure('client_day_already_booked',fn()=>normalizedStudioDates([$first,array_replace($first,['start_time'=>'15:00','end_time'=>'17:00'])],$service));
 $before=countRows($pdo,'client_studio_booking_requests');
 failure('client_booking_friday_closed',fn()=>submitStudioBookingRequest($pdo,$client,array_replace($pendingPayload,['idempotency_key'=>'test-studio-friday-004','bookings'=>[array_replace($first,['date'=>'2030-01-11'])]]),$proof));
 check(countRows($pdo,'client_studio_booking_requests')===$before && !$pdo->inTransaction(),'Invalid dates leave no partially saved request');

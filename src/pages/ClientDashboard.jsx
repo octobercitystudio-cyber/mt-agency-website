@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ClientStudioRequests from '../components/StudioBookingRequests';
 import ClientStudioBooking from './ClientStudioBooking';
-import { CLIENT_BOOKING_POLICY_LABEL, clientWindowError } from '../lib/registrationPolicy';
+import { clientNoticeIsLate } from '../lib/clientBookingNotice';
 import { dataClient } from '../dataClient';
 import {
   CalendarDays, CheckCircle2, CircleDollarSign, Clock3, Home,
-  Film, FolderKanban, History, Inbox, KeyRound, Package, Plus, LogOut, Megaphone, Menu, RefreshCw, RotateCcw, Send, Sparkles, X, XCircle
+  Film, FolderKanban, History, Inbox, KeyRound, Package, Plus, LogOut, Megaphone, Menu, RefreshCw, RotateCcw, Sparkles, X, XCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../store/DataContext';
-import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import ClientDashboardOverview, { ClientPackageCards } from './ClientDashboardOverview';
 import ClientFinanceView from './ClientFinanceView';
 import ClientProjectsView from './ClientProjectsView';
@@ -26,7 +25,6 @@ import {
   formatTime12,
   calculateDurationMinutes, formatDurationMinutes,
   effectivePackageStatus,
-  isValidBusinessBooking,
   normalizeTime,
 } from '../lib/businessFormat';
 import './ClientDashboard.css';
@@ -297,42 +295,17 @@ export default function ClientDashboard() {
 
   const detailBooking = orderedBookings.find(booking => Number(booking.id) === Number(detailBookingId)) || upcomingBookings.find(booking => Number(booking.id) === Number(detailBookingId));
 
-  const serviceForPackage = (pkg) => services.find(service => Number(service.id) === Number(pkg.service_id));
 
   const showNotice = (type, message) => {
     setNotice({ type, message });
     window.setTimeout(() => setNotice(null), 5000);
   };
 
-  const submitReschedule = async (event) => {
-    event.preventDefault();
-    const pkg = activePackages.find(item => Number(item.id) === Number(reschedule.booking?.client_package_id));
-    const service = pkg ? serviceForPackage(pkg) : services.find(item => Number(item.id) === Number(reschedule.booking?.service_id));
-    const minimum = Math.max(15, Number(service?.minimum_booking_minutes || 60));
-    const increment = Math.max(15, Number(service?.booking_increment_minutes || 15));
-    const duration = calculateDurationMinutes(reschedule.start_time, reschedule.end_time);
-    if (!isValidBusinessBooking(reschedule.start_time, reschedule.end_time, minimum) || duration % increment !== 0) {
-      showNotice('error', `الموعد البديل يجب أن يكون ${CLIENT_BOOKING_POLICY_LABEL}، بحد أدنى ${formatDurationMinutes(minimum)} وبزيادات ${formatDurationMinutes(increment)}.`);
-      return;
-    }
-    const policyError = clientWindowError({ date: reschedule.date, start_time: reschedule.start_time, end_time: reschedule.end_time, duration_minutes: duration });
-    if (policyError) { showNotice('error', policyError); return; }
-    setActionBusy(`reschedule-${reschedule.booking.id}`);
-    const { error } = await dataClient.request('/reschedule-requests', {
-      method: 'POST', body: JSON.stringify({ booking_id: reschedule.booking.id, date: reschedule.date,
-        start_time: reschedule.start_time, end_time: reschedule.end_time, reason: reschedule.reason }),
-    });
-    setActionBusy(null);
-    if (error) return showNotice('error', error.message || 'تعذر إرسال طلب تغيير الموعد.');
-    setReschedule(initialReschedule);
-    showNotice('success', 'تم إرسال الطلب');
-    await fetchClientData();
-  };
-
   const requestCancel = booking => setCancelConfirm(booking);
 
   const confirmCancel = async () => {
     const booking = cancelConfirm; if (!booking) return;
+    if (booking.status === 'confirmed' && clientNoticeIsLate(booking)) { showNotice('error', 'الإلغاء متاح قبل الموعد بـ 48 ساعة فعلية على الأقل، دون احتساب يوم الجمعة.'); return; }
     setActionBusy(`cancel-${booking.id}`);
     const { error } = await dataClient.request(`/bookings/${booking.id}/cancel-request`, {
       method: 'POST', body: '{}',
@@ -542,17 +515,18 @@ export default function ClientDashboard() {
 
       {offerDetail && <div className="client-modal client-offer-modal" onMouseDown={event => { if (event.target === event.currentTarget) closeOfferDetail(); }}><section ref={offerDialogRef} className="client-modal-card client-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="client-offer-title"><button className="client-modal-close" onClick={closeOfferDetail} aria-label="إغلاق تفاصيل العرض"><X/></button>{offerDetailBusy ? <div className="client-empty"><RefreshCw className="client-spin"/><h3>جارٍ تحميل العرض</h3></div> : <ClientOfferDetails offer={offerDetail} serverOffset={offerServerOffset} busy={acceptBusy} confirm={acceptConfirm} onConfirm={() => setAcceptConfirm(true)} onCancelConfirm={() => setAcceptConfirm(false)} onAccept={acceptOffer}/>}</section></div>}
 
-      {reschedule.booking && <div className="client-modal" role="dialog" aria-modal="true" aria-label="طلب تغيير موعد"><div className="client-modal-card"><button className="client-modal-close" onClick={() => setReschedule(initialReschedule)} aria-label="إغلاق"><XCircle/></button><span className="client-eyebrow"><RotateCcw size={15}/> تغيير الموعد</span><h2>اختر الموعد البديل</h2><p>الموعد الحالي: {formatBookingDate(reschedule.booking.date)}، {timeLabel(reschedule.booking.start_time)}</p><form onSubmit={submitReschedule}><label>اليوم والتاريخ<input required type="date" min={format(new Date(), 'yyyy-MM-dd')} value={reschedule.date} onChange={e => setReschedule({ ...reschedule, date: e.target.value })}/></label><div className="client-time-fields"><label>الوقت من<BusinessTimeSelect required min="12:00" max="21:00" value={reschedule.start_time} onChange={e => setReschedule({ ...reschedule, start_time: e.target.value })}/></label><label>الوقت إلى<BusinessTimeSelect required min="12:30" max="22:00" value={reschedule.end_time} onChange={e => setReschedule({ ...reschedule, end_time: e.target.value })}/></label></div><label>ملاحظة اختيارية<textarea rows="3" value={reschedule.reason} onChange={e => setReschedule({ ...reschedule, reason: e.target.value })}/></label><p className="client-policy"><Clock3/> تغيير أو إلغاء الموعد قبل 48 ساعة على الأقل. بعدها يبقى مؤكدًا وتُخصم مدته من الباقة.</p><button className="client-primary" disabled={Boolean(actionBusy)}><Send/> إرسال الطلب</button></form></div></div>}
+      {reschedule.booking && <ClientBookingDialog open booking={reschedule.booking} packages={packages} onClose={() => setReschedule(initialReschedule)} onSuccess={fetchClientData} showNotice={showNotice}/>}
       {cancelConfirm && <div className="client-modal" role="dialog" aria-modal="true" aria-labelledby="client-cancel-title"><section className="client-modal-card client-cancel-dialog"><span className="client-cancel-dialog__icon"><XCircle/></span><h2 id="client-cancel-title">هل تريد إلغاء الموعد؟</h2><p>{formatBookingDate(cancelConfirm.date)} · {timeLabel(cancelConfirm.start_time)} – {timeLabel(cancelConfirm.end_time)}</p><div><button type="button" onClick={() => setCancelConfirm(null)} disabled={Boolean(actionBusy)}>الرجوع</button><button type="button" className="danger" onClick={confirmCancel} disabled={Boolean(actionBusy)}>{actionBusy ? 'جارٍ الإرسال...' : 'نعم، إرسال طلب الإلغاء'}</button></div></section></div>}
     </div>
   );
 }
 function BookingRow({ booking, session, serverOffset, busy, onAlternativeDecision, onReschedule, onCancel }) {
   const isLive = Boolean(session);
+  const noticeLate = clientNoticeIsLate(booking);
   const canChange = !isLive && ['confirmed', 'alternative_proposed'].includes(booking.status);
   const canCancel = !isLive && ['pending', 'confirmed', 'alternative_proposed'].includes(booking.status);
   const settlement=booking.settlement;const outcome={none:'ضمن رصيد الباقة',new_package:'تمت إضافته إلى باقة جديدة',existing_package:'تم نقله إلى باقة أخرى',package_overage:'تم احتسابه كوقت إضافي',custom_invoice:'تم إصدار فاتورة منفصلة',custom_project:'تم إدراجه كخدمة مستقلة',waive:'تمت تسويته دون رسوم'}[settlement?.settlement_mode];
-  return <article className={`client-booking-row${isLive ? ' client-booking-row--live' : ''}`} data-booking-id={booking.id}><div className="client-booking-date"><span>{format(new Date(`${booking.date}T12:00`), 'EEEE', { locale: ar })}</span><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${booking.date}T12:00`), 'MMM yyyy', { locale: ar })}</small></div><div className="client-booking-info">{isLive ? <span className="client-status client-status--live">جاري التصوير</span> : <StatusBadge status={booking.status}/>}<h3>{booking.service}</h3><p><CalendarDays size={15}/>{format(new Date(`${booking.date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</p><p><Clock3 size={15}/>{timeLabel(booking.start_time)} – {timeLabel(booking.end_time)} · {formatDurationMinutes(calculateDurationMinutes(booking.start_time, booking.end_time))}</p>{session&&<ClientAppointmentLiveStatus session={session} serverOffset={serverOffset} compact />}{settlement&&<div className="client-session-settlement"><strong>الوقت الفعلي {formatDurationMinutes(settlement.actual_minutes)}</strong><span>مغطى {formatDurationMinutes(settlement.covered_minutes)}{Number(settlement.excess_minutes)>0?` · زائد ${formatDurationMinutes(settlement.excess_minutes)}`:''}</span><small>{settlement.client_note||outcome}</small>{Number(settlement.amount_due)>0&&<b>المستحق {formatEGP(settlement.amount_due)}</b>}</div>}</div>{(canChange || canCancel) && <div className="client-booking-actions">{booking.status === 'alternative_proposed' && <><button disabled={Boolean(busy)} onClick={() => onAlternativeDecision('accept')}><CheckCircle2/> قبول الموعد</button><button className="danger" disabled={Boolean(busy)} onClick={() => onAlternativeDecision('reject')}><RotateCcw/> موعد آخر</button></>}{booking.status !== 'alternative_proposed' && canChange && <button disabled={Boolean(busy)} onClick={onReschedule}><RotateCcw/> تغيير الموعد</button>}{canCancel && <button className="danger" disabled={Boolean(busy)} onClick={onCancel}><XCircle/> {busy === `cancel-${booking.id}` ? 'جارٍ...' : 'إلغاء'}</button>}</div>}</article>;
+  return <article className={`client-booking-row${isLive ? ' client-booking-row--live' : ''}`} data-booking-id={booking.id}><div className="client-booking-date"><span>{format(new Date(`${booking.date}T12:00`), 'EEEE', { locale: ar })}</span><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${booking.date}T12:00`), 'MMM yyyy', { locale: ar })}</small></div><div className="client-booking-info">{isLive ? <span className="client-status client-status--live">جاري التصوير</span> : <StatusBadge status={booking.status}/>}<h3>{booking.service}</h3><p><CalendarDays size={15}/>{format(new Date(`${booking.date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</p><p><Clock3 size={15}/>{timeLabel(booking.start_time)} – {timeLabel(booking.end_time)} · {formatDurationMinutes(calculateDurationMinutes(booking.start_time, booking.end_time))}</p>{session&&<ClientAppointmentLiveStatus session={session} serverOffset={serverOffset} compact />}{settlement&&<div className="client-session-settlement"><strong>الوقت الفعلي {formatDurationMinutes(settlement.actual_minutes)}</strong><span>مغطى {formatDurationMinutes(settlement.covered_minutes)}{Number(settlement.excess_minutes)>0?` · زائد ${formatDurationMinutes(settlement.excess_minutes)}`:''}</span><small>{settlement.client_note||outcome}</small>{Number(settlement.amount_due)>0&&<b>المستحق {formatEGP(settlement.amount_due)}</b>}</div>}</div>{(canChange || canCancel) && <div className="client-booking-actions">{booking.status === 'alternative_proposed' && <><button disabled={Boolean(busy)} onClick={() => onAlternativeDecision('accept')}><CheckCircle2/> قبول الموعد</button><button className="danger" disabled={Boolean(busy)} onClick={() => onAlternativeDecision('reject')}><RotateCcw/> موعد آخر</button></>}{booking.status !== 'alternative_proposed' && canChange && <button disabled={Boolean(busy) || noticeLate} onClick={onReschedule}><RotateCcw/> تغيير الموعد</button>}{canCancel && <button className="danger" disabled={Boolean(busy) || booking.status === 'confirmed' && noticeLate} onClick={onCancel}><XCircle/> {busy === `cancel-${booking.id}` ? 'جارٍ...' : 'إلغاء'}</button>}{noticeLate && booking.status === 'confirmed' && <p className="client-notice-expired">انتهت مهلة التعديل والإلغاء: 48 ساعة فعلية قبل الموعد، باستثناء الجمعة.</p>}</div>}</article>;
 }
 
 function BookingDetailDialog({ booking, packageName, onClose, children }) {
