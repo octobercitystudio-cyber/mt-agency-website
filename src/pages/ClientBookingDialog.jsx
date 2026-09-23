@@ -9,7 +9,7 @@ import { earliestClientBookingDate, clientBookingDateError } from '../lib/client
 import { packageBookingMonthWindow, shiftBookingMonth } from '../lib/packageBookingCalendar';
 
 const emptyAvailability = { data: null, loading: false, error: '' };
-const packageMinutes = (pkg, name) => Number.isSafeInteger(Number(pkg?.[`${name}_minutes`]))
+const packageMinutes = (pkg, name) => pkg?.[`${name}_minutes`] != null && Number.isSafeInteger(Number(pkg[`${name}_minutes`]))
   ? Number(pkg[`${name}_minutes`])
   : Math.round(Number(pkg?.[`${name}_quantity`] || 0) * 60);
 const availableQuantity = pkg => pkg?.billing_unit === 'hour'

@@ -1,0 +1,257 @@
+[
+  {
+    "name": "active remaining balance",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": true
+  },
+  {
+    "name": "all hours held but none used",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 10,
+      "expires_at": "2030-01-31"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": true
+  },
+  {
+    "name": "all hours consumed",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 10,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": false
+  },
+  {
+    "name": "over-consumed",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 11,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": false
+  },
+  {
+    "name": "expired with unused hours",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-14"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": false
+  },
+  {
+    "name": "not started",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": null,
+      "starts_at": null
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": true
+  },
+  {
+    "name": "starts in the future",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31",
+      "starts_at": "2030-01-20"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": true
+  },
+  {
+    "name": "last minute remains",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31",
+      "purchased_minutes": 600,
+      "consumed_minutes": 599
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": true
+  },
+  {
+    "name": "minutes override stale quantities",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31",
+      "purchased_minutes": 600,
+      "consumed_minutes": 600
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": false
+  },
+  {
+    "name": "legacy null minutes",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31",
+      "purchased_minutes": null,
+      "consumed_minutes": null
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": true
+  },
+  {
+    "name": "cancelled",
+    "package": {
+      "status": "cancelled",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": false
+  },
+  {
+    "name": "explicit expired status",
+    "package": {
+      "status": "expired",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": false
+  },
+  {
+    "name": "project is not studio subscription",
+    "package": {
+      "status": "active",
+      "billing_unit": "project",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": false
+  },
+  {
+    "name": "reels still remaining",
+    "package": {
+      "status": "active",
+      "billing_unit": "reel",
+      "purchased_quantity": 8,
+      "consumed_quantity": 7,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": true
+  },
+  {
+    "name": "reels exhausted",
+    "package": {
+      "status": "active",
+      "billing_unit": "reel",
+      "purchased_quantity": 8,
+      "consumed_quantity": 8,
+      "held_quantity": 0,
+      "expires_at": "2030-01-31"
+    },
+    "now": "2030-01-15T10:00:00Z",
+    "blocks": false
+  },
+  {
+    "name": "expiry inclusive Cairo winter",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-15"
+    },
+    "now": "2030-01-15T21:59:59Z",
+    "blocks": true
+  },
+  {
+    "name": "expiry Cairo midnight winter",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2030-01-15"
+    },
+    "now": "2030-01-15T22:00:00Z",
+    "blocks": false
+  },
+  {
+    "name": "expiry inclusive Cairo summer",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2026-09-23"
+    },
+    "now": "2026-09-23T20:59:59Z",
+    "blocks": true
+  },
+  {
+    "name": "expiry Cairo midnight summer",
+    "package": {
+      "status": "active",
+      "billing_unit": "hour",
+      "purchased_quantity": 10,
+      "consumed_quantity": 0,
+      "held_quantity": 0,
+      "expires_at": "2026-09-23"
+    },
+    "now": "2026-09-23T21:00:00Z",
+    "blocks": false
+  }
+]

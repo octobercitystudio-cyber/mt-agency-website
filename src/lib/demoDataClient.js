@@ -1517,7 +1517,7 @@ const demoRequest = async (path, options = {}) => {
   const body = bodyOf(options);
   const url = new URL(path, 'https://demo.local');
   const route = url.pathname;
-  if (/^\/(?:client\/)?studio-booking-requests(?:\/|$)/.test(route)) return studioBookingDemoRequest({ route, method: options.method || 'GET', body, readDatabase, role: demoRole, clientId: currentDemoClientId(database), addRow, writeDatabase, assertAvailable: assertDemoBookingAvailable, addUsage: addDemoPackageUsage, activatePackage: activateDemoPackageOnFirstBooking, mutatePackage: mutateDemoPackageQuantities, audit: demoAudit });
+  if (route === '/client/package-eligibility' || /^\/(?:client\/)?studio-booking-requests(?:\/|$)/.test(route)) return studioBookingDemoRequest({ route, method: options.method || 'GET', body, readDatabase, role: demoRole, clientId: currentDemoClientId(database), addRow, writeDatabase, assertAvailable: assertDemoBookingAvailable, addUsage: addDemoPackageUsage, activatePackage: activateDemoPackageOnFirstBooking, mutatePackage: mutateDemoPackageQuantities, audit: demoAudit });
   if (/^\/(?:registration\/|intake-requests(?:\/|$)|client\/intake-requests$)/.test(route)) {
   const intakeResult = await registrationDemoRequest({ route, url, method: options.method || 'GET', body, database, role: demoRole, userId: demoUserId, addRow, writeDatabase, assertAvailable: assertDemoBookingAvailable, addUsage: addDemoPackageUsage, activatePackage: activateDemoPackageOnFirstBooking, mutatePackage: mutateDemoPackageQuantities, audit: demoAudit });
   if (intakeResult !== undefined) return intakeResult;

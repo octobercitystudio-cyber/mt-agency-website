@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/client_package_eligibility.php';
 require_once __DIR__.'/registration_bot.php';
 require_once __DIR__.'/auth_identity.php';
 
@@ -50,7 +51,8 @@ function registrationRateLimit(PDO $pdo,string $scope,string $identity,int $limi
     } catch(Throwable $error) {if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
-function registrationServiceSnapshot(array $service): ?array {
+function registrationServiceSnapshot(array $service,bool $includeRetired=false): ?array {
+    if(!$includeRetired && !clientPackageOptionAllowed($service)) return null;
     if (!isStudioPackageOfferItem($service) || normalizedStudioPackageUnit($service)!=='hour' || (int)($service['is_active']??0)!==1 || !empty($service['is_draft']) || !empty($service['archived_at'])) return null;
     $category=trim((string)($service['category']??''));$unit=strtolower((string)$service['billing_unit']);
     $daily=($service['package_validity_mode']??'')==='shooting_day' || in_array($category,['باقة يومية','الباقات اليومية','daily','day package'],true) || $unit==='day';
@@ -62,8 +64,8 @@ function registrationServiceSnapshot(array $service): ?array {
     return $snapshot;
 }
 
-function registrationService(PDO $pdo,int $org,int $id): array {
-    $s=$pdo->prepare('SELECT * FROM services WHERE id=? AND organization_id=?');$s->execute([$id,$org]);$raw=$s->fetch();$service=$raw?registrationServiceSnapshot($raw):null;
+function registrationService(PDO $pdo,int $org,int $id,bool $includeRetired=false): array {
+    $s=$pdo->prepare('SELECT * FROM services WHERE id=? AND organization_id=?');$s->execute([$id,$org]);$raw=$s->fetch();$service=$raw?registrationServiceSnapshot($raw,$includeRetired):null;
     if (!$service) fail('الخدمة المحددة غير متاحة للتسجيل الآن.',422,'registration_service_unavailable');
     return $service;
 }
@@ -168,8 +170,9 @@ function intakeApproveRegistration(PDO $pdo,array $actor,array &$request): void 
 function intakeApprovePackage(PDO $pdo,array $actor,array &$request): void {
     $org=(int)$actor['organization_id'];$clientId=(int)$request['client_id'];$snapshot=json_decode((string)$request['service_snapshot'],true);
     if(!$snapshot || !$clientId)fail('بيانات طلب الباقة غير مكتملة.',409,'invalid_package_request');
-    registrationService($pdo,$org,(int)$request['service_id']);
+    registrationService($pdo,$org,(int)$request['service_id'],true);
     $s=$pdo->prepare("SELECT id FROM clients WHERE id=? AND organization_id=? AND status='active' FOR UPDATE");$s->execute([$clientId,$org]);if(!$s->fetch())fail('حساب العميل غير فعال.',409,'client_not_active');
+    requireClientPackagePurchase($pdo,$org,$clientId);
     $quantity=(float)$snapshot['total_hours'];$minutes=(int)round($quantity*60);$due=(float)$snapshot['payment_due_hours'];
     // Approval creates an unpaid package; no money was collected by registration.
     $pdo->prepare("INSERT INTO client_packages (organization_id,client_id,service_id,name,notes,billing_unit,purchased_quantity,purchased_minutes,held_quantity,held_minutes,consumed_quantity,consumed_minutes,payment_due_quantity,payment_due_minutes,deposit_percent_snapshot,overage_price_snapshot,total_price,paid_amount,starts_at,expires_at,validity_mode_snapshot,validity_days_snapshot,status) VALUES (?,?,?,?,?,'hour',?,?,0,0,0,0,?,?,?,?,?,0,NULL,NULL,?,?,'active')")->execute([$org,$clientId,$request['service_id'],$snapshot['name'],'طلب تسجيل #'.$request['id'],$quantity,$minutes,$due,(int)round($due*60),$snapshot['deposit_percent'],$snapshot['overage_price']??'0.00',$snapshot['price'],$snapshot['package_validity_mode'],$snapshot['validity_days']]);$packageId=(int)$pdo->lastInsertId();

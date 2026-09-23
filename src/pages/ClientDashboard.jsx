@@ -24,11 +24,11 @@ import {
   formatEGP,
   formatTime12,
   calculateDurationMinutes, formatDurationMinutes,
-  effectivePackageStatus,
+  effectivePackageStatus, cairoDateKey,
   normalizeTime,
 } from '../lib/businessFormat';
 import './ClientDashboard.css';
-import { isStudioPackageService } from '../lib/serviceCatalog';
+import { clientPackageBlocksPurchase, isStudioSubscription } from '../lib/clientPackageEligibility';
 import useClientStudioSessions from '../hooks/useClientStudioSessions';
 import { promoteActiveBookings } from './clientStudioSessions';
 import ClientAppointmentLiveStatus from './ClientAppointmentLiveStatus';
@@ -190,9 +190,8 @@ export default function ClientDashboard() {
       ]);
       if (requestToken !== clientDataRequestRef.current) return;
       const availableServices = servicesResult.data || preview.services;
-      const studioServiceIds = new Set(availableServices.filter(isStudioPackageService).map(service => Number(service.id)));
       setClient(clientResult.data || preview.client);
-      setPackages((packagesResult.data || preview.packages).filter(pkg => studioServiceIds.has(Number(pkg.service_id))));
+      setPackages((packagesResult.data || preview.packages).filter(isStudioSubscription));
       setBookings(bookingsResult.data || preview.bookings);
       setSessionSettlements(settlementsResult.data || []);
       setPayments(paymentsResult.data || preview.payments);
@@ -227,8 +226,7 @@ export default function ClientDashboard() {
     } else {
       setClient(clientResult.data);
       const availableServices = servicesResult.data || [];
-      const studioServiceIds = new Set(availableServices.filter(isStudioPackageService).map(service => Number(service.id)));
-      setPackages((packagesResult.data || []).filter(pkg => studioServiceIds.has(Number(pkg.service_id))));
+      setPackages((packagesResult.data || []).filter(isStudioSubscription));
       setBookings(bookingsResult.data || []);
       setSessionSettlements(settlementsResult.data || []);
       setPayments(paymentsResult.data || []);
@@ -268,7 +266,10 @@ export default function ClientDashboard() {
     };
   }, [fetchClientData, isLocalPreview]);
 
-  const activePackages = useMemo(() => packages.filter(pkg => effectivePackageStatus(pkg) === 'active'), [packages]);
+  const [packageClock, setPackageClock] = useState(() => new Date());
+  useEffect(() => { const refresh = () => setPackageClock(new Date()); const timer = window.setInterval(refresh, 30000); window.addEventListener('focus', refresh); return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); }; }, []);
+  const hasCurrentPackage = packages.some(pkg => clientPackageBlocksPurchase(pkg, packageClock));
+  const activePackages = useMemo(() => packages.filter(pkg => effectivePackageStatus(pkg, cairoDateKey(packageClock)) === 'active'), [packages, packageClock]);
   const visibleBookings = useMemo(() => bookings.filter(isClientBookingVisible), [bookings]);
   const hiddenBookingIds = useMemo(() => new Set(bookings
     .filter(booking => !isClientBookingVisible(booking))
@@ -367,7 +368,9 @@ export default function ClientDashboard() {
     showNotice('success', 'تم إرسال طلب الاشتراك للإدارة');
   };
 
+  const bookAppointment = () => { setBookingForm(initialBooking); setBookingOpen(true); };
   const navigateClient = (tab, payload = {}) => {
+    if (tab === 'book-studio' && hasCurrentPackage) { bookAppointment(); return; }
     const requested = tab === 'montage' ? 'videos' : tab;
     const next = CLIENT_TABS.includes(requested) ? requested : 'home';
     const params = new URLSearchParams(searchParams);
@@ -452,7 +455,7 @@ export default function ClientDashboard() {
         <div className="glance-utility"><div className="glance-mobile-brand"><img src="/logo.webp" alt="شعار Multi Task Agency"/><strong>Multi Task<span>Agency</span></strong></div><span className="glance-today"><CalendarDays/>{new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Cairo' }).format(new Date())}</span><ClientNotifications key={clientId} clientId={clientId} onNavigate={navigateClient}/></div>
         <header className={`client-topbar ${activeTab === 'home' ? 'client-topbar--home' : ''}`}>
           <div className="client-topbar-profile"><div><div className="client-topbar-name-row"><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><span className="client-topbar-points" aria-label={`${formatClientPoints(client?.points)} نقطة`}><Sparkles aria-hidden="true"/><strong>{formatClientPoints(client?.points)}</strong><span>نقطة</span></span></div><p>كل ما يخص تصويرك، في نظرة واحدة.</p></div></div>
-          <button type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>احجز موعد تصوير</button>
+          <button type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>{hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button>
         </header>
 
         {isLocalPreview && <div className="client-notice client-notice--success" role="status">معاينة عميل محلية ببيانات تمثيلية — تُحفظ الإجراءات على هذا الجهاز لتجربة دورة العمل كاملة.</div>}
@@ -461,6 +464,7 @@ export default function ClientDashboard() {
 
         {activeTab === 'home' && <ClientDashboardOverview
           client={client}
+          hasCurrentPackage={hasCurrentPackage}
           activePackages={activePackages}
           financialPackages={packages}
           invoices={invoices}
@@ -477,7 +481,7 @@ export default function ClientDashboard() {
         />}
 
         {activeTab === 'schedule' && <section className="client-view client-appointments-page">
-          <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div><button ref={bookingTriggerRef} type="button" className="client-primary" onClick={() => setBookingOpen(true)}><CalendarDays/> حجز موعد</button></header>
+          <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div><button ref={bookingTriggerRef} type="button" className="client-primary" onClick={() => navigateClient('book-studio')}><CalendarDays/> {hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button></header>
           {upcomingBookings[0] ? <section className="client-next-appointment"><div><span>الموعد القادم</span><strong>{format(new Date(`${upcomingBookings[0].date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</strong><p>{timeLabel(upcomingBookings[0].start_time)} – {timeLabel(upcomingBookings[0].end_time)} · {formatDurationMinutes(calculateDurationMinutes(upcomingBookings[0].start_time, upcomingBookings[0].end_time))}</p></div><StatusBadge status={upcomingBookings[0].status}/></section> : <div className="client-empty client-empty--compact"><CalendarDays/><p>لا يوجد موعد قادم.</p></div>}
           <section className="client-appointment-cards" aria-labelledby="all-client-bookings"><div className="client-section-head"><div><span>الأحدث أولًا</span><h2 id="all-client-bookings">كل مواعيدك</h2></div></div>{orderedBookings.map(booking => <BookingRow key={booking.id} booking={booking} session={sessionByBookingId.get(Number(booking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>)}{!orderedBookings.length && <div className="client-empty"><CalendarDays/><h3>لم تطلب أي حجز بعد</h3></div>}</section>
         </section>}
@@ -507,7 +511,7 @@ export default function ClientDashboard() {
         {activeTab === 'videos' && <ClientPostProduction highlightJobId={highlightedPostProductionJobId} />}
         {activeTab === 'security' && <ClientSecuritySettings />}
         {activeTab === 'requests' && <ClientStudioRequests/>}
-        {activeTab === 'book-studio' && <ClientStudioBooking onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
+        {activeTab === 'book-studio' && <ClientStudioBooking onBookExisting={bookAppointment} onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
       </main>
 
       {detailBookingId && detailBooking && <BookingDetailDialog booking={detailBooking} packageName={packages.find(pkg => Number(pkg.id) === Number(detailBooking.client_package_id))?.name} onClose={() => setDetailBookingId(null)}><BookingRow booking={detailBooking} session={sessionByBookingId.get(Number(detailBooking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(detailBooking, action)} onReschedule={() => { setDetailBookingId(null); setReschedule({ ...initialReschedule, booking: detailBooking, date: detailBooking.date, start_time: normalizeTime(detailBooking.start_time), end_time: normalizeTime(detailBooking.end_time, { endOfDay: true }) }); }} onCancel={() => { setDetailBookingId(null); requestCancel(detailBooking); }}/></BookingDetailDialog>}

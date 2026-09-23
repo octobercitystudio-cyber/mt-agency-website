@@ -1,3 +1,4 @@
+import { clientPackageBlocksPurchase, CLIENT_ACTIVE_PACKAGE_MESSAGE } from './clientPackageEligibility.js';
 import { cairoDateKey } from './businessFormat.js';
 import { cairoDateTimeToEpoch } from './promotionTime.js';
 import { registrationDemoAvailability, registrationDemoCatalog } from './registrationDemo.js';
@@ -14,6 +15,8 @@ export function studioBookingDemoRequest(context) {
 async function handle({ route, method, body, database: db, role, clientId, addRow, writeDatabase, assertAvailable, addUsage, activatePackage, mutatePackage, audit }) {
   const requests = db.studio_booking_requests ||= []; const own = route.startsWith('/client/');
   const allowed = own ? role === 'client' && Number(clientId) > 0 : ['owner', 'admin', 'operations', 'finance'].includes(role); if (!allowed) fail('غير مصرح بعرض طلبات التصوير.', 'forbidden', 403);
+  const blockingPackage = id => db.client_packages.find(pkg => Number(pkg.client_id) === Number(id) && clientPackageBlocksPurchase(pkg));
+  if (route === '/client/package-eligibility' && method === 'GET') { const pkg = blockingPackage(clientId); return { can_purchase: !pkg, blocking_package_id: pkg?.id || null, message: pkg ? CLIENT_ACTIVE_PACKAGE_MESSAGE : '' }; }
   if (method === 'GET' && ['/client/studio-booking-requests', '/studio-booking-requests'].includes(route)) {
     const items = requests.filter(row => !own || Number(row.client_id) === Number(clientId)).sort((a, b) => b.id - a.id).map(row => { const dto = copy(row); delete dto.idempotency_key; delete dto.signature; return { ...dto, proof_url: role === 'operations' ? null : row.proof_url }; });
     return { items, pending_count: items.reduce((count, row) => count + Number(row.package_status === 'pending') + row.bookings.filter(b => b.status === 'pending').length, 0) };
@@ -26,6 +29,7 @@ async function handle({ route, method, body, database: db, role, clientId, addRo
     if (!(body.proof.type === 'image/png' && png || body.proof.type === 'image/jpeg' && jpeg || body.proof.type === 'image/webp' && webp)) fail('أرفق صورة إيصال صحيحة.', 'invalid_proof');
     const signature = await digest(new TextEncoder().encode(JSON.stringify(payload) + await digest(bytes))); const existing = requests.find(row => Number(row.client_id) === Number(clientId) && row.idempotency_key === payload.idempotency_key); const response = row => ({ id: row.id, status: 'pending', submitted: true, review_due_at: row.review_due_at, message: STUDIO_SUCCESS_MESSAGE });
     if (existing) { if (existing.signature !== signature) fail('استخدم طلبًا جديدًا للبيانات المعدلة.', 'idempotency_conflict', 409); return response(existing); }
+    if (blockingPackage(clientId)) fail(CLIENT_ACTIVE_PACKAGE_MESSAGE, 'client_active_package', 409);
     const service = (await registrationDemoCatalog(db)).services.find(s => Number(s.id) === Number(payload.service_id)); if (!service) fail('الباقة غير متاحة.', 'invalid_service');
     if (service.terms_fingerprint !== payload.service_terms_fingerprint) fail('تم تحديث شروط الباقة. راجع التفاصيل الجديدة.', 'service_terms_changed', 409);
     if (!payload.terms_accepted || payload.terms_version !== REGISTRATION_TERMS_VERSION) fail('وافق على شروط المواعيد.');
@@ -44,6 +48,7 @@ async function handle({ route, method, body, database: db, role, clientId, addRo
   if (row[statusKey] === status) return response(); if (row[statusKey] !== 'pending') fail('الطلب تمت مراجعته.', 'already_decided', 409);
   if (action === 'approve' && stage === 'package') {
     if (body.payment_received_confirmed !== true) fail('أكد وصول المقدم أولًا.', 'payment_confirmation_required'); const s = request.service_snapshot;
+    if (blockingPackage(request.client_id)) fail(CLIENT_ACTIVE_PACKAGE_MESSAGE, 'client_active_package', 409);
     const pkg = addRow(db, 'client_packages', { client_id: request.client_id, service_id: s.id, name: s.name, billing_unit: 'hour', purchased_quantity: s.total_hours, purchased_minutes: Math.round(s.total_hours * 60), consumed_quantity: 0, consumed_minutes: 0, held_quantity: 0, held_minutes: 0, total_price: s.price, paid_amount: request.deposit_amount, overage_amount: 0, deposit_percent_snapshot: 50, payment_due_quantity: s.payment_due_hours, payment_due_minutes: Math.round(s.payment_due_hours * 60), overage_price_snapshot: Number(s.overage_price || 0), validity_mode_snapshot: s.package_validity_mode, validity_days_snapshot: s.validity_days, starts_at: null, expires_at: null, status: 'active', version: 1 }); request.client_package_id = pkg.id;
     addUsage(db, pkg, { movement_type: 'opening', quantity: s.total_hours, quantity_minutes: pkg.purchased_minutes, reason: 'اعتماد طلب تصوير العميل', event_key: `studio:${request.id}:opening` });
     const proof = addRow(db, 'payment_proofs', { client_id: request.client_id, client_package_id: pkg.id, amount: request.deposit_amount, payment_method: 'vodafone_cash', transfer_account_snapshot: STUDIO_TRANSFER_ACCOUNT, status: 'approved', original_name: request.original_name, mime_type: request.mime_type, reviewed_at: new Date().toISOString() });

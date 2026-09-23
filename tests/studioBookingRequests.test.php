@@ -61,6 +61,13 @@ check($package['starts_at']==='2030-01-09' && $package['expires_at']==='2030-04-
 check(countRows($pdo,'package_usage_ledger')===3 && countRows($pdo,'booking_slots')===12 && studioBookingRequestList($pdo,$client)['pending_count']===0,'Each date has one ledger hold and no pending decisions remain');
 failure('studio_request_already_decided',fn()=>decideStudioBookingRequest($pdo,$owner,$id,array_replace($decision,['action'=>'reject'])));
 
+// A real active package blocks a direct new request, without breaking replay of the old request.
+$beforeRequests=countRows($pdo,'client_studio_booking_requests');
+failure('client_active_package',fn()=>submitStudioBookingRequest($pdo,$client,array_replace($payload,['idempotency_key'=>'test-active-package-block']),$proof));
+check(countRows($pdo,'client_studio_booking_requests')===$beforeRequests && !$pdo->inTransaction(),'Blocked subscription rolls back without side effects');
+check(submitStudioBookingRequest($pdo,$client,$payload,$proof)['id']===$id,'Idempotent replay survives active subscription');
+// Exhaustion allows the next purchase and the existing price/conflict/rejection checks to run.
+$pdo->exec('UPDATE client_packages SET consumed_minutes=purchased_minutes,consumed_quantity=purchased_quantity,held_minutes=0,held_quantity=0');
 $changed=array_replace($payload,['idempotency_key'=>'test-studio-stale-002']);failure('service_terms_changed',fn()=>submitStudioBookingRequest($pdo,$client,$changed,$proof));
 $service=registrationService($pdo,1,101);$pendingPayload=array_replace($payload,['idempotency_key'=>'test-studio-reject-003','service_terms_fingerprint'=>$service['terms_fingerprint'],'bookings'=>[array_replace($first,['date'=>'2030-01-12'])]]);
 $rejected=submitStudioBookingRequest($pdo,$client,$pendingPayload,$proof);decideStudioBookingRequest($pdo,$owner,$rejected['id'],['stage'=>'package','action'=>'reject','note'=>'الصورة غير واضحة']);decideStudioBookingRequest($pdo,$owner,$rejected['id'],['stage'=>'package','action'=>'reject']);

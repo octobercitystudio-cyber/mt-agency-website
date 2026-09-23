@@ -21,8 +21,8 @@ function studioReviewDeadline(?DateTimeImmutable $now=null): DateTimeImmutable {
     return $time;
 }
 
-function studioService(PDO $pdo,int $org,int $id): array {
-    $service=registrationService($pdo,$org,$id);
+function studioService(PDO $pdo,int $org,int $id,bool $includeRetired=false): array {
+    $service=registrationService($pdo,$org,$id,$includeRetired);
     if(packageMoneyCents($service['price'])<=0)fail('سعر الخدمة غير متاح للحجز الإلكتروني. تواصل مع الإدارة.',422,'studio_price_unavailable');
     return $service;
 }
@@ -70,6 +70,7 @@ function submitStudioBookingRequest(PDO $pdo,array $user,array $payload,array $p
         $s=$pdo->prepare("SELECT id,name FROM clients WHERE id=? AND organization_id=? AND status='active' FOR UPDATE");$s->execute([$clientId,$org]);$client=$s->fetch();if(!$client)fail('حساب العميل غير متاح للحجز.',403,'client_not_active');
         $s=$pdo->prepare('SELECT * FROM client_studio_booking_requests WHERE organization_id=? AND user_id=? AND idempotency_key=? FOR UPDATE');$s->execute([$org,$user['id'],$key]);
         if($old=$s->fetch()){if(!hash_equals($old['request_hash'],$hash))fail('مفتاح الحفظ مرتبط بطلب مختلف.',409,'idempotency_mismatch');$pdo->commit();return studioRequestResult($old)+['_proof_retained'=>false];}
+        requireClientPackagePurchase($pdo,$org,$clientId);
         $service=studioService($pdo,$org,$serviceId);if(!hash_equals($service['terms_fingerprint'],$fingerprint))fail('تم تحديث سعر الباقة أو شروطها. راجع التفاصيل الجديدة ثم وافق عليها.',409,'service_terms_changed');
         $dates=normalizedStudioDates($payload['bookings']??null,$service);
         foreach($dates as $date){requireClientSingleDate($pdo,$org,$clientId,$date['date']);registrationBooking($pdo,$org,$service,$date);validateBookingSchedule($pdo,$org,$date['resource_id'],$date['date'],$date['start_time'],$date['end_time'],60,30,null,null,true);}
@@ -88,8 +89,9 @@ function approveStudioPackage(PDO $pdo,array $actor,array &$request,array $paylo
     if(($payload['payment_received_confirmed']??false)!==true)fail('أكد مراجعة الصورة ووصول مبلغ التحويل قبل اعتماد الباقة.',422,'payment_confirmation_required');
     $org=(int)$actor['organization_id'];$clientId=(int)$request['client_id'];$snapshot=json_decode($request['service_snapshot'],true);
     if(!$snapshot)fail('بيانات طلب الباقة غير مكتملة.',409,'invalid_package_request');
-    studioService($pdo,$org,(int)$request['service_id']);
+    studioService($pdo,$org,(int)$request['service_id'],true);
     $s=$pdo->prepare("SELECT id FROM clients WHERE id=? AND organization_id=? AND status='active' FOR UPDATE");$s->execute([$clientId,$org]);if(!$s->fetch())fail('حساب العميل غير فعال.',409,'client_not_active');
+    requireClientPackagePurchase($pdo,$org,$clientId);
     $quantity=(float)$snapshot['total_hours'];$minutes=(int)round($quantity*60);$due=(float)$snapshot['payment_due_hours'];
     $pdo->prepare("INSERT INTO client_packages (organization_id,client_id,service_id,name,notes,billing_unit,purchased_quantity,purchased_minutes,held_quantity,held_minutes,consumed_quantity,consumed_minutes,payment_due_quantity,payment_due_minutes,deposit_percent_snapshot,overage_price_snapshot,total_price,paid_amount,starts_at,expires_at,validity_mode_snapshot,validity_days_snapshot,status) VALUES (?,?,?,?,?,'hour',?,?,0,0,0,0,?,?,?,?,?,0,NULL,NULL,?,?,'active')")->execute([$org,$clientId,$request['service_id'],$snapshot['name'],'طلب حجز من الموقع #'.$request['id'],$quantity,$minutes,$due,(int)round($due*60),50,$snapshot['overage_price']??'0.00',$snapshot['price'],$snapshot['package_validity_mode'],$snapshot['validity_days']]);$packageId=(int)$pdo->lastInsertId();
     insertPackageUsage($pdo,['id'=>$packageId,'billing_unit'=>'hour'],null,'opening',$quantity,'اعتماد باقة من الموقع','package:'.$packageId.':opening',(int)$actor['id']);
@@ -185,9 +187,10 @@ function studioUploadedProof(array $files): array {
 function handleStudioBookingRoutes(PDO $pdo,array $config,?array $user,string $path,string $method): void {
     $decision=preg_match('#^/studio-booking-requests/(\d+)/decision$#',$path,$decisionMatch)===1;
     $proofRoute=preg_match('#^/studio-booking-requests/(\d+)/proof$#',$path,$proofMatch)===1;
-    if(!$decision&&!$proofRoute&&!in_array($path,['/client/studio-booking-requests','/studio-booking-requests'],true))return;
+    if(!$decision&&!$proofRoute&&!in_array($path,['/client/studio-booking-requests','/studio-booking-requests','/client/package-eligibility'],true))return;
     $user=requireUser($user);
-    requireRole($user,$path==='/client/studio-booking-requests'?['client']:($proofRoute?['owner','admin','finance','client']:['owner','admin','operations','finance']));
+    requireRole($user,str_starts_with($path,'/client/')?['client']:($proofRoute?['owner','admin','finance','client']:['owner','admin','operations','finance']));
+    if($path==='/client/package-eligibility' && $method==='GET')respond(clientPackageEligibility($pdo,(int)$user['organization_id'],(int)$user['client_id']));
     requireStudioRequestSchema($pdo);
     if(in_array($path,['/client/studio-booking-requests','/studio-booking-requests'],true)&&$method==='GET')respond(studioBookingRequestList($pdo,$user));
     if($decision&&$method==='POST')respond(decideStudioBookingRequest($pdo,$user,(int)$decisionMatch[1],body()));

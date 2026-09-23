@@ -64,7 +64,7 @@ export function ClientActiveServices({ projects = [] }) {
 const quantityLabel = (pkg, quantity) => formatPackageQuantity(quantity, pkg?.billing_unit);
 const packageBookable = pkg => pkg && effectivePackageStatus(pkg) === 'active' && ['hour', 'reel'].includes(pkg.billing_unit) && packageQuantitySummary(pkg).available > 0;
 
-export default function ClientDashboardOverview({ client, activePackages = [], financialPackages = activePackages, invoices = [], upcomingBookings = [], projects = [], sessionByBookingId, sessionServerOffset, onNavigate, onBookPackage, onViewBooking }) {
+export default function ClientDashboardOverview({ hasCurrentPackage = false, client, activePackages = [], financialPackages = activePackages, invoices = [], upcomingBookings = [], projects = [], sessionByBookingId, sessionServerOffset, onNavigate, onBookPackage, onViewBooking }) {
   const [selectedPackageId, setSelectedPackageId] = useState('');
   const nextBooking = upcomingBookings[0];
   const activeSession = nextBooking ? sessionByBookingId?.get(Number(nextBooking.id)) : null;
@@ -89,14 +89,14 @@ export default function ClientDashboardOverview({ client, activePackages = [], f
         {nextBooking ? <><article className="glance-next-main" data-booking-id={nextBooking.id}>
           <div className="glance-date-block"><span>{format(new Date(`${nextBooking.date}T12:00`), 'EEEE', { locale: ar })}</span><strong>{format(new Date(`${nextBooking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${nextBooking.date}T12:00`), 'MMMM', { locale: ar })}</small></div>
           <div className="glance-next-copy"><h3>{nextBooking.service || nextPackage?.name || 'جلسة تصوير'}</h3><p className="glance-session-time"><Clock3 />{formatTime12(nextBooking.start_time)} – {formatTime12(nextBooking.end_time)}</p><p>{formatDurationMinutes(calculateDurationMinutes(nextBooking.start_time, nextBooking.end_time))} · {resourceLabel}</p>{nextPackage && <p className="glance-next-package">{nextPackage.name}</p>}</div>
-        </article>{activeSession && <ClientAppointmentLiveStatus session={activeSession} serverOffset={sessionServerOffset}/>}<footer className="glance-next-footer"><span><CalendarDays />{formatBookingDate(nextBooking.date)}</span><button className="glance-link" type="button" onClick={() => viewBooking(nextBooking)}>تفاصيل الموعد<ArrowLeft /></button></footer></> : <div className="glance-empty"><CalendarDays /><h3>لا يوجد موعد قادم</h3><p>اختر باقة جديدة أو احجز من رصيد باقتك الحالية.</p><button className="glance-link" type="button" onClick={() => onNavigate('book-studio')}>احجز موعد تصوير<ArrowLeft /></button></div>}
+        </article>{activeSession && <ClientAppointmentLiveStatus session={activeSession} serverOffset={sessionServerOffset}/>}<footer className="glance-next-footer"><span><CalendarDays />{formatBookingDate(nextBooking.date)}</span><button className="glance-link" type="button" onClick={() => viewBooking(nextBooking)}>تفاصيل الموعد<ArrowLeft /></button></footer></> : <div className="glance-empty"><CalendarDays /><h3>لا يوجد موعد قادم</h3><p>{hasCurrentPackage ? 'احجز موعد تصوير جديد من باقتك الحالية.' : 'اختر باقة تصوير جديدة لبدء حجز مواعيدك.'}</p><button className="glance-link" type="button" onClick={() => onNavigate('book-studio')}>احجز موعد تصوير<ArrowLeft /></button></div>}
       </section>
       <section className="glance-card glance-balance" aria-label="الرصيد المتاح">
         <h2><Clock3 />{selectedPackage && !activeBalance ? 'رصيد الباقة غير متاح للحجز' : selectedPackage?.billing_unit === 'hour' ? 'ساعاتك المتاحة للحجز' : 'رصيدك المتاح للحجز'}</h2>
         <strong className="glance-balance-number">{selectedPackage ? quantityLabel(selectedPackage, quantity.available) : 'لا توجد باقة'}</strong>
         <p>{selectedPackage ? selectedPackage.name : 'ابدأ بباقة تناسب احتياجك'}</p>
         {selectedPackage && <small>{effectivePackageStatus(selectedPackage) !== 'active' ? `الباقة ${formatPackageStatus(effectivePackageStatus(selectedPackage))}` : selectedPackage.expires_at ? `صالحة حتى ${safeClientDate(selectedPackage.expires_at)}` : 'تبدأ الصلاحية عند أول حجز مؤكد'}</small>}
-        {canBook ? <button type="button" className="glance-secondary" onClick={() => onBookPackage(selectedPackage.id)}>احجز من رصيد الباقة<ArrowLeft /></button> : <button type="button" className="glance-secondary" onClick={() => onNavigate('book-studio')}>{selectedPackage ? 'احجز باقة جديدة' : 'استعرض باقات التصوير'}<ArrowLeft /></button>}
+        {canBook ? <button type="button" className="glance-secondary" onClick={() => onBookPackage(selectedPackage.id)}>احجز من رصيد الباقة<ArrowLeft /></button> : <button type="button" className="glance-secondary" onClick={() => onNavigate('book-studio')}>{hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}<ArrowLeft /></button>}
       </section>
     </div>
     {selectedPackage && <section className="glance-card glance-package-band" aria-labelledby="glance-package-title">
