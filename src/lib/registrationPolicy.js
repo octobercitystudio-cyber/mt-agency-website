@@ -17,3 +17,15 @@ export const pendingIntakeCount = items => (items || []).reduce((sum, item) => s
 export const intakeStageReady = (item, stage) => item?.[`${stage}_status`] === 'pending' && (stage === 'registration' || item.registration_status === 'approved') && (stage !== 'booking' || item.package_status === 'approved');
 
 export const normalizeRegistrationDigits = value => String(value || "").replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 1632)).replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 1776));
+
+export const registrationFullName = payload => {
+  const fields = [['first_name', 'الاسم الأول'], ['second_name', 'الاسم الثاني'], ['last_name', 'الاسم الأخير']];
+  return fields.map(([key, label]) => {
+    const raw = payload[key];
+    const value = typeof raw === 'string' ? raw.replace(/[\p{Zs} ]+/gu, ' ').trim() : '';
+    if (!value || Array.from(value).length > 50 || Array.from(raw).some(character => character.codePointAt(0) < 32 || character.codePointAt(0) === 127)) {
+      throw Object.assign(new Error(`راجع ${label}. الحد الأقصى 50 حرفًا.`), { code: 'invalid_registration_details', status: 422 });
+    }
+    return value;
+  }).join(' ');
+};

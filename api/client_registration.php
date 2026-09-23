@@ -38,6 +38,20 @@ function registrationText(mixed $value, int $maximum, string $label, bool $requi
     return $value;
 }
 
+function registrationFullName(array $payload): string {
+    $parts=[];
+    foreach(['first_name'=>'الاسم الأول','second_name'=>'الاسم الثاني','last_name'=>'الاسم الأخير'] as $key=>$label){
+        $raw=$payload[$key]??null;
+        if(!is_string($raw)||preg_match('/[\x00-\x1F\x7F]/',$raw))fail('راجع '.$label.'.',422,'invalid_registration_details');
+        $value=preg_replace('/[\p{Zs} ]+/u',' ',$raw);
+        if($value===null)fail('راجع '.$label.'.',422,'invalid_registration_details');
+        $value=registrationText($value,50,$label,false);
+        if($value==='')fail('أدخل '.$label.'.',422,'invalid_registration_details');
+        $parts[]=$value;
+    }
+    return implode(' ',$parts);
+}
+
 function registrationRateLimit(PDO $pdo,string $scope,string $identity,int $limit,int $seconds,int $cooldown=0): void {
     $key=authLimitKey('registration:'.$scope,$identity);$now=cairoNow();$stamp=$now->format('Y-m-d H:i:s');
     $pdo->beginTransaction();
@@ -131,7 +145,7 @@ function registrationComplete(PDO $pdo,array $config,array $payload): array {
     requireRegistrationBotSchema($pdo);
     if (($payload['website']??'')!=='') fail('تعذر تأكيد الحماية. أعد المحاولة.',403,'bot_verification_failed');
     $proof=registrationBotPayload($payload['altcha']??null);
-    $name=registrationText($payload['name']??null,160,'اسم العميل');$job=registrationText($payload['job']??'',160,'الوظيفة',false);
+    $name=registrationFullName($payload);$job=registrationText($payload['job']??'',160,'الوظيفة',false);
     $phone=loginMobile($payload['phone']??null);if($phone==='')fail('أدخل رقم واتساب صحيحًا.',422,'invalid_client_phone');
     $password=$payload['password']??null;$confirmation=$payload['password_confirmation']??null;
     if(!is_string($password)||!validClientPassword($password))fail('كلمة المرور يجب أن تكون من 6 إلى 128 حرفًا.',422,'invalid_password');

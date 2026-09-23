@@ -3,7 +3,7 @@ import { clientBookingDateError } from './clientBookingDate.js';
 import { normalizeLoginPhone } from './phoneLogin.js';
 import { cairoDateTimeToEpoch } from './promotionTime.js';
 import { getBookingAvailability } from '../erp/bookingAvailability.js';
-import { CLIENT_BOOKING_POLICY, REGISTRATION_TERMS_VERSION, clientWindowError, intakeStageReady, isClientBookingDateClosed, pendingIntakeCount } from './registrationPolicy.js';
+import { CLIENT_BOOKING_POLICY, REGISTRATION_TERMS_VERSION, registrationFullName, clientWindowError, intakeStageReady, isClientBookingDateClosed, pendingIntakeCount } from './registrationPolicy.js';
 const challenges = new Map();
 const copy = value => JSON.parse(JSON.stringify(value));
 const fail = (message, code = 'validation_error', status = 422) => { throw Object.assign(new Error(message), { code, status }); };
@@ -53,7 +53,7 @@ export async function registrationDemoRequest({ route, url, method, body, databa
     const { verifySolution, pbkdf2 } = await import('altcha/lib');
     let checked; try { checked = await verifySolution({ challenge: proof.challenge, solution: proof.solution, deriveKey: pbkdf2.deriveKey, hmacSignatureSecret: verification.secret }); } catch { fail('تعذر تأكيد الحماية.', 'bot_verification_failed', 403); }
     if (!checked.verified) fail('تعذر تأكيد الحماية.', 'bot_verification_failed', 403);
-    const name = String(body.name || '').trim(); const phone = normalizeLoginPhone(body.phone); const job = String(body.job || '').trim(); const password = String(body.password || '');
+    const name = registrationFullName(body); const phone = normalizeLoginPhone(body.phone); const job = String(body.job || '').trim(); const password = String(body.password || '');
     if (name.length < 2 || name.length > 160 || !phone || job.length > 160 || password.length < 6 || password.length > 128 || password !== body.password_confirmation) fail('راجع بيانات التسجيل.');
     const requestHash = await hash(JSON.stringify({ name, phone, job, password }));
     if (verification.result) {

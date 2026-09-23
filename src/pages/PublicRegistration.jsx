@@ -3,13 +3,13 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CalendarDays, CheckCircle2, ShieldCheck, UserRound } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
-import { normalizeRegistrationDigits } from '../lib/registrationPolicy';
+import { normalizeRegistrationDigits, registrationFullName } from '../lib/registrationPolicy';
 import { safeUiError } from '../lib/uiError';
 import RegistrationBotCheck from '../components/RegistrationBotCheck';
 import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
 import './PublicRegistration.css';
 
-const emptyForm = { name: '', phone: '', job: '', password: '', password_confirmation: '' };
+const emptyForm = { first_name: '', second_name: '', last_name: '', phone: '', job: '', password: '', password_confirmation: '' };
 const botErrors = ['bot_verification_required', 'bot_verification_failed', 'bot_verification_expired'];
 const registrationError = error => {
   if (botErrors.includes(error?.code)) return 'أعد التحقق من أنك لست روبوتًا، ثم اضغط إنشاء حسابي. بياناتك محفوظة في النموذج.';
@@ -40,12 +40,13 @@ export default function PublicRegistration() {
     event.preventDefault();
     if (submissionRef.current || success) return;
     setError('');
+    try { registrationFullName(form); } catch (failure) { setError(failure.message); return; }
     if (form.password !== form.password_confirmation) { setError('تأكيد كلمة المرور غير مطابق.'); confirmationRef.current?.focus(); return; }
     if (!botPayload) { setError('أكمل التحقق من أنك لست روبوتًا أولًا.'); return; }
     submissionRef.current = true; setBusy(true);
     let created = false;
     try {
-      const response = await dataClient.request('/registration/complete', { method: 'POST', body: JSON.stringify({ ...form, name: form.name.trim(), phone: form.phone.trim(), job: form.job.trim(), altcha: botPayload, website }) });
+      const response = await dataClient.request('/registration/complete', { method: 'POST', body: JSON.stringify({ ...form, phone: form.phone.trim(), job: form.job.trim(), altcha: botPayload, website }) });
       if (response.error) {
         if (response.error.code === 'registration_already_submitted') { setSuccess(true); setError('تم إرسال تسجيل هذا الحساب بالفعل. سجّل الدخول برقم الموبايل وكلمة المرور.'); return; }
         setError(registrationError(response.error)); resetBot(); return;
@@ -76,7 +77,9 @@ export default function PublicRegistration() {
             <fieldset className="registration-form-fields" disabled={busy}>
               <legend className="registration-sr-only">بيانات حساب العميل</legend>
               <div className="registration-fields">
-                <label htmlFor="register-name">اسم العميل<input id="register-name" name="name" required autoComplete="name" minLength="2" maxLength="160" value={form.name} onChange={e => patch('name', e.target.value)}/></label>
+                <label htmlFor="register-first_name">الاسم الأول<input id="register-first_name" name="first_name" required autoComplete="given-name" maxLength="50" value={form.first_name} onChange={e => patch('first_name', e.target.value)}/></label>
+                <label htmlFor="register-second_name">الاسم الثاني<input id="register-second_name" name="second_name" required autoComplete="additional-name" maxLength="50" value={form.second_name} onChange={e => patch('second_name', e.target.value)}/></label>
+                <label htmlFor="register-last_name">الاسم الأخير<input id="register-last_name" name="last_name" required autoComplete="family-name" maxLength="50" value={form.last_name} onChange={e => patch('last_name', e.target.value)}/></label>
                 <label htmlFor="register-phone">رقم واتساب<input id="register-phone" name="phone" required type="tel" inputMode="tel" autoComplete="tel" pattern="[+0-9 \(\)\-]{8,24}" maxLength="24" dir="ltr" placeholder="01xxxxxxxxx" value={form.phone} onChange={e => patch('phone', normalizeRegistrationDigits(e.target.value))}/></label>
                 <label htmlFor="register-job" className="registration-full">الوظيفة<input id="register-job" name="job" required maxLength="160" autoComplete="organization-title" value={form.job} onChange={e => patch('job', e.target.value)}/></label>
                 <label htmlFor="register-password">كلمة المرور<input id="register-password" name="password" required type="password" autoComplete="new-password" minLength="6" maxLength="128" dir="ltr" aria-describedby="register-password-hint" value={form.password} onChange={e => patch('password', e.target.value)}/><small id="register-password-hint">6 خانات على الأقل.</small></label>

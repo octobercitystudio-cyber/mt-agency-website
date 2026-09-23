@@ -1,17 +1,25 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/phpRegistrationHarness.php';
-$payload=['altcha'=>verifiedBotProof($pdo),'name'=>'عميل تجريبي','phone'=>'01012345678','job'=>'مهندس','password'=>'TestPass123','password_confirmation'=>'TestPass123'];
+$payload=['altcha'=>verifiedBotProof($pdo),'first_name'=>' أحمد ','second_name'=>'محمد','last_name'=>'عبد   الرحمن','phone'=>'01012345678','job'=>'مهندس','password'=>'TestPass123','password_confirmation'=>'TestPass123'];
+foreach(['first_name','second_name','last_name'] as $field){
+    foreach([null,'','   ',[],12,str_repeat('أ',51),"محمد\nأحمد"] as $invalid)failure('invalid_registration_details',fn()=>registrationComplete($pdo,[],array_replace($payload,[$field=>$invalid])));
+    $missing=$payload;unset($missing[$field]);failure('invalid_registration_details',fn()=>registrationComplete($pdo,[],$missing));
+}
+$legacy=$payload;unset($legacy['first_name'],$legacy['second_name'],$legacy['last_name']);$legacy['name']='أحمد محمد علي';
+failure('invalid_registration_details',fn()=>registrationComplete($pdo,[],$legacy));
+check(countRows($pdo,'users')===0 && countRows($pdo,'clients')===0,'Invalid name cannot create any account through direct API');
 $result=registrationComplete($pdo,[],$payload);
 check($result['registered']===true && countRows($pdo,'clients')===1 && countRows($pdo,'users')===1,'Verified signup immediately creates one client and account');
 check(countRows($pdo,'client_intake_requests')===0 && countRows($pdo,'client_packages')===0 && countRows($pdo,'bookings')===0,'Signup is independent and creates no admin request or booking');
 $account=$pdo->query('SELECT * FROM users')->fetch();$client=$pdo->query('SELECT * FROM clients')->fetch();
 check($account['role']==='client' && (int)$account['is_active']===1 && (int)$account['client_id']===(int)$client['id'],'Verified account is active and linked immediately');
+check($client['name']==='أحمد محمد عبد الرحمن' && $account['full_name']===$client['name'],'All name parts persist consistently including compound family name');
 check($client['registration_source']==='website','Website registration is persisted on client record');
 check($client['email']===null && $account['email']===null && $client['job']==='مهندس' && $client['phone1']==='01012345678','Phone-only account has null email and saves customer details');
 check(password_verify('TestPass123',$account['password_hash']) && $account['password_hash']!=='TestPass123','Credentials are hashed');
 check(registrationComplete($pdo,[],$payload)===$result && countRows($pdo,'clients')===1,'Same verified submission is idempotent');
-failure('registration_already_submitted',fn()=>registrationComplete($pdo,[],array_replace($payload,['name'=>'Changed name'])));
+failure('registration_already_submitted',fn()=>registrationComplete($pdo,[],array_replace($payload,['first_name'=>'محمود'])));
 failure('password_confirmation_mismatch',fn()=>registrationComplete($pdo,[],array_replace($payload,['password_confirmation'=>'Other password'])));
 failure('bot_verification_required',fn()=>registrationComplete($pdo,[],array_replace($payload,['altcha'=>'','registration_token'=>str_repeat('a',64)])));
 failure('registration_booking_separate',fn()=>registrationComplete($pdo,[],array_replace($payload,['service_id'=>101])));
