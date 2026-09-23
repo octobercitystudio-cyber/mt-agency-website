@@ -14,7 +14,8 @@
   grid-template-columns: 48px minmax(0, 1fr);
   gap: 14px;
   padding: 17px 18px;
-  overflow: hidden;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   border: 1px solid var(--push-prompt-border);
   border-inline-start: 3px solid var(--push-prompt-violet);
   border-radius: 15px;

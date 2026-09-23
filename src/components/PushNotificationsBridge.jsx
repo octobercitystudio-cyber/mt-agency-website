@@ -10,6 +10,7 @@ import {
   pushPromptDismissed,
   registerPushNotifications,
   syncAppBadge,
+  testPushDelivery,
 } from '../lib/pushNotifications';
 
 const friendlyError = error => {
@@ -67,7 +68,7 @@ export default function PushNotificationsBridge() {
         const config = await loadPushConfiguration(dataClient); setConfiguration(config);
         if (!config.enabled || !config.schema_ready) { setStatus('error'); setMessage(config.reason === 'unsupported' ? 'هذا المتصفح لا يدعم إشعارات الجهاز. استخدم التطبيق أو متصفحًا يدعمها.' : 'إشعارات الجهاز غير جاهزة على الخادم. التنبيهات داخل البرنامج مستمرة.'); return; }
         setStatus(Notification.permission === 'denied' ? 'denied' : 'idle');
-        setMessage(Notification.permission === 'denied' ? friendlyError({ code: 'denied' }) : 'اضغط تفعيل الإشعارات لتسجيل هذا الجهاز وإظهار إشعار تجريبي.');
+        setMessage(Notification.permission === 'denied' ? friendlyError({ code: 'denied' }) : 'اضغط تفعيل الإشعارات لتسجيل هذا الجهاز وإرسال إشعار تجريبي من الخادم.');
       } catch { setStatus('error'); setMessage('تعذر مراجعة الإشعارات. حاول مرة أخرى.'); }
     };
     window.addEventListener('mtPushSettings', settings);
@@ -90,10 +91,14 @@ export default function PushNotificationsBridge() {
     try {
       await registerPushNotifications(dataClient, configuration, true);
       registrationRef.current = currentPrincipal;
-      setStatus('success');
-      setMessage('تم التفعيل. إذا كان الإشعار بلا صوت، فعّل صوت إشعارات التطبيق وأوقف وضع عدم الإزعاج من إعدادات الجهاز.');
-      const registration = await navigator.serviceWorker.ready;
-      await registration.showNotification('تم تفعيل إشعارات Multi Task Agency', { body: 'هذا إشعار تجريبي. ستصلك تحديثات الحسابات والباقات والمواعيد والمدفوعات.', icon: '/app-icon.svg', tag: 'mt-notification-test', silent: false, vibrate: [220, 100, 220], dir: 'rtl', lang: 'ar', data: { url: currentUser.role === 'owner' ? '/erp' : '/dashboard' } });
+      try {
+        await testPushDelivery(dataClient);
+        setStatus('success');
+        setMessage('تم تسجيل الجهاز وإرسال تجربة من الخادم. تأكد من وصول الإشعار وسماع صوته؛ نجاح الإرسال وحده لا يؤكد وصوله للهاتف.');
+      } catch {
+        setStatus('error');
+        setMessage('تم تسجيل الجهاز، لكن تعذر إرسال التجربة من الخادم. اضغط تفعيل الإشعارات لإعادة التجربة.');
+      }
     } catch (error) {
       setStatus('error');
       setMessage(friendlyError(error));

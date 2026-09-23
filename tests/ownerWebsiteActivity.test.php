@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/../api/owner_activity_notifications.php';
+require __DIR__.'/../api/push_delivery.php';
 function check(bool $condition,string $message):void{if(!$condition)throw new RuntimeException($message);}
 function packageMoneyCents(mixed $v):int{return (int)round((float)$v*100);}
 function packageMoney(int $v):string{return number_format($v/100,2,'.','');}

@@ -44,7 +44,7 @@ self.addEventListener('push', event => {
     badge: '/app-icon-monochrome.svg',
     dir: 'rtl',
     lang: 'ar',
-    tag: data.notification_id ? `mt-notification-${data.notification_id}` : `mt-notification-${Date.now()}`,
+    tag: data.is_test === '1' ? 'mt-notification-test' : data.notification_id ? `mt-notification-${data.notification_id}` : `mt-notification-${Date.now()}`,
     renotify: true,
     silent: false,
     vibrate: [220, 100, 220],
@@ -52,7 +52,7 @@ self.addEventListener('push', event => {
   };
   event.waitUntil(Promise.all([
     self.registration.showNotification(title, options),
-    updateBadgeAndClients(unreadCount, data),
+    data.is_test === '1' ? Promise.resolve() : updateBadgeAndClients(unreadCount, data),
   ]));
 });
 

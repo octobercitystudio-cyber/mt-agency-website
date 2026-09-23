@@ -70,7 +70,7 @@ const foregroundNotification = async payload => {
   const unreadCount = normalizedBadgeCount(data.unread_count || 1);
   const syncTopics = String(data.sync_topics || 'notifications').split(',').map(topic => topic.trim()).filter(Boolean);
   window.dispatchEvent(new CustomEvent('mtPushChange', { detail: { topics: [...new Set(syncTopics)], source: 'firebase' } }));
-  await syncAppBadge(unreadCount);
+  if (data.is_test !== '1') await syncAppBadge(unreadCount);
   if (Notification.permission !== 'granted') return;
   const registration = await navigator.serviceWorker.ready;
   const notification = payload?.notification || {};
@@ -80,7 +80,7 @@ const foregroundNotification = async payload => {
     badge: '/app-icon-monochrome.svg',
     dir: 'rtl',
     lang: 'ar',
-    tag: data.notification_id ? `mt-notification-${data.notification_id}` : `mt-notification-${Date.now()}`,
+    tag: data.is_test === '1' ? 'mt-notification-test' : data.notification_id ? `mt-notification-${data.notification_id}` : `mt-notification-${Date.now()}`,
     renotify: true,
     silent: false,
     vibrate: [220, 100, 220],
@@ -132,6 +132,14 @@ export const unregisterPushNotifications = async dataClient => {
   if (error) throw error;
   localStorage.removeItem(TOKEN_KEY);
   return { unregistered: true, changed: true };
+};
+
+export const testPushDelivery = async dataClient => {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) throw new Error('push_token_missing');
+  const { data, error } = await dataClient.request('/push/test', { method: 'POST', body: JSON.stringify({ token }) });
+  if (error) throw error;
+  return data;
 };
 
 export const hasStoredPushToken = () => Boolean(localStorage.getItem(TOKEN_KEY));

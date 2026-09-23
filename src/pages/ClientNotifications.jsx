@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, CalendarClock, CheckCheck, CircleDollarSign, FileText, FolderKanban, History, Package, RefreshCw, X } from 'lucide-react';
+import { Bell, BellRing, CalendarClock, CheckCheck, CircleDollarSign, FileText, FolderKanban, History, Package, RefreshCw, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
 import { captureNotificationOpen, reconcileNotificationOpen, resolveNotificationOpenBoundary, unreadNotifications } from '../lib/notificationReadBoundary';
@@ -129,6 +129,7 @@ export default function ClientNotifications({ clientId, onNavigate }) {
       <section ref={dialogRef} id="client-notification-center" className="client-notifications__panel" role="dialog" aria-modal="true" aria-labelledby="client-notifications-title">
         <header><div><h2 id="client-notifications-title">الإشعارات</h2><span>{unreadCount ? `${unreadCount} إشعار جديد` : 'أنت على اطلاع بكل جديد'}</span></div><button type="button" className="client-notifications__close" aria-label="إغلاق الإشعارات" onClick={close} data-dialog-initial><X /></button></header>
         <div className="client-notifications__toolbar"><span>تحديثات مواعيدك وباقاتك ومدفوعاتك</span><button type="button" onClick={readAll} disabled={!unreadCount}><CheckCheck /> تعليم الكل كمقروء</button></div>
+        <div className="client-notifications__toolbar"><button type="button" onClick={() => { close(); window.dispatchEvent(new CustomEvent('mtPushSettings')); }}><BellRing/> تفعيل إشعارات الجهاز والصوت</button></div>
         <div className="client-notifications__tabs" role="tablist" aria-label="تصفية الإشعارات"><button type="button" role="tab" aria-selected={filter === 'all'} onClick={() => setFilter('all')}>الكل</button><button type="button" role="tab" aria-selected={filter === 'unread'} onClick={() => setFilter('unread')}>غير المقروء{unreadCount > 0 && <b>{unreadCount > 99 ? '99+' : unreadCount}</b>}</button></div>
         {error && <div className="client-notifications__error" role="status"><span>{error}</span><button type="button" onClick={() => load()}><RefreshCw /> إعادة المحاولة</button></div>}
         <div className="client-notifications__list">
