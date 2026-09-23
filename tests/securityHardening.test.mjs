@@ -51,3 +51,17 @@ test('the web server enforces HTTPS and browser security headers', () => {
   assert.match(htaccess, /frame-ancestors 'none'/);
   assert.match(htaccess, /X-Robots-Tag "noindex, nofollow, noarchive"/);
 });
+
+test('push registration can reach the Firebase SDK endpoints without opening arbitrary connections', async () => {
+  const policy = htaccess.match(/Header always set Content-Security-Policy "([^"]+)"/)[1];
+  const directives = new Map(policy.split(';').map(value => value.trim().split(/\s+/)).filter(parts => parts[0]).map(([name, ...sources]) => [name, sources]));
+  const allowed = directives.get('connect-src');
+  assert.deepEqual(new Set(allowed), new Set(["'self'", 'https://firebaseinstallations.googleapis.com', 'https://fcmregistrations.googleapis.com']));
+  // Check the actual SDK endpoints so an SDK change cannot silently break registration again.
+  for (const module of ['installations', 'messaging']) {
+    const sdk = await readFile(new URL(`../node_modules/@firebase/${module}/dist/esm/index.esm.js`, import.meta.url), 'utf8');
+    const origins = [...new Set([...sdk.matchAll(/https:\/\/(?:firebaseinstallations|fcmregistrations)\.googleapis\.com/g)].map(match => match[0]))];
+    assert.ok(origins.length > 0, `${module} registration endpoint must be covered`);
+    for (const origin of origins) assert.ok(allowed.includes(origin), `${origin} blocked by production policy`);
+  }
+});
