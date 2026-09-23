@@ -237,7 +237,7 @@ const ERPLayout = () => {
       {/* Main Content Area */}
       <div className="erp-main" style={{marginTop: '0'}}>
         <header className="erp-global-toolbar" aria-label="أدوات التشغيل المباشر">
-          {role === 'owner' && <OwnerNotifications userId={currentUser?.id} onNavigate={navigate}/>}
+          {role === 'owner' && <OwnerNotifications key={currentUser?.id} userId={currentUser?.id} onNavigate={navigate}/>}
           <ERPSessionTimer role={role} />
         </header>
         {currentUser?.is_local_preview && (

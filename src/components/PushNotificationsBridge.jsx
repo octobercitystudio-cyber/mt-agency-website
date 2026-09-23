@@ -60,23 +60,40 @@ export default function PushNotificationsBridge() {
   }, [currentPrincipal, currentUser]);
 
   useEffect(() => {
+    if (!currentUser || currentUser.role === 'applicant') return undefined;
+    const settings = async () => {
+      setVisible(true); setStatus('loading'); setMessage('جارٍ مراجعة إشعارات هذا الجهاز…');
+      try {
+        const config = await loadPushConfiguration(dataClient); setConfiguration(config);
+        if (!config.enabled || !config.schema_ready) { setStatus('error'); setMessage(config.reason === 'unsupported' ? 'هذا المتصفح لا يدعم إشعارات الجهاز. استخدم التطبيق أو متصفحًا يدعمها.' : 'إشعارات الجهاز غير جاهزة على الخادم. التنبيهات داخل البرنامج مستمرة.'); return; }
+        setStatus(Notification.permission === 'denied' ? 'denied' : 'idle');
+        setMessage(Notification.permission === 'denied' ? friendlyError({ code: 'denied' }) : 'اضغط تفعيل الإشعارات لتسجيل هذا الجهاز وإظهار إشعار تجريبي.');
+      } catch { setStatus('error'); setMessage('تعذر مراجعة الإشعارات. حاول مرة أخرى.'); }
+    };
+    window.addEventListener('mtPushSettings', settings);
+    return () => window.removeEventListener('mtPushSettings', settings);
+  }, [currentPrincipal, currentUser]);
+
+  useEffect(() => {
     if (!currentUser || currentUser.role === 'applicant' || !('serviceWorker' in navigator)) return undefined;
     const receiveBadge = event => {
-      if (event.data?.type === 'MT_PUSH_BADGE') syncAppBadge(event.data.unread_count);
+      if (event.data?.type === 'MT_PUSH_BADGE') { syncAppBadge(event.data.unread_count); window.dispatchEvent(new CustomEvent('mtPushChange', { detail: { topics: event.data.topics || ['notifications'], source: 'service-worker' } })); }
     };
     navigator.serviceWorker.addEventListener('message', receiveBadge);
     return () => navigator.serviceWorker.removeEventListener('message', receiveBadge);
   }, [currentUser]);
 
   const enable = async () => {
-    if (!configuration) return;
+    if (!configuration?.enabled || !configuration?.schema_ready) { setStatus('error'); setMessage('إشعارات الجهاز غير متاحة حاليًا.'); return; }
     setStatus('requesting');
-    setMessage('سيطلب Android إذنك مرة واحدة لعرض الإشعارات.');
+    setMessage('اسمح للمتصفح أو التطبيق بعرض الإشعارات على هذا الجهاز.');
     try {
       await registerPushNotifications(dataClient, configuration, true);
       registrationRef.current = currentPrincipal;
       setStatus('success');
-      setMessage('تم تفعيل إشعارات الحجوزات والمدفوعات والتحديثات بنجاح.');
+      setMessage('تم التفعيل. إذا كان الإشعار بلا صوت، فعّل صوت إشعارات التطبيق وأوقف وضع عدم الإزعاج من إعدادات الجهاز.');
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification('تم تفعيل إشعارات Multi Task Agency', { body: 'هذا إشعار تجريبي. ستصلك تحديثات الحسابات والباقات والمواعيد والمدفوعات.', icon: '/app-icon.svg', tag: 'mt-notification-test', silent: false, vibrate: [220, 100, 220], dir: 'rtl', lang: 'ar', data: { url: currentUser.role === 'owner' ? '/erp' : '/dashboard' } });
     } catch (error) {
       setStatus('error');
       setMessage(friendlyError(error));

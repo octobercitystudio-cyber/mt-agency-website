@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/owner_activity_notifications.php';
 require_once __DIR__ . '/client_contacts.php';
 require_once __DIR__ . '/payment_methods.php';
 require_once __DIR__ . '/client_booking_policy.php';
@@ -488,6 +489,7 @@ function audit(PDO $pdo, array $user, string $action, string $entityType, ?int $
     $sourceEventId=recordChangeEvent($pdo,(int)$user['organization_id'],changeClientId($entityType,$entityId,$before,$after),changeTopic($entityType),$entityType,$entityId,$action);
     try{notifyClientChange($pdo,$user,$action,$entityType,$entityId,$before,$after,$sourceEventId);}catch(Throwable $notificationError){error_log('[Audit client notification] '.$notificationError->getMessage());}
     try{notifyOwnersOfClientAction($pdo,$user,$action,$entityType,$entityId,$before,$after,$sourceEventId);}catch(Throwable $notificationError){error_log('[Audit owner notification] '.$notificationError->getMessage());}
+    try{notifyOwnersOfWebsiteActivity($pdo,$user,$action,$entityType,$entityId,$before,$after,$sourceEventId);}catch(Throwable $notificationError){error_log('[Audit website owner notification] '.$notificationError->getMessage());}
     return $sourceEventId;
 }
 

@@ -22,12 +22,12 @@ const pushPayload = event => {
 
 const badgeCount = value => Math.max(1, Math.min(999, Math.trunc(Number(value) || 1)));
 
-const updateBadgeAndClients = async count => {
+const updateBadgeAndClients = async (count, data) => {
   try {
     if (typeof self.navigator?.setAppBadge === 'function') await self.navigator.setAppBadge(count);
   } catch { /* Android launchers can manage the badge from active notifications instead. */ }
   const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  windows.forEach(client => client.postMessage({ type: 'MT_PUSH_BADGE', unread_count: count }));
+  windows.forEach(client => client.postMessage({ type: 'MT_PUSH_BADGE', unread_count: count, topics: String(data.sync_topics || 'notifications').split(',').filter(Boolean) }));
 };
 
 self.addEventListener('push', event => {
@@ -52,7 +52,7 @@ self.addEventListener('push', event => {
   };
   event.waitUntil(Promise.all([
     self.registration.showNotification(title, options),
-    updateBadgeAndClients(unreadCount),
+    updateBadgeAndClients(unreadCount, data),
   ]));
 });
 

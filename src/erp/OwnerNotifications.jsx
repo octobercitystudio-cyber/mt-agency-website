@@ -7,6 +7,8 @@ import { formatDateTime12 } from '../lib/businessFormat';
 import { captureNotificationOpen, markNotificationsReadThrough, notificationBoundary, reconcileNotificationOpen, resolveNotificationOpenBoundary, unreadNotifications } from '../lib/notificationReadBoundary';
 import { clearSystemNotification, syncAppBadge } from '../lib/pushNotifications';
 import './OwnerNotifications.css';
+import useChangeSync from '../hooks/useChangeSync';
+import OwnerLiveAlerts, { useOwnerLiveAlerts } from './OwnerLiveAlerts';
 
 const safeItems = value => Array.isArray(value) ? value.filter(item => item && Number(item.id) > 0 && item.title && item.message) : [];
 const routes = { requests: '/erp/requests', bookings: '/erp/bookings', offers: '/erp/offers', finance: '/erp/finance', packages: '/erp/packages', projects: '/erp/projects', clients: '/erp/clients', 'post-production': '/erp/post-production' };
@@ -22,6 +24,9 @@ const dateBucket = value => {
 const timeLabel = value => formatDateTime12(value, '');
 
 export default function OwnerNotifications({ userId, onNavigate }) {
+  const alerts = useOwnerLiveAlerts(userId);
+  const requestSequence = useRef(0);
+  const principalRef = useRef(userId); principalRef.current = userId;
   const bellRef = useRef(null);
   const openRequestRef = useRef(0);
   const initialLoadedRef = useRef(false);
@@ -33,16 +38,19 @@ export default function OwnerNotifications({ userId, onNavigate }) {
   const close = useCallback(() => { openRequestRef.current += 1; pendingInitialOpenRef.current = null; setOpen(false); }, []); const dialogRef = useModalDialog(open, close, { returnFocusRef: bellRef, isolateBackground: true });
 
   const load = useCallback(async ({ quiet = false, cursor = null, append = false } = {}) => {
+    const sequence = ++requestSequence.current; const principal = userId;
     const initialRequest = !append && !cursor && !initialLoadedRef.current; if (initialRequest) initialRequestInFlightRef.current = true;
     if (append) setLoadingOlder(true); else if (!quiet) setLoading(true); setError('');
     const cursorQuery = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
     const { data, error: requestError } = await dataClient.request(`/app-notifications?channel=client-actions&status=all&limit=30${cursorQuery}`, { method: 'GET' });
+    if (principalRef.current !== principal || sequence !== requestSequence.current) return;
     if (requestError) {
       const pending = pendingInitialOpenRef.current;
       if (pending && openRequestRef.current === pending.requestId) { setItems(pending.captured.snapshotItems); setUnreadCount(pending.captured.snapshotUnreadCount); }
       if (initialRequest) initialRequestInFlightRef.current = false; setError('تعذر تحديث إشعارات العملاء الآن.'); setLoading(false); setLoadingOlder(false); return;
     }
     const received = safeItems(data?.items);
+    if (!append && !cursor) alerts.ingest(received);
     const pending = !append && !cursor ? pendingInitialOpenRef.current : null;
     if (pending && openRequestRef.current === pending.requestId && !initialLoadedRef.current) {
       const boundary = resolveNotificationOpenBoundary(pending.captured.boundary, true, received); const reconciled = reconcileNotificationOpen(received, boundary);
@@ -57,7 +65,9 @@ export default function OwnerNotifications({ userId, onNavigate }) {
     initialLoadedRef.current = true; if (initialRequest) initialRequestInFlightRef.current = false;
     setItems(current => append ? [...current, ...received.filter(item => !current.some(existing => Number(existing.id) === Number(item.id)))] : received);
     setUnreadCount(Number(data?.unread_count ?? unreadNotifications(received))); setNextCursor(data?.next_cursor || null); setLoading(false); setLoadingOlder(false);
-  }, []);
+  }, [userId, alerts.ingest]);
+
+  useChangeSync(useCallback(topics => { if (topics.includes('notifications')) void load({ quiet: true }); }, [load]));
 
   // Remote notification state must refresh when the signed-in owner changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -106,15 +116,17 @@ export default function OwnerNotifications({ userId, onNavigate }) {
     <button ref={bellRef} type="button" className={`owner-notifications__bell ${unreadCount ? 'has-unread' : ''}`} aria-label={unreadCount ? `إجراءات العملاء، ${unreadCount} غير مقروء` : 'إجراءات العملاء، لا توجد إشعارات غير مقروءة'} aria-expanded={open} aria-controls="owner-notification-center" onClick={() => open ? close() : openCenter()}>
       <Bell aria-hidden="true"/><span>إجراءات العملاء</span>{unreadCount > 0 && <b aria-hidden="true">{unreadCount > 99 ? '99+' : unreadCount}</b>}
     </button>
+    <OwnerLiveAlerts alerts={alerts} onOpen={openItem}/>
     <span className="owner-notifications__sr" aria-live="polite">{announcement}</span>
     {open && createPortal(<div className="owner-notifications__backdrop" onMouseDown={event => event.target === event.currentTarget && close()}>
       <section ref={dialogRef} id="owner-notification-center" className="owner-notifications__panel" role="dialog" aria-modal="true" aria-labelledby="owner-notifications-title">
         <header><div><span>مركز إجراءات العميل</span><h2 id="owner-notifications-title">الإشعارات الواردة</h2></div><button data-dialog-initial type="button" onClick={close} aria-label="إغلاق الإشعارات"><X/></button></header>
+        <OwnerLiveAlerts alerts={alerts} onOpen={openItem} settings onDeviceSettings={close}/>
         <div className="owner-notifications__toolbar"><div role="tablist" aria-label="تصفية الإشعارات"><button type="button" role="tab" aria-selected={filter === 'unread'} onClick={() => setFilter('unread')}>غير المقروء</button><button type="button" role="tab" aria-selected={filter === 'all'} onClick={() => setFilter('all')}>الكل</button></div><button type="button" onClick={readAll} disabled={!unreadCount}><CheckCheck/> قراءة الكل</button></div>
         {error && <div className="owner-notifications__error" role="status"><span>{error}</span><button type="button" onClick={() => load()}><RefreshCw/> إعادة المحاولة</button></div>}
         <div className="owner-notifications__list">
           {loading && !items.length && <div className="owner-notifications__loading"><RefreshCw/><strong>جارٍ تحميل الإشعارات…</strong></div>}
-          {!loading && !visible.length && <div className="owner-notifications__empty"><Bell/><strong>{filter === 'unread' ? 'تمت مراجعة كل إجراءات العملاء' : 'لا توجد إجراءات واردة بعد'}</strong><p>سيظهر هنا قبول أو رفض المواعيد والطلبات والمدفوعات الواردة من العميل.</p></div>}
+          {!loading && !visible.length && <div className="owner-notifications__empty"><Bell/><strong>{filter === 'unread' ? 'تمت مراجعة كل إجراءات العملاء' : 'لا توجد إجراءات واردة بعد'}</strong><p>ستظهر هنا الحسابات الجديدة واشتراكات الباقات وتغييرات المواعيد والإلغاء والمدفوعات.</p></div>}
           {groups.map(group => <section className="owner-notifications__group" key={group.label}><h3>{group.label}</h3>{group.items.map(item => { const Icon = itemIcon(item); return <article key={item.id} className={item.read_at ? 'is-read' : 'is-unread'}><button type="button" className="owner-notifications__item" onClick={() => openItem(item)}><i className="owner-notifications__avatar">{clientInitial(item.title)}</i><i className={`owner-notifications__type is-${item.severity || 'info'}`}><Icon/></i><span><strong>{item.title}</strong><small>{item.message}</small><time dateTime={item.created_at}>{timeLabel(item.created_at)}</time></span>{!item.read_at && <em aria-label="غير مقروء"/>}</button><button type="button" className="owner-notifications__dismiss" onClick={event => dismiss(event, item)} aria-label={`إخفاء ${item.title}`}><Trash2/></button></article>; })}</section>)}
           {filter === 'all' && nextCursor && <button type="button" className="owner-notifications__more" disabled={loadingOlder} onClick={() => load({ cursor: nextCursor, append: true })}><RefreshCw/>{loadingOlder ? 'جارٍ التحميل…' : 'تحميل إشعارات أقدم'}</button>}
         </div>
