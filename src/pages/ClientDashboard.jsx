@@ -156,7 +156,7 @@ export default function ClientDashboard() {
   const [reschedule, setReschedule] = useState(initialReschedule);
   const [cancelConfirm, setCancelConfirm] = useState(null);
   const [actionBusy, setActionBusy] = useState(null);
-  const [proofForm, setProofForm] = useState({ target: '', amount: '', payment_method: 'instapay', file: null });
+  const [proofForm, setProofForm] = useState({ target: '', amount: '', payment_method: 'vodafone_cash', file: null });
   const [proofBusy, setProofBusy] = useState(false);
   const [offerDetail, setOfferDetail] = useState(null);
   const [offerDetailBusy, setOfferDetailBusy] = useState(false);
@@ -340,7 +340,7 @@ export default function ClientDashboard() {
     const { error } = await dataClient.request('/payment-proofs', { method: 'POST', body });
     setProofBusy(false);
     if (error) { showNotice('error', error.message || 'تعذر رفع إثبات التحويل.'); return false; }
-    setProofForm({ target: '', amount: '', payment_method: 'instapay', file: null });
+    setProofForm({ target: '', amount: '', payment_method: 'vodafone_cash', file: null });
     showNotice('success', 'تم الإرسال');
     await fetchClientData();
     return true;

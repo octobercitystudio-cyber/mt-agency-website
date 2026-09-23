@@ -8,3 +8,9 @@ function requirePaymentMethod(mixed $value): string {
     if(!isset($aliases[$key]))fail('اختر طريقة الدفع: كاش أو انستاباي أو فودافون كاش.',422,'invalid_payment_method');
     return $aliases[$key];
 }
+
+/** Only this wallet accepts new customer transfer proofs; historical entries keep their method. */
+function requireClientTransferMethod(mixed $value): string {
+    if(!is_string($value)||trim($value)!=='vodafone_cash')fail('التحويل متاح عبر فودافون كاش فقط.',422,'invalid_payment_method');
+    return 'vodafone_cash';
+}

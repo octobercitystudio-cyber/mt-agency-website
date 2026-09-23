@@ -72,7 +72,7 @@ test('finance opens payment proof in a focused sheet while charts remain first a
   assert.ok(packageDetails > overview);
   assert.ok(proof > packageDetails);
   assert.match(source, /إرسال إثبات الدفع/);
-  assert.match(source, /01114466646/);
+  assert.doesNotMatch(source, /01114466646/);
   assert.match(source, /01094084424/);
   assert.match(source, /client-sr-only/);
 });

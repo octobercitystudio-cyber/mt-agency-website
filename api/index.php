@@ -3856,8 +3856,7 @@ if ($path === '/payment-proofs' && $method === 'POST') {
     $amount = (float)($_POST['amount'] ?? 0);
     $packageId = (int)($_POST['client_package_id'] ?? 0);
     $invoiceId = (int)($_POST['invoice_id'] ?? 0);
-    $paymentMethod=trim((string)($_POST['payment_method']??'instapay'));$transferAccounts=['cash'=>'سداد في مقر الشركة','instapay'=>'01114466646','vodafone_cash'=>'01094084424'];
-    if(!isset($transferAccounts[$paymentMethod]))fail('اختر كاش أو انستاباي أو فودافون كاش.',422,'invalid_payment_method');$transferAccount=$transferAccounts[$paymentMethod];
+    $paymentMethod=requireClientTransferMethod($_POST['payment_method']??'vodafone_cash');$transferAccounts=['vodafone_cash'=>'01094084424'];$transferAccount=$transferAccounts[$paymentMethod];
     if ($clientId <= 0 || $amount <= 0 || !isset($_FILES['proof'])) fail('المبلغ وملف إثبات التحويل مطلوبان.',422);
     if (($packageId > 0) === ($invoiceId > 0)) fail('اختر باقة أو فاتورة واحدة لهذا التحويل.',422,'invalid_payment_target');
     $clientStmt=$pdo->prepare('SELECT organization_id FROM clients WHERE id=? AND organization_id=? LIMIT 1');$clientStmt->execute([$clientId,$user['organization_id']]);$organizationId=(int)$clientStmt->fetchColumn();if($organizationId<=0)fail('العميل غير موجود.',404);

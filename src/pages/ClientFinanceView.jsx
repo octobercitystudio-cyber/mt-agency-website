@@ -14,8 +14,6 @@ const outstandingPackage = pkg => Math.max(0, packageTotal(pkg) - Number(pkg.pai
 const outstandingInvoice = invoice => Math.max(0, Number(invoice.total || 0) - Number(invoice.paid_amount || 0));
 const preciseEGP = piastres => formatEGP(piastresToMoney(piastres), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const TRANSFER_METHODS = {
-  cash: { label: PAYMENT_METHODS.cash, account: '', note: 'سداد في مقر الشركة' },
-  instapay: { label: PAYMENT_METHODS.instapay, account: '01114466646' },
   vodafone_cash: { label: PAYMENT_METHODS.vodafone_cash, account: '01094084424' },
 };
 const TRANSACTION_STATUS = {
@@ -135,7 +133,7 @@ export default function ClientFinanceView({
 
   const pendingAmount = useMemo(() => proofs.filter(proof => proof.status === 'pending').reduce((sum, proof) => sum + Number(proof.amount || 0), 0), [proofs]);
   const selectedTarget = targetOptions.find(target => target.value === proofForm.target);
-  const transferMethod = TRANSFER_METHODS[proofForm.payment_method] || TRANSFER_METHODS.instapay;
+  const transferMethod = TRANSFER_METHODS[proofForm.payment_method] || TRANSFER_METHODS.vodafone_cash;
   const chooseTarget = (type, id, amount) => { onSelectTarget(type, id, amount); setPayOpen(true); };
 
   const closePay = useCallback(() => setPayOpen(false), []);

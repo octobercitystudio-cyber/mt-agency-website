@@ -27,10 +27,10 @@ test('every package opening payment reaches the same wallet in payment and finan
   }
   const before=db();const rejected=await demoClient.request('/finance/manual',{method:'POST',body:JSON.stringify({entry_kind:'income',amount:10,method:'bank_transfer',detail:'اختبار',date:'2026-09-21'})});assert.equal(rejected.error?.code,'invalid_payment_method');assert.deepEqual(db(),before);deactivateDemoMode();
 });
-test('cash receipt approval remains cash and correcting legacy bank payment preserves its original method', async () => {
+test('Vodafone receipt approval remains Vodafone and correcting legacy bank payment preserves its original method', async () => {
   const {db,demoClient,activateDemoMode,deactivateDemoMode}=await setup();activateDemoMode('client');
-  const proof=await demoClient.request('/payment-proofs',{method:'POST',body:JSON.stringify({client_package_id:201,amount:100,payment_method:'cash'})});assert.equal(proof.error,null);
+  const proof=await demoClient.request('/payment-proofs',{method:'POST',body:JSON.stringify({client_package_id:201,amount:100,payment_method:'vodafone_cash'})});assert.equal(proof.error,null);
   activateDemoMode('owner');const approved=await demoClient.request(`/payment-proofs/${proof.data.id}/decision`,{method:'POST',body:JSON.stringify({action:'approve'})});assert.equal(approved.error,null);
-  const receipt=db().payment_proofs.find(r=>r.id===proof.data.id);const payment=db().payments.find(r=>r.id===receipt.payment_id);assert.equal(payment.method,'cash');assert.equal(db().finance.find(r=>r.source_type==='payment'&&r.source_id===payment.id).method,'cash');
+  const receipt=db().payment_proofs.find(r=>r.id===proof.data.id);const payment=db().payments.find(r=>r.id===receipt.payment_id);assert.equal(payment.method,'vodafone_cash');assert.equal(db().finance.find(r=>r.source_type==='payment'&&r.source_id===payment.id).method,'vodafone_cash');
   const correction=await demoClient.request('/payments/603/correct',{method:'POST',body:JSON.stringify({amount:4100,reason:'تصحيح وسيلة الدفع',method:'instapay'})});assert.equal(correction.error,null);assert.equal(db().payments.find(r=>r.id===603).method,'bank_transfer');assert.equal(db().payments.find(r=>r.corrected_from_id===603).method,'instapay');deactivateDemoMode();
 });

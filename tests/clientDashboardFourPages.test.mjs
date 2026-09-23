@@ -31,7 +31,7 @@ test('client dashboard owns the approved client sections and appointment actions
   assert.ok(dashboard.includes('تم إرسال الطلب'));
   assert.match(dashboard, /تم تأكيد الموعد البديل/);
   assert.match(dashboard, /تم إبلاغ الإدارة بطلب موعد آخر/);
-  assert.match(finance, /client-pay-now/); assert.match(finance, /PAYMENT_METHODS.instapay/); assert.match(finance, /PAYMENT_METHODS.vodafone_cash/); assert.match(finance, /01114466646/); assert.match(finance, /01094084424/); assert.match(finance, /navigator\.clipboard\.writeText/); assert.match(finance, /accept="image\/jpeg,image\/png,image\/webp,application\/pdf"/);
+  assert.match(finance, /client-pay-now/); assert.doesNotMatch(finance, /PAYMENT_METHODS.instapay/); assert.match(finance, /PAYMENT_METHODS.vodafone_cash/); assert.doesNotMatch(finance, /01114466646/); assert.match(finance, /01094084424/); assert.match(finance, /navigator\.clipboard\.writeText/); assert.match(finance, /accept="image\/jpeg,image\/png,image\/webp,application\/pdf"/);
   assert.match(offers, /ClientPublicPromotions/); assert.match(offers, /اشترك الآن/); assert.match(css, /client-home-focus-grid/); assert.match(css, /client-appointment-cards/);
 });
 
@@ -55,6 +55,12 @@ test('payment proof stores the selected transfer method and immutable destinatio
   const storage = setupBrowser();
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); activateDemoMode('client');
+  const before = storage.get('mt_agency_erp_demo_v12');
+  for (const method of ['instapay', 'cash', 'bank_transfer', 'constructor', '']) {
+    const rejected = await demoClient.request('/payment-proofs', { method: 'POST', body: JSON.stringify({ client_package_id: 201, amount: 250, payment_method: method }) });
+    assert.equal(rejected.error?.code, 'invalid_payment_method');
+    assert.equal(storage.get('mt_agency_erp_demo_v12'), before, 'Rejected transfer must not add a payment proof');
+  }
   const result = await demoClient.request('/payment-proofs', { method: 'POST', body: JSON.stringify({ client_package_id: 201, amount: 250, payment_method: 'vodafone_cash' }) });
   assert.equal(result.error, null); assert.equal(result.data.payment_method, 'vodafone_cash'); assert.equal(result.data.transfer_account_snapshot, '01094084424');
   const database = JSON.parse(storage.get('mt_agency_erp_demo_v12')); const proof = database.payment_proofs.find(row => Number(row.id) === Number(result.data.id));
@@ -65,6 +71,6 @@ test('payment proof stores the selected transfer method and immutable destinatio
 test('production and migration keep client promotions scoped and payment destinations server-owned', async () => {
   const [api, migration] = await Promise.all([load('api/index.php'), load('database/mysql/030_client_dashboard_payment_promotions.sql')]);
   assert.match(api, /\/client\/promotions/); assert.match(api, /p\.organization_id=\?/); assert.match(api, /promotion_subscriptions/); assert.match(api, /client_promotion_interest/);
-  assert.match(api, /'instapay'=>'01114466646'/); assert.match(api, /'vodafone_cash'=>'01094084424'/); assert.match(api, /transfer_account_snapshot/);
+  assert.doesNotMatch(api, /'instapay'=>'01114466646'/); assert.match(api, /requireClientTransferMethod/); assert.match(api, /'vodafone_cash'=>'01094084424'/); assert.match(api, /transfer_account_snapshot/);
   assert.match(migration, /UNIQUE KEY uq_promotion_client/); assert.match(migration, /FOREIGN KEY \(promotion_id\)/); assert.match(migration, /FOREIGN KEY \(client_id\)/);
 });
