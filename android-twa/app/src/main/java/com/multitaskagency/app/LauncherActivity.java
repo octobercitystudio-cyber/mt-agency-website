@@ -15,40 +15,60 @@
  */
 package com.multitaskagency.app;
 
+import android.Manifest;
 import android.content.pm.ActivityInfo;
-import android.net.Uri;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 
+public class LauncherActivity extends com.google.androidbrowserhelper.trusted.LauncherActivity {
+    private static final int NOTIFICATION_PERMISSION = 104;
+    private static final String WAITING_KEY = "mta.notification.permission.waiting";
+    private boolean waitingForPermission;
+    private boolean launched;
 
-
-public class LauncherActivity
-        extends com.google.androidbrowserhelper.trusted.LauncherActivity {
-    
-
-    
+    @Override
+    protected boolean shouldLaunchImmediately() { return false; }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Setting an orientation crashes the app due to the transparent background on Android 8.0
-        // Oreo and below. We only set the orientation on Oreo and above. This only affects the
-        // splash screen and Chrome will still respect the orientation.
-        // See https://github.com/GoogleChromeLabs/bubblewrap/issues/496 for details.
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        if (isFinishing()) return;
+        setRequestedOrientation(Build.VERSION.SDK_INT > Build.VERSION_CODES.O
+                ? ActivityInfo.SCREEN_ORIENTATION_PORTRAIT : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        waitingForPermission = savedInstanceState != null && savedInstanceState.getBoolean(WAITING_KEY);
+        if (waitingForPermission) return;
+        // Ask the system once at first launch, without an extra application button.
+        // A previous refusal is never overridden or repeatedly prompted.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                && !getPreferences(MODE_PRIVATE).getBoolean("notification_permission_asked", false)) {
+            getPreferences(MODE_PRIVATE).edit().putBoolean("notification_permission_asked", true).apply();
+            waitingForPermission = true;
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION);
         } else {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            continueLaunch();
+        }
+    }
+
+    private void continueLaunch() {
+        if (launched || isFinishing() || isDestroyed()) return;
+        launched = true;
+        launchTwa();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == NOTIFICATION_PERMISSION) {
+            waitingForPermission = false;
+            continueLaunch(); // The application remains usable after Allow, Deny, or dismissal.
         }
     }
 
     @Override
-    protected Uri getLaunchingUrl() {
-        // Get the original launch Url.
-        Uri uri = super.getLaunchingUrl();
-
-        
-
-        return uri;
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(WAITING_KEY, waitingForPermission);
     }
 }

@@ -8,7 +8,8 @@ import { captureNotificationOpen, markNotificationsReadThrough, notificationBoun
 import { clearSystemNotification, syncAppBadge } from '../lib/pushNotifications';
 import './OwnerNotifications.css';
 import useChangeSync from '../hooks/useChangeSync';
-import OwnerLiveAlerts, { useOwnerLiveAlerts } from './OwnerLiveAlerts';
+import OwnerLiveAlerts from './OwnerLiveAlerts';
+import useOwnerLiveAlerts from './useOwnerLiveAlerts';
 
 const safeItems = value => Array.isArray(value) ? value.filter(item => item && Number(item.id) > 0 && item.title && item.message) : [];
 const routes = { requests: '/erp/requests', bookings: '/erp/bookings', offers: '/erp/offers', finance: '/erp/finance', packages: '/erp/packages', projects: '/erp/projects', clients: '/erp/clients', 'post-production': '/erp/post-production' };

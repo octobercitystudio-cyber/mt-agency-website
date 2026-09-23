@@ -88,7 +88,7 @@ const foregroundNotification = async payload => {
   });
 };
 
-export const registerPushNotifications = async (dataClient, configuration, requestPermission = true) => {
+export const registerPushNotifications = async (dataClient, configuration, requestPermission = true, { isCurrent = () => true } = {}) => {
   if (!configuration?.enabled || !configuration?.schema_ready) throw new Error('push_not_configured');
   let permission = Notification.permission;
   if (permission === 'default' && requestPermission) permission = await Notification.requestPermission();
@@ -104,6 +104,7 @@ export const registerPushNotifications = async (dataClient, configuration, reque
     serviceWorkerRegistration: registration,
   });
   if (!token) throw new Error('push_token_missing');
+  if (!isCurrent()) return { cancelled: true };
   const { error } = await dataClient.request('/push/subscriptions', {
     method: 'POST',
     body: JSON.stringify({
@@ -113,6 +114,7 @@ export const registerPushNotifications = async (dataClient, configuration, reque
     }),
   });
   if (error) throw error;
+  if (!isCurrent()) return { cancelled: true };
   localStorage.setItem(TOKEN_KEY, token);
   resetPushPromptDismissal();
   foregroundUnsubscribe?.();

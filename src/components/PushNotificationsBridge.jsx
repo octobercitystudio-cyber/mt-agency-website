@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import PushNotificationPrompt from './PushNotificationPrompt';
+import { startAutomaticPushRegistration } from '../lib/autoPushRegistration';
 import {
   dismissPushPrompt,
-  hasStoredPushToken,
   loadPushConfiguration,
   pushEnvironmentSupported,
-  pushPromptDismissed,
   registerPushNotifications,
   syncAppBadge,
   testPushDelivery,
@@ -28,37 +27,23 @@ export default function PushNotificationsBridge() {
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
   const currentPrincipal = currentUser ? `${currentUser.role}:${currentUser.id}` : '';
-  const registrationRef = useRef('');
 
   useEffect(() => {
-    let disposed = false;
-    if (!currentUser || currentUser.role === 'applicant' || !pushEnvironmentSupported()) {
-      registrationRef.current = '';
-      return undefined;
-    }
-    loadPushConfiguration(dataClient).then(async config => {
-      if (disposed || !config.enabled || !config.schema_ready) return setVisible(false);
-      setConfiguration(config);
-      if (Notification.permission === 'granted') {
-        if (registrationRef.current !== currentPrincipal || !hasStoredPushToken()) {
-          await registerPushNotifications(dataClient, config, false);
-          registrationRef.current = currentPrincipal;
-        }
-        if (!disposed) setVisible(false);
-        return;
-      }
-      if (!disposed) {
-        setStatus(Notification.permission === 'denied' ? 'denied' : 'idle');
-        setMessage(Notification.permission === 'denied' ? friendlyError({ code: 'denied' }) : '');
-        setVisible(Notification.permission === 'default' && !pushPromptDismissed());
-      }
-    }).catch(error => {
-      if (disposed) return;
-      console.warn('Push setup unavailable:', error);
-      setVisible(false);
+    if (!currentPrincipal || currentPrincipal.startsWith('applicant:') || !pushEnvironmentSupported()) return undefined;
+    return startAutomaticPushRegistration({
+      loadConfiguration: () => loadPushConfiguration(dataClient),
+      register: (config, requestPermission, options) => {
+        setConfiguration(config);
+        return registerPushNotifications(dataClient, config, requestPermission, options);
+      },
+      onRegistered: () => { setStatus('success'); setVisible(false); },
+      onError: error => {
+        // Some browsers defer the system prompt until ordinary interaction; retry then automatically.
+        if (['push_permission_required', 'push_permission_denied'].includes(error?.message)) return;
+        setStatus('error'); setMessage(friendlyError(error)); setVisible(true);
+      },
     });
-    return () => { disposed = true; };
-  }, [currentPrincipal, currentUser]);
+  }, [currentPrincipal]);
 
   useEffect(() => {
     if (!currentUser || currentUser.role === 'applicant') return undefined;
@@ -68,7 +53,7 @@ export default function PushNotificationsBridge() {
         const config = await loadPushConfiguration(dataClient); setConfiguration(config);
         if (!config.enabled || !config.schema_ready) { setStatus('error'); setMessage(config.reason === 'unsupported' ? 'هذا المتصفح لا يدعم إشعارات الجهاز. استخدم التطبيق أو متصفحًا يدعمها.' : 'إشعارات الجهاز غير جاهزة على الخادم. التنبيهات داخل البرنامج مستمرة.'); return; }
         setStatus(Notification.permission === 'denied' ? 'denied' : 'idle');
-        setMessage(Notification.permission === 'denied' ? friendlyError({ code: 'denied' }) : 'اضغط تفعيل الإشعارات لتسجيل هذا الجهاز وإرسال إشعار تجريبي من الخادم.');
+        setMessage(Notification.permission === 'denied' ? friendlyError({ code: 'denied' }) : 'التسجيل يعمل تلقائيًا. يمكنك إرسال إشعار تجريبي للتأكد من وصول التنبيه والصوت.');
       } catch { setStatus('error'); setMessage('تعذر مراجعة الإشعارات. حاول مرة أخرى.'); }
     };
     window.addEventListener('mtPushSettings', settings);
@@ -90,7 +75,6 @@ export default function PushNotificationsBridge() {
     setMessage('اسمح للمتصفح أو التطبيق بعرض الإشعارات على هذا الجهاز.');
     try {
       await registerPushNotifications(dataClient, configuration, true);
-      registrationRef.current = currentPrincipal;
       try {
         await testPushDelivery(dataClient);
         setStatus('success');

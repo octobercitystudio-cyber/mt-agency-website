@@ -49,7 +49,7 @@ test('Android package, notification delegation and Digital Asset Links share one
   assert.match(delegationService, /notification\.number\s*=\s*1/);
   assert.match(delegationService, /Notification\.DEFAULT_SOUND/);
   assert.match(delegationService, /Notification\.DEFAULT_VIBRATE/);
-  assert.equal(twa.appVersionCode, 4);
+  assert.equal(twa.appVersionCode, 5);
   assert.match(gradle, /androidbrowserhelper:2\.7\.2/);
   assert.equal(assetLinks[0].target.package_name, twa.packageId);
   assert.equal(assetLinks[0].target.sha256_cert_fingerprints[0], '28:0C:7B:AE:3E:EF:12:72:34:59:91:CC:C0:E8:80:A0:05:A9:F5:82:31:E1:97:04:83:D1:5E:25:E7:C8:A5:DA');
@@ -77,7 +77,7 @@ test('production push routes require authentication or a worker key and preserve
   assert.match(api, /'push_ready'=>\$pushReady/);
 });
 
-test('permission is requested only by the explicit enable action and logout unregisters the device', async () => {
+test('automatic registration keeps optional retry and logout unregisters the device', async () => {
   const [push, bridge, store] = await Promise.all([
     load('src/lib/pushNotifications.js'),
     load('src/components/PushNotificationsBridge.jsx'),
@@ -85,6 +85,7 @@ test('permission is requested only by the explicit enable action and logout unre
   ]);
   assert.match(push, /if \(permission === 'default' && requestPermission\) permission = await Notification\.requestPermission\(\)/);
   assert.match(bridge, /registerPushNotifications\(dataClient, configuration, true\)/);
+  assert.match(bridge, /startAutomaticPushRegistration/);
   assert.match(bridge, /onEnable=\{enable\}/);
   assert.ok((store.match(/unregisterPushNotifications\(dataClient\)/g) || []).length >= 2);
 });

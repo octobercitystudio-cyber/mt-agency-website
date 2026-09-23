@@ -1,0 +1,1 @@
+import{On as e}from"./index-ipAUb_3N.js";var t=e(`chevron-right`,[[`path`,{d:`m9 18 6-6-6-6`,key:`mthhwq`}]]);export{t};
