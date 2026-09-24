@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/booking_block_series.php';
 
 /** Serialize calendar writes on the resource, including rows without legacy slot records. */
 function requireBookingSlotAvailable(PDO $pdo, int $org, int $resource, string $date, string $start, string $end, ?int $exclude = null, ?array $actor = null, array $approval = [], ?int $excludeBlock = null): void {
@@ -11,6 +12,7 @@ function requireBookingSlotAvailable(PDO $pdo, int $org, int $resource, string $
     $q=$pdo->prepare($sql);$q->execute([$org,$resource,$date,$end.':00',$start.':00',$exclude??0]);
     if($q->fetch())fail('الموعد محجوز بالفعل أو يتداخل مع موعد آخر. اختر وقتًا متاحًا.',409,'booking_conflict');
     if(!bookingBlockSchemaReady($pdo))return;
+    materializeRecurringBookingBlocks($pdo,$org,$resource,$date,$date);
     $q=$pdo->prepare("SELECT * FROM booking_blocks WHERE organization_id=? AND resource_id=? AND block_date=? AND status='active' AND start_time<? AND (CASE WHEN end_time='00:00:00' OR end_time='00:00' THEN '24:00:00' ELSE end_time END)>? AND id<>? ORDER BY id FOR UPDATE");
     $q->execute([$org,$resource,$date,$end.':00',$start.':00',$excludeBlock??0]);$blocks=$q->fetchAll();
     if(!$blocks)return;

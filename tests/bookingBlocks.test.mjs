@@ -114,10 +114,11 @@ test('demo booking blocks are atomic, idempotent, scoped, and side-effect free',
   assert.equal(blockedBooking.error?.code, 'temporary_booking_confirmation_required');
   assert.equal((await demoClient.from('bookings').select('*')).data.length, bookingsBeforeBlockedCreate);
 
-  const missingRepeatEnd = await demoClient.request('/booking-blocks', { method: 'POST', body: JSON.stringify({ date: '2027-03-01', start_time: '14:00', end_time: '15:00', resource_id: 1, repeat_daily: true, idempotency_key: 'block-test-repeat-missing' }) });
+  const missingRepeatEnd = await demoClient.request('/booking-blocks', { method: 'POST', body: JSON.stringify({ date: '2027-03-01', start_time: '14:00', end_time: '15:00', resource_id: 1, repeat_daily: true, repeat_end_mode: 'date', idempotency_key: 'block-test-repeat-missing' }) });
   assert.equal(missingRepeatEnd.error?.code, 'booking_block_repeat_until_required');
   const overNinetyDays = await demoClient.request('/booking-blocks', { method: 'POST', body: JSON.stringify({ date: '2027-03-01', start_time: '14:00', end_time: '15:00', resource_id: 1, repeat_daily: true, repeat_until: '2027-05-30', idempotency_key: 'block-test-repeat-too-long' }) });
-  assert.equal(overNinetyDays.error?.code, 'booking_block_range_too_long');
+  assert.equal(overNinetyDays.error, null);
+  assert.equal(overNinetyDays.data.count, 91);
 
   const repeated = await demoClient.request('/booking-blocks', { method: 'POST', body: JSON.stringify({ date: '2027-01-04', start_time: '18:00', end_time: '19:00', resource_id: 1, repeat_daily: true, repeat_until: '2027-01-09', note: '', idempotency_key: 'block-test-series-0001' }) });
   assert.equal(repeated.error, null);
@@ -149,7 +150,7 @@ test('demo booking blocks are atomic, idempotent, scoped, and side-effect free',
   assert.equal(orphanedSlots.length, 0);
 
   const blockChanges = (await demoClient.from('change_events').select('*')).data.filter(item => item.entity_type === 'booking_blocks');
-  assert.deepEqual(blockChanges.map(item => item.action), ['create', 'create', 'cancel', 'cancel_series']);
+  assert.deepEqual(blockChanges.map(item => item.action), ['create', 'create', 'create', 'cancel', 'cancel_series']);
   assert.ok(blockChanges.every(item => item.topic === 'bookings' && item.client_id == null));
 
   for (const table of Object.keys(countsBefore)) {

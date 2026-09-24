@@ -1,3 +1,4 @@
+import { calendarBlocks } from './bookingBlockRecurrence.js';
 import { clientPackageOptionAllowed } from './clientPackageEligibility.js';
 import { clientBookingDateError } from './clientBookingDate.js';
 import { normalizeLoginPhone } from './phoneLogin.js';
@@ -26,10 +27,10 @@ export const registrationDemoAvailability = async (db, serviceId, date, rawDurat
   const dateError = clientBookingDateError(date); if (dateError) fail(dateError, 'invalid_booking_date');
   const result = { date, duration_minutes: duration, available: false, slots: [], booking_policy: CLIENT_BOOKING_POLICY }; if (isClientBookingDateClosed(date)) return result;
   const time = n => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
-  for (const resource of db.resources.filter(item => Number(item.is_active ?? 1) === 1)) for (let start = 720; start + duration <= 1320; start += 60) {
+  for (const resource of db.resources.filter(item => item.type === 'studio' && Number(item.is_active ?? 1) === 1)) for (let start = 720; start + duration <= 1320; start += 60) {
     const candidate = { resource_id: resource.id, date, start_time: time(start), end_time: time(start + duration) };
     if (cairoDateTimeToEpoch(`${date}T${candidate.start_time}:00`) <= Date.now()) continue;
-    if (getBookingAvailability(candidate, db.bookings, { blocks: db.booking_blocks || [] }).status === 'available') result.slots.push({ resource_id: resource.id, start_time: candidate.start_time, end_time: candidate.end_time });
+    if (getBookingAvailability(candidate, db.bookings, { blocks: calendarBlocks(db, resource.organization_id || 1, date, date) }).status === 'available') result.slots.push({ resource_id: resource.id, start_time: candidate.start_time, end_time: candidate.end_time });
   }
   result.available = result.slots.length > 0; return result;
 };

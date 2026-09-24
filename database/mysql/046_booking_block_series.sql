@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS booking_block_series (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ organization_id BIGINT UNSIGNED NOT NULL,
+ resource_id BIGINT UNSIGNED NOT NULL,
+ series_key CHAR(36) NOT NULL,
+ starts_on DATE NOT NULL,
+ repeat_until DATE NULL,
+ start_time TIME NOT NULL,
+ end_time TIME NOT NULL,
+ duration_minutes SMALLINT UNSIGNED NOT NULL,
+ title VARCHAR(120) NOT NULL,
+ note VARCHAR(1000) NULL,
+ status ENUM('active','cancelled') NOT NULL DEFAULT 'active',
+ created_by BIGINT UNSIGNED NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_block_series_key (organization_id,series_key),
+ KEY idx_block_series_range (organization_id,resource_id,status,starts_on,repeat_until),
+ CONSTRAINT fk_block_series_org FOREIGN KEY (organization_id) REFERENCES organizations(id),
+ CONSTRAINT fk_block_series_resource FOREIGN KEY (resource_id) REFERENCES resources(id),
+ CONSTRAINT fk_block_series_user FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

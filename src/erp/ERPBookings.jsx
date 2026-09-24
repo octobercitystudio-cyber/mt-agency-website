@@ -354,7 +354,7 @@ const ERPBookings = () => {
 
   const handleBlockCreated = async result => {
     setBlockDialogOpen(false);
-    setRescheduleNotice(result?.count > 1 ? `تم حظر ${result.count} مواعيد بنجاح.` : 'تم حظر الموعد وإغلاق الفترة للحجز.');
+    setRescheduleNotice(result?.repeat_daily && !result.repeat_until ? 'تم حظر الفترة بتكرار يومي بدون تاريخ نهاية.' : result?.count > 1 ? `تم حظر ${result.count} مواعيد بنجاح.` : 'تم حظر الموعد وإغلاق الفترة للحجز.');
     await fetchData(true);
     window.dispatchEvent(new CustomEvent('erpBookingsUpdated', { detail: { topics: ['bookings'] } }));
   };

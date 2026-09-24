@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, PackageCheck, RefreshCw, Send, ShieldCheck, X } from 'lucide-react';
 import ClientAvailabilityCalendar from '../components/ClientAvailabilityCalendar';
 import { clientNoticeIsLate } from '../lib/clientBookingNotice';
+import useChangeSync from '../hooks/useChangeSync';
 import { dataClient } from '../dataClient';
 import { calculateDurationMinutes, formatBookingDate, formatDurationMinutes, formatPackageQuantity, formatTime12 } from '../lib/businessFormat';
 import { clientDurationError, clientDurationMinutesFromDraft, normalizeClientMinuteDraft, resolveClientBookingTime } from './clientBookingTime';
@@ -32,6 +33,7 @@ export default function ClientBookingDialog({ open, packages = [], initialPackag
   const [availabilityRevision, setAvailabilityRevision] = useState(0);
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  useChangeSync(topics => { if (topics.some(topic => ['availability', 'bookings', 'client_packages'].includes(topic))) setAvailabilityRevision(value => value + 1); }, open);
   useEffect(() => { busyRef.current = busy; }, [busy]);
 
   const eligiblePackages = useMemo(() => booking ? [packages.find(pkg => Number(pkg.id) === Number(booking.client_package_id)) || { id: 0, name: booking.service || 'موعد تصوير', billing_unit: 'hour', purchased_quantity: 10 }] : packages.filter(pkg => ['hour', 'reel'].includes(pkg.billing_unit) && availableQuantity(pkg) > 0), [packages, booking]);

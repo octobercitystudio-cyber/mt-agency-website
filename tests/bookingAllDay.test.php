@@ -36,5 +36,6 @@ rejected(fn()=>validateBookingSchedule($pdo,1,1,'2027-02-05','08:00','09:00',60,
 rejected(fn()=>validateBookingSchedule($pdo,1,1,'2027-02-30','08:00','09:00',60,15,null,null,false),'invalid_booking_time');
 check(bookingBlockDates('2027-01-08',false,'')===['2027-01-08'],'Single Friday block rejected');
 check(bookingBlockDates('2027-01-07',true,'2027-01-09')===['2027-01-07','2027-01-08','2027-01-09'],'Daily repeat skipped Friday');
-rejected(fn()=>bookingBlockDates('2027-01-01',true,'2027-04-01'),'booking_block_range_too_long');
+check(bookingBlockDates('2027-01-01',true,'2027-04-01')===['2027-01-01'],'Long series should use persistent rule');
+check(bookingBlockDates('2027-01-01',true,'')===['2027-01-01'],'Unbounded series rejected');
 echo "PASS: production Friday, morning, midnight, full-day, repeat, validity and duration boundaries.\n";

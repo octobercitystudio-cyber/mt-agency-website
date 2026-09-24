@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Copy, ImagePlus, Package, Plus, Trash2 } from 'lucide-react';
+import useChangeSync from '../hooks/useChangeSync';
 import { dataClient } from '../dataClient';
 import { formatBookingDate, formatDateTime12, formatDurationMinutes, formatEGP, formatTime12 } from '../lib/businessFormat';
 import { CANCELLATION_TERMS, REGISTRATION_TERMS_VERSION, registrationValidityLabel } from '../lib/registrationPolicy';
@@ -17,6 +18,7 @@ export default function ClientStudioBooking({ onClose, onRequests, onBookExistin
   const [bookings, setBookings] = useState([]); const [date, setDate] = useState(''); const [duration, setDuration] = useState(60); const [availability, setAvailability] = useState({ data: null, loading: false, error: '' }); const [availabilityMonth, setAvailabilityMonth] = useState(''); const [revision, setRevision] = useState(0); const [slotKey, setSlotKey] = useState(''); const [slotBusy, setSlotBusy] = useState(false);
   const [proof, setProof] = useState(null); const [preview, setPreview] = useState(''); const [consent, setConsent] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [success, setSuccess] = useState(null); const [copied, setCopied] = useState(false);
   const appointmentBusyRef = useRef(false); const retry = useRef(null); const fileInput = useRef(null); const baseService = services.find(s => String(s.id) === serviceId); const service = studioPurchaseSelection(baseService, selectedHours); const daily = service?.kind === 'daily' || service?.package_validity_mode === 'shooting_day'; const totalMinutes = studioSelectedMinutes(bookings); const deposit = Number(service?.deposit_amount || 0);
+  useChangeSync(topics => { if (topics.some(topic => ['availability', 'bookings'].includes(topic))) setRevision(value => value + 1); });
   const firstDraftDate = sortedStudioBookings(bookings)[0]?.date;
   const draftValidity = useMemo(() => firstDraftDate && service?.kind !== 'hourly' ? { starts_at: firstDraftDate, expires_at: service?.kind === 'daily' || service?.package_validity_mode === 'shooting_day' ? firstDraftDate : shiftBookingDate(firstDraftDate, Math.max(1, Number(service?.validity_days || 1)) - 1) } : null, [firstDraftDate, service]);
   const [earliestDate, setEarliestDate] = useState(earliestClientBookingDate);

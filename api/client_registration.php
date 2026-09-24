@@ -94,6 +94,7 @@ function registrationAvailability(PDO $pdo,int $org,array $service,string $date,
     $resources=$pdo->prepare("SELECT id FROM resources WHERE organization_id=? AND type='studio' AND is_active=1 ORDER BY id");$resources->execute([$org]);$resourceIds=array_map('intval',$resources->fetchAll(PDO::FETCH_COLUMN));
     $occupied=$pdo->prepare("SELECT resource_id,start_time,end_time FROM bookings WHERE organization_id=? AND date=? AND status IN ('pending','alternative_proposed','confirmed','in_progress','cancel_requested','late_cancel_requested')");$occupied->execute([$org,$date]);$intervals=$occupied->fetchAll();
     if(bookingBlockSchemaReady($pdo)){$blocks=$pdo->prepare("SELECT resource_id,start_time,end_time FROM booking_blocks WHERE organization_id=? AND block_date=? AND status='active'");$blocks->execute([$org,$date]);$intervals=array_merge($intervals,$blocks->fetchAll());}
+    $intervals=array_merge($intervals,recurringBookingBlockOccurrences($pdo,$org,$date,$date));
     for($start=720;$start+$duration<=1320;$start+=60){
         $format=fn(int $value)=>sprintf('%02d:%02d',intdiv($value,60),$value%60);$from=$format($start);$to=$format($start+$duration);
         if($date.' '.$from<=$now->format('Y-m-d H:i'))continue;
