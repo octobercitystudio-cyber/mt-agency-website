@@ -11,7 +11,8 @@
     "android:build": "npm run android:icons && cd android-twa && bubblewrap build --manifest=twa-manifest.json",
     "lint": "eslint .",
     "preview": "vite preview",
-    "android:icons": "node scripts/sync-android-notification-icons.mjs"
+    "android:icons": "node scripts/sync-android-notification-icons.mjs",
+    "android:staff": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-staff-android.ps1"
   },
   "dependencies": {
     "@fullcalendar/daygrid": "^6.1.20",

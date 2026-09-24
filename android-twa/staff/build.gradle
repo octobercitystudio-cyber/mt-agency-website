@@ -1,0 +1,52 @@
+plugins { id 'com.android.application' }
+
+// Separate installable application sharing the existing TWA implementation,
+// company artwork and notification behavior.
+android {
+    namespace 'com.multitaskagency.app'
+    compileSdkVersion 36
+    defaultConfig {
+        applicationId 'com.multitaskagency.staff'
+        minSdkVersion 23
+        targetSdkVersion 36
+        versionCode 1
+        versionName '1.0.0'
+        resValue 'string', 'appName', 'MTA Team'
+        resValue 'string', 'launcherName', 'MTA Team'
+        resValue 'string', 'launchUrl', 'https://multitaskagency.com/adminmt/login?source=android-staff-app'
+        resValue 'string', 'hostName', 'multitaskagency.com'
+        resValue 'string', 'fullScopeUrl', 'https://multitaskagency.com/'
+        resValue 'string', 'providerAuthority', 'com.multitaskagency.staff.fileprovider'
+        resValue 'string', 'generatorApp', 'MTA Team'
+        resValue 'string', 'fallbackType', 'customtabs'
+        resValue 'string', 'orientation', 'portrait-primary'
+        resValue 'string', 'shortcut_name_0', 'لوحة إدارة الشركة'
+        resValue 'string', 'shortcut_short_name_0', 'الإدارة'
+        resValue 'bool', 'enableNotification', 'true'
+        resValue 'bool', 'enableSiteSettingsShortcut', 'true'
+        resValue 'integer', 'splashScreenFadeOutDuration', '300'
+        resValue 'color', 'colorPrimary', '#37496E'
+        resValue 'color', 'colorPrimaryDark', '#263957'
+        resValue 'color', 'navigationColor', '#F4F3EF'
+        resValue 'color', 'navigationColorDark', '#263957'
+        resValue 'color', 'navigationDividerColor', '#E3E5E9'
+        resValue 'color', 'navigationDividerColorDark', '#263957'
+        resValue 'color', 'backgroundColor', '#F4F3EF'
+    }
+    sourceSets {
+        main {
+            java.srcDirs = ['../app/src/main/java']
+            res.srcDirs = ['../app/src/main/res']
+        }
+        // The edition's launcher shortcut overrides the customer shortcut.
+        release.res.srcDirs = ['src/main/res']
+        debug.res.srcDirs = ['src/main/res']
+    }
+    buildTypes { release { minifyEnabled true } }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies { implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.2' }

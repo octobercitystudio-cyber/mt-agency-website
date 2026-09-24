@@ -53,3 +53,8 @@ mockups/
 .tmp/
 tmp/
 eval_main_*.md
+
+# Team Android build products are local; only the signed installer is published.
+android-twa/staff/build/
+!public/downloads/MTA-Team-*.apk
+!dist/downloads/MTA-Team-*.apk

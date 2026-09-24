@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BriefcaseBusiness, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { normalizeLoginPhone } from '../lib/phoneLogin';
+import { isStaffAppEntry, STAFF_APP_SESSION_KEY } from '../lib/staffAppEntry';
 import './AdminLogin.css';
 
 const STAFF_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
@@ -17,7 +18,13 @@ const staffLoginError = error => {
 };
 
 export default function AdminLogin() {
-  const { loginStaff, isAuthReady, currentUser } = useData();
+  const { loginStaff, logoutErp, isAuthReady, currentUser } = useData();
+  const [staffApp] = useState(() => {
+    try { return isStaffAppEntry(window.location.search, sessionStorage.getItem(STAFF_APP_SESSION_KEY) === '1'); }
+    catch { return isStaffAppEntry(window.location.search); }
+  });
+  const otherAccountOpen = staffApp && CLIENT_ROLES.includes(currentUser?.role);
+  useEffect(() => { if (staffApp) { try { sessionStorage.setItem(STAFF_APP_SESSION_KEY, '1'); } catch { /* Storage is optional. */ } } }, [staffApp]);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,8 +38,8 @@ export default function AdminLogin() {
   useEffect(() => {
     if (!isAuthReady) return;
     if (STAFF_ROLES.includes(currentUser?.role)) navigate('/erp', { replace: true });
-    else if (CLIENT_ROLES.includes(currentUser?.role)) navigate(currentUser.must_change_password ? '/change-password' : '/dashboard', { replace: true });
-  }, [currentUser, isAuthReady, navigate]);
+    else if (!staffApp && CLIENT_ROLES.includes(currentUser?.role)) navigate(currentUser.must_change_password ? '/change-password' : '/dashboard', { replace: true });
+  }, [currentUser, isAuthReady, navigate, staffApp]);
 
   const completeStaffLogin = user => {
     if (!STAFF_ROLES.includes(user?.role)) {
@@ -65,6 +72,14 @@ export default function AdminLogin() {
     finally { setLoading(false); }
   };
 
+  const switchToStaffAccount = async () => {
+    if (loading) return;
+    setLoading(true); setError('');
+    try { const result = await logoutErp(); if (result?.error) throw result.error; }
+    catch { setError('تعذر تبديل الحساب الآن. أعد المحاولة.'); }
+    finally { setLoading(false); }
+  };
+
   const handleLocalPreview = async () => {
     if (loading || !isAuthReady) return;
     setLoading(true); setError('');
@@ -73,18 +88,22 @@ export default function AdminLogin() {
     finally { setLoading(false); }
   };
 
-  return <main className="staff-login" dir="rtl">
+  return <main className={`staff-login${staffApp ? ' staff-login--app' : ''}`} dir="rtl">
     <section className="staff-login-panel" aria-labelledby="staff-login-title">
       <header className="staff-login-brand">
         <img src="/logo.webp" width="64" height="61" alt="شعار Multi Task Agency" />
-        <div><p dir="ltr">Multi Task Agency</p><span>مساحة إدارة الشركة</span></div>
+        <div><p dir="ltr">Multi Task Agency</p><span>{staffApp ? 'MTA Team · تطبيق الإدارة' : 'مساحة إدارة الشركة'}</span></div>
       </header>
       <div className="staff-login-intro">
         <span className="staff-login-eyebrow"><BriefcaseBusiness aria-hidden="true" /> بوابة الفريق</span>
-        <h1 id="staff-login-title">دخول فريق العمل</h1>
+        <h1 id="staff-login-title">{staffApp ? 'دخول المالك وفريق العمل' : 'دخول فريق العمل'}</h1>
         <p>مرحبًا بك. هذه المساحة مخصصة للمالك والعاملين في الشركة.</p>
       </div>
-      <form className="staff-login-form" onSubmit={handleSubmit} noValidate aria-busy={loading}>
+      {otherAccountOpen ? <section className="staff-account-switch" aria-label="تبديل الحساب">
+        <p>يوجد حساب آخر مفتوح على هذا الجهاز. للدخول إلى إدارة الشركة، بدّل إلى حساب المالك أو أحد أفراد الفريق.</p>
+        {error && <p role="alert">{error}</p>}
+        <button type="button" className="staff-login-submit" disabled={loading} onClick={switchToStaffAccount}>{loading ? 'جارٍ تبديل الحساب…' : 'تبديل إلى حساب فريق العمل'}</button>
+      </section> : <form className="staff-login-form" onSubmit={handleSubmit} noValidate aria-busy={loading}>
         <fieldset disabled={loading || !isAuthReady}>
           <div className="staff-login-field">
             <label htmlFor="staff-identifier">البريد الإلكتروني أو رقم الموبايل</label>
@@ -104,11 +123,11 @@ export default function AdminLogin() {
           <span>{loading ? 'جارٍ تسجيل الدخول…' : !isAuthReady ? 'جارٍ تجهيز الدخول…' : 'الدخول إلى لوحة العمل'}</span>
           {loading || !isAuthReady ? <LoaderCircle className="staff-login-spinner" aria-hidden="true" /> : <ArrowLeft aria-hidden="true" />}
         </button>
-      </form>
+      </form>}
       <p className="staff-login-help">تحتاج مساعدة في الدخول؟ تواصل مع مسؤول النظام.</p>
-      <footer className="staff-login-client"><span>لديك حساب عميل؟</span><Link to="/login">دخول العملاء <ArrowLeft aria-hidden="true" /></Link></footer>
+      {!staffApp && <footer className="staff-login-client"><span>لديك حساب عميل؟</span><Link to="/login">دخول العملاء <ArrowLeft aria-hidden="true" /></Link></footer>}
     </section>
-    <Link className="staff-login-home" to="/">العودة للموقع الرئيسي <ArrowRight aria-hidden="true" /></Link>
+    {!staffApp && <Link className="staff-login-home" to="/">العودة للموقع الرئيسي <ArrowRight aria-hidden="true" /></Link>}
     {import.meta.env.DEV && <details className="staff-login-preview"><summary>المعاينة المحلية</summary><button type="button" disabled={loading || !isAuthReady} onClick={handleLocalPreview}>دخول تجريبي كمالك</button></details>}
   </main>;
 }

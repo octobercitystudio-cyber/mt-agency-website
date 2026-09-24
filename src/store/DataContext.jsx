@@ -505,7 +505,7 @@ export const DataProvider = ({ children }) => {
     authRevisionRef.current += 1;
     const dataClient = await getDataClient();
     await unregisterPushNotifications(dataClient).catch(() => undefined);
-    await dataClient.auth.signOut();
+    return await dataClient.auth.signOut();
   };
 
   if ((!isDataLoaded || !isAuthReady) && !isPublicSurface()) {
