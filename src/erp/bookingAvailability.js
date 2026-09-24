@@ -1,4 +1,7 @@
 const BLOCKING_STATUSES = new Set([
+  'pending',
+  'alternative_proposed',
+  'قيد الانتظار',
   'confirmed',
   'in_progress',
   'cancel_requested',
@@ -56,7 +59,7 @@ export function getBookingAvailability(candidate, bookings = [], options = {}) {
   }).map(block => ({ ...block, kind: 'booking_block', owner_label: 'مغلق بواسطة الإدارة' }));
 
   return {
-    status: blockConflicts.length ? 'blocked' : conflicts.length ? 'conflict' : 'available',
+    status: conflicts.length ? 'conflict' : blockConflicts.length ? 'blocked' : 'available',
     available: conflicts.length === 0 && blockConflicts.length === 0,
     candidate: normalized,
     conflicts: [...blockConflicts, ...conflicts],

@@ -117,3 +117,35 @@
 @media(max-width:350px){.client-finance-obligation-body{grid-template-columns:1fr}.client-finance-obligation-card .client-finance-ring{width:150px}.client-finance-obligation-card .client-finance-ring-values{grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.client-finance-obligation-card .client-finance-ring-values>div{border-bottom:0;border-left:1px solid #e7eaf0;padding:8px 4px;text-align:center}.client-finance-obligation-card .client-finance-ring-values>div:last-child{border-left:0}.client-finance-obligation-card .client-finance-ring-values dt{justify-content:center;font-size:.59rem}.client-finance-obligation-card .client-finance-ring-values dd{margin:4px 0 0;font-size:.65rem}.client-finance-obligation-card>header{display:grid}.client-finance-obligation-card>header em{width:max-content}}
 
 .client-cash-note{padding:14px;border:1px solid #e1d6f2;border-radius:12px;background:#f7f3fc;color:#51405f;line-height:1.8;font-size:.88rem}
+
+
+/* Keep financial numbers readable on the shared light client dashboard. */
+.client-app--glance :is(.client-finance-overview,.client-finance-section,.client-finance-obligation-card,.client-package-finance-card) { background:var(--client-panel);border-color:var(--client-border); }
+.client-app--glance :is(.client-finance-overview,.client-finance-section)>header :is(span,p),.client-app--glance .client-finance-header p { font-size:14px;line-height:1.8; }
+.client-app--glance :is(.client-finance-overview,.client-finance-section)>header h3 { font-size:22px;line-height:1.5; }
+.client-app--glance :is(.client-finance-obligation-card>header,.client-package-finance-card>header) { flex-wrap:wrap; }
+.client-app--glance :is(.client-finance-obligation-card>header>div,.client-package-finance-card>header>div) { flex:1 1 160px;min-width:0; }
+.client-app--glance .client-finance-obligation-card>header h4,.client-app--glance .client-package-finance-card h4 { font-size:18px;line-height:1.65; }
+.client-app--glance .client-finance-obligation-card>header span,.client-app--glance .client-finance-obligation-card>header em,.client-app--glance .client-finance-chip { font-size:13px;line-height:1.6; }
+.client-app--glance .client-finance-ring-values { min-width:0; }
+.client-app--glance .client-finance-ring-values dt { font-size:14px;line-height:1.6; }
+.client-app--glance .client-finance-obligation-card .client-finance-ring-values dd { font-size:17px;line-height:1.65; }
+.client-app--glance .client-finance-obligation-card .client-finance-ring>div small { color:#89500f;font-size:12px;line-height:1.5; }
+.client-app--glance .client-package-finance-card :is(dt,dd),.client-app--glance .client-finance-invoices :is(dt,dd) { font-size:15px;line-height:1.7; }
+.client-app--glance .client-package-finance-card dd.paid-value { color:#176343; }
+.client-app--glance .client-package-finance-card dd.due-value { color:#89500f; }
+.client-app--glance .client-package-finance-card button,.client-app--glance .client-finance-invoices button { font-size:15px; }
+.client-app--glance .client-finance-empty :is(p,strong) { font-size:15px;line-height:1.8; }
+.client-app--glance .client-transaction-main strong { font-size:19px; }
+.client-app--glance .client-transaction-main :is(span,small,p),.client-app--glance .client-transaction-status { font-size:14px;line-height:1.7; }
+@media(min-width:681px) and (max-width:1200px) { .client-app--glance .client-finance-obligation-grid { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:680px) {
+ .client-app--glance .client-finance-obligation-body { grid-template-columns:minmax(0,1fr); }
+ .client-app--glance .client-finance-obligation-card .client-finance-ring { width:150px; }
+ .client-app--glance .client-finance-obligation-card .client-finance-ring>div { width:103px; }
+ .client-app--glance .client-finance-obligation-card .client-finance-ring>div strong { font-size:24px; }
+ .client-app--glance .client-finance-obligation-card .client-finance-ring-values>div { display:flex;justify-content:space-between;gap:12px; }
+ .client-app--glance .client-finance-obligation-card .client-finance-ring-values dd { margin:0;text-align:end; }
+}
+
+.client-app--glance .client-finance-invoices dd.due-value { color:#89500f; }

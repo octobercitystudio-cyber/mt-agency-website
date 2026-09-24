@@ -13,7 +13,7 @@ $sql=preg_replace('/^\s*(?:UNIQUE KEY|KEY|CONSTRAINT).*\R/m','',$sql);
 $sql=str_replace('BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY','INTEGER PRIMARY KEY AUTOINCREMENT',$sql);
 $sql=preg_replace('/\b(?:BIGINT|SMALLINT) UNSIGNED\b/','INTEGER',$sql);$sql=preg_replace('/,\s*\) ENGINE[^;]+;/m',');',$sql);$pdo->exec($sql);
 $pdo->exec('CREATE UNIQUE INDEX studio_retry ON client_studio_booking_requests(organization_id,user_id,idempotency_key)');
-$signup=['altcha'=>verifiedBotProof($pdo),'name'=>'عميل التصوير','phone'=>'01012345678','job'=>'مهندس','password'=>'TestPass123','password_confirmation'=>'TestPass123'];registrationComplete($pdo,[],$signup);$client=$pdo->query('SELECT * FROM users')->fetch();$owner=['id'=>900,'organization_id'=>1,'role'=>'owner'];
+$signup=['altcha'=>verifiedBotProof($pdo),'first_name'=>'عميل','second_name'=>'حجز','last_name'=>'التصوير','phone'=>'01012345678','job'=>'مهندس','password'=>'TestPass123','password_confirmation'=>'TestPass123'];registrationComplete($pdo,[],$signup);$client=$pdo->query('SELECT * FROM users')->fetch();$owner=['id'=>900,'organization_id'=>1,'role'=>'owner'];
 $service=registrationService($pdo,1,101);
 $first=['date'=>'2030-01-09','start_time'=>'13:00','end_time'=>'15:00','duration_minutes'=>120,'resource_id'=>1];$second=array_replace($first,['date'=>'2030-01-10','start_time'=>'16:00','end_time'=>'17:00','duration_minutes'=>60]);
 $payload=['service_id'=>101,'service_terms_fingerprint'=>$service['terms_fingerprint'],'bookings'=>[$second,$first],'terms_accepted'=>true,'terms_version'=>REGISTRATION_TERMS_VERSION,'idempotency_key'=>'test-studio-request-001'];
@@ -52,7 +52,7 @@ failure('earlier_booking_pending',fn()=>decideStudioBookingRequest($pdo,$owner,$
 $pdo->exec("INSERT INTO bookings(id,organization_id,resource_id,date,start_time,end_time,status) VALUES(99,1,1,'2030-01-09','14:00:00','16:00:00','confirmed')");
 failure('booking_conflict',fn()=>decideStudioBookingRequest($pdo,$owner,$id,$dateDecision));
 check(countRows($pdo,'booking_slots')===0 && countRows($pdo,'package_usage_ledger')===1,'Conflict leaves pending date and held balance unchanged');$pdo->exec('DELETE FROM bookings WHERE id=99');
-$pdo->exec("INSERT INTO booking_blocks VALUES(1,1,1,'2030-01-09','13:00:00','15:00:00','active')");failure('booking_conflict',fn()=>decideStudioBookingRequest($pdo,$owner,$id,$dateDecision));$pdo->exec('DELETE FROM booking_blocks');
+$pdo->exec("INSERT INTO booking_blocks VALUES(1,1,1,'2030-01-09','13:00:00','15:00:00','active')");failure('temporary_booking_confirmation_required',fn()=>decideStudioBookingRequest($pdo,$owner,$id,$dateDecision));$pdo->exec('DELETE FROM booking_blocks');
 $confirmed=decideStudioBookingRequest($pdo,$owner,$id,$dateDecision);decideStudioBookingRequest($pdo,$owner,$id,$dateDecision);
 check(countRows($pdo,'bookings')===1 && countRows($pdo,'booking_slots')===8,'First two-hour appointment reserves exactly eight slots once');
 decideStudioBookingRequest($pdo,array_replace($owner,['role'=>'operations']),$id,array_replace($dateDecision,['booking_request_id'=>$dates[1]['id']]));

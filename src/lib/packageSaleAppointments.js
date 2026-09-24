@@ -1,3 +1,4 @@
+import { isBlockingBooking } from '../erp/bookingAvailability.js';
 import { formatDurationMinutes } from './businessFormat.js';
 
 const timeMinutes = value => {
@@ -46,7 +47,7 @@ export const packageCalendarWeek = (anchorDate, { startsAt = '', expiresAt = '',
   return Array.from({ length: shootingDate ? 1 : 7 }, (_, index) => {
     const date = shiftPackageCalendarDate(firstDate, index);
     const resourceMatches = item => !resourceId || Number(item.resource_id) === Number(resourceId);
-    const occupiedCount = occupied.filter(item => resourceMatches(item) && String(item.date).slice(0, 10) === date && ['confirmed', 'in_progress'].includes(item.status)).length;
+    const occupiedCount = occupied.filter(item => resourceMatches(item) && String(item.date).slice(0, 10) === date && isBlockingBooking(item)).length;
     const plannedCount = appointments.filter(item => resourceMatches(item) && String(item.date).slice(0, 10) === date).length;
     const outsidePackage = Boolean(startsAt && date < startsAt || expiresAt && date > expiresAt || shootingDate && date !== shootingDate);
     return { date, occupiedCount, plannedCount, disabled: date < todayKey || outsidePackage, outsidePackage };
@@ -66,7 +67,7 @@ export const packageAppointmentUsage = (appointments, unit, purchased) => {
 
 export const appointmentConflicts = (candidate, appointments = [], occupied = [], editIndex = -1) => {
   const overlaps = item => Number(item.resource_id) === Number(candidate.resource_id) && String(item.date).slice(0, 10) === candidate.date && String(item.start_time).slice(0, 5) < candidate.end_time && String(item.end_time).slice(0, 5) > candidate.start_time;
-  return appointments.some((item, index) => index !== editIndex && overlaps(item)) || occupied.some(item => ['confirmed', 'in_progress'].includes(item.status) && overlaps(item));
+  return appointments.some((item, index) => index !== editIndex && overlaps(item)) || occupied.some(item => isBlockingBooking(item) && overlaps(item));
 };
 
 export const validatePackageAppointment = (candidate, { unit = 'hour', minimumMinutes = 60, incrementMinutes = 15, startsAt = '', expiresAt = '', shootingDate = '', appointments = [], occupied = [], editIndex = -1, nowKey = cairoAppointmentNowKey() } = {}) => {

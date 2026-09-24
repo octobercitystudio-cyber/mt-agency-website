@@ -15,14 +15,14 @@
   "startUrl": "/login?source=android-app",
   "iconUrl": "https://multitaskagency.com/app-icon-512.png?v=104",
   "maskableIconUrl": "https://multitaskagency.com/app-icon-maskable.png?v=104",
-  "monochromeIconUrl": "https://multitaskagency.com/app-icon-monochrome.svg?v=104",
+  "monochromeIconUrl": "https://multitaskagency.com/app-icon-monochrome.png?v=105",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
     "alias": "mtagency"
   },
-  "appVersionCode": 5,
-  "appVersion": "1.0.4",
+  "appVersionCode": 6,
+  "appVersion": "1.0.5",
   "shortcuts": [
     {
       "name": "لوحة القيادة",

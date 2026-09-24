@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+function requireClientDayDuration(array $package,int $minutes): void {
+    if(($package['billing_unit']??'')==='hour'&&($package['validity_mode_snapshot']??'')==='shooting_day'&&$minutes!==authoritativePackageMinutes($package,'purchased'))fail('يجب حجز ساعات يوم التصوير كاملة في جلسة واحدة متصلة.',422,'daily_full_duration_required');
+}
+
 /** Locks all client-originated calendar writes for one customer, across packages. */
 function lockClientCalendar(PDO $pdo,int $org,int $client): void {
     $q=$pdo->prepare('SELECT id FROM clients WHERE id=? AND organization_id=? FOR UPDATE');$q->execute([$client,$org]);
@@ -38,10 +42,10 @@ function clientCalendarCapacity(PDO $pdo,int $org,string $from,string $to,?int $
     $q=$pdo->prepare('SELECT id FROM resources WHERE organization_id=? AND is_active=1'.($onlyResource?' AND id=?':'').($studiosOnly?" AND type='studio'":'').' ORDER BY id');
     $q->execute($onlyResource?[$org,$onlyResource]:[$org]);$resources=array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));$occupied=[];
     $mark=function($resource,$date,$start,$end)use(&$occupied){$a=businessTimeMinutes((string)$start);$b=businessTimeMinutes((string)$end,true);if($a<0||$b<=$a)return;for($m=(int)(floor($a/15)*15);$m<$b;$m+=15)$occupied[$date][(int)$resource][$m]=true;};
-    $q=$pdo->prepare("SELECT resource_id,date,start_time,end_time FROM bookings WHERE organization_id=? AND date BETWEEN ? AND ? AND id<>? AND status IN ('confirmed','in_progress','cancel_requested','late_cancel_requested')");$q->execute([$org,$from,$to,$excludeBooking]);foreach($q->fetchAll() as $r)$mark($r['resource_id'],$r['date'],$r['start_time'],$r['end_time']);
+    $q=$pdo->prepare("SELECT resource_id,date,start_time,end_time FROM bookings WHERE organization_id=? AND date BETWEEN ? AND ? AND id<>? AND status IN ('pending','alternative_proposed','confirmed','in_progress','cancel_requested','late_cancel_requested')");$q->execute([$org,$from,$to,$excludeBooking]);foreach($q->fetchAll() as $r)$mark($r['resource_id'],$r['date'],$r['start_time'],$r['end_time']);
     if(bookingBlockSchemaReady($pdo)){$q=$pdo->prepare("SELECT resource_id,block_date,start_time,end_time FROM booking_blocks WHERE organization_id=? AND block_date BETWEEN ? AND ? AND status='active'");$q->execute([$org,$from,$to]);foreach($q->fetchAll() as $r)$mark($r['resource_id'],$r['block_date'],$r['start_time'],$r['end_time']);}
     if(schemaTableExists($pdo,'booking_slots')){
-        $q=$pdo->prepare("SELECT bs.resource_id,bs.slot_date,bs.slot_start FROM booking_slots bs JOIN bookings b ON b.id=bs.booking_id AND b.organization_id=bs.organization_id WHERE bs.organization_id=? AND bs.slot_date BETWEEN ? AND ? AND b.id<>? AND b.status IN ('confirmed','in_progress','cancel_requested','late_cancel_requested')");$q->execute([$org,$from,$to,$excludeBooking]);foreach($q->fetchAll() as $r){$m=businessTimeMinutes($r['slot_start']);if($m>=0)$occupied[$r['slot_date']][(int)$r['resource_id']][$m]=true;}
+        $q=$pdo->prepare("SELECT bs.resource_id,bs.slot_date,bs.slot_start FROM booking_slots bs JOIN bookings b ON b.id=bs.booking_id AND b.organization_id=bs.organization_id WHERE bs.organization_id=? AND bs.slot_date BETWEEN ? AND ? AND b.id<>? AND b.status IN ('pending','alternative_proposed','confirmed','in_progress','cancel_requested','late_cancel_requested')");$q->execute([$org,$from,$to,$excludeBooking]);foreach($q->fetchAll() as $r){$m=businessTimeMinutes($r['slot_start']);if($m>=0)$occupied[$r['slot_date']][(int)$r['resource_id']][$m]=true;}
     }
     if(bookingBlockSchemaReady($pdo)&&schemaColumnExists($pdo,'booking_slots','booking_block_id')){
         $q=$pdo->prepare("SELECT bs.resource_id,bs.slot_date,bs.slot_start FROM booking_slots bs JOIN booking_blocks bb ON bb.id=bs.booking_block_id AND bb.organization_id=bs.organization_id WHERE bs.organization_id=? AND bs.slot_date BETWEEN ? AND ? AND bb.status='active'");$q->execute([$org,$from,$to]);foreach($q->fetchAll() as $row){$m=businessTimeMinutes($row['slot_start']);if($m>=0)$occupied[$row['slot_date']][(int)$row['resource_id']][$m]=true;}
@@ -76,6 +80,7 @@ function clientPackageCalendar(PDO $pdo,array $user,int $packageId,int $duration
     if($packageId){$q=$pdo->prepare("SELECT cp.* FROM client_packages cp JOIN services s ON s.id=cp.service_id AND s.organization_id=cp.organization_id AND s.is_active=1 WHERE cp.id=? AND cp.client_id=? AND cp.organization_id=? AND cp.status='active'");$q->execute([$packageId,$client,$org]);$package=$q->fetch();if(!$package)fail('الباقة غير فعالة أو لا تخص هذا الحساب.',404,'invalid_package');
         $starts=substr((string)($package['starts_at']??''),0,10);$expires=substr((string)($package['expires_at']??''),0,10);if(($starts===''||$expires==='')&&($starts!==''||$expires!==''))fail('بيانات صلاحية الباقة غير مكتملة.',409,'package_validity_incomplete');
         $available=packageAvailableQuantity($package)-clientPendingPackageQuantity($pdo,$org,$client,$packageId,$bookingId);
+        requireClientDayDuration($package,$duration);
         if($booking)$available+=bookingHeldQuantity($pdo,$bookingId,$packageId);
         if(!in_array($package['billing_unit'],['hour','reel'],true))fail('الباقة لا تدعم حجز التصوير.',422,'unsupported_booking_package');
         if(($package['billing_unit']==='hour'&&$available*60+.001<$duration)||($package['billing_unit']==='reel'&&$available<1))fail('رصيد الباقة بعد الطلبات المنتظرة لا يكفي للمدة المطلوبة.',422,'insufficient_package_balance');
@@ -85,7 +90,7 @@ function clientPackageCalendar(PDO $pdo,array $user,int $packageId,int $duration
     return ['package'=>$package?['id'=>(int)$package['id'],'name'=>$package['name'],'billing_unit'=>$package['billing_unit'],'available_quantity'=>max(0,$available),'starts_at'=>$package['starts_at'],'expires_at'=>$package['expires_at'],'minimum_booking_minutes'=>60,'booking_increment_minutes'=>30]:null,'duration_minutes'=>$duration,'server_time'=>cairoNow()->format(DATE_ATOM),'booking_policy'=>clientBookingPolicy(),'days'=>clientCalendarDays($capacity,$own,$from,$days,$duration,$package,(bool)$booking)];
 }
 function clientStudioCalendar(PDO $pdo,array $user,int $serviceId,int $duration,string $startDate,int $days): array {
-    [$from,$to]=clientCalendarWindow($startDate,$days,$duration);$org=(int)$user['organization_id'];$service=registrationService($pdo,$org,$serviceId);if($duration>(int)round($service['total_hours']*60))fail('المدة تتجاوز ساعات الباقة.',422,'insufficient_package_balance');
+    [$from,$to]=clientCalendarWindow($startDate,$days,$duration);$org=(int)$user['organization_id'];$service=registrationService($pdo,$org,$serviceId);if(($service['kind']??'')!=='hourly'&&$duration>(int)round($service['total_hours']*60))fail('المدة تتجاوز ساعات الباقة.',422,'insufficient_package_balance');
     $capacity=clientCalendarCapacity($pdo,$org,$from,$to,null,0,true);$own=clientCalendarDates($pdo,$org,(int)$user['client_id'],$from,$to);
     return ['duration_minutes'=>$duration,'server_time'=>cairoNow()->format(DATE_ATOM),'booking_policy'=>clientBookingPolicy(),'days'=>clientCalendarDays($capacity,$own,$from,$days,$duration)];
 }

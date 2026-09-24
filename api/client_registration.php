@@ -85,14 +85,14 @@ function registrationService(PDO $pdo,int $org,int $id,bool $includeRetired=fals
 }
 
 function registrationAvailability(PDO $pdo,int $org,array $service,string $date,int $duration): array {
-    if($duration<60 || $duration>600 || $duration%30!==0 || $duration>(int)round($service['total_hours']*60)) fail('مدة التصوير لا تتوافق مع ساعات الباقة أو فترة العمل.',422,'invalid_booking_duration');
+    if($duration<60 || $duration>600 || $duration%30!==0 || (($service['kind']??'')!=='hourly'&&$duration>(int)round($service['total_hours']*60))) fail('مدة التصوير لا تتوافق مع ساعات الباقة أو فترة العمل.',422,'invalid_booking_duration');
     $zone=new DateTimeZone('Africa/Cairo');$day=DateTimeImmutable::createFromFormat('!Y-m-d',$date,$zone);$now=cairoNow();
     if(!$day || $day->format('Y-m-d')!==$date || $day<$now->setTime(0,0) || $day>$now->modify('+3 years')) fail('اختر تاريخًا صحيحًا في المستقبل.',422,'invalid_booking_date');
     if($dateError=clientBookingDateError($date,$now))fail($dateError[1],422,$dateError[0]);
     $slots=[];$result=['date'=>$date,'duration_minutes'=>$duration,'available'=>false,'slots'=>[],'booking_policy'=>clientBookingPolicy()];
     if($day->format('w')==='5') return $result;
     $resources=$pdo->prepare("SELECT id FROM resources WHERE organization_id=? AND type='studio' AND is_active=1 ORDER BY id");$resources->execute([$org]);$resourceIds=array_map('intval',$resources->fetchAll(PDO::FETCH_COLUMN));
-    $occupied=$pdo->prepare("SELECT resource_id,start_time,end_time FROM bookings WHERE organization_id=? AND date=? AND status IN ('confirmed','in_progress','cancel_requested','late_cancel_requested')");$occupied->execute([$org,$date]);$intervals=$occupied->fetchAll();
+    $occupied=$pdo->prepare("SELECT resource_id,start_time,end_time FROM bookings WHERE organization_id=? AND date=? AND status IN ('pending','alternative_proposed','confirmed','in_progress','cancel_requested','late_cancel_requested')");$occupied->execute([$org,$date]);$intervals=$occupied->fetchAll();
     if(bookingBlockSchemaReady($pdo)){$blocks=$pdo->prepare("SELECT resource_id,start_time,end_time FROM booking_blocks WHERE organization_id=? AND block_date=? AND status='active'");$blocks->execute([$org,$date]);$intervals=array_merge($intervals,$blocks->fetchAll());}
     for($start=720;$start+$duration<=1320;$start+=60){
         $format=fn(int $value)=>sprintf('%02d:%02d',intdiv($value,60),$value%60);$from=$format($start);$to=$format($start+$duration);

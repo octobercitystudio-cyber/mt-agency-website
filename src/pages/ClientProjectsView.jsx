@@ -12,14 +12,14 @@ const MILESTONE_STATUS = { pending: 'قادمة', active: 'المرحلة الح
 const safeDate = value => value ? formatBookingDate(String(value).slice(0, 10)) : 'غير محدد';
 const progressFor = project => Math.min(100, Math.max(0, Number(project.progress_percent || 0)));
 
-export default function ClientProjectsView({ client, packages = [], projects = [], onBookPackage }) {
+export default function ClientProjectsView({ client, packages = [], projects = [] }) {
   const active = projects.filter(project => ['planning', 'active', 'on_hold'].includes(project.status)).length;
   const average = projects.length ? Math.round(projects.reduce((sum, project) => sum + progressFor(project), 0) / projects.length) : 0;
   const outstanding = projects.reduce((sum, project) => sum + Number(project.financial?.remaining ?? Math.max(0, Number(project.agreed_price || 0) - Number(project.paid_amount || 0))), 0);
 
   return <section className="client-view client-projects-view" aria-labelledby="client-projects-title">
     <div className="client-page-title client-projects-title"><span>باقاتك وخدماتك</span><h2 id="client-projects-title">الباقات والخدمات</h2><p>افتح التفاصيل التي تحتاجها فقط، وتابع مشروعاتك من مكان واحد.</p></div>
-    <ClientPackageCards packages={packages} points={client?.points} onBookPackage={onBookPackage}/>
+    <ClientPackageCards packages={packages} points={client?.points}/>
     <div className="client-projects-subtitle"><span>الخدمات المخصصة</span><h2>المشروعات الجارية</h2></div>
     <section className="client-project-summary" aria-label="ملخص المشروعات">
       <article><FolderKanban/><div><span>مشروعات نشطة</span><strong>{active.toLocaleString('ar-EG')}</strong></div></article>

@@ -39,9 +39,9 @@
       "purpose": "maskable"
     },
     {
-      "src": "/app-icon-monochrome.svg?v=104",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
+      "src": "/app-icon-monochrome.png?v=105",
+      "sizes": "96x96",
+      "type": "image/png",
       "purpose": "monochrome"
     }
   ],

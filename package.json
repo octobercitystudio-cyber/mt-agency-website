@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "vite build && node scripts/generate-public-seo.mjs",
     "seo:indexnow": "node scripts/submit-indexnow.mjs",
-    "android:update": "cd android-twa && bubblewrap update --skipVersionUpgrade --manifest=twa-manifest.json",
-    "android:build": "cd android-twa && bubblewrap build --manifest=twa-manifest.json",
+    "android:update": "cd android-twa && bubblewrap update --skipVersionUpgrade --manifest=twa-manifest.json && node ../scripts/sync-android-notification-icons.mjs",
+    "android:build": "npm run android:icons && cd android-twa && bubblewrap build --manifest=twa-manifest.json",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:icons": "node scripts/sync-android-notification-icons.mjs"
   },
   "dependencies": {
     "@fullcalendar/daygrid": "^6.1.20",

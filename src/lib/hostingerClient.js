@@ -20,6 +20,7 @@ const toError = (payload, fallback = 'تعذر الاتصال بالخادم.') 
     ? `${baseMessage} رقم المتابعة: ${requestId}`
     : baseMessage);
   error.code = source?.code || 'api_error';
+  error.confirmationToken = source?.confirmation_token;
   error.status = source?.status;
   error.requestId = requestId;
   return error;

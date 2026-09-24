@@ -111,7 +111,7 @@ test('demo booking blocks are atomic, idempotent, scoped, and side-effect free',
 
   const bookingsBeforeBlockedCreate = (await demoClient.from('bookings').select('*')).data.length;
   const blockedBooking = await demoClient.request('/bookings/request', { method: 'POST', body: JSON.stringify({ client_id: 1, client_package_id: 201, service_id: 101, resource_id: 1, date: singleBody.date, start_time: '15:00', end_time: '16:00', status: 'confirmed' }) });
-  assert.equal(blockedBooking.error?.code, 'booking_conflict');
+  assert.equal(blockedBooking.error?.code, 'temporary_booking_confirmation_required');
   assert.equal((await demoClient.from('bookings').select('*')).data.length, bookingsBeforeBlockedCreate);
 
   const missingRepeatEnd = await demoClient.request('/booking-blocks', { method: 'POST', body: JSON.stringify({ date: '2027-03-01', start_time: '14:00', end_time: '15:00', resource_id: 1, repeat_daily: true, idempotency_key: 'block-test-repeat-missing' }) });

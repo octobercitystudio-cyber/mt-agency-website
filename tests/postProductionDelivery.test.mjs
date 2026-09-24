@@ -61,7 +61,7 @@ test('production settlement creates one job safely and the API enforces versione
   assert.match(module, /org-' \. \$organizationId \. '-job-' \. \$jobId \. '\.json'/);
   assert.match(module, /pickupLock\(\$file\).*readPickupAvailability\(\$config, \$organizationId, \$jobId, false\).*\$latest\['revision'\].*\$observedRevision/s);
   assert.match(module, /chmod\(\$file,0600\)/);
-  assert.match(api, /payload_json FROM app_notifications/);
+  assert.match(api, /\$safeColumns='[^']*payload_json[^']*';\$stmt=\$pdo->prepare\("SELECT \$safeColumns FROM app_notifications WHERE /);
   assert.match(api, /post_production_job_id.*FILTER_VALIDATE_INT.*['"]&['"].*job=/s);
   assert.match(config, /private_runtime_dir/);
 });
@@ -118,7 +118,7 @@ test('demo matches owner and client post-production contracts end to end', async
   assert.equal(clientList.error, null); assert.ok(clientList.data.items.every(item => Number(item.id) !== 1902));
   assert.ok(clientList.data.items.every(item => ['history', 'valid_next_statuses', 'client_id', 'booking_session_id', 'created_by', 'updated_by', 'needs_review', 'is_client_visible', 'version'].every(field => !Object.hasOwn(item, field))));
   const ready = clientList.data.items.find(item => Number(item.id) === 1901); assert.equal(ready.delivery_links.length, 1); assert.match(ready.delivery_links[0].url, /^https:\/\/drive\.google\.com\//);
-  assert.ok(ready.delivery_links[0].available_until); assert.equal(ready.delivery_link_count, ready.delivery_links.length); assert.equal(ready.pickup_availability.windows.length, 1);
+  assert.ok(ready.delivery_links[0].available_until); assert.equal(ready.delivery_link_count, ready.delivery_links.length); assert.equal(ready.pickup_availability, undefined);
   const otherClientPickup = await demoClient.request('/post-production/1902/pickup-availability', { method: 'GET' }); assert.equal(otherClientPickup.error.code, 'post_production_not_found');
   deactivateDemoMode();
 });
@@ -129,8 +129,8 @@ test('owner and client interfaces expose responsive tabs, safe deep links, statu
   ]);
   assert.match(app, /path="post-production"/); assert.match(app, /ERPPostProduction/);
   assert.match(layout, /\/erp\/post-production/); assert.match(layout, /المونتاج والتسليم/);
-  for (const copy of ['العمل النشط', 'التفاصيل والتحكم', 'روابط Google Drive', 'تاريخ الحالات', 'فترة استلام هذه المهمة']) assert.ok(owner.includes(copy), copy);
-  assert.match(owner, /expected_version/); assert.match(owner, /expected_revision/); assert.match(owner, /valid_next_statuses/);
+  for (const copy of ['العمل النشط', 'التفاصيل والتحكم', 'روابط Google Drive', 'تاريخ الحالات']) assert.ok(owner.includes(copy), copy);
+  assert.match(owner, /expected_version/); assert.match(owner, /CompanyPickupScheduleEditor/); assert.match(owner, /valid_next_statuses/);
   assert.match(owner, /OwnerProgressRail/); assert.match(ownerCss, /owner-production-rail/);
   assert.match(ownerCss, /@media\(max-width:1100px\)/); assert.match(ownerCss, /@media\(max-width:768px\)/); assert.match(ownerCss, /@media\(max-width:430px\)/);
   for (const tab of ['home', 'schedule', 'packages', 'finance', 'offers', 'videos', 'security', 'requests', 'projects', 'history', 'book-studio']) assert.ok(dashboard.slice(dashboard.indexOf('const CLIENT_TABS'), dashboard.indexOf('const previewDate')).includes(`'${tab}'`));
@@ -139,11 +139,13 @@ test('owner and client interfaces expose responsive tabs, safe deep links, statu
   assert.match(login, /safeClientDestination/);
   const authDestination = await load('src/lib/clientAuthDestination.js');
   assert.match(authDestination, /returnTo/); assert.match(authDestination, /CLIENT_TABS\.includes\(tab\)/);
-  for (const copy of ['تسليمات الفيديوهات', 'المدة المصورة', 'فترة الاستلام من مقر الشركة', 'روابط الفيديوهات', 'برجاء التحميل في خلال 48 ساعة من الرفع ويتم حذف الروابط بشكل تلقائي ويمكنكم استلامها من مقر الشركة فيما بعد في مدة اقصاها اسبوع من تاريخ التصوير']) assert.ok(client.includes(copy), copy);
-  assert.match(client, /target="_blank" rel="noopener noreferrer"/); assert.match(client, /useChangeSync/); assert.match(client, /30000/); assert.match(client, /pickup_availability/); assert.match(client, /available_until/);
+  for (const copy of ['تسليمات الفيديوهات', 'المدة المصورة', 'روابط الفيديوهات', 'برجاء التحميل في خلال 48 ساعة من الرفع ويتم حذف الروابط بشكل تلقائي ويمكنكم استلامها من مقر الشركة فيما بعد في مدة اقصاها اسبوع من تاريخ التصوير']) assert.ok(client.includes(copy), copy);
+  assert.match(client, /target="_blank" rel="noopener noreferrer"/); assert.match(client, /useChangeSync/); assert.match(client, /30000/); assert.match(client, /pickup_schedule/); assert.match(client, /CompanyPickupSchedule schedule=\{pickupSchedule\}/); assert.doesNotMatch(client, /job\.pickup_availability/); assert.match(client, /available_until/);
   assert.match(clientCss, /@media\(max-width:680px\)/); assert.match(clientCss, /@media\(max-width:350px\)/);
   assert.match(notifications, /'upload_completed'.*'videos'/s); assert.match(notifications, /'editing_completed'.*'videos'/s); assert.doesNotMatch(notifications, /'editing_completed'.*'montage'/s);
-  assert.match(owner, /post-production\/\$\{selected\.id\}\/pickup-availability/); assert.doesNotMatch(owner, /request\('\/pickup-availability'/); assert.match(owner, /resetPickupEditor/);
+  const pickupEditor = await load('src/erp/CompanyPickupScheduleEditor.jsx');
+  assert.match(pickupEditor, /post-production\/pickup-schedule/); assert.match(pickupEditor, /expected_revision/);
+  assert.doesNotMatch(owner, /pickup-availability|resetPickupEditor|<PickupEditor/);
 });
 
 test('production-like database transactions roll back status, history and notifications together', async t => {

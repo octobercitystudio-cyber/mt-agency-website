@@ -3,9 +3,9 @@ declare(strict_types=1);
 // Executes production registration and approval functions against an isolated in-memory
 // database. MySQL locking syntax is removed here; MySQL concurrency still relies on
 // transaction locks plus the production booking_slots unique constraint.
-final class ApiFailure extends RuntimeException {public function __construct(public string $apiCode,public int $status){parent::__construct($apiCode);}}
+final class ApiFailure extends RuntimeException {public function __construct(public string $apiCode,public int $status,public array $details=[]){parent::__construct($apiCode);}}
 final class ApiResponse extends RuntimeException {public function __construct(public array $data){parent::__construct('response');}}
-function fail(string $message,int $status=400,string $code='error'): never {throw new ApiFailure($code,$status);}
+function fail(string $message,int $status=400,string $code='error',array $details=[]): never {throw new ApiFailure($code,$status,$details);}
 function respond(array $data,int $status=200): never {throw new ApiResponse($data);}
 function body():array{return $GLOBALS['routePayload']??[];}
 function cairoNow():DateTimeImmutable{return new DateTimeImmutable('2030-01-01 10:00:00',new DateTimeZone('Africa/Cairo'));}
@@ -40,6 +40,7 @@ function loadFunctions(string $file,array $names):void{
  }
  foreach($names as $name)if(!function_exists($name))throw new RuntimeException('Missing '.$name);
 }
+require __DIR__.'/../api/booking_conflicts.php';
 loadFunctions(__DIR__.'/../api/index.php',['normalizeBusinessTime','businessTimeMinutes','bookingDurationMinutes','validateClientBookingTimeGrid','validBusinessBooking','normalizePhone','validClientPassword','authLimitKey','normalizedStudioPackageUnit','isStudioPackageOfferItem','packageMoneyCents','packageMoney','arabicDurationMinutes','authoritativePackageMinutes','mutateLockedPackageQuantities','packageAvailableQuantity','insertPackageUsage','validateBookingSchedule','activatePackageOnFirstBooking','packageValidityEnd','reserveBookingSlots']);
 loadFunctions(__DIR__.'/../api/session_settlement.php',['settlementHours']);
 require __DIR__.'/../api/client_contacts.php';

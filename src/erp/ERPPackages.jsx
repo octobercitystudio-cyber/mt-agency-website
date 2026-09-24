@@ -1,3 +1,4 @@
+import { isBlockingBooking } from './bookingAvailability';
 import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeftRight, CalendarCheck2, CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, Clock3, Edit3, History, PackageCheck, PackagePlus, Plus, ReceiptText, RefreshCw, Search, ShieldAlert, TimerReset, Trash2, WalletCards, X } from 'lucide-react';
@@ -30,7 +31,7 @@ import { organizeClientPackageGroups } from './packageContinuity';
 import PackageWorkbench from './PackageWorkbench';
 
 const today = () => cairoDateKey();
-const initialForm = { client_id: '', service_id: '', name: '', billing_unit: 'hour', validity_mode_snapshot: 'rolling', starts_at: '', shooting_date: '', expires_at: '', quantity: '', validity_days: 90, payment_due_quantity: 0, deposit_percent_snapshot: 0, overage_price_snapshot: 0, total_price: '', paid_amount: 0, payment_method: 'cash', notes: '' };
+const initialForm = { loyalty_enabled: false, client_id: '', service_id: '', name: '', billing_unit: 'hour', validity_mode_snapshot: 'rolling', starts_at: '', shooting_date: '', expires_at: '', quantity: '', validity_days: 90, payment_due_quantity: 0, deposit_percent_snapshot: 0, overage_price_snapshot: 0, total_price: '', paid_amount: 0, payment_method: 'cash', notes: '' };
 const initialAppointment = (resourceId = '') => ({ resource_id: resourceId, date: today(), start_time: '12:00', end_time: '13:00', requested_quantity: 1, notes: '' });
 const initialModal = { open: false, type: 'details', pkg: null, name: '', notes: '', starts_at: '', expires_at: '', status: 'active', target_quantity: '', target_total_price: '', target_paid_amount: '', payment_method: 'cash', reason: '', destructiveConfirmed: false, deleteConfirmation: '', audit: [], auditLoading: false };
 const STATUS = { active: [formatPackageStatus('active'), 'active'], expired: [formatPackageStatus('expired'), 'expired'], suspended: [formatPackageStatus('suspended'), 'suspended'], completed: [formatPackageStatus('completed'), 'completed'], draft: [formatPackageStatus('draft'), 'draft'], cancelled: [formatPackageStatus('cancelled'), 'cancelled'], archived: [formatPackageStatus('archived'), 'archived'] };
@@ -331,7 +332,7 @@ export default function ERPPackages() {
       starts_at: anchoredDraft.starts_at, shooting_date: anchoredDraft.shooting_date, quantity: Number(form.quantity), validity_days: Number(form.validity_days),
       expires_at: anchoredDraft.expires_at, payment_due_quantity: Number(form.payment_due_quantity), deposit_percent_snapshot: Number(form.deposit_percent_snapshot),
       overage_price_snapshot: Number(form.overage_price_snapshot), total_price: Number(form.total_price), paid_amount: Number(form.paid_amount),
-      payment_method: form.payment_method, notes: form.notes, bookings: normalizePackageSaleAppointments(saleBookings), idempotency_key: packageRequestKeyRef.current,
+      payment_method: form.payment_method, loyalty_enabled: Boolean(form.loyalty_enabled), notes: form.notes, bookings: normalizePackageSaleAppointments(saleBookings), idempotency_key: packageRequestKeyRef.current,
     }) });
     setFormBusy(false);
     if (requestError) return setError(safeUiError(requestError, 'تعذر إضافة الباقة للعميل.'));
@@ -426,7 +427,7 @@ function AddPackageDialog({ dialogRef, requestError, form, errors, clients, serv
   const daily = form.validity_mode_snapshot === 'shooting_day';
   const [calendarAnchor, setCalendarAnchor] = useState(appointment.date || today());
   const resourceName = id => resources.find(resource => Number(resource.id) === Number(id))?.name || 'الاستديو';
-  const occupiedForSelection = calendarBookings.filter(item => Number(item.resource_id) === Number(appointment.resource_id) && String(item.date).slice(0, 10) === appointment.date && ['confirmed', 'in_progress'].includes(item.status));
+  const occupiedForSelection = calendarBookings.filter(item => Number(item.resource_id) === Number(appointment.resource_id) && String(item.date).slice(0, 10) === appointment.date && isBlockingBooking(item));
   const calendarDays = useMemo(() => packageCalendarWeek(calendarAnchor, { startsAt: anchoredDraft.starts_at, expiresAt: expiry === '—' ? '' : expiry, shootingDate: daily ? anchoredDraft.shooting_date : '', resourceId: appointment.resource_id, occupied: calendarBookings, appointments }), [calendarAnchor, anchoredDraft.starts_at, anchoredDraft.shooting_date, expiry, daily, appointment.resource_id, calendarBookings, appointments]);
   const calendarLabel = calendarDays.length ? `${calendarDays[0].date} — ${calendarDays.at(-1).date}` : '';
   const chooseCalendarDay = day => { if (day.disabled) return; setCalendarAnchor(day.date); onAppointment(current => ({ ...current, date: day.date })); };
@@ -457,6 +458,7 @@ function AddPackageDialog({ dialogRef, requestError, form, errors, clients, serv
           <label>المبلغ المدفوع<span className="packages-quick-money-input"><input aria-invalid={Boolean(errors.paid_amount || moneyError)} type="number" min="0" step="0.01" inputMode="decimal" max={form.total_price || undefined} value={form.paid_amount} onChange={event => onField('paid_amount', event.target.value)}/><span>ج.م</span></span>{errorFor('paid_amount')}</label>
           <label>طريقة الدفع<select aria-invalid={Boolean(errors.payment_method)} value={form.payment_method} onChange={event => onField('payment_method', event.target.value)}>{Object.entries(PAYMENT_METHODS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{errorFor('payment_method')}</label>
         </div>
+        <label className="package-loyalty-toggle"><input type="checkbox" role="switch" checked={Boolean(form.loyalty_enabled)} disabled={busy || !selectedTemplate} onChange={event => onField('loyalty_enabled', event.target.checked)}/><span><strong>نقاط الولاء {form.loyalty_enabled ? 'مفعّلة' : 'غير مفعّلة'}</strong><small>تُحتسب على المبالغ المسددة فعليًا. تتفعّل تلقائيًا للباقات الشهرية ويمكن تغييرها.</small></span></label>
         <div className={'packages-quick-balance' + (moneyError ? ' is-invalid' : '')} aria-live="polite"><span>المتبقي على العميل</span><strong>{outstanding}</strong><span>ج.م</span><small>{moneyError || 'يمكن استكمال الدفع في أي وقت.'}</small></div>
       </section>
       <details ref={advancedRef} className="packages-progressive-section packages-quick-advanced">

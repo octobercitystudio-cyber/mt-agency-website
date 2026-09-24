@@ -1,4 +1,4 @@
-import { calculateDurationMinutes } from './businessFormat.js';
+import { moneyToCents, centsToMoney, calculateDurationMinutes } from './businessFormat.js';
 import { clientBookingDateError } from './clientBookingDate.js';
 import { cairoDateTimeToEpoch } from './promotionTime.js';
 import { clientWindowError, isClientBookingDateClosed } from './registrationPolicy.js';
@@ -7,7 +7,17 @@ export const STUDIO_PROOF_MAX_BYTES = 5 * 1024 * 1024;
 export const STUDIO_SUCCESS_MESSAGE = 'تم إرسال طلبك بنجاح، وبانتظار تأكيد الحجز خلال ساعة من ساعات العمل الرسمية: من 12 ظهرًا إلى 10 مساءً، والجمعة إجازة.';
 export const sortedStudioBookings = rows => [...rows].sort((a, b) => `${a.date} ${a.start_time}`.localeCompare(`${b.date} ${b.start_time}`));
 export const studioSelectedMinutes = rows => rows.reduce((sum, row) => sum + Number(row.duration_minutes || 0), 0);
-export const validateStudioBookings = (service, bookings, requireOne = true) => {
+export const studioPurchaseSelection = (service, hours) => {
+  if (!service || service.kind !== 'hourly') return service;
+  if (!Number.isSafeInteger(Number(hours)) || Number(hours) < 1 || Number(hours) > 300) return null;
+  const price = Math.round(moneyToCents(service.price) * Number(hours) / Number(service.total_hours));
+  return { ...service, total_hours: Number(hours), price: centsToMoney(price), deposit_amount: centsToMoney(Math.ceil(price / 2)), payment_due_hours: 0, payment_due_text: 'يُسدد باقي تكلفة كل يوم تصوير بالتنسيق مع الإدارة.', hourly_day_allocation: true };
+};
+export const studioDayShares = (service, bookings) => {
+  const total = studioSelectedMinutes(bookings), price = moneyToCents(service.price), paid = moneyToCents(service.deposit_amount); let minutes = 0, priorPrice = 0, priorPaid = 0;
+  return sortedStudioBookings(bookings).map(row => { minutes += Number(row.duration_minutes); const nextPrice = Math.round(price * minutes / total), nextPaid = Math.round(paid * minutes / total); const result = { ...row, price: centsToMoney(nextPrice - priorPrice), paid: centsToMoney(nextPaid - priorPaid) }; priorPrice = nextPrice; priorPaid = nextPaid; return result; });
+};
+export const validateStudioBookings = (service, bookings, requireOne = true, complete = true) => {
   if (!service) return 'اختر باقة تصوير أولًا.';
   if (!bookings.length) return requireOne ? 'أضف موعد تصوير واحدًا على الأقل.' : '';
   if (bookings.length > 30) return 'الحد الأقصى 30 موعدًا في الطلب الواحد.';
@@ -18,9 +28,12 @@ export const validateStudioBookings = (service, bookings, requireOne = true) => 
     const dateError = clientBookingDateError(row.date); if (dateError) return dateError;
     const duration = Number(row.duration_minutes); if (!Number.isInteger(duration) || duration < 60 || duration % 30 || duration !== calculateDurationMinutes(row.start_time, row.end_time)) return 'راجع مدة الموعد ووقت بدايته ونهايته.';
     if ((service.kind === 'daily' || service.package_validity_mode === 'shooting_day') && row.date !== first) return 'مواعيد الباقة اليومية يجب أن تكون في يوم واحد.';
-    if (row.date > endDate) return 'أحد المواعيد خارج صلاحية الباقة، المحسوبة من أول موعد مقترح.';
+    if (service.kind !== 'hourly' && row.date > endDate) return 'أحد المواعيد خارج صلاحية الباقة، المحسوبة من أول موعد مقترح.';
     if (sorted.slice(0, index).some(prior => prior.date === row.date)) return 'يمكن حجز فترة واحدة متصلة فقط في اليوم. عدّل مدة الموعد بدل إضافة فترة أخرى.';
   }
+  const remaining = Math.round(Number(service.total_hours) * 60) - studioSelectedMinutes(sorted);
+  if (!complete && service.kind === 'hourly' && remaining > 0 && remaining < 60) return 'هذا التقسيم يترك أقل من ساعة. عدّل المدة ليكون كل يوم ساعة على الأقل.';
+  if (complete && (service.kind === 'daily' || service.package_validity_mode === 'shooting_day' || service.kind === 'hourly') && studioSelectedMinutes(sorted) < Math.round(Number(service.total_hours) * 60)) return service.kind === 'hourly' ? 'وزّع كل الساعات المختارة على المواعيد قبل المتابعة، بحد أدنى ساعة في اليوم.' : 'يجب حجز ساعات الباقة اليومية كاملة في جلسة واحدة متصلة في يوم واحد.';
   return studioSelectedMinutes(sorted) > Math.round(Number(service.total_hours) * 60) ? 'إجمالي المواعيد يتجاوز ساعات الباقة. قلّل المدة أو احذف موعدًا.' : '';
 };
 export const validateStudioProof = file => !file ? 'أرفق صورة إيصال التحويل لإرسال الطلب.' : !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ? 'الصورة يجب أن تكون JPEG أو PNG أو WebP.' : file.size <= 0 || file.size > STUDIO_PROOF_MAX_BYTES ? 'حجم الصورة يجب ألا يتجاوز 5 ميجابايت.' : '';

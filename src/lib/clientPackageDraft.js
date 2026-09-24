@@ -1,3 +1,4 @@
+import { monthlyPackageLoyalty } from './packageLoyalty.js';
 import { normalizePaymentMethod } from './paymentMethods.js';
 import { moneyToCents, centsToMoney } from './businessFormat.js';
 
@@ -78,6 +79,7 @@ export const templateToPackageDraft = (service, { clientId = '', startsAt = '' }
     paid_amount: 0,
     payment_method: 'cash',
     notes: '',
+    loyalty_enabled: monthlyPackageLoyalty(service),
   };
   if (draft.validity_mode_snapshot === 'shooting_day') { draft.shooting_date = startsAt; draft.starts_at = startsAt; draft.validity_days = 1; }
   return { ...draft, expires_at: packageDraftExpiry(draft) };
@@ -89,7 +91,7 @@ export const resetPackageDraftToTemplate = (draft, service, { startsAt = draft?.
 });
 
 const comparableDraft = draft => ({
-  name: text(draft?.name), billing_unit: text(draft?.billing_unit), quantity: number(draft?.quantity),
+  loyalty_enabled: Boolean(draft?.loyalty_enabled), name: text(draft?.name), billing_unit: text(draft?.billing_unit), quantity: number(draft?.quantity),
   starts_at: text(draft?.starts_at), shooting_date: text(draft?.shooting_date), validity_mode_snapshot: text(draft?.validity_mode_snapshot), validity_days: number(draft?.validity_days),
   payment_due_quantity: number(draft?.payment_due_quantity), deposit_percent_snapshot: number(draft?.deposit_percent_snapshot),
   overage_price_snapshot: money(draft?.overage_price_snapshot), total_price: money(draft?.total_price),

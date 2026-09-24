@@ -12,3 +12,31 @@
 
 /* Light dashboard shell; purple tickets remain the single branded feature surface. */
 .client-app--calm .client-offer-summary{border-color:#e1dbd1;background:#e1dbd1}.client-app--calm .client-offer-summary article{background:#fffefa}.client-app--calm .client-offer-summary strong{color:#171a27}.client-app--calm .client-offer-summary span{color:#6f707a}.client-app--calm .client-offer-state{border-color:#d9d2c9;background:#fffefa;color:#6f707a}.client-app--calm .client-offer-state :is(h3,p){color:#171a27}.client-app--calm .client-offer-state svg{color:#6d32dc}
+
+
+/* The purple offer ticket stays branded; its surrounding pages and dialogs stay light. */
+.client-app--glance .client-offer-summary article,.client-app--glance .client-offer-state { background:var(--client-panel);border-color:var(--client-border); }
+.client-app--glance .client-offer-summary strong { color:var(--client-text);font-size:28px; }
+.client-app--glance .client-offer-summary span,.client-app--glance .client-offer-state p { color:var(--client-muted);font-size:15px;line-height:1.8; }
+.client-app--glance .client-offer-state h3 { color:var(--client-text);font-size:20px; }
+.client-app--glance .client-offer-ticket :is(header,.client-offer-ticket__expiry) { flex-wrap:wrap; }
+.client-app--glance .client-offer-ticket :is(.client-offer-ticket__notes,.client-offer-ticket__exclusive,.client-ticket-seal,.client-offer-ticket__expiry,.client-offer-ticket__items,.client-offer-ticket__reference) { font-size:14px;line-height:1.8; }
+.client-app--glance .client-offer-ticket>button { font-family:inherit;font-size:16px; }
+.client-app--glance .client-ticket-countdown small { font-size:12px; }
+.client-app--glance .client-ticket-detail { color:var(--client-text); }
+.client-app--glance .client-ticket-detail :where(h1,h2,h3,h4,p,span,strong,b,small,del,dt,dd,svg) { color:var(--client-text); }
+.client-app--glance .client-ticket-detail>header { flex-wrap:wrap; }
+.client-app--glance .client-ticket-detail .client-ticket-seal { background:#f0e9fb;border-color:#ded3ee; }
+.client-app--glance .client-ticket-detail :is(.client-ticket-detail__totals,.client-ticket-detail__notes,.client-ticket-detail__items article,.client-ticket-decision) { background:var(--client-panel-2);border-color:var(--client-border);color:var(--client-text); }
+.client-app--glance .client-ticket-detail :is(.client-ticket-detail__items,.client-ticket-detail__totals div:last-child) { border-color:var(--client-border); }
+.client-app--glance .client-ticket-detail :is(.client-ticket-detail__expiry,.client-ticket-detail__notes,.client-ticket-detail__items span,.client-ticket-detail__items strong,.client-ticket-detail__items b,.client-ticket-detail__totals dt,.client-ticket-detail__totals dd,.client-ticket-accept>p,.client-ticket-decision) { font-size:15px;line-height:1.8; }
+.client-app--glance .client-ticket-detail .client-ticket-countdown span { background:#f0e9fb;border-color:#ded3ee;box-shadow:none; }
+.client-app--glance .client-ticket-detail .client-ticket-accept { background:#eef9f3;border-color:#b8ddc9; }
+.client-app--glance .client-ticket-accept>div button { border-color:#a8c9b8;color:#176343;font-size:15px; }
+.client-app--glance .client-ticket-detail__items article>span::before,.client-app--glance .client-ticket-detail__items article>b::before { color:var(--client-muted); }
+.client-app--glance .client-offer-modal .client-modal-close { color:var(--client-text);background:#f0e9fb; }
+.client-app--glance .client-public-promotions__grid p,.client-app--glance .client-public-promotions>header p { font-size:15px;line-height:1.8; }
+
+.client-app--glance .client-ticket-detail .client-primary,.client-app--glance .client-ticket-detail .client-primary svg { color:#fff; }
+
+.client-app--glance .client-ticket-detail__expiry { color:var(--client-text); }

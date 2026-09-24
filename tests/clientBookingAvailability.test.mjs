@@ -13,7 +13,7 @@ const installBrowserStubs = () => {
   globalThis.CustomEvent = class CustomEvent { constructor(type) { this.type = type; } };
 };
 
-test('client availability demo is private, role scoped, bounded, and keeps pending requests non-blocking', async () => {
+test('client availability demo is private, role scoped, bounded, and protects pending requests from overlapping bookings', async () => {
   installBrowserStubs();
   const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
   resetDemoDatabase(); activateDemoMode('client');
@@ -43,7 +43,7 @@ test('client availability demo is private, role scoped, bounded, and keeps pendi
   const afterPending = await demoClient.request(path, { method: 'GET' });
   const ownDay = afterPending.data.days.find(day => day.date === chosenDay.date);
   assert.equal(ownDay.has_client_booking, true); assert.equal(ownDay.unavailable_reason, 'already_booked'); assert.deepEqual(ownDay.slots, []);
-  assert.deepEqual(ownDay.busy_intervals, chosenDay.busy_intervals, 'pending blocks this customer date but does not reserve shared capacity');
+  assert.ok(ownDay.busy_intervals.some(interval => interval.start_time <= chosen.start_time && interval.end_time >= chosen.end_time), 'pending appointment also blocks shared capacity without disclosing its owner');
 
   const wrongPackage = await demoClient.request('/client/booking-availability?client_package_id=203&duration_minutes=60&days=7');
   assert.equal(wrongPackage.error?.code, 'invalid_package');

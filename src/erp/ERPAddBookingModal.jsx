@@ -252,8 +252,10 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       alert(`الحجز متاح طوال اليوم، بحد أدنى ${formatDurationMinutes(minimumMinutes)} وبزيادات ${formatDurationMinutes(incrementMinutes)} حسب إعدادات الخدمة.`);
       return;
     }
-    const unavailable = newBooking.dates.find(date => getBookingAvailability({ ...date, resource_id: 1 }, bookings, { blocks: bookingBlocks }).status !== 'available');
-    if (unavailable) return alert(`الموعد ${formatBookingDate(unavailable.date)} غير متاح. اختر فترة أخرى.`);
+    const overlappingDraft = newBooking.dates.some((date, index) => getBookingAvailability({ ...date, resource_id: 1 }, newBooking.dates.map((item, i) => ({ ...item, id: i, resource_id: 1, status: 'confirmed' })), { excludeBookingId: index }).status === 'conflict');
+    if (overlappingDraft) return alert('توجد مواعيد متداخلة ضمن الحجز نفسه. عدّل المواعيد قبل الحفظ.');
+    const unavailable = newBooking.dates.find(date => !['available', 'blocked'].includes(getBookingAvailability({ ...date, resource_id: 1 }, bookings, { blocks: bookingBlocks }).status));
+    if (unavailable) return alert(`الموعد ${formatBookingDate(unavailable.date)} محجوز بالفعل أو يتداخل مع حجز آخر. اختر فترة أخرى.`);
 
     const packagePlan = selectedPackage ? planPackageBookingRows({
       packages: clientPackages,

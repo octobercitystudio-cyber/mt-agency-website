@@ -120,3 +120,7 @@
 .erp-main .packages-quick-dialog .client-combobox>label { margin: 0 0 8px; }
 .erp-main .packages-quick-dialog .client-combobox__control { min-height: 49px; border: 0; background: transparent; box-shadow: none; }
 .erp-main .packages-quick-dialog .client-combobox__control:focus-within { box-shadow: none; }
+
+.package-loyalty-toggle{display:flex!important;align-items:center;gap:12px;margin:16px 0;padding:14px 16px;border:1px solid #ddd5f2;border-radius:12px;background:#f7f4ff;color:#28324a;cursor:pointer}.package-loyalty-toggle input{width:23px!important;height:23px;flex:none;accent-color:#7542c8}.package-loyalty-toggle span{display:grid;gap:5px}.package-loyalty-toggle strong{font-size:16px}.package-loyalty-toggle small{font-size:13px;line-height:1.65;color:#53627a}
+
+.erp-main .packages-quick-dialog label.package-loyalty-toggle{flex-direction:row;align-items:center}.erp-main .packages-quick-dialog .package-loyalty-toggle strong{font-size:16px}

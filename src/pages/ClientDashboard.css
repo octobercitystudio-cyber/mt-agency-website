@@ -398,3 +398,70 @@
 .client-booking-request-dialog .client-policy{grid-column:1/-1;font-size:13px;line-height:1.8}
 .client-booking-submit:disabled{opacity:1!important;background:#8aabc9!important;color:#fff!important;box-shadow:none!important}
 @media(max-width:760px){.client-booking-concierge .client-booking-request-dialog{max-height:calc(100dvh - 76px)}.client-booking-guided-form{grid-template-columns:minmax(0,1fr)}.client-booking-submit{position:static;box-shadow:none!important}.client-booking-dialog-head h2{font-size:23px}}
+
+
+/* One readable light portal across all tabs, including legacy page components. */
+.client-app--glance { --client-red:#b43d4b; --client-blue:#24678d; }
+.client-app--glance :is(input,select,textarea,button) { font-family:inherit; }
+.client-app--glance .client-main :is(h2,h3,h4,p,dt,dd,label,summary) { overflow-wrap:anywhere; }
+.client-app--glance :is(.client-view,.client-page-title,.client-topbar-profile,.client-booking-info,.glance-agenda-row>div,.glance-package-heading>div) { min-width:0; }
+.client-app--glance :is(.client-page-title h2,.client-appointments-header h2,.client-history__heading h2,.client-finance-header h2,.client-security-view__head h2,.client-post-production__head h2) { font-size:26px;line-height:1.5; }
+.client-app--glance :is(.client-page-title p,.client-appointments-header p,.client-simple-section-head p,.client-simple-section-head>span,.client-section-head>div>span,.client-security-view__head small,.client-security-view__head p,.client-post-production__head p,.client-post-production__head span) { font-size:14px;line-height:1.8; }
+.client-app--glance .client-booking-row { grid-template-columns:92px minmax(0,1fr) auto;gap:18px;align-items:start; }
+.client-app--glance .client-booking-date { width:100%;min-width:0;padding:12px 5px; }
+.client-app--glance .client-booking-date :is(span,small) { font-size:13px;line-height:1.6; }
+.client-app--glance .client-booking-info h3 { font-size:18px;line-height:1.65; }
+.client-app--glance .client-booking-info p { display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;font-size:14px;line-height:1.8; }
+.client-app--glance .client-booking-actions { flex-wrap:wrap;max-width:270px;gap:8px; }
+.client-app--glance .client-booking-actions button { font-size:14px;line-height:1.6; }
+.client-app--glance .client-notice-expired { flex-basis:100%;font-size:13px;line-height:1.8; }
+.client-app--glance .client-package-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.client-app--glance .client-package-metrics strong { font-size:17px;line-height:1.7; }
+.client-app--glance .client-package-validity { align-items:flex-start; }
+.client-app--glance .client-package-validity>div { min-width:0; }
+.client-app--glance .client-package-validity b { font-size:15px; }
+.client-app--glance .client-package-validity :is(small,span) { font-size:13px;line-height:1.8; }
+.client-app--glance .client-package-validity>svg { color:var(--client-purple); }
+.client-app--glance .client-package-status { color:#5e378f!important;background:#f0e9fb;padding:4px 9px;border-radius:6px;font-size:13px;line-height:1.6; }
+.client-app--glance .client-package-detail-body dl>div { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:12px; }
+.client-app--glance .client-package-note { font-size:14px;line-height:1.8; }
+.client-app--glance :is(.glance-section-head,.glance-next-footer,.glance-finance-summary,.glance-package-select) { flex-wrap:wrap; }
+.client-app--glance .glance-usage-labels>div { flex-wrap:wrap;align-content:start; }
+.client-app--glance .glance-usage-labels dd { margin:0;flex-basis:100%;padding-inline-start:15px; }
+.client-app--glance .glance-agenda-row h3 { overflow-wrap:anywhere; }
+.client-app--glance .glance-package-select select { min-width:0; }
+.client-app--glance .client-production-card h3 { font-size:18px;line-height:1.65; }
+.client-app--glance .client-production-card :is(dt,header span,header>b),.client-app--glance .client-production-rail li { font-size:13px;line-height:1.7; }
+.client-app--glance .client-production-card dd,.client-app--glance .client-delivery-area h4 { font-size:16px;line-height:1.7; }
+.client-app--glance :is(.client-drive-delivery strong,.client-delivery-note,.client-drive-delivery>p,.client-post-production__state p) { font-size:14px;line-height:1.8; }
+.client-app--glance .client-drive-delivery :is(small,a b),.client-app--glance .client-pickup-disclaimer { font-size:13px;line-height:1.7; }
+.client-app--glance .client-drive-delivery strong { white-space:normal;overflow-wrap:anywhere; }
+@media(max-width:1150px) and (min-width:681px) {
+ .client-app--glance .client-booking-row { grid-template-columns:92px minmax(0,1fr); }
+ .client-app--glance .client-booking-actions { grid-column:2;max-width:none; }
+ .client-app--glance .glance-top-grid,.client-app--glance .glance-lower-grid { grid-template-columns:minmax(0,1fr); }
+ .client-app--glance .glance-finance { margin-top:0; }
+}
+@media(max-width:680px) {
+ .client-app--glance :is(.client-page-title h2,.client-appointments-header h2,.client-history__heading h2,.client-security-view__head h2,.client-post-production__head h2) { font-size:23px; }
+ .client-app--glance .client-booking-row { grid-template-columns:64px minmax(0,1fr);gap:12px; }
+ .client-app--glance .client-booking-actions { grid-column:1/-1;max-width:none; }
+ .client-app--glance .client-booking-info h3 { font-size:17px; }
+ .client-app--glance .client-booking-date :is(span,small) { font-size:12px; }
+ .client-app--glance .client-booking-actions .client-notice-expired { grid-column:1/-1; }
+ .client-app--glance .client-production-rail li span { max-width:none; }
+ .client-app--glance .client-production-rail { gap:6px; }
+}
+
+.client-app--glance .client-intake { font-family:inherit;color:var(--client-text); }
+.client-app--glance .intake-heading h2 { font-size:26px;line-height:1.5; }
+.client-app--glance .intake-heading p,.client-app--glance .studio-request-note { font-size:14px;line-height:1.8; }
+.client-app--glance .studio-request-card>header { flex-wrap:wrap; }
+.client-app--glance .studio-request-card>header>div:not(.studio-request-deadline) { flex:1 1 200px;min-width:0; }
+.client-app--glance .studio-request-avatar { flex:none; }
+.client-app--glance .studio-request-deadline { flex-wrap:wrap; }
+.client-app--glance .studio-request-appointment-heading>div { min-width:0; }
+
+.client-app--glance .client-package-status[data-status="active"] { color:#176343!important;background:#eaf6ef; }
+.client-app--glance .client-package-status:is([data-status="pending"],[data-status="paused"]) { color:#89500f!important;background:#fff3df; }
+.client-app--glance .client-package-status:is([data-status="expired"],[data-status="cancelled"]) { color:#a52e42!important;background:#fff0f2; }

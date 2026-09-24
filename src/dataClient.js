@@ -1,3 +1,4 @@
+import { requestWithBookingConfirmation } from './lib/bookingConfirmation';
 import { hostingerClient } from './lib/hostingerClient';
 import { demoClient, isDemoModeActive } from './lib/demoDataClient';
 
@@ -7,6 +8,7 @@ export const dataClient = new Proxy({}, {
   get(_target, property) {
     const client = isDemoModeActive() ? demoClient : hostingerClient;
     const value = client[property];
+    if (property === 'request') return (path, options) => requestWithBookingConfirmation(value.bind(client), path, options);
     return typeof value === 'function' ? value.bind(client) : value;
   },
 });

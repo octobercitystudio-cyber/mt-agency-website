@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/pickup_schedule.php';
 
 const POST_PRODUCTION_STATUSES = [
     'editing_in_progress', 'editing_completed', 'uploading',
@@ -76,7 +77,7 @@ function postProductionNotification(string $status): ?array {
         'editing_completed' => ['editing_completed', 'اكتمل مونتاج جلسة التصوير', 'انتهى مونتاج جلسة التصوير الخاصة بك.', 'videos', 'success'],
         'uploading' => ['uploading', 'بدأ رفع فيديوهاتك', 'بدأ رفع فيديوهات جلسة التصوير الخاصة بك.', 'videos', 'info'],
         'upload_completed' => ['upload_completed', 'اكتمل رفع فيديوهاتك', 'الفيديوهات المرفوعة جاهزة الآن في صفحة تسليمات الفيديوهات.', 'videos', 'success'],
-        'ready_for_pickup' => ['ready_for_pickup', 'الفيديوهات جاهزة للاستلام من الشركة', 'راجع مواعيد تواجدنا المؤقتة في صفحة تسليمات الفيديوهات.', 'videos', 'success'],
+        'ready_for_pickup' => ['ready_for_pickup', 'الفيديوهات جاهزة للاستلام من الشركة', 'راجع جدول الاستلام الأسبوعي أعلى صفحة تسليمات الفيديوهات.', 'videos', 'success'],
         default => null,
     };
 }
@@ -139,11 +140,10 @@ function postProductionRows(PDO $pdo, array $config, array $user, bool $clientOn
             $row['history'] = $historyByJob[$row['id']] ?? [];
         } else {
             $row['delivery_link_count'] = count($linksByJob[$row['id']] ?? []);
-            $row['pickup_availability'] = readPickupAvailability($config, $organizationId, $row['id']);
         }
         $row['delivery_links'] = $linksByJob[$row['id']] ?? [];
         if ($clientOnly) {
-            $safe = ['id','booking_id','status','status_changed_at','session_date','start_time','end_time','service','client_package_id','package_name','actual_seconds','status_label','delivery_link_count','delivery_links','pickup_availability'];
+            $safe = ['id','booking_id','status','status_changed_at','session_date','start_time','end_time','service','client_package_id','package_name','actual_seconds','status_label','delivery_link_count','delivery_links'];
             $row = array_intersect_key($row, array_fill_keys($safe, true));
         }
     }
@@ -171,22 +171,39 @@ function validateDriveDeliveryLinks(mixed $raw): array {
     return $result;
 }
 
-function pickupRuntimeDirectory(array $config): string {
+function pickupRuntimeDirectory(array $config, bool $forWrite = true): string {
     $path = trim((string)($config['app']['private_runtime_dir'] ?? ''));
-    // Keep the runtime store private even when older production config files do
-    // not yet declare the new key. From public_html/api this resolves beside
-    // public_html, never beneath it. Operators can still override it explicitly.
     if ($path === '') $path = dirname(__DIR__, 2) . '/private_runtime/pickup-availability';
-    $publicRoot = realpath(dirname(__DIR__)) ?: dirname(__DIR__); $resolved = realpath($path);
-    if (!$resolved || !is_dir($resolved) || !is_writable($resolved)) fail('مسار مواعيد الاستلام المؤقتة غير متاح للكتابة.', 503, 'pickup_runtime_unavailable');
+    $publicRoot = realpath(dirname(__DIR__)) ?: dirname(__DIR__);
+    // Resolve the nearest existing ancestor before creating anything, including
+    // symlinks and missing nested directories in older production installs.
+    $ancestor = $path; $missing = [];
+    while (realpath($ancestor) === false) {
+        if (file_exists($ancestor) || is_link($ancestor)) fail('مسار مواعيد الاستلام المؤقتة غير متاح.', 503, 'pickup_runtime_unavailable');
+        $parent = dirname($ancestor);
+        if ($parent === $ancestor) fail('مسار مواعيد الاستلام المؤقتة غير متاح.', 503, 'pickup_runtime_unavailable');
+        array_unshift($missing, basename($ancestor)); $ancestor = $parent;
+    }
+    $resolved = realpath($ancestor);
+    if (!is_dir($resolved)) fail('مسار مواعيد الاستلام المؤقتة غير متاح.', 503, 'pickup_runtime_unavailable');
+    foreach ($missing as $part) {
+        if ($part === '..') $resolved = dirname($resolved);
+        elseif ($part !== '.') $resolved .= DIRECTORY_SEPARATOR . $part;
+        $resolved = realpath($resolved) ?: $resolved;
+    }
     $normalize = fn($value) => strtolower(str_replace('\\','/',rtrim((string)$value,'/\\')));
-    if (str_starts_with($normalize($resolved), $normalize($publicRoot))) fail('يجب حفظ مواعيد الاستلام خارج public_html.', 503, 'pickup_runtime_not_private');
+    $public = $normalize($publicRoot); $candidate = $normalize($resolved);
+    if ($candidate === $public || str_starts_with($candidate, $public . '/')) fail('يجب حفظ مواعيد الاستلام خارج public_html.', 503, 'pickup_runtime_not_private');
+    if ($forWrite) {
+        if (!is_dir($resolved) && !@mkdir($resolved, 0700, true) && !is_dir($resolved)) fail('تعذر إنشاء مسار مواعيد الاستلام المؤقتة.', 503, 'pickup_runtime_unavailable');
+        if (!is_writable($resolved)) fail('مسار مواعيد الاستلام المؤقتة غير متاح للكتابة.', 503, 'pickup_runtime_unavailable');
+    }
     return $resolved;
 }
 
-function pickupFile(array $config, int $organizationId, int $jobId): string {
+function pickupFile(array $config, int $organizationId, int $jobId, bool $forWrite = true): string {
     if ($organizationId < 1 || $jobId < 1) fail('معرّف مهمة الاستلام غير صحيح.', 422, 'invalid_pickup_job');
-    return pickupRuntimeDirectory($config) . DIRECTORY_SEPARATOR . 'org-' . $organizationId . '-job-' . $jobId . '.json';
+    return pickupRuntimeDirectory($config, $forWrite) . DIRECTORY_SEPARATOR . 'org-' . $organizationId . '-job-' . $jobId . '.json';
 }
 
 function pickupEmpty(): array { return ['revision'=>0,'expires_at'=>null,'windows'=>[],'expired'=>false]; }
@@ -201,12 +218,12 @@ function pickupLock(string $file) {
 }
 
 function readPickupAvailability(array $config, int $organizationId, int $jobId, bool $deleteExpired=true): array {
-    $file = pickupFile($config, $organizationId, $jobId);
+    $file = pickupFile($config, $organizationId, $jobId, false);
     if (!is_file($file)) return pickupEmpty();
     $raw = file_get_contents($file); $data = is_string($raw) ? json_decode($raw, true) : null;
     if (!is_array($data) || !isset($data['revision'],$data['expires_at'],$data['windows'])) fail('ملف مواعيد الاستلام المؤقتة غير صالح.', 503, 'pickup_runtime_invalid');
     $expired = strtotime((string)$data['expires_at']) <= time();
-    if ($expired && $deleteExpired) {
+    if ($expired && $deleteExpired && is_writable(dirname($file)) && is_writable($file)) {
         $observedRevision = (int)$data['revision']; $observedExpiry = (string)$data['expires_at'];
         $lock = pickupLock($file);
         try {
@@ -259,13 +276,14 @@ function validatePickupPayload(array $payload): array {
 }
 
 function handlePostProductionRoutes(PDO $pdo, array $config, ?array $sessionUser, string $path, string $method): bool {
+    if (handleCompanyPickupScheduleRoutes($pdo,$sessionUser,$path,$method)) return true;
     if ($path === '/post-production' && $method === 'GET') {
         $user=requireUser($sessionUser); requireRole($user,['owner','admin','operations']); requirePostProductionSchema($pdo);
         respond(['items'=>postProductionRows($pdo,$config,$user,false),'statuses'=>POST_PRODUCTION_STATUSES,'server_now'=>cairoNow()->format(DATE_ATOM)]);
     }
     if ($path === '/client/post-production' && $method === 'GET') {
         $user=requireUser($sessionUser); requireRole($user,['client']); requirePostProductionSchema($pdo);
-        respond(['items'=>postProductionRows($pdo,$config,$user,true),'server_now'=>cairoNow()->format(DATE_ATOM)]);
+        respond(['items'=>postProductionRows($pdo,$config,$user,true),'pickup_schedule'=>readCompanyPickupSchedule($pdo,(int)$user['organization_id']),'server_now'=>cairoNow()->format(DATE_ATOM)]);
     }
     if (preg_match('#^/post-production/(\d+)/status$#',$path,$m) && $method === 'PATCH') {
         $user=requireUser($sessionUser); requireRole($user,['owner','admin','operations']); requirePostProductionSchema($pdo); $id=(int)$m[1]; $payload=body();

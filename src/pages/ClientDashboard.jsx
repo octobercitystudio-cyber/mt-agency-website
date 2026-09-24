@@ -455,7 +455,7 @@ export default function ClientDashboard() {
         <div className="glance-utility"><div className="glance-mobile-brand"><img src="/logo.webp" alt="شعار Multi Task Agency"/><strong>Multi Task<span>Agency</span></strong></div><span className="glance-today"><CalendarDays/>{new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Cairo' }).format(new Date())}</span><ClientNotifications key={clientId} clientId={clientId} onNavigate={navigateClient}/></div>
         <header className={`client-topbar ${activeTab === 'home' ? 'client-topbar--home' : ''}`}>
           <div className="client-topbar-profile"><div><div className="client-topbar-name-row"><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><span className="client-topbar-points" aria-label={`${formatClientPoints(client?.points)} نقطة`}><Sparkles aria-hidden="true"/><strong>{formatClientPoints(client?.points)}</strong><span>نقطة</span></span></div><p>كل ما يخص تصويرك، في نظرة واحدة.</p></div></div>
-          <button type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>{hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button>
+          {activeTab !== 'book-studio' && <button ref={bookingTriggerRef} type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>{hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button>}
         </header>
 
         {isLocalPreview && <div className="client-notice client-notice--success" role="status">معاينة عميل محلية ببيانات تمثيلية — تُحفظ الإجراءات على هذا الجهاز لتجربة دورة العمل كاملة.</div>}
@@ -474,28 +474,20 @@ export default function ClientDashboard() {
           sessionByBookingId={sessionByBookingId}
           sessionServerOffset={sessionServerOffset}
           onNavigate={navigateClient}
-          onBookPackage={packageId => {
-            setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) }));
-            setBookingOpen(true);
-          }}
         />}
 
         {activeTab === 'schedule' && <section className="client-view client-appointments-page">
-          <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div><button ref={bookingTriggerRef} type="button" className="client-primary" onClick={() => navigateClient('book-studio')}><CalendarDays/> {hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button></header>
+          <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div></header>
           {upcomingBookings[0] ? <section className="client-next-appointment"><div><span>الموعد القادم</span><strong>{format(new Date(`${upcomingBookings[0].date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</strong><p>{timeLabel(upcomingBookings[0].start_time)} – {timeLabel(upcomingBookings[0].end_time)} · {formatDurationMinutes(calculateDurationMinutes(upcomingBookings[0].start_time, upcomingBookings[0].end_time))}</p></div><StatusBadge status={upcomingBookings[0].status}/></section> : <div className="client-empty client-empty--compact"><CalendarDays/><p>لا يوجد موعد قادم.</p></div>}
           <section className="client-appointment-cards" aria-labelledby="all-client-bookings"><div className="client-section-head"><div><span>الأحدث أولًا</span><h2 id="all-client-bookings">كل مواعيدك</h2></div></div>{orderedBookings.map(booking => <BookingRow key={booking.id} booking={booking} session={sessionByBookingId.get(Number(booking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>)}{!orderedBookings.length && <div className="client-empty"><CalendarDays/><h3>لم تطلب أي حجز بعد</h3></div>}</section>
         </section>}
 
-        {activeTab === 'packages' && <ClientPackageCards packages={packages} points={client?.points} onBookPackage={packageId => { setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) })); setBookingOpen(true); }} />}
+        {activeTab === 'packages' && <ClientPackageCards packages={packages} points={client?.points} />}
 
         {activeTab === 'projects' && <ClientProjectsView
           client={client}
           packages={activePackages}
           projects={projects.filter(project => ['planning', 'active', 'on_hold'].includes(project.status))}
-          onBookPackage={packageId => {
-            setBookingForm(previous => ({ ...previous, client_package_id: String(packageId) }));
-            setBookingOpen(true);
-          }}
         />}
 
         {activeTab === 'history' && <ClientServiceHistory />}

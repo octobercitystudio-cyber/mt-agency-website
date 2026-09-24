@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, Clock3, Clapperboard, CloudUpload, ExternalLink, Film, FolderOpen, MapPin, RefreshCw, Video } from 'lucide-react';
+import { CalendarDays, Check, Clock3, Clapperboard, CloudUpload, ExternalLink, Film, FolderOpen, RefreshCw, Video } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
 import { formatBookingDate, formatDateTime12, formatTime12 } from '../lib/businessFormat';
 import { postProductionDuration, postProductionMeta, postProductionSessionLabel } from '../lib/postProduction';
+import CompanyPickupSchedule from '../components/CompanyPickupSchedule';
 import './ClientPostProduction.css';
 
 export const VIDEO_DOWNLOAD_NOTICE = 'برجاء التحميل في خلال 48 ساعة من الرفع ويتم حذف الروابط بشكل تلقائي ويمكنكم استلامها من مقر الشركة فيما بعد في مدة اقصاها اسبوع من تاريخ التصوير';
 
 const progressStage = status => ({ editing_in_progress: 1, editing_completed: 2, uploading: 2, upload_completed: 3, ready_for_pickup: 3, delivered: 4 })[status] || 0;
 const railSteps = [[Clapperboard, 'المونتاج'], [CloudUpload, 'التجهيز والرفع'], [Film, 'جاهز'], [Check, 'التسليم']];
-const pickupDate = value => {
-  const date = new Date(`${value}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
-};
 const dateTimeLabel = value => formatDateTime12(value, '');
 const activeDeliveryLinks = (job, effectiveNow) => (job.delivery_links || []).filter(link => {
   const availableUntil = new Date(link.available_until || '').getTime();
@@ -24,6 +21,7 @@ export default function ClientPostProduction({ highlightJobId = null }) {
   const [jobs, setJobs] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [serverOffset, setServerOffset] = useState(0); const [clock, setClock] = useState(() => Date.now());
   const highlightedRef = useRef(false);
+  const [pickupSchedule, setPickupSchedule] = useState(null);
 
   const loadJobs = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true); setError('');
@@ -31,6 +29,7 @@ export default function ClientPostProduction({ highlightJobId = null }) {
     if (requestError) setError(requestError.message || 'تعذر تحميل تسليمات الفيديوهات.');
     else {
       setJobs(Array.isArray(data?.items) ? data.items : []);
+      setPickupSchedule(data?.pickup_schedule || null);
       const serverNow = new Date(data?.server_now || '').getTime(); if (Number.isFinite(serverNow)) setServerOffset(serverNow - requestedAt);
     }
     if (!quiet) setLoading(false);
@@ -57,9 +56,11 @@ export default function ClientPostProduction({ highlightJobId = null }) {
 
   return <section className="client-post-production client-post-production--videos" aria-labelledby="client-videos-title">
     <header className="client-post-production__head">
-      <div><span>كل أعمالك بعد التصوير</span><h2 id="client-videos-title">تسليمات الفيديوهات</h2><p>تابع حالة كل جلسة، نزّل الفيديوهات المتاحة، أو راجع فترة استلامها من مقر الشركة.</p></div>
+      <div><span>كل أعمالك بعد التصوير</span><h2 id="client-videos-title">تسليمات الفيديوهات</h2><p>تابع حالة كل جلسة، نزّل الفيديوهات المتاحة، وراجع مواعيد الاستلام الأسبوعية من مقر الشركة.</p></div>
       <button type="button" onClick={() => loadJobs()} aria-label="تحديث صفحة تسليمات الفيديوهات"><RefreshCw className={loading ? 'is-spinning' : ''} /></button>
     </header>
+
+    {!loading && !error && <CompanyPickupSchedule schedule={pickupSchedule} />}
 
     {loading && <div className="client-post-production__state" role="status"><RefreshCw className="is-spinning" /><strong>نجمع حالات جلساتك…</strong></div>}
     {!loading && error && <div className="client-post-production__state is-error" role="alert"><Film /><strong>تعذر تحميل الصفحة</strong><p>{error}</p><button type="button" onClick={() => loadJobs()}>إعادة المحاولة</button></div>}
@@ -67,7 +68,7 @@ export default function ClientPostProduction({ highlightJobId = null }) {
 
     {!loading && !error && visibleJobs.length > 0 && <div className="client-post-production__list">
       {visibleJobs.map(job => {
-        const meta = postProductionMeta(job.status); const stage = progressStage(job.status); const pickup = job.pickup_availability || {}; const hasPickup = Array.isArray(pickup.windows) && pickup.windows.length > 0;
+        const meta = postProductionMeta(job.status); const stage = progressStage(job.status);
         return <article key={job.id} tabIndex="-1" className={`client-production-card tone-${meta.tone}${Number(highlightJobId) === Number(job.id) ? ' is-highlighted' : ''}`} data-post-production-job={job.id}>
           <header><div className="client-production-card__icon"><Video aria-hidden="true" /></div><div><span>جلسة تصوير #{job.booking_id}</span><h3>{postProductionSessionLabel(job)}</h3></div><b>{meta.label}</b></header>
           <dl><div><dt><CalendarDays /> تاريخ الجلسة</dt><dd>{formatBookingDate(job.session_date)}</dd></div><div><dt><Clock3 /> وقت التصوير</dt><dd>{formatTime12(job.start_time, '--:--')} – {formatTime12(job.end_time, '--:--')}</dd></div><div><dt><Film /> المدة المصورة</dt><dd>{postProductionDuration(job.actual_seconds)}</dd></div></dl>
@@ -76,8 +77,8 @@ export default function ClientPostProduction({ highlightJobId = null }) {
           <section className="client-delivery-area">
             {job.active_delivery_links.length > 0 && <><h4><FolderOpen /> روابط الفيديوهات</h4><div className="client-drive-links">{job.active_delivery_links.map(link => <article key={link.id || link.url} className="client-drive-delivery"><a href={link.url} target="_blank" rel="noopener noreferrer" title={`${link.title} — ${link.url}`}><span><strong>{link.title}</strong><small>{link.link_kind === 'video' ? 'فيديو على Google Drive' : 'فولدر على Google Drive'}</small>{link.available_until && <b>متاح حتى {dateTimeLabel(link.available_until)}</b>}</span><ExternalLink aria-hidden="true" /></a><p><Clock3 aria-hidden="true" />{VIDEO_DOWNLOAD_NOTICE}</p></article>)}</div></>}
             {!job.active_delivery_links.length && ['upload_completed', 'delivered'].includes(job.status) && <p className="client-delivery-note"><CloudUpload /> لا يوجد رابط نشط الآن. تُخفى روابط Google Drive تلقائيًا بعد مرور 48 ساعة على رفعها.</p>}
-            {hasPickup && <><h4 className="client-pickup-title"><MapPin /> فترة الاستلام من مقر الشركة</h4><div className="client-pickup-windows">{pickup.windows.map((window, index) => <article key={`${window.date}-${window.start_time}-${index}`}><strong>{pickupDate(window.date)}</strong><span>{formatTime12(window.start_time, window.start_time)} – {formatTime12(window.end_time, window.end_time)}</span><small>{window.label}</small></article>)}</div><p className="client-pickup-disclaimer">هذه الفترة تخص هذه المهمة فقط وليست حجز استلام مؤكدًا{pickup.expires_at ? `، وتنتهي صلاحيتها ${dateTimeLabel(pickup.expires_at)}` : ''}.</p></>}
-            {!job.active_delivery_links.length && !hasPickup && !['upload_completed', 'delivered'].includes(job.status) && <p className="client-delivery-note"><Film /> الفيديوهات حاليًا في مرحلة {meta.label}. سنرسل لك إشعارًا عند تغير الحالة أو إضافة تسليم جديد.</p>}
+
+            {!job.active_delivery_links.length && !['upload_completed', 'delivered'].includes(job.status) && <p className="client-delivery-note"><Film /> الفيديوهات حاليًا في مرحلة {meta.label}. سنرسل لك إشعارًا عند تغير الحالة أو إضافة تسليم جديد.</p>}
           </section>
         </article>;
       })}
