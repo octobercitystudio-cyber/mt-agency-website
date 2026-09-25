@@ -4,4 +4,7 @@
     <intent android:action="android.intent.action.VIEW" android:targetPackage="com.multitaskagency.staff" android:targetClass="com.multitaskagency.app.LauncherActivity" android:data="https://multitaskagency.com/adminmt/login?source=android-staff-shortcut" />
     <categories android:name="android.intent.category.LAUNCHER" />
   </shortcut>
+  <shortcut android:shortcutId="team_notification_settings" android:enabled="true" android:icon="@drawable/ic_notification_icon" android:shortcutShortLabel="@string/notification_settings_shortcut">
+    <intent android:action="android.intent.action.VIEW" android:targetPackage="com.multitaskagency.staff" android:targetClass="com.multitaskagency.app.StaffNotificationSettingsActivity" />
+  </shortcut>
 </shortcuts>

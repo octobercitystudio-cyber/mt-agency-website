@@ -1,5 +1,5 @@
 // Register on entry/resume; only the operating system decides whether permission is granted.
-export function startAutomaticPushRegistration({ environment = window, loadConfiguration, register, onRegistered = () => {}, onError = () => {} }) {
+export function startAutomaticPushRegistration({ environment = window, loadConfiguration, register, onRegistered = () => {}, onPermissionNeeded = () => {}, onError = () => {} }) {
   let disposed = false, busy = false, registered = false, configuration;
   let permissionAttempted = false, gestureAttempted = false;
   const ensure = async (gesture = false) => {
@@ -9,7 +9,7 @@ export function startAutomaticPushRegistration({ environment = window, loadConfi
       if (!configuration) configuration = await loadConfiguration();
       if (disposed || !configuration?.enabled || !configuration?.schema_ready) return;
       const permission = environment.Notification.permission;
-      if (permission === 'denied') return;
+      if (permission === 'denied') { onPermissionNeeded(permission); return; }
       if (permission === 'default') {
         if (permissionAttempted && (!gesture || gestureAttempted)) return;
         permissionAttempted = true;
@@ -17,7 +17,12 @@ export function startAutomaticPushRegistration({ environment = window, loadConfi
       }
       await register(configuration, permission === 'default', { isCurrent: () => !disposed });
       if (!disposed) { registered = true; onRegistered(); }
-    } catch (error) { if (!disposed) onError(error); }
+    } catch (error) {
+      if (!disposed) {
+        if (environment.Notification.permission !== 'granted') onPermissionNeeded(environment.Notification.permission);
+        onError(error);
+      }
+    }
     finally { busy = false; }
   };
   const interact = event => { if (event.isTrusted) void ensure(true); };

@@ -38,7 +38,7 @@ try {
   try { & ./gradlew.bat :staff:assembleRelease --no-daemon '-Djavax.net.ssl.trustStoreType=Windows-ROOT' '-Djavax.net.ssl.trustStore=NONE'; if($LASTEXITCODE -ne 0){throw 'Android compilation failed.'} } finally { Pop-Location }
   $unsigned=Join-Path $project 'staff/build/outputs/apk/release/staff-release-unsigned.apk'
   $aligned=Join-Path $project 'staff/build/outputs/apk/release/staff-release-aligned.apk'
-  $output=Join-Path $project 'MTA-Team-1.0.0.apk'
+  $output=Join-Path $project 'MTA-Team-1.0.1.apk'
   & (Join-Path $buildTools.FullName 'zipalign.exe') -f -p 4 $unsigned $aligned
   if($LASTEXITCODE -ne 0){throw 'APK alignment failed.'}
   $stagedKey=Join-Path $project 'signing.keystore'
@@ -48,7 +48,7 @@ try {
   if($LASTEXITCODE -ne 0){throw 'APK signing failed.'}
   & (Join-Path $buildTools.FullName 'apksigner.bat') verify --verbose --print-certs $output
   if($LASTEXITCODE -ne 0){throw 'APK signature verification failed.'}
-  $destination=Join-Path $sourceProject 'MTA-Team-1.0.0.apk'
+  $destination=Join-Path $sourceProject 'MTA-Team-1.0.1.apk'
   Copy-Item -LiteralPath $output -Destination $destination -Force
   Write-Output ('Signed team installer: '+$destination)
 } finally {

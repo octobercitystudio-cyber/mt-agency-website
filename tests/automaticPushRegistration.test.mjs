@@ -29,3 +29,21 @@ test('logout/account switch disposes a pending config request before device owne
   let finish;const h=setup('granted',{loadConfiguration:()=>new Promise(resolve=>{finish=resolve})});h.stop();finish({enabled:true,schema_ready:true});await settle();assert.deepEqual(h.calls,[]);assert.equal(h.listeners.size,0);assert.equal(h.docListeners.size,0);
 });
 test('unconfigured server does not request OS permission',async()=>{const h=setup('default',{loadConfiguration:async()=>({enabled:false})});await settle();assert.deepEqual(h.calls,[]);h.stop();});
+
+
+test('blocked permission surfaces setup guidance without re-requesting OS permission', async () => {
+  const permissions = [];
+  const h = setup('denied', { onPermissionNeeded: value => permissions.push(value) });
+  await settle(); assert.deepEqual(permissions, ['denied']); assert.equal(h.calls.length, 0);
+  h.environment.Notification.permission = 'granted'; h.emit('focus'); await settle();
+  assert.deepEqual(h.calls, [false]); h.stop();
+});
+
+test('dismissed permission prompt surfaces an explicit action and disposed callbacks stay silent', async () => {
+  const permissions = []; let reject;
+  const h = setup('default', { onPermissionNeeded: value => permissions.push(value), register: async () => { throw new Error('push_permission_required'); } });
+  await settle(); assert.deepEqual(permissions, ['default']); h.stop();
+  const pending = setup('default', { onPermissionNeeded: value => permissions.push(value), register: () => new Promise((resolve, fail) => { reject = fail; }) });
+  await settle(); pending.stop(); reject(new Error('push_permission_required')); await settle();
+  assert.deepEqual(permissions, ['default']);
+});

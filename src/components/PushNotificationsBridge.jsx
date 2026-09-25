@@ -7,6 +7,7 @@ import {
   dismissPushPrompt,
   loadPushConfiguration,
   pushEnvironmentSupported,
+  pushPromptDismissed,
   registerPushNotifications,
   syncAppBadge,
   testPushDelivery,
@@ -31,12 +32,18 @@ export default function PushNotificationsBridge() {
   useEffect(() => {
     if (!currentPrincipal || currentPrincipal.startsWith('applicant:') || !pushEnvironmentSupported()) return undefined;
     return startAutomaticPushRegistration({
-      loadConfiguration: () => loadPushConfiguration(dataClient),
+      loadConfiguration: async () => { const config = await loadPushConfiguration(dataClient); setConfiguration(config); return config; },
       register: (config, requestPermission, options) => {
         setConfiguration(config);
         return registerPushNotifications(dataClient, config, requestPermission, options);
       },
       onRegistered: () => { setStatus('success'); setVisible(false); },
+      onPermissionNeeded: permission => {
+        if (currentPrincipal.startsWith('client:') || pushPromptDismissed()) return;
+        setStatus(permission === 'denied' ? 'denied' : 'idle');
+        setMessage(permission === 'denied' ? friendlyError({ code: 'denied' }) : 'اضغط تفعيل الإشعارات ووافق على طلب الهاتف لتصلك تنبيهات الإدارة والتطبيق مغلق.');
+        setVisible(true);
+      },
       onError: error => {
         // Some browsers defer the system prompt until ordinary interaction; retry then automatically.
         if (['push_permission_required', 'push_permission_denied'].includes(error?.message)) return;
@@ -95,5 +102,5 @@ export default function PushNotificationsBridge() {
   };
 
   if (!currentUser || currentUser.role === 'applicant' || !visible) return null;
-  return <PushNotificationPrompt status={status} message={message} onEnable={enable} onDismiss={dismiss} />;
+  return <PushNotificationPrompt staff={currentUser.role !== 'client'} status={status} message={message} onEnable={enable} onDismiss={dismiss} />;
 }

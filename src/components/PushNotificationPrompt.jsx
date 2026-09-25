@@ -7,6 +7,7 @@ const errorStatuses = new Set(['error', 'denied', 'failed']);
 
 export default function PushNotificationPrompt({
   status = 'idle',
+  staff = false,
   message = '',
   onEnable,
   onDismiss,
@@ -31,9 +32,9 @@ export default function PushNotificationPrompt({
 
       <div className="push-notification-prompt__content">
         <div className="push-notification-prompt__copy">
-          <h2 id="push-notification-prompt-title">ابقَ على اطلاع</h2>
+          <h2 id="push-notification-prompt-title">{staff ? 'إشعارات الإدارة على موبايلك' : 'ابقَ على اطلاع'}</h2>
           <p>يبدأ تسجيل الإشعارات تلقائيًا لتصلك تحديثات حسابك بصوت، حتى عند إغلاق التطبيق أو قفل الشاشة. وافق على طلب السماح من النظام عند ظهوره.</p>
-          <details><summary>إعدادات الصوت والأيقونة وشاشة القفل</summary><p>من إعدادات الهاتف ← التطبيقات ← MTA ← الإشعارات: اسمح بالإشعارات والصوت وشارات الأيقونة والعرض على شاشة القفل. على بعض الهواتف تظهر نقطة بدل الرقم. إذا تأخرت التنبيهات، راجع قيود البطارية والعمل بالخلفية. لا تصل التنبيهات أثناء إيقاف التطبيق إجباريًا، ولا يمكن تجاوز وضع الصامت أو عدم الإزعاج.</p></details>
+          <details><summary>إعدادات الصوت والأيقونة وشاشة القفل</summary><p>من إعدادات الهاتف ← التطبيقات ← {staff ? 'MTA Team' : 'MTA'} ← الإشعارات: اسمح بالإشعارات والصوت وشارات الأيقونة والعرض على شاشة القفل. على بعض الهواتف تظهر نقطة بدل الرقم. إذا تأخرت التنبيهات، راجع قيود البطارية والعمل بالخلفية. لا تصل التنبيهات أثناء إيقاف التطبيق إجباريًا، ولا يمكن تجاوز وضع الصامت أو عدم الإزعاج.</p>{staff && <p>في نسخة الإدارة الجديدة: اضغط مطولًا على أيقونة MTA Team ثم «إعدادات الإشعارات». راجع قناة «إشعارات الإدارة»، ثم جرّب تنبيهًا من هنا.</p>}</details>
         </div>
 
         <div className="push-notification-prompt__actions">
