@@ -49,7 +49,12 @@ function studioBookingReadiness(PDO $pdo,array $config): array {
     $missing=[];foreach($required as $table=>$columns){$available=schemaTableColumns($pdo,$table);foreach($columns as $column)if(!in_array($column,$available,true))$missing[]=$table.'.'.$column;}
     $dir=(string)($config['app']['upload_dir']??'');
     $parent=$dir;while($parent!==''&&!is_dir($parent)&&dirname($parent)!==$parent)$parent=dirname($parent);
-    return ['schema_ready'=>!$missing,'schema_missing'=>$missing,'image_parser_ready'=>function_exists('getimagesize'),'fileinfo_ready'=>class_exists('finfo'),'filename_parser_ready'=>function_exists('mb_substr'),'upload_directory_ready'=>$dir!==''&&is_dir($parent)&&is_writable($parent),'uploads_enabled'=>(bool)ini_get('file_uploads')];
+    $comparisons=[];
+    foreach([
+        'legacy_end_time'=>"SELECT (CASE WHEN end_time='00:00:00' OR end_time='00:00' THEN '24:00:00' ELSE end_time END)>? FROM (SELECT CAST('17:00:00' AS TIME) AS end_time) sample",
+        'typed_end_time'=>"SELECT (end_time>? OR end_time='00:00:00' OR end_time='00:00') FROM (SELECT CAST('17:00:00' AS TIME) AS end_time) sample",
+    ] as $label=>$sql){try{$q=$pdo->prepare($sql);$q->execute(['12:00:00']);$comparisons[$label]=['ok'=>(int)$q->fetchColumn()===1];}catch(PDOException $error){$comparisons[$label]=['ok'=>false,'driver_code'=>(int)($error->errorInfo[1]??0)];}}
+    return ['schema_ready'=>!$missing,'schema_missing'=>$missing,'image_parser_ready'=>function_exists('getimagesize'),'fileinfo_ready'=>class_exists('finfo'),'filename_parser_ready'=>function_exists('mb_substr'),'upload_directory_ready'=>$dir!==''&&is_dir($parent)&&is_writable($parent),'uploads_enabled'=>(bool)ini_get('file_uploads'),'time_comparisons'=>$comparisons];
 }
 
 function studioReviewDeadline(?DateTimeImmutable $now=null): DateTimeImmutable {
