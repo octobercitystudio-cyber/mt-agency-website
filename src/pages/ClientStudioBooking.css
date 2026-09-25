@@ -18,3 +18,27 @@
  .client-app--glance .studio-summary dl { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px; }
  .client-app--glance .studio-summary dl>div { display:block; }
 }
+
+/* Keep the chosen package and review status ahead of the active mobile step. */
+.studio-wizard { scroll-margin-top:20px; }
+.studio-wizard:focus { outline:none; }
+.studio-submission-notice { padding:12px 15px;border:1px solid #d5e8dd;border-radius:10px;background:#f0f9f4;color:#24573e;font-size:14px;line-height:1.8; }
+.studio-selection { display:grid;grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr));gap:14px;padding:18px;margin:18px 0 24px;border:1px solid #ded3f2;border-radius:12px;background:#f8f5ff; }
+.studio-selection>div { min-width:0;display:grid;align-content:start;gap:4px; }
+.studio-selection span,.studio-selection small { font-size:13px;color:#5e5376; }
+.studio-selection strong { font-size:19px;line-height:1.7;color:#35224f;overflow-wrap:anywhere; }
+.studio-selection p { grid-column:1/-1;margin:0;border-top:1px solid #e4dcf1;padding-top:10px;font-size:13px;color:#5e5376; }
+.studio-final-dates { margin-bottom:24px; }
+.studio-final-dates h3 { font-size:19px;margin:0 0 12px; }
+.studio-final-dates ol { list-style:none;padding:0;margin:0;display:grid;gap:8px; }
+.studio-final-dates li { display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px 15px;padding:12px;border:1px solid #e4dcf1;border-radius:8px;background:#faf8fe;font-size:14px; }
+@media(max-width:1150px) {
+ .studio-selection~.studio-layout .studio-summary { display:none; }
+}
+@media(max-width:600px) {
+ .studio-selection { grid-template-columns:repeat(2,minmax(0,1fr));padding:14px;gap:10px; }
+ .studio-selection>div:first-child { grid-column:1/-1; }
+ .studio-selection strong { font-size:18px; }
+ .studio-selection small { line-height:1.7; }
+ .studio-submission-notice { font-size:13px; }
+}

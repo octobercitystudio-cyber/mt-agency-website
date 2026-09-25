@@ -111,4 +111,21 @@ $failed=$pdo->query('SELECT * FROM client_studio_booking_requests ORDER BY id DE
 $pdo->exec('DROP TRIGGER finance_unavailable');decideStudioBookingRequest($pdo,$owner,$atomic['id'],$decision);
 check(countRows($pdo,'client_packages')===2 && countRows($pdo,'payments')===2 && countRows($pdo,'finance')===2,'Retry after recovery creates exactly one coherent sale');
 
+// Request intake is open 24/7; only the review deadline follows working hours.
+$pdo->exec("UPDATE client_packages SET status='expired'");
+$balancesBefore=[countRows($pdo,'payments'),countRows($pdo,'finance'),countRows($pdo,'booking_slots')];
+foreach([
+ ['2030-07-04 23:30:00','2030-07-06 13:00:00','2030-08-10'],
+ ['2030-07-05 14:00:00','2030-07-06 13:00:00','2030-08-11'],
+ ['2030-07-06 08:00:00','2030-07-06 13:00:00','2030-08-12'],
+ ['2030-07-06 14:00:00','2030-07-06 15:00:00','2030-08-13'],
+] as [$now,$expected,$shootingDate]) {
+ $GLOBALS['testCairoNow']=$now;
+ $saved=submitStudioBookingRequest($pdo,$client,array_replace($pendingPayload,['idempotency_key'=>'always-open-'.$shootingDate,'bookings'=>[array_replace($first,['date'=>$shootingDate])]]),$proof);
+ check($saved['submitted']&&$saved['status']==='pending','Request accepted at '.$now);
+ check((new DateTimeImmutable($saved['review_due_at']))->format('Y-m-d H:i:s')===$expected,'Review deadline follows working hours at '.$now);
+}
+unset($GLOBALS['testCairoNow']);
+check($balancesBefore===[countRows($pdo,'payments'),countRows($pdo,'finance'),countRows($pdo,'booking_slots')],'Out-of-hours intake never approves payment or reserves appointments');
+
 echo "PASS $checks studio booking, private proof, financial approval, availability and review deadline checks\n";

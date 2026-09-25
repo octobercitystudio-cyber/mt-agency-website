@@ -8,7 +8,7 @@ final class ApiResponse extends RuntimeException {public function __construct(pu
 function fail(string $message,int $status=400,string $code='error',array $details=[]): never {throw new ApiFailure($code,$status,$details);}
 function respond(array $data,int $status=200): never {throw new ApiResponse($data);}
 function body():array{return $GLOBALS['routePayload']??[];}
-function cairoNow():DateTimeImmutable{return new DateTimeImmutable('2030-01-01 10:00:00',new DateTimeZone('Africa/Cairo'));}
+function cairoNow():DateTimeImmutable{return new DateTimeImmutable($GLOBALS['testCairoNow']??'2030-01-01 10:00:00',new DateTimeZone('Africa/Cairo'));}
 function audit(...$args):void{}
 function recordChangeEvent(...$args):int{return 1;}
 function appNotification(...$args):bool{return true;}

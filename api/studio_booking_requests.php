@@ -63,8 +63,11 @@ function normalizedStudioDates(mixed $rows,array $service): array {
 
 function studioProofImageMetadata(string $path,int $maxBytes=5242880): array {
     $size=is_file($path)?filesize($path):false;if($size===false||$size<1||$size>$maxBytes)fail('ارفع صورة واضحة للتحويل لا تتجاوز 5 ميجابايت.',422,'invalid_proof_size');
-    $mime=(new finfo(FILEINFO_MIME_TYPE))->file($path);$extensions=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];$dimensions=@getimagesize($path);
-    if(!isset($extensions[$mime])||!$dimensions||($dimensions['mime']??'')!==$mime)fail('إثبات التحويل يجب أن يكون صورة JPEG أو PNG أو WebP صالحة.',422,'invalid_proof_image');
+    // Inspect the file bytes, never the browser MIME or filename. Fileinfo is
+    // optional on shared hosting; the built-in image parser remains required.
+    $dimensions=@getimagesize($path);$mime=$dimensions['mime']??'';
+    $extensions=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+    if(!$dimensions||!isset($extensions[$mime])||(class_exists('finfo')&&(new finfo(FILEINFO_MIME_TYPE))->file($path)!==$mime))fail('إثبات التحويل يجب أن يكون صورة JPEG أو PNG أو WebP صالحة.',422,'invalid_proof_image');
     return ['mime'=>$mime,'extension'=>$extensions[$mime],'hash'=>hash_file('sha256',$path)];
 }
 
