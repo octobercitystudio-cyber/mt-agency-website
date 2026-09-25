@@ -3388,14 +3388,29 @@ if (preg_match('#^/clients/(\d+)/whatsapp-summary$#',$path,$m)&&$method==='POST'
     try{$id=queueClientWhatsAppSummary($pdo,(int)$user['organization_id'],$clientId);}catch(RuntimeException){fail('العميل غير موجود.',404);}audit($pdo,$user,'queue_whatsapp_summary','notification_queue',$id,null,['client_id'=>$clientId]);respond(['id'=>$id,'status'=>'pending'],201);
 }
 
+function requireNonExpiringResetSchema(PDO $pdo): void {
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql') return;
+    if ($pdo->inTransaction()) throw new RuntimeException('Reset schema update must precede transactions.');
+    $query = "SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='password_reset_tokens' AND COLUMN_NAME='expires_at'";
+    if ($pdo->query($query)->fetchColumn() === 'YES') return;
+    $lock = $pdo->prepare('SELECT GET_LOCK(?,10)');
+    $lock->execute(['mta_047_reset_no_expiry']);
+    if ((int)$lock->fetchColumn() !== 1) fail('يجري تجهيز الرابط. حاول بعد لحظات.',503,'reset_schema_busy');
+    try {
+        if ($pdo->query($query)->fetchColumn() !== 'YES') {
+            $pdo->exec('ALTER TABLE password_reset_tokens MODIFY COLUMN expires_at DATETIME NULL DEFAULT NULL');
+        }
+    } finally { $pdo->prepare('SELECT RELEASE_LOCK(?)')->execute(['mta_047_reset_no_expiry']); }
+}
+
 if (preg_match('#^/clients/(\d+)/credentials$#',$path,$m)&&$method==='GET') {
     $user=requireUser($user);requireRole($user,['owner']);$clientId=(int)$m[1];
     $client=$pdo->prepare('SELECT id FROM clients WHERE id=? AND organization_id=? LIMIT 1');$client->execute([$clientId,$user['organization_id']]);if(!$client->fetchColumn())fail('العميل غير موجود.',404,'client_not_found');
     $stmt=$pdo->prepare("SELECT u.id,u.is_active,u.password_hash,u.password_status,u.must_change_password,u.last_login_at,u.password_changed_at,u.temporary_expires_at,u.credential_version,(SELECT COUNT(*) FROM api_sessions s WHERE s.user_id=u.id AND s.expires_at>NOW() AND s.credential_version=u.credential_version) active_sessions FROM users u WHERE u.client_id=? AND u.organization_id=? AND u.role='client' LIMIT 1");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();
     if(!$account)respond(['account_exists'=>false,'has_password'=>false,'access_enabled'=>false,'portal_access'=>'no_account','credential_state'=>'no_account','must_change_password'=>false,'active_sessions'=>0,'reset_pending'=>false,'reset_expires_at'=>null]);
     $hasPassword=trim((string)$account['password_hash'])!=='';$credentialState=!empty($account['must_change_password'])?'change_required':'active';
-    $reset=$pdo->prepare("SELECT expires_at FROM password_reset_tokens WHERE organization_id=? AND user_id=? AND purpose='client_password_reset' AND used_at IS NULL AND revoked_at IS NULL AND expires_at>NOW() ORDER BY id DESC LIMIT 1");$reset->execute([$user['organization_id'],$account['id']]);$resetExpires=$reset->fetchColumn()?:null;
-    respond(['account_exists'=>true,'has_password'=>$hasPassword,'access_enabled'=>!empty($account['is_active']),'portal_access'=>!empty($account['is_active'])?'enabled':'disabled','credential_state'=>$credentialState,'must_change_password'=>(bool)$account['must_change_password'],'last_login_at'=>$account['last_login_at'],'password_changed_at'=>$account['password_changed_at'],'active_sessions'=>(int)$account['active_sessions'],'reset_pending'=>$resetExpires!==null,'reset_expires_at'=>$resetExpires]);
+    $reset=$pdo->prepare("SELECT expires_at FROM password_reset_tokens WHERE organization_id=? AND user_id=? AND purpose='client_password_reset' AND used_at IS NULL AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>NOW()) ORDER BY id DESC LIMIT 1");$reset->execute([$user['organization_id'],$account['id']]);$resetRow=$reset->fetch();$resetExpires=$resetRow?$resetRow['expires_at']:null;
+    respond(['account_exists'=>true,'has_password'=>$hasPassword,'access_enabled'=>!empty($account['is_active']),'portal_access'=>!empty($account['is_active'])?'enabled':'disabled','credential_state'=>$credentialState,'must_change_password'=>(bool)$account['must_change_password'],'last_login_at'=>$account['last_login_at'],'password_changed_at'=>$account['password_changed_at'],'active_sessions'=>(int)$account['active_sessions'],'reset_pending'=>(bool)$resetRow,'reset_expires_at'=>$resetExpires]);
 }
 
 if (preg_match('#^/clients/(\d+)/credentials/password$#',$path,$m)&&$method==='POST') {
@@ -3416,28 +3431,29 @@ if (preg_match('#^/clients/(\d+)/credentials/password$#',$path,$m)&&$method==='P
 if (preg_match('#^/clients/(\d+)/credentials/reset$#',$path,$m)&&$method==='POST') {
     $user=requireUser($user);requireRole($user,['owner']);$clientId=(int)$m[1];
     $limit=$pdo->prepare("SELECT COUNT(*) FROM audit_logs WHERE organization_id=? AND user_id=? AND action='client_password_reset_issued' AND created_at>DATE_SUB(NOW(),INTERVAL 15 MINUTE)");$limit->execute([$user['organization_id'],$user['id']]);if((int)$limit->fetchColumn()>=5)fail('تم الوصول للحد الآمن لإنشاء روابط إعادة التعيين. حاول بعد 15 دقيقة.',429,'password_reset_rate_limited');
+    requireNonExpiringResetSchema($pdo);
     $pdo->beginTransaction();
     try{$stmt=$pdo->prepare("SELECT u.id,u.organization_id,u.client_id,u.password_hash FROM users u JOIN clients c ON c.id=u.client_id AND c.organization_id=u.organization_id WHERE c.id=? AND c.organization_id=? AND u.role='client' FOR UPDATE");$stmt->execute([$clientId,$user['organization_id']]);$account=$stmt->fetch();if(!$account||trim((string)$account['password_hash'])===''){$pdo->rollBack();fail('عيّن كلمة مرور للعميل أولًا.',409,'client_credential_required');}
         $accountId=(int)$account['id'];$pdo->prepare("UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND purpose='client_password_reset' AND used_at IS NULL AND revoked_at IS NULL")->execute([$accountId]);
         $raw=bin2hex(random_bytes(32));$hash=hash('sha256',$raw);
-        // Use the same database clock when issuing, validating and consuming the link.
-        $pdo->prepare("INSERT INTO password_reset_tokens (organization_id,user_id,token_hash,purpose,expires_at,created_by) VALUES (?,?,?,'client_password_reset',DATE_ADD(NOW(),INTERVAL 30 MINUTE),?)")->execute([$user['organization_id'],$accountId,$hash,$user['id']]);
-        $resetId=(int)$pdo->lastInsertId();$expiryQuery=$pdo->prepare('SELECT expires_at FROM password_reset_tokens WHERE id=?');$expiryQuery->execute([$resetId]);$expires=(string)$expiryQuery->fetchColumn();
+        // NULL means no deadline. Used/revoked state still gates every request.
+        $pdo->prepare("INSERT INTO password_reset_tokens (organization_id,user_id,token_hash,purpose,expires_at,created_by) VALUES (?,?,?,'client_password_reset',NULL,?)")->execute([$user['organization_id'],$accountId,$hash,$user['id']]);
+        $resetId=(int)$pdo->lastInsertId();$expires=null;
         audit($pdo,$user,'client_password_reset_issued','password_reset_tokens',$resetId,null,['client_id'=>$clientId,'user_id'=>$accountId,'expires_at'=>$expires]);
         $pdo->commit();$base=rtrim((string)($config['app']['public_url']??$config['app']['allowed_origin']??''),'/');if($base==='')$base='https://multitaskagency.com';respond(['reset_url'=>$base.'/reset-password#'.$raw,'expires_at'=>$expires],201);
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
 if ($path==='/auth/password-reset/validate'&&$method==='POST') {
-    $payload=body();$raw=(string)($payload['token']??'');if(!preg_match('/^[a-f0-9]{64}$/D',$raw))fail('هذا الرابط غير صالح أو انتهت مدته.',400,'invalid_reset_link');
-    $stmt=$pdo->prepare("SELECT prt.expires_at FROM password_reset_tokens prt JOIN users u ON u.id=prt.user_id AND u.organization_id=prt.organization_id WHERE prt.token_hash=? AND prt.purpose='client_password_reset' AND prt.used_at IS NULL AND prt.revoked_at IS NULL AND prt.expires_at>NOW() LIMIT 1");$stmt->execute([hash('sha256',$raw)]);$expires=$stmt->fetchColumn();if(!$expires)fail('هذا الرابط غير صالح أو انتهت مدته.',400,'invalid_reset_link');respond(['valid'=>true,'expires_at'=>$expires]);
+    $payload=body();$raw=(string)($payload['token']??'');if(!preg_match('/^[a-f0-9]{64}$/D',$raw))fail('هذا الرابط غير صالح للاستخدام. اطلب رابطًا جديدًا من الإدارة.',400,'invalid_reset_link');
+    $stmt=$pdo->prepare("SELECT prt.expires_at FROM password_reset_tokens prt JOIN users u ON u.id=prt.user_id AND u.organization_id=prt.organization_id WHERE prt.token_hash=? AND prt.purpose='client_password_reset' AND prt.used_at IS NULL AND prt.revoked_at IS NULL AND (prt.expires_at IS NULL OR prt.expires_at>NOW()) LIMIT 1");$stmt->execute([hash('sha256',$raw)]);$resetRow=$stmt->fetch();if(!$resetRow)fail('هذا الرابط غير صالح للاستخدام. اطلب رابطًا جديدًا من الإدارة.',400,'invalid_reset_link');respond(['valid'=>true,'expires_at'=>$resetRow['expires_at']]);
 }
 
 if ($path==='/auth/password-reset/complete'&&$method==='POST') {
     $payload=body();$raw=(string)($payload['token']??'');$next=(string)($payload['password']??'');$confirmation=(string)($payload['confirm_password']??'');
-    if(!preg_match('/^[a-f0-9]{64}$/D',$raw))fail('هذا الرابط غير صالح أو انتهت مدته.',400,'invalid_reset_link');if(!hash_equals($next,$confirmation))fail('تأكيد كلمة المرور غير مطابق.',422,'password_confirmation_mismatch');if(!validClientPassword($next))fail('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.',422,'weak_password');
+    if(!preg_match('/^[a-f0-9]{64}$/D',$raw))fail('هذا الرابط غير صالح للاستخدام. اطلب رابطًا جديدًا من الإدارة.',400,'invalid_reset_link');if(!hash_equals($next,$confirmation))fail('تأكيد كلمة المرور غير مطابق.',422,'password_confirmation_mismatch');if(!validClientPassword($next))fail('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.',422,'weak_password');
     $pdo->beginTransaction();
-    try{$stmt=$pdo->prepare("SELECT prt.id reset_token_id,prt.organization_id reset_organization_id,prt.user_id reset_user_id,prt.expires_at reset_expires_at,(prt.expires_at<=NOW()) reset_expired,prt.used_at reset_used_at,prt.revoked_at reset_revoked_at,u.* FROM password_reset_tokens prt JOIN users u ON u.id=prt.user_id AND u.organization_id=prt.organization_id WHERE prt.token_hash=? AND prt.purpose='client_password_reset' LIMIT 1 FOR UPDATE");$stmt->execute([hash('sha256',$raw)]);$account=$stmt->fetch();$invalid=!$account||$account['reset_used_at']!==null||$account['reset_revoked_at']!==null||(int)$account['reset_expired']!==0;if($invalid){$pdo->rollBack();fail('هذا الرابط غير صالح أو انتهت مدته.',400,'invalid_reset_link');}
+    try{$stmt=$pdo->prepare("SELECT prt.id reset_token_id,prt.organization_id reset_organization_id,prt.user_id reset_user_id,prt.expires_at reset_expires_at,(prt.expires_at IS NOT NULL AND prt.expires_at<=NOW()) reset_expired,prt.used_at reset_used_at,prt.revoked_at reset_revoked_at,u.* FROM password_reset_tokens prt JOIN users u ON u.id=prt.user_id AND u.organization_id=prt.organization_id WHERE prt.token_hash=? AND prt.purpose='client_password_reset' LIMIT 1 FOR UPDATE");$stmt->execute([hash('sha256',$raw)]);$account=$stmt->fetch();$invalid=!$account||$account['reset_used_at']!==null||$account['reset_revoked_at']!==null||(int)$account['reset_expired']!==0;if($invalid){$pdo->rollBack();fail('هذا الرابط غير صالح للاستخدام. اطلب رابطًا جديدًا من الإدارة.',400,'invalid_reset_link');}
         if(password_verify($next,(string)$account['password_hash'])){$pdo->rollBack();fail('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.',422,'password_reuse');}if(passwordWasUsed($pdo,(int)$account['organization_id'],(int)$account['id'],$next)){$pdo->rollBack();fail('لا يمكن إعادة استخدام كلمة مرور سابقة.',422,'password_history_reuse');}
         retainPasswordHash($pdo,$account,'password_reset');$version=(int)$account['credential_version']+1;$pdo->prepare("UPDATE users SET password_hash=?,password_changed_at=NOW(),password_status='active',must_change_password=0,temporary_expires_at=NULL,credential_version=? WHERE id=?")->execute([password_hash($next,PASSWORD_DEFAULT),$version,$account['id']]);$pdo->prepare('UPDATE password_reset_tokens SET used_at=NOW() WHERE id=? AND used_at IS NULL')->execute([$account['reset_token_id']]);$pdo->prepare("UPDATE password_reset_tokens SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=? AND id<>? AND purpose='client_password_reset' AND used_at IS NULL")->execute([$account['id'],$account['reset_token_id']]);$pdo->prepare('DELETE FROM api_sessions WHERE user_id=?')->execute([$account['id']]);
         audit($pdo,$account,'client_password_reset_completed','users',(int)$account['id'],null,['client_id'=>$account['client_id']?(int)$account['client_id']:null,'sessions_revoked'=>true]);$pdo->prepare('INSERT INTO auth_security_events (organization_id,user_id,event_type,ip_hash,user_agent_hash) VALUES (?,?,?,?,?)')->execute([$account['organization_id'],$account['id'],'password_reset_completed',requestIpHash(),requestUserAgentHash()]);$pdo->commit();respond(['updated'=>true]);

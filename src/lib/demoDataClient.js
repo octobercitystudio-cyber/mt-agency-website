@@ -1607,8 +1607,8 @@ const demoRequest = async (path, options = {}) => {
   if ((match = route.match(/^\/clients\/(\d+)\/credentials$/)) && (options.method || 'GET') === 'GET') {
     requireDemoOwner(); const client = scopedDemoClient(database, match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
     const hasPassword = Boolean(client.portal_account_exists);
-    const reset = demoResetRows(database).filter(item => item.client_id === Number(client.id) && !item.used_at && !item.revoked_at && item.expires_at > Date.now()).sort((a, b) => b.expires_at - a.expires_at)[0];
-    return { account_exists: hasPassword, has_password: hasPassword, access_enabled: hasPassword && client.portal_enabled === true, portal_access: !hasPassword ? 'no_account' : client.portal_enabled === true ? 'enabled' : 'disabled', credential_state: !hasPassword ? 'no_account' : client.must_change_password ? 'change_required' : 'active', must_change_password: Boolean(client.must_change_password), last_login_at: client.portal_last_login_at || null, password_changed_at: client.password_changed_at || null, active_sessions: Number(client.portal_active_sessions || 0), reset_pending: Boolean(reset), reset_expires_at: reset ? new Date(reset.expires_at).toISOString() : null };
+    const reset = demoResetRows(database).filter(item => item.client_id === Number(client.id) && !item.used_at && !item.revoked_at && (item.expires_at === null || item.expires_at > Date.now())).at(-1);
+    return { account_exists: hasPassword, has_password: hasPassword, access_enabled: hasPassword && client.portal_enabled === true, portal_access: !hasPassword ? 'no_account' : client.portal_enabled === true ? 'enabled' : 'disabled', credential_state: !hasPassword ? 'no_account' : client.must_change_password ? 'change_required' : 'active', must_change_password: Boolean(client.must_change_password), last_login_at: client.portal_last_login_at || null, password_changed_at: client.password_changed_at || null, active_sessions: Number(client.portal_active_sessions || 0), reset_pending: Boolean(reset), reset_expires_at: reset?.expires_at != null ? new Date(reset.expires_at).toISOString() : null };
   }
   if ((match = route.match(/^\/clients\/(\d+)\/credentials\/password$/)) && options.method === 'POST') {
     requireDemoOwner(); const client = scopedDemoClient(database, match[1]); if (!client) throw formationDemoError('العميل غير موجود.', 'client_not_found');
@@ -1634,29 +1634,29 @@ const demoRequest = async (path, options = {}) => {
     database.credential_reset_issue_times = activeIssueRows;
     const principalIssueRows = activeIssueRows.filter(item => Number(item.organization_id) === Number(demoOrganizationId) && Number(item.user_id) === Number(demoUserId));
     if (principalIssueRows.length >= 5) { const error = formationDemoError('تم الوصول للحد الآمن لإنشاء روابط إعادة التعيين. حاول بعد 15 دقيقة.', 'password_reset_rate_limited'); error.status = 429; throw error; }
-    activeIssueRows.push({ organization_id: demoOrganizationId, user_id: demoUserId, issued_at: now }); const raw = createDemoResetToken(); const tokenHash = await demoSecretHash(raw); const expiresAt = now + 1800000;
+    activeIssueRows.push({ organization_id: demoOrganizationId, user_id: demoUserId, issued_at: now }); const raw = createDemoResetToken(); const tokenHash = await demoSecretHash(raw); const expiresAt = null;
     const rows = demoResetRows(database); rows.forEach(item => { if (item.client_id === Number(client.id) && !item.used_at) item.revoked_at = now; });
     rows.push({ organization_id: demoOrganizationId, client_id: Number(client.id), digest: tokenHash, expires_at: expiresAt, used_at: null, revoked_at: null, completion_nonce: null, completion_started_at: null });
-    demoAudit(database, 'client_password_reset_issued', 'password_reset_tokens', now, null, { client_id: Number(client.id), expires_at: new Date(expiresAt).toISOString() }); writeDatabase(database);
+    demoAudit(database, 'client_password_reset_issued', 'password_reset_tokens', now, null, { client_id: Number(client.id), expires_at: expiresAt }); writeDatabase(database);
     const origin = typeof window !== 'undefined' && typeof window.location?.origin === 'string' ? window.location.origin : 'http://127.0.0.1:4317';
-    return { reset_url: `${origin}/reset-password?demo=1#${raw}`, expires_at: new Date(expiresAt).toISOString() };
+    return { reset_url: `${origin}/reset-password?demo=1#${raw}`, expires_at: expiresAt };
   }
   if (route === '/auth/password-reset/validate' && options.method === 'POST') {
     if (!demoCsrfReady) { const error = formationDemoError('انتهت صلاحية حماية الطلب. حدّث الصفحة ثم حاول مرة أخرى.', 'csrf_failed'); error.status = 403; throw error; }
     const raw = String(body.token || ''); const tokenHash = /^[a-f0-9]{64}$/.test(raw) ? await demoSecretHash(raw) : ''; const item = tokenHash ? demoResetRows(database).find(row => row.digest === tokenHash) : null;
-    if (!item || item.used_at || item.revoked_at || item.expires_at <= Date.now()) throw formationDemoError('هذا الرابط غير صالح أو انتهت مدته.', 'invalid_reset_link');
-    return { valid: true, expires_at: new Date(item.expires_at).toISOString() };
+    if (!item || item.used_at || item.revoked_at || (item.expires_at !== null && item.expires_at <= Date.now())) throw formationDemoError('هذا الرابط غير صالح للاستخدام. اطلب رابطًا جديدًا من الإدارة.', 'invalid_reset_link');
+    return { valid: true, expires_at: item.expires_at === null ? null : new Date(item.expires_at).toISOString() };
   }
   if (route === '/auth/password-reset/complete' && options.method === 'POST') {
     if (!demoCsrfReady) { const error = formationDemoError('انتهت صلاحية حماية الطلب. حدّث الصفحة ثم حاول مرة أخرى.', 'csrf_failed'); error.status = 403; throw error; }
     const raw = String(body.token || ''); const tokenHash = /^[a-f0-9]{64}$/.test(raw) ? await demoSecretHash(raw) : ''; let working = readDatabase(); let item = tokenHash ? demoResetRows(working).find(row => row.digest === tokenHash) : null; const now = Date.now();
-    if (!item || item.used_at || item.revoked_at || item.expires_at <= now || item.completion_nonce && Number(item.completion_started_at || 0) > now - 30000) throw formationDemoError('هذا الرابط غير صالح أو انتهت مدته.', 'invalid_reset_link');
+    if (!item || item.used_at || item.revoked_at || (item.expires_at !== null && item.expires_at <= now) || item.completion_nonce && Number(item.completion_started_at || 0) > now - 30000) throw formationDemoError('هذا الرابط غير صالح للاستخدام. اطلب رابطًا جديدًا من الإدارة.', 'invalid_reset_link');
     const next = String(body.password || ''); if (next !== String(body.confirm_password || '')) throw formationDemoError('تأكيد كلمة المرور غير مطابق.', 'password_confirmation_mismatch'); if (!validDemoClientPassword(next)) throw formationDemoError('كلمة مرور العميل يجب أن تكون 6 خانات على الأقل.', 'weak_password');
     const nonce = createDemoResetToken(); item.completion_nonce = nonce; item.completion_started_at = now; writeDatabase(working);
     const releaseReservation = () => { const latest = readDatabase(); const reserved = demoResetRows(latest).find(row => row.digest === tokenHash); if (reserved?.completion_nonce === nonce && !reserved.used_at) { reserved.completion_nonce = null; reserved.completion_started_at = null; writeDatabase(latest); } };
     const clientId = Number(item.client_id); const reservedClient = findById(working, 'clients', clientId); const nextHash = await demoSecretHash(next); const currentHash = currentDemoVerifier(reservedClient);
     if (nextHash === currentHash) { releaseReservation(); throw formationDemoError('اختر كلمة مرور جديدة مختلفة عن كلمة المرور الحالية.', 'password_reuse'); } if (demoVerifierHistory(reservedClient).includes(nextHash)) { releaseReservation(); throw formationDemoError('لا يمكن إعادة استخدام كلمة مرور سابقة.', 'password_history_reuse'); }
-    working = readDatabase(); item = demoResetRows(working).find(row => row.digest === tokenHash); if (!item || item.completion_nonce !== nonce || item.used_at || item.revoked_at || item.expires_at <= Date.now()) throw formationDemoError('هذا الرابط غير صالح أو انتهت مدته.', 'invalid_reset_link');
+    working = readDatabase(); item = demoResetRows(working).find(row => row.digest === tokenHash); if (!item || item.completion_nonce !== nonce || item.used_at || item.revoked_at || (item.expires_at !== null && item.expires_at <= Date.now())) throw formationDemoError('هذا الرابط غير صالح للاستخدام. اطلب رابطًا جديدًا من الإدارة.', 'invalid_reset_link');
     const client = findById(working, 'clients', item.client_id); if (currentHash) rememberDemoVerifier(client, currentHash); setDemoVerifier(client, nextHash); item.used_at = Date.now(); item.completion_nonce = null; item.completion_started_at = null; demoResetRows(working).forEach(other => { if (other.digest !== tokenHash && other.client_id === item.client_id && !other.used_at) other.revoked_at = Date.now(); });
     Object.assign(client, { password_status: 'active', must_change_password: false, temporary_expires_at: null, password_changed_at: nowText(), credential_version: Number(client.credential_version || 0) + 1, portal_active_sessions: 0 }); demoCredentialSessionVersion = null;
     demoAudit(working, 'client_password_reset_completed', 'users', Number(client.id), null, { client_id: Number(client.id), sessions_revoked: true }); writeDatabase(working); return { updated: true };

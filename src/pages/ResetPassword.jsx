@@ -7,7 +7,7 @@ import { CLIENT_PASSWORD_HINT, CLIENT_PASSWORD_MAX_LENGTH, CLIENT_PASSWORD_MIN_L
 import { acquireResetFragment, clearResetFragment, completeResetAttempt, scheduleResetFragmentRelease } from '../lib/resetPasswordFlow';
 import './ResetPassword.css';
 
-const invalidMessage = 'هذا الرابط غير صالح أو انتهت مدته. اطلب رابطًا جديدًا من إدارة الشركة.';
+const invalidMessage = 'هذا الرابط غير صالح للاستخدام. اطلب رابطًا جديدًا من إدارة الشركة.';
 
 export default function ResetPassword() {
   const tokenRef = useRef('');

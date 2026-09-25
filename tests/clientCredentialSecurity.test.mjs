@@ -195,7 +195,7 @@ test('retired credential issuer returns 410 and new metadata exposes reset state
   const retired = await demoClient.request('/clients/1/credentials/temporary', { method: 'POST', body: '{}' });
   assert.equal(retired.error?.status, 410); assert.equal(retired.error?.code, 'credential_issue_retired');
   await setPassword(1, 'Metadata2026A'); const reset = await issueReset(1); const meta = await demoClient.request('/clients/1/credentials', { method: 'GET' });
-  assert.equal(meta.data.reset_pending, true); assert.ok(meta.data.reset_expires_at); assert.equal(JSON.stringify(meta.data).includes(tokenFrom(reset)), false); assert.equal('temporary_expires_at' in meta.data, false);
+  assert.equal(meta.data.reset_pending, true); assert.equal(meta.data.reset_expires_at, null); assert.equal(JSON.stringify(meta.data).includes(tokenFrom(reset)), false); assert.equal('temporary_expires_at' in meta.data, false);
 });
 
 test('production API, migration and UI implement the secure reset and accessible client-settings contracts', async () => {
@@ -226,4 +226,23 @@ test('production API, migration and UI implement the secure reset and accessible
   assert.match(resetUi, /acquireResetFragment/); assert.match(resetFlow, /replaceState/); assert.match(resetFlow, /scheduleResetFragmentRelease/); assert.doesNotMatch(resetUi, /localStorage|sessionStorage/); assert.match(app, /path="\/reset-password"/); assert.match(dashboard, /ClientSecuritySettings/);
   assert.match(styles, /min-height:44px/); assert.match(styles, /background:#fffefa/); assert.match(styles, /@media\(max-width:620px\)/);
   assert.match(dashboardStyles, /\.client-sidebar nav button,.client-logout \{ min-height:44px/); assert.match(dashboardStyles, /@media\(max-width:800px\)\{\s*\.client-sidebar nav\{display:grid!important;grid-template-columns:repeat\(5/);
+});
+
+
+test('unused links have no deadline, opening does not consume them and a direct password change revokes them', async () => {
+  await setPassword(1, 'NoExpiryStart2026A');
+  const issued = await issueReset(1); const token = tokenFrom(issued);
+  assert.equal(issued.data.expires_at, null);
+  const originalNow = Date.now;
+  Date.now = () => originalNow() + 60 * 365.25 * 86400000;
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await demoClient.request('/auth/password-reset/validate', { method: 'POST', body: JSON.stringify({ token }) });
+      assert.equal(result.data.valid, true); assert.equal(result.data.expires_at, null);
+    }
+    const meta = await demoClient.request('/clients/1/credentials', { method: 'GET' });
+    assert.equal(meta.data.reset_pending, true); assert.equal(meta.data.reset_expires_at, null);
+    await setPassword(1, 'NoExpiryChanged2027B');
+    assert.equal((await demoClient.request('/auth/password-reset/validate', { method: 'POST', body: JSON.stringify({ token }) })).error?.code, 'invalid_reset_link');
+  } finally { Date.now = originalNow; }
 });

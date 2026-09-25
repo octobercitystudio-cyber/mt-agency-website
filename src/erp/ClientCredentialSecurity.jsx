@@ -85,7 +85,7 @@ export default function ClientCredentialSecurity({ clientId }) {
       : <>
         <dl className="credential-security__facts"><div><dt>كلمة المرور</dt><dd>{hasPassword ? 'معيّنة' : 'غير معيّنة'}</dd></div><div><dt>آخر دخول</dt><dd>{showDate(meta.last_login_at)}</dd></div><div><dt>الجلسات النشطة</dt><dd>{meta.active_sessions ?? 0}</dd></div></dl>
         {meta.must_change_password && <p className="credential-security__legacy" role="status">يحتاج العميل لتحديث كلمة المرور</p>}
-        {meta.reset_pending && <p className="credential-security__reset-pending"><Link /> يوجد رابط إعادة تعيين صالح حتى {showDate(meta.reset_expires_at)}. إنشاء رابط جديد يلغي السابق.</p>}
+        {meta.reset_pending && <p className="credential-security__reset-pending"><Link /> يوجد رابط إعادة تعيين {meta.reset_expires_at ? `صالح حتى ${showDate(meta.reset_expires_at)}` : 'بدون تاريخ انتهاء، يُستخدم مرة واحدة فقط'}. إنشاء رابط جديد يلغي السابق.</p>}
         <div className="credential-security__actions">
           <button ref={passwordButtonRef} type="button" className="credential-action credential-action--primary" disabled={Boolean(state.busy)} onClick={() => { setPasswordOpen(true); setPasswordError(''); setPasswordSuccess(false); }}><KeyRound />{hasPassword ? 'تغيير كلمة المرور' : 'تعيين كلمة المرور'}</button>
           <button ref={resetButtonRef} type="button" className="credential-action" disabled={!hasPassword || Boolean(state.busy)} onClick={issueReset}><Link />{state.busy === 'reset' ? 'جارٍ إنشاء الرابط…' : 'إنشاء رابط إعادة تعيين'}</button>
@@ -107,8 +107,8 @@ export default function ClientCredentialSecurity({ clientId }) {
     </section></div>}
 
     {resetResult && <div className="credential-dialog-backdrop" onMouseDown={event => event.target === event.currentTarget && closeReset()}><section ref={resetDialogRef} className="credential-dialog credential-reset-dialog" role="dialog" aria-modal="true" aria-labelledby="credential-reset-title">
-      <button type="button" className="credential-dialog__close" onClick={closeReset} aria-label="إغلاق ومسح رابط إعادة التعيين"><X /></button><span className="credential-dialog__mark"><Link /></span><h3 id="credential-reset-title">تم إنشاء رابط إعادة تعيين</h3><p>تم إنشاء رابط إعادة تعيين صالح لمدة 30 دقيقة.</p><p className="credential-reset-dialog__warning">انسخ الرابط وأرسله للعميل عبر وسيلة آمنة. سيظهر هنا مرة واحدة فقط، وإصدار رابط جديد يلغي السابق.</p>
-      <div className="credential-reset-dialog__link"><input data-dialog-initial readOnly dir="ltr" value={resetResult.reset_url || ''} aria-label="رابط إعادة تعيين كلمة المرور" /><button type="button" onClick={copyReset}><Copy />{copied ? 'تم النسخ' : 'نسخ'}</button></div><small>ينتهي في {showDate(resetResult.expires_at)}</small><button type="button" className="credential-dialog__submit" onClick={closeReset}>تم، إغلاق</button>
+      <button type="button" className="credential-dialog__close" onClick={closeReset} aria-label="إغلاق ومسح رابط إعادة التعيين"><X /></button><span className="credential-dialog__mark"><Link /></span><h3 id="credential-reset-title">تم إنشاء رابط إعادة تعيين</h3><p>الرابط بدون تاريخ انتهاء، ويُستخدم مرة واحدة فقط لتغيير كلمة المرور.</p><p className="credential-reset-dialog__warning">انسخ الرابط وأرسله للعميل عبر وسيلة آمنة. سيظهر هنا مرة واحدة فقط، وإصدار رابط جديد يلغي السابق.</p>
+      <div className="credential-reset-dialog__link"><input data-dialog-initial readOnly dir="ltr" value={resetResult.reset_url || ''} aria-label="رابط إعادة تعيين كلمة المرور" /><button type="button" onClick={copyReset}><Copy />{copied ? 'تم النسخ' : 'نسخ'}</button></div><small>يصبح الرابط غير صالح بعد تغيير كلمة المرور بنجاح.</small><button type="button" className="credential-dialog__submit" onClick={closeReset}>تم، إغلاق</button>
     </section></div>}
   </section>;
 }

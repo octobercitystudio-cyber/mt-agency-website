@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/phpRegistrationHarness.php';
-loadFunctions(__DIR__.'/../api/index.php',['passwordWasUsed','retainPasswordHash']);
+loadFunctions(__DIR__.'/../api/index.php',['passwordWasUsed','retainPasswordHash','requireNonExpiringResetSchema']);
 function requestUserAgentHash():string{return 'test-browser';}
 final class ResetClockPDO extends PDO {
  public string $clock='2030-09-24 12:00:00';
@@ -35,18 +35,20 @@ try{
  foreach(['UTC','America/Los_Angeles','Asia/Tokyo','Africa/Cairo'] as $phpZone){
   date_default_timezone_set($phpZone);
   $issued=issue($pdo,$owner);$token=resetToken($issued);
-  check($issued['expires_at']==='2030-09-24 12:30:00','Thirty minutes follows the database clock under PHP '.$phpZone);
+  check($issued['expires_at']===null,'No expiry under PHP '.$phpZone);
   check(resetRoute($pdo,[],'/auth/password-reset/validate',['token'=>$token])['valid']===true,'Fresh link validates under '.$phpZone);
  }
  check((int)$pdo->query("SELECT count(*) FROM password_reset_tokens WHERE revoked_at IS NULL")->fetchColumn()===1,'New links revoke old links');
  check($pdo->query('SELECT token_hash FROM password_reset_tokens ORDER BY id DESC LIMIT 1')->fetchColumn()===hash('sha256',$token),'Only token hash stored');
  date_default_timezone_set('UTC');
- $pdo->clock='2030-09-24 12:29:59';
- check(resetRoute($pdo,[],'/auth/password-reset/validate',['token'=>$token])['valid']===true,'Link valid one second before expiry');
- $pdo->clock='2030-09-24 12:30:00';
+ $pdo->clock='2090-09-24 12:30:00';
+ check(resetRoute($pdo,[],'/auth/password-reset/validate',['token'=>$token])['valid']===true,'Unused link remains valid sixty years later');
+ check(countRows($pdo,'api_sessions')===3,'Opening a link does not revoke sessions or consume it');
+ // Legacy finite links must not be resurrected by this change.
+ $pdo->exec("UPDATE password_reset_tokens SET expires_at='2030-09-24 12:30:00' WHERE revoked_at IS NULL");
  failure('invalid_reset_link',fn()=>resetRoute($pdo,[],'/auth/password-reset/validate',['token'=>$token]));
  failure('invalid_reset_link',fn()=>resetRoute($pdo,[],'/auth/password-reset/complete',['token'=>$token,'password'=>'NewPass123','confirm_password'=>'NewPass123']));
- check(countRows($pdo,'api_sessions')===3,'Expired link cannot revoke sessions or change credentials');
+ check(countRows($pdo,'api_sessions')===3,'Expired legacy link cannot change credentials');
  $issued=issue($pdo,$owner);$token=resetToken($issued);
  failure('weak_password',fn()=>resetRoute($pdo,[],'/auth/password-reset/complete',['token'=>$token,'password'=>'123','confirm_password'=>'123']));
  failure('password_confirmation_mismatch',fn()=>resetRoute($pdo,[],'/auth/password-reset/complete',['token'=>$token,'password'=>'NewPass123','confirm_password'=>'Different123']));
@@ -73,4 +75,4 @@ try{
   $path='/data/finance';$method='GET';failure($user['role']==='applicant'?'registration_pending':'password_change_required',function()use($gate,$user,$path,$method){eval($gate);});
  }
 }finally{date_default_timezone_set($previousZone);}
-echo "PASS {$checks} production reset clock, expiry, one-time use, password history and restricted-session checks\n";
+echo "PASS {$checks} production reset indefinite lifetime, legacy expiry, one-time use, password history and restricted-session checks\n";
