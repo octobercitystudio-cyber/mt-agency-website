@@ -40,6 +40,20 @@ check($pdo->query('SELECT date FROM bookings WHERE id='.(int)$pending['id'])->fe
 // Midnight and legacy bookings without slot rows must still protect capacity.
 $pdo->exec("INSERT INTO bookings(organization_id,resource_id,date,start_time,end_time,status) VALUES(1,1,'2030-01-11','22:00:00','00:00:00','confirmed')");
 failure('booking_conflict',fn()=>endpoint($pdo,$owner,'/bookings/request',array_replace($base,['date'=>'2030-01-11','start_time'=>'23:00','end_time'=>'24:00'])));
+// Midnight representations still block overlaps but allow exact adjacency.
+$early=endpoint($pdo,$owner,'/bookings/request',array_replace($base,['date'=>'2030-01-11','start_time'=>'21:00','end_time'=>'22:00']));
+check((int)$early['id']>0,'Midnight-ending booking allows adjacent earlier session');
+foreach(['00:00','00:00:00','24:00:00'] as $end){
+ $pdo->prepare("INSERT INTO booking_blocks(organization_id,resource_id,block_date,start_time,end_time,status) VALUES(1,1,'2030-02-01','22:00:00',?,'active')")->execute([$end]);
+ failure('booking_conflict',fn()=>requireBookingSlotAvailable($pdo,1,1,'2030-02-01','23:00','24:00'));
+ requireBookingSlotAvailable($pdo,1,1,'2030-02-01','21:00','22:00');
+ check(true,'Temporary midnight ending preserves adjacency: '.$end);
+ $pdo->exec("DELETE FROM booking_blocks WHERE block_date='2030-02-01'");
+}
+$pdo->exec("INSERT INTO bookings(organization_id,resource_id,date,start_time,end_time,status) VALUES(1,1,'2030-02-02','14:30:00','16:30:00','confirmed')");
+failure('booking_conflict',fn()=>requireBookingSlotAvailable($pdo,1,1,'2030-02-02','16:00','17:00'));
+requireBookingSlotAvailable($pdo,1,1,'2030-02-02','16:30','17:30');
+check(true,'Half-hour end boundaries are preserved');
 $pdo->exec("INSERT INTO booking_blocks(id,organization_id,resource_id,block_date,start_time,end_time,duration_minutes,title,note,series_key,idempotency_key,status,created_by) VALUES(10,1,1,'2030-01-12','12:00:00','18:00:00',360,'Temporary','Keep remaining','series-a','block-a','active',9)");
 $block=$pdo->query('SELECT * FROM booking_blocks WHERE id=10')->fetch();reserveBookingBlockSlots($pdo,$block);
 $replacement=array_replace($base,['date'=>'2030-01-12']);

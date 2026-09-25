@@ -128,4 +128,13 @@ foreach([
 unset($GLOBALS['testCairoNow']);
 check($balancesBefore===[countRows($pdo,'payments'),countRows($pdo,'finance'),countRows($pdo,'booking_slots')],'Out-of-hours intake never approves payment or reserves appointments');
 
+// Five-hour daily checkout, matching the reported package and interval.
+$pdo->exec("UPDATE services SET total_hours=5,price='800.00',category='daily',package_validity_mode='shooting_day',validity_days=1,payment_due_hours=0 WHERE id=101");
+$dailyService=registrationService($pdo,1,101);
+$dailyPayload=array_replace($payload,['service_terms_fingerprint'=>$dailyService['terms_fingerprint'],'bookings'=>[['date'=>'2030-09-23','start_time'=>'12:00','end_time'=>'17:00','duration_minutes'=>300,'resource_id'=>1]],'idempotency_key'=>'daily-five-hour-regression']);
+$dailyRequest=submitStudioBookingRequest($pdo,$client,$dailyPayload,$proof);
+check($dailyRequest['submitted']&&$dailyRequest['status']==='pending','Five-hour daily request submits without approval');
+$q=$pdo->prepare('SELECT deposit_amount,service_snapshot FROM client_studio_booking_requests WHERE id=?');$q->execute([$dailyRequest['id']]);$dailySaved=$q->fetch();
+check((float)$dailySaved['deposit_amount']===400.0&&json_decode($dailySaved['service_snapshot'],true)['validity_days']===1,'Daily request retains 400 deposit and shooting-day-only validity');
+
 echo "PASS $checks studio booking, private proof, financial approval, availability and review deadline checks\n";

@@ -11,34 +11,6 @@ function requireStudioRequestSchema(PDO $pdo): void {
     finally{$pdo->prepare('SELECT RELEASE_LOCK(?)')->execute(['mta_041_studio_requests']);}
 }
 
-/** Resolve one opaque support reference to an allowlisted technical category.
- * Never return raw log text, paths, SQL, identities, parameter values or traces. */
-function studioBookingErrorReference(string $reference): array {
-    if(!preg_match('/^[a-f0-9]{12}$/D',$reference))return ['found'=>false];
-    $readable=false;
-    foreach(array_unique([(string)ini_get('error_log'),__DIR__.'/error_log',dirname(__DIR__).'/error_log']) as $path){
-        if($path===''||!is_file($path)||!is_readable($path))continue;
-        $readable=true;$stream=@fopen($path,'rb');if(!$stream)continue;
-        $size=fstat($stream)['size']??0;if($size>262144)fseek($stream,-262144,SEEK_END);
-        $tail=stream_get_contents($stream,262144);fclose($stream);
-        foreach(explode("\n",(string)$tail) as $line){
-            if(!str_contains($line,'[ERP API]['.$reference.'][POST /api/client/studio-booking-requests]'))continue;
-            $result=['found'=>true,'category'=>'other'];
-            if(preg_match('/Call to undefined function ([A-Za-z_][A-Za-z0-9_]*)\(/',$line,$match))return ['found'=>true,'category'=>'missing_function','function'=>$match[1]];
-            if(preg_match('/SQLSTATE\[([A-Z0-9]{5})\](?:\[[0-9]+\])?:[^:]*?:?\s*([0-9]{3,5})?/', $line,$match)){$result['category']='database';$result['sqlstate']=$match[1];}
-            if(preg_match('/Unknown column [\'"]([A-Za-z_][A-Za-z0-9_.]*)[\'"]/', $line,$match))$result['missing_column']=$match[1];
-            if(preg_match('/SQLSTATE\[[A-Z0-9]{5}\]:[^:]*:\s*([0-9]{3,5})\b/',$line,$match))$result['driver_code']=(int)$match[1];
-            if(preg_match('/Field [\'"]([A-Za-z_][A-Za-z0-9_]*)[\'"] doesn.t have a default value/',$line,$match))$result['required_field']=$match[1];
-            if(str_contains($line,'TypeError:'))$result['category']='argument_type';
-            if(str_contains($line,'ValueError:'))$result['category']='invalid_argument';
-            if(str_contains($line,'There is already an active transaction'))$result['category']='nested_transaction';
-            if(str_contains($line,'There is no active transaction'))$result['category']='lost_transaction';
-            return $result;
-        }
-    }
-    return ['found'=>false,'log_readable'=>$readable];
-}
-
 /** Operational readiness only: no identities, receipts, paths or database errors. */
 function studioBookingReadiness(PDO $pdo,array $config): array {
     $required=[
@@ -49,11 +21,19 @@ function studioBookingReadiness(PDO $pdo,array $config): array {
     $missing=[];foreach($required as $table=>$columns){$available=schemaTableColumns($pdo,$table);foreach($columns as $column)if(!in_array($column,$available,true))$missing[]=$table.'.'.$column;}
     $dir=(string)($config['app']['upload_dir']??'');
     $parent=$dir;while($parent!==''&&!is_dir($parent)&&dirname($parent)!==$parent)$parent=dirname($parent);
+    // Synthetic times only: verify the production comparison on this server,
+    // including adjacency and both accepted representations of midnight.
     $comparisons=[];
     foreach([
-        'legacy_end_time'=>"SELECT (CASE WHEN end_time='00:00:00' OR end_time='00:00' THEN '24:00:00' ELSE end_time END)>? FROM (SELECT CAST('17:00:00' AS TIME) AS end_time) sample",
-        'typed_end_time'=>"SELECT (end_time>? OR end_time='00:00:00' OR end_time='00:00') FROM (SELECT CAST('17:00:00' AS TIME) AS end_time) sample",
-    ] as $label=>$sql){try{$q=$pdo->prepare($sql);$q->execute(['12:00:00']);$comparisons[$label]=['ok'=>(int)$q->fetchColumn()===1];}catch(PDOException $error){$comparisons[$label]=['ok'=>false,'driver_code'=>(int)($error->errorInfo[1]??0)];}}
+        'overlap'=>['17:00:00','12:00:00',1],
+        'adjacent'=>['17:00:00','17:00:00',0],
+        'half_hour'=>['16:30:00','16:00:00',1],
+        'midnight_zero'=>['00:00:00','23:00:00',1],
+        'midnight_24'=>['24:00:00','23:00:00',1],
+    ] as $label=>[$end,$start,$expected]){
+        try{$q=$pdo->prepare("SELECT (end_time>? OR end_time='00:00:00' OR end_time='00:00') FROM (SELECT CAST(? AS TIME) AS end_time) sample");$q->execute([$start,$end]);$comparisons[$label]=['ok'=>(int)$q->fetchColumn()===$expected];}
+        catch(PDOException $error){$comparisons[$label]=['ok'=>false,'driver_code'=>(int)($error->errorInfo[1]??0)];}
+    }
     return ['schema_ready'=>!$missing,'schema_missing'=>$missing,'image_parser_ready'=>function_exists('getimagesize'),'fileinfo_ready'=>class_exists('finfo'),'filename_parser_ready'=>function_exists('mb_substr'),'upload_directory_ready'=>$dir!==''&&is_dir($parent)&&is_writable($parent),'uploads_enabled'=>(bool)ini_get('file_uploads'),'time_comparisons'=>$comparisons];
 }
 

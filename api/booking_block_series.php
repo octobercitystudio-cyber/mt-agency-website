@@ -56,10 +56,10 @@ function materializeBookingCalendarRange(PDO $pdo,int $org,string $from,string $
  * current month. A persistent rule never silently overwrites a prior booking. */
 function requireBookingBlockSeriesAvailable(PDO $pdo,int $org,int $resource,string $from,?string $until,string $start,string $end): void {
     $last=$until??'9999-12-31';$start=normalizeBusinessTime($start);$end=normalizeBusinessTime($end,true);
-    $q=$pdo->prepare("SELECT date FROM bookings WHERE organization_id=? AND resource_id=? AND date BETWEEN ? AND ? AND status IN ('pending','alternative_proposed','confirmed','in_progress','cancel_requested','late_cancel_requested','مؤكد','قيد الانتظار') AND start_time<? AND (CASE WHEN end_time='00:00:00' OR end_time='00:00' THEN '24:00:00' ELSE end_time END)>? ORDER BY date LIMIT 1");
+    $q=$pdo->prepare("SELECT date FROM bookings WHERE organization_id=? AND resource_id=? AND date BETWEEN ? AND ? AND status IN ('pending','alternative_proposed','confirmed','in_progress','cancel_requested','late_cancel_requested','مؤكد','قيد الانتظار') AND start_time<? AND (end_time>? OR end_time='00:00:00' OR end_time='00:00') ORDER BY date LIMIT 1");
     $q->execute([$org,$resource,$from,$last,$end.':00',$start.':00']);$conflict=$q->fetchColumn();
     if($conflict)fail('يتعارض التكرار مع موعد محجوز يوم '.$conflict.'. لم يتم إنشاء أي حجز مؤقت.',409,'booking_conflict');
-    $q=$pdo->prepare("SELECT block_date FROM booking_blocks WHERE organization_id=? AND resource_id=? AND block_date BETWEEN ? AND ? AND status='active' AND start_time<? AND (CASE WHEN end_time='00:00:00' OR end_time='00:00' THEN '24:00:00' ELSE end_time END)>? ORDER BY block_date LIMIT 1");
+    $q=$pdo->prepare("SELECT block_date FROM booking_blocks WHERE organization_id=? AND resource_id=? AND block_date BETWEEN ? AND ? AND status='active' AND start_time<? AND (end_time>? OR end_time='00:00:00' OR end_time='00:00') ORDER BY block_date LIMIT 1");
     $q->execute([$org,$resource,$from,$last,$end.':00',$start.':00']);$conflict=$q->fetchColumn();
     if($conflict)fail('توجد فترة مؤقتة متعارضة يوم '.$conflict.'. لم يتم إنشاء أي حجز مؤقت.',409,'booking_block_conflict');
     foreach(recurringBookingSeries($pdo,$org,$from,$last,$resource) as $rule){

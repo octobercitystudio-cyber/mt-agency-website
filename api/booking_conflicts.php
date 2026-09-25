@@ -8,12 +8,14 @@ function requireBookingSlotAvailable(PDO $pdo, int $org, int $resource, string $
     $q->execute([$resource,$org]);
     if(!$q->fetch())fail('الاستديو غير متاح.',422,'invalid_booking_resource');
     $start=normalizeBusinessTime($start);$end=normalizeBusinessTime($end,true);
-    $sql="SELECT id FROM bookings WHERE organization_id=? AND resource_id=? AND date=? AND status IN ('pending','alternative_proposed','confirmed','in_progress','cancel_requested','late_cancel_requested','مؤكد','قيد الانتظار') AND start_time<? AND (CASE WHEN end_time='00:00:00' OR end_time='00:00' THEN '24:00:00' ELSE end_time END)>? AND id<>? LIMIT 1 FOR UPDATE";
+    // Keep TIME comparisons typed. A CASE with a string midnight fallback
+    // causes MySQL error 1267 under mixed connection/database collations.
+    $sql="SELECT id FROM bookings WHERE organization_id=? AND resource_id=? AND date=? AND status IN ('pending','alternative_proposed','confirmed','in_progress','cancel_requested','late_cancel_requested','مؤكد','قيد الانتظار') AND start_time<? AND (end_time>? OR end_time='00:00:00' OR end_time='00:00') AND id<>? LIMIT 1 FOR UPDATE";
     $q=$pdo->prepare($sql);$q->execute([$org,$resource,$date,$end.':00',$start.':00',$exclude??0]);
     if($q->fetch())fail('الموعد محجوز بالفعل أو يتداخل مع موعد آخر. اختر وقتًا متاحًا.',409,'booking_conflict');
     if(!bookingBlockSchemaReady($pdo))return;
     materializeRecurringBookingBlocks($pdo,$org,$resource,$date,$date);
-    $q=$pdo->prepare("SELECT * FROM booking_blocks WHERE organization_id=? AND resource_id=? AND block_date=? AND status='active' AND start_time<? AND (CASE WHEN end_time='00:00:00' OR end_time='00:00' THEN '24:00:00' ELSE end_time END)>? AND id<>? ORDER BY id FOR UPDATE");
+    $q=$pdo->prepare("SELECT * FROM booking_blocks WHERE organization_id=? AND resource_id=? AND block_date=? AND status='active' AND start_time<? AND (end_time>? OR end_time='00:00:00' OR end_time='00:00') AND id<>? ORDER BY id FOR UPDATE");
     $q->execute([$org,$resource,$date,$end.':00',$start.':00',$excludeBlock??0]);$blocks=$q->fetchAll();
     if(!$blocks)return;
     if(($actor['role']??'')!=='owner'||(int)($actor['organization_id']??0)!==$org)fail('الموعد محجوز مؤقتًا. اختر وقتًا آخر أو راجع المالك.',409,'booking_conflict');
