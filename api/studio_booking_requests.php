@@ -27,6 +27,8 @@ function studioBookingErrorReference(string $reference): array {
             if(preg_match('/Call to undefined function ([A-Za-z_][A-Za-z0-9_]*)\(/',$line,$match))return ['found'=>true,'category'=>'missing_function','function'=>$match[1]];
             if(preg_match('/SQLSTATE\[([A-Z0-9]{5})\](?:\[[0-9]+\])?:[^:]*?:?\s*([0-9]{3,5})?/', $line,$match)){$result['category']='database';$result['sqlstate']=$match[1];}
             if(preg_match('/Unknown column [\'"]([A-Za-z_][A-Za-z0-9_.]*)[\'"]/', $line,$match))$result['missing_column']=$match[1];
+            if(preg_match('/SQLSTATE\[[A-Z0-9]{5}\]:[^:]*:\s*([0-9]{3,5})\b/',$line,$match))$result['driver_code']=(int)$match[1];
+            if(preg_match('/Field [\'"]([A-Za-z_][A-Za-z0-9_]*)[\'"] doesn.t have a default value/',$line,$match))$result['required_field']=$match[1];
             if(str_contains($line,'TypeError:'))$result['category']='argument_type';
             if(str_contains($line,'ValueError:'))$result['category']='invalid_argument';
             if(str_contains($line,'There is already an active transaction'))$result['category']='nested_transaction';

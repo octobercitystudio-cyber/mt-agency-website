@@ -6,7 +6,7 @@ function supportCheck(bool $ok):void{global $checks;if(!$ok)throw new RuntimeExc
 try{
  foreach([
   ["Error: Call to undefined function bookingWriter()",['found'=>true,'category'=>'missing_function','function'=>'bookingWriter']],
-  ["PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.missing_field' in 'where clause' secret customer value",['found'=>true,'category'=>'database','sqlstate'=>'42S22','missing_column'=>'r.missing_field']],
+  ["PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.missing_field' in 'where clause' secret customer value",['found'=>true,'category'=>'database','sqlstate'=>'42S22','missing_column'=>'r.missing_field','driver_code'=>1054]],
   ['TypeError: internalCall(): Argument #1 has invalid secret customer value',['found'=>true,'category'=>'argument_type']],
   ['PDOException: There is already an active transaction',['found'=>true,'category'=>'nested_transaction']],
  ] as [$error,$expected]){
