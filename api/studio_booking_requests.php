@@ -11,6 +11,19 @@ function requireStudioRequestSchema(PDO $pdo): void {
     finally{$pdo->prepare('SELECT RELEASE_LOCK(?)')->execute(['mta_041_studio_requests']);}
 }
 
+/** Operational readiness only: no identities, receipts, paths or database errors. */
+function studioBookingReadiness(PDO $pdo,array $config): array {
+    $required=[
+        'client_studio_booking_requests'=>['id','organization_id','client_id','user_id','service_id','service_snapshot','deposit_amount','payment_method','transfer_account','proof_path','proof_mime','proof_original_name','proof_hash','package_status','idempotency_key','request_hash','terms_version','terms_accepted_at','review_due_at','created_at'],
+        'client_studio_booking_dates'=>['id','organization_id','request_id','resource_id','date','start_time','end_time','duration_minutes','status','booking_id'],
+        'auth_rate_limits'=>['limit_key','scope','attempts','window_started_at','last_attempt_at'],
+    ];
+    $missing=[];foreach($required as $table=>$columns){$available=schemaTableColumns($pdo,$table);foreach($columns as $column)if(!in_array($column,$available,true))$missing[]=$table.'.'.$column;}
+    $dir=(string)($config['app']['upload_dir']??'');
+    $parent=$dir;while($parent!==''&&!is_dir($parent)&&dirname($parent)!==$parent)$parent=dirname($parent);
+    return ['schema_ready'=>!$missing,'schema_missing'=>$missing,'image_parser_ready'=>function_exists('getimagesize'),'fileinfo_ready'=>class_exists('finfo'),'filename_parser_ready'=>function_exists('mb_substr'),'upload_directory_ready'=>$dir!==''&&is_dir($parent)&&is_writable($parent),'uploads_enabled'=>(bool)ini_get('file_uploads')];
+}
+
 function studioReviewDeadline(?DateTimeImmutable $now=null): DateTimeImmutable {
     $time=($now??cairoNow())->setTimezone(new DateTimeZone('Africa/Cairo'));$seconds=3600;
     while($seconds>0){
