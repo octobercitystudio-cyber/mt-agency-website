@@ -88,7 +88,7 @@ const foregroundNotification = async payload => {
   });
 };
 
-export const registerPushNotifications = async (dataClient, configuration, requestPermission = true, { isCurrent = () => true } = {}) => {
+export const registerPushNotifications = async (dataClient, configuration, requestPermission = true, { isCurrent = () => true, renewToken = false } = {}) => {
   if (!configuration?.enabled || !configuration?.schema_ready) throw new Error('push_not_configured');
   let permission = Notification.permission;
   if (permission === 'default' && requestPermission) permission = await Notification.requestPermission();
@@ -98,7 +98,12 @@ export const registerPushNotifications = async (dataClient, configuration, reque
     throw error;
   }
   const registration = await navigator.serviceWorker.ready;
-  const { messaging, getToken, onMessage } = await firebaseMessaging(configuration);
+  const { messaging, getToken, deleteToken, onMessage } = await firebaseMessaging(configuration);
+  if (renewToken) {
+    if (!isCurrent()) return { cancelled: true };
+    await deleteToken(messaging);
+    localStorage.removeItem(TOKEN_KEY);
+  }
   const token = await getToken(messaging, {
     vapidKey: configuration.vapid_public_key,
     serviceWorkerRegistration: registration,
@@ -145,3 +150,19 @@ export const testPushDelivery = async dataClient => {
 };
 
 export const hasStoredPushToken = () => Boolean(localStorage.getItem(TOKEN_KEY));
+
+
+// This tests Android/browser display only, independently of the FCM server and token.
+export const testLocalPushNotification = async () => {
+  if (!pushEnvironmentSupported()) throw new Error('push_unsupported');
+  if (Notification.permission !== 'granted') throw new Error(Notification.permission === 'denied' ? 'push_permission_denied' : 'push_permission_required');
+  const registration = await navigator.serviceWorker.ready;
+  await registration.showNotification('اختبار إشعار الهاتف — MTA', {
+    body: 'هذا اختبار من الهاتف فقط. ظهوره لا يعني نجاح اتصال الإشعارات بالخادم.',
+    icon: '/app-icon-192.png?v=104', badge: '/app-icon-monochrome.png?v=105',
+    tag: 'mt-notification-local-test', dir: 'rtl', lang: 'ar',
+    renotify: true, silent: false, vibrate: [220, 100, 220],
+    data: { url: location.pathname.startsWith('/erp') ? '/erp' : '/dashboard' },
+  });
+  return { requested: true };
+};

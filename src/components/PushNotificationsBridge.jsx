@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import PushNotificationPrompt from './PushNotificationPrompt';
@@ -11,14 +11,18 @@ import {
   registerPushNotifications,
   syncAppBadge,
   testPushDelivery,
+  testLocalPushNotification,
 } from '../lib/pushNotifications';
 
 const friendlyError = error => {
   if (error?.message === 'push_permission_denied' || error?.code === 'denied') {
     return 'الإشعارات محظورة من إعدادات الجهاز. يمكنك السماح بها من إعدادات التطبيق.';
   }
+  if (error?.code?.startsWith('push_') && error?.message && error.message !== error.code) return error.message;
+  if (error?.message === 'push_permission_required') return 'اضغط تفعيل الإشعارات ثم وافق على طلب السماح من الهاتف.';
   if (error?.message === 'push_unsupported') return 'هذا الجهاز لا يدعم إشعارات التطبيق.';
-  return 'تعذر تفعيل الإشعارات الآن. حاول مرة أخرى بعد قليل.';
+  const code = String(error?.code || error?.message || 'unknown').replace(/[^a-zA-Z0-9_/-]/g, '').slice(0,80);
+  return `تعذر إكمال اتصال الإشعارات. كود التشخيص: ${code}.`; 
 };
 
 export default function PushNotificationsBridge() {
@@ -27,6 +31,8 @@ export default function PushNotificationsBridge() {
   const [visible, setVisible] = useState(false);
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
+  const manualCheck = useRef(false);
+  const [diagnostic, setDiagnostic] = useState('');
   const currentPrincipal = currentUser ? `${currentUser.role}:${currentUser.id}` : '';
 
   useEffect(() => {
@@ -37,7 +43,7 @@ export default function PushNotificationsBridge() {
         setConfiguration(config);
         return registerPushNotifications(dataClient, config, requestPermission, options);
       },
-      onRegistered: () => { setStatus('success'); setVisible(false); },
+      onRegistered: () => { if (!manualCheck.current) { setStatus('success'); setVisible(false); } },
       onPermissionNeeded: permission => {
         if (currentPrincipal.startsWith('client:') || pushPromptDismissed()) return;
         setStatus(permission === 'denied' ? 'denied' : 'idle');
@@ -55,6 +61,7 @@ export default function PushNotificationsBridge() {
   useEffect(() => {
     if (!currentUser || currentUser.role === 'applicant') return undefined;
     const settings = async () => {
+      manualCheck.current = true; setDiagnostic('');
       setVisible(true); setStatus('loading'); setMessage('جارٍ مراجعة إشعارات هذا الجهاز…');
       try {
         const config = await loadPushConfiguration(dataClient); setConfiguration(config);
@@ -78,29 +85,47 @@ export default function PushNotificationsBridge() {
 
   const enable = async () => {
     if (!configuration?.enabled || !configuration?.schema_ready) { setStatus('error'); setMessage('إشعارات الجهاز غير متاحة حاليًا.'); return; }
-    setStatus('requesting');
+    manualCheck.current = true; setDiagnostic(''); setStatus('requesting');
     setMessage('اسمح للمتصفح أو التطبيق بعرض الإشعارات على هذا الجهاز.');
     try {
       await registerPushNotifications(dataClient, configuration, true);
       try {
-        await testPushDelivery(dataClient);
+        try { await testPushDelivery(dataClient); }
+        catch (error) {
+          if (error?.code !== 'push_token_expired') throw error;
+          setMessage('جارٍ تجديد تسجيل الجهاز المنتهي وإعادة اختبار الإرسال…');
+          await registerPushNotifications(dataClient, configuration, false, { renewToken: true });
+          await testPushDelivery(dataClient);
+        }
         setStatus('success');
         setMessage('تم تسجيل الجهاز وإرسال تجربة من الخادم. تأكد من وصول الإشعار وسماع صوته؛ نجاح الإرسال وحده لا يؤكد وصوله للهاتف.');
-      } catch {
+      } catch (error) {
         setStatus('error');
-        setMessage('تم تسجيل الجهاز، لكن تعذر إرسال التجربة من الخادم. اضغط تفعيل الإشعارات لإعادة التجربة.');
+        setDiagnostic(`server: ${error?.code || 'unknown'}`);
+        setMessage(`تم تسجيل الجهاز، لكن الإرسال من الخادم لم ينجح. ${friendlyError(error)}`);
       }
     } catch (error) {
       setStatus('error');
+      setDiagnostic(`registration: ${error?.code || error?.message || 'unknown'}`);
       setMessage(friendlyError(error));
     }
   };
 
+  const localTest = async () => {
+    manualCheck.current = true; setStatus('requesting'); setDiagnostic('');
+    try {
+      await testLocalPushNotification(); setStatus('idle');
+      setMessage('تم طلب عرض إشعار على الهاتف مباشرة. إذا لم يظهر أو لم يصدر صوتًا فراجع إعدادات الهاتف وChrome. إذا ظهر، اضغط «اختبار الإرسال من الخادم».');
+      setDiagnostic('local_display_requested');
+    } catch (error) { setStatus('error'); setMessage(friendlyError(error)); setDiagnostic(`local: ${error?.code || error?.message || 'unknown'}`); }
+  };
+
   const dismiss = () => {
+    manualCheck.current = false;
     if (status !== 'success') dismissPushPrompt();
     setVisible(false);
   };
 
   if (!currentUser || currentUser.role === 'applicant' || !visible) return null;
-  return <PushNotificationPrompt staff={currentUser.role !== 'client'} status={status} message={message} onEnable={enable} onDismiss={dismiss} />;
+  return <PushNotificationPrompt staff={currentUser.role !== 'client'} status={status} message={message} diagnostic={diagnostic} onLocalTest={localTest} onEnable={enable} onDismiss={dismiss} />;
 }

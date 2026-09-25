@@ -9,6 +9,8 @@ export default function PushNotificationPrompt({
   status = 'idle',
   staff = false,
   message = '',
+  diagnostic = '',
+  onLocalTest,
   onEnable,
   onDismiss,
 }) {
@@ -42,11 +44,12 @@ export default function PushNotificationPrompt({
             type="button"
             className="push-notification-prompt__enable"
             onClick={onEnable}
-            disabled={isPending || isSuccess}
+            disabled={isPending}
           >
             {isPending ? <LoaderCircle className="push-notification-prompt__spinner" aria-hidden="true" /> : <BellRing aria-hidden="true" />}
-            <span>{isPending ? 'جارٍ التفعيل…' : isSuccess ? 'تم التفعيل' : 'تفعيل الإشعارات'}</span>
+            <span>{isPending ? 'جارٍ التفعيل…' : 'اختبار الإرسال من الخادم'}</span>
           </button>
+          {onLocalTest && <button type="button" className="push-notification-prompt__dismiss" onClick={onLocalTest} disabled={isPending}>تجربة إشعار الهاتف فقط</button>}
           <button
             type="button"
             className="push-notification-prompt__dismiss"
@@ -64,7 +67,7 @@ export default function PushNotificationPrompt({
           aria-atomic="true"
         >
           {message && <FeedbackIcon aria-hidden="true" />}
-          <span>{message}</span>
+          <span>{message}{diagnostic && <small style={{display: 'block'}} dir="ltr">{diagnostic}</small>}</span>
         </div>
       </div>
     </aside>

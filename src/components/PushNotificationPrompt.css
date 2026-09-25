@@ -89,6 +89,7 @@
 
 .push-notification-prompt__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 13px;

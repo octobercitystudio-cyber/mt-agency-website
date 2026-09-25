@@ -9,7 +9,11 @@ function registrationRateLimit(...$args):void{}
 function schemaTableExists(...$args):bool{return true;}
 function pushUnreadCount(PDO $pdo,array $notification,?int $user=null):int{return 4;}
 function sendFirebasePush(array $config,string $token,array $notification,int $count=1):void{
- global $delivered;if(str_starts_with($token,'FAIL'))throw new RuntimeException('temporary_failure',503);
+ global $delivered;
+ if(str_starts_with($token,'EXPIRED'))throw new RuntimeException('firebase_send_failed:404:'.json_encode(['error'=>['details'=>[['@type'=>'type.googleapis.com/google.firebase.fcm.v1.FcmError','errorCode'=>'UNREGISTERED']]]]),404);
+ if(str_starts_with($token,'BADPAYLOAD'))throw new RuntimeException('firebase_send_failed:400:bad request',400);
+ if(str_starts_with($token,'BADCONFIG'))throw new RuntimeException('firebase_oauth_failed:401',401);
+ if(str_starts_with($token,'FAIL'))throw new RuntimeException('temporary_failure',503);
  $delivered[]=['token'=>$token,'notification'=>$notification,'count'=>$count];
 }
 final class PushTestPDO extends PDO {
@@ -52,4 +56,20 @@ check(end($delivered)['notification']['is_test'] && end($delivered)['count']===0
 foreach([[$owner,$clientToken],[$client,$ownerToken],[array_replace($owner,['organization_id'=>2]),$ownerToken]] as [$user,$token]){
  try{sendOwnPushTest($pdo,[],$user,$token);throw new RuntimeException('Missing scope guard');}catch(RuntimeException $e){check($e->getMessage()==='push_device_not_registered','Cannot test another account or org device');}
 }
+// Payload/configuration failures must never deactivate valid devices.
+foreach([[20,'BADPAYLOAD','push_payload_invalid'],[21,'BADCONFIG','push_provider_credentials'],[22,'EXPIRED','push_token_expired']] as [$id,$prefix,$expected]) {
+ $token=$prefix.str_repeat('T',90);
+ $pdo->prepare("INSERT INTO app_push_subscriptions(id,organization_id,user_id,token,token_hash) VALUES(?,1,?,?,?)")->execute([$id,$id,$token,hash('sha256',$token)]);
+ $pdo->prepare("INSERT INTO app_notifications(id,organization_id,recipient_user_id,audience,title,message,entity_type) VALUES(?,1,?,'owner','Test','Test','users')")->execute([$id,$id]);
+ $pdo->prepare("INSERT INTO app_push_jobs(id,organization_id,notification_id) VALUES(?,1,?)")->execute([$id,$id]);
+ try{sendOwnPushTest($pdo,[],['id'=>$id,'organization_id'=>1,'role'=>'owner'],$token);throw new LogicException('Must fail');}
+ catch(RuntimeException $error){check($error->getMessage()===$expected,'Safe, specific test failure: '.$expected);}
+ processPushQueue($pdo,[],[$id]);
+ $active=(int)$pdo->query('SELECT is_active FROM app_push_subscriptions WHERE id='.$id)->fetchColumn();
+ check($active===($prefix==='EXPIRED'?0:1),'Deactivate only expired device tokens: '.$prefix);
+ $status=$pdo->query('SELECT status FROM app_push_jobs WHERE id='.$id)->fetchColumn();
+ check($status===($prefix==='EXPIRED'?'sent':'pending'),'Retry server failures instead of losing jobs: '.$prefix);
+}
+check(pushFailureCode(new RuntimeException('firebase_send_failed:404:missing project',404))==='push_provider_project','Missing project is not an expired device');
+check(pushFailureCode(new RuntimeException('UNREGISTERED in arbitrary error text',400))==='push_payload_invalid','Only structured FCM codes invalidate devices');
 echo "PASS $checks push delivery and device-isolation checks.\n";
