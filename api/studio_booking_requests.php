@@ -11,6 +11,32 @@ function requireStudioRequestSchema(PDO $pdo): void {
     finally{$pdo->prepare('SELECT RELEASE_LOCK(?)')->execute(['mta_041_studio_requests']);}
 }
 
+/** Resolve one opaque support reference to an allowlisted technical category.
+ * Never return raw log text, paths, SQL, identities, parameter values or traces. */
+function studioBookingErrorReference(string $reference): array {
+    if(!preg_match('/^[a-f0-9]{12}$/D',$reference))return ['found'=>false];
+    $readable=false;
+    foreach(array_unique([(string)ini_get('error_log'),__DIR__.'/error_log',dirname(__DIR__).'/error_log']) as $path){
+        if($path===''||!is_file($path)||!is_readable($path))continue;
+        $readable=true;$stream=@fopen($path,'rb');if(!$stream)continue;
+        $size=fstat($stream)['size']??0;if($size>262144)fseek($stream,-262144,SEEK_END);
+        $tail=stream_get_contents($stream,262144);fclose($stream);
+        foreach(explode("\n",(string)$tail) as $line){
+            if(!str_contains($line,'[ERP API]['.$reference.'][POST /api/client/studio-booking-requests]'))continue;
+            $result=['found'=>true,'category'=>'other'];
+            if(preg_match('/Call to undefined function ([A-Za-z_][A-Za-z0-9_]*)\(/',$line,$match))return ['found'=>true,'category'=>'missing_function','function'=>$match[1]];
+            if(preg_match('/SQLSTATE\[([A-Z0-9]{5})\](?:\[[0-9]+\])?:[^:]*?:?\s*([0-9]{3,5})?/', $line,$match)){$result['category']='database';$result['sqlstate']=$match[1];}
+            if(preg_match('/Unknown column [\'"]([A-Za-z_][A-Za-z0-9_.]*)[\'"]/', $line,$match))$result['missing_column']=$match[1];
+            if(str_contains($line,'TypeError:'))$result['category']='argument_type';
+            if(str_contains($line,'ValueError:'))$result['category']='invalid_argument';
+            if(str_contains($line,'There is already an active transaction'))$result['category']='nested_transaction';
+            if(str_contains($line,'There is no active transaction'))$result['category']='lost_transaction';
+            return $result;
+        }
+    }
+    return ['found'=>false,'log_readable'=>$readable];
+}
+
 /** Operational readiness only: no identities, receipts, paths or database errors. */
 function studioBookingReadiness(PDO $pdo,array $config): array {
     $required=[
