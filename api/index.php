@@ -10,6 +10,7 @@ require_once __DIR__ . '/payment_methods.php';
 require_once __DIR__ . '/client_booking_policy.php';
 require_once __DIR__ . '/client_registration.php';
 require_once __DIR__ . '/auth_identity.php';
+require_once __DIR__ . '/remembered_login.php';
 require_once __DIR__ . '/payment_proof_review.php';
 require_once __DIR__ . '/studio_booking_requests.php';
 
@@ -231,23 +232,24 @@ function sessionToken(array $config): string {
 function setCsrfCookie(array $config, ?string $token = null): string {
     $token ??= bin2hex(random_bytes(32));
     setcookie(csrfCookieName($config), $token, [
-        'expires' => time() + 86400 * 7,
+        'expires' => time() + 86400 * rememberedLoginDays($config),
         'path' => '/',
         'secure' => isSecureRequest($config),
         'httponly' => false,
         'samesite' => 'Strict',
     ]);
+    $_COOKIE[csrfCookieName($config)] = $token;
     return $token;
 }
 
 function clearAuthCookies(array $config): void {
-    foreach (array_unique([sessionCookieName($config), csrfCookieName($config), 'mt_session', 'mt_csrf']) as $name) {
+    foreach (array_unique([sessionCookieName($config), csrfCookieName($config), rememberedCookieName($config, 'remember'), rememberedCookieName($config, 'device'), 'mt_session', 'mt_csrf', 'mt_remember', 'mt_device']) as $name) {
         unset($_COOKIE[$name]);
         setcookie($name, '', [
             'expires' => time() - 3600,
             'path' => '/',
             'secure' => str_starts_with($name, '__Host-') || isSecureRequest($config),
-            'httponly' => str_contains($name, 'session'),
+            'httponly' => !str_contains($name, 'csrf'),
             'samesite' => 'Strict',
         ]);
     }
@@ -399,9 +401,12 @@ function routePath(): string {
     return '/' . trim($path, '/');
 }
 
-function sessionUser(PDO $pdo, array $config): ?array {
+function sessionUser(PDO $pdo, array $config, bool $allowResume = true): ?array {
     $token = sessionToken($config);
-    if (!is_string($token) || strlen($token) < 40) return null;
+    if (!is_string($token) || strlen($token) < 40) {
+        if ($allowResume && resumeRememberedLogin($pdo, $config) !== '') return sessionUser($pdo, $config, false);
+        return null;
+    }
     $idleMinutes = max(15, min(1440, (int)($config['app']['session_idle_minutes'] ?? 120)));
     $tokenHash = hash('sha256', $token);
     $userAgentHash = requestUserAgentHash();
@@ -419,6 +424,7 @@ function sessionUser(PDO $pdo, array $config): ?array {
     $user = $stmt->fetch();
     if (!$user) {
         $pdo->prepare('DELETE FROM api_sessions WHERE token_hash = ?')->execute([$tokenHash]);
+        if ($allowResume && resumeRememberedLogin($pdo, $config) !== '') return sessionUser($pdo, $config, false);
         clearAuthCookies($config);
         return null;
     }
@@ -439,6 +445,7 @@ function requireRole(array $user, array $roles): void {
 }
 
 function setSessionCookie(array $config, string $token, int $days): void {
+    $_COOKIE[sessionCookieName($config)] = $token;
     setcookie(sessionCookieName($config), $token, [
         'expires' => time() + ($days * 86400),
         'path' => '/',
@@ -1747,7 +1754,7 @@ function nextClientColor(PDO $pdo,int $organizationId): string {
 }
 
 function systemBackupExcludedTables(): array {
-    return ['api_sessions','auth_rate_limits','password_reset_tokens','registration_email_challenges','auth_google_challenges','registration_bot_challenges'];
+    return ['api_sessions','auth_rate_limits','password_reset_tokens','registration_email_challenges','auth_google_challenges','registration_bot_challenges','remembered_login_devices'];
 }
 
 function systemBackupChildQueries(): array {
@@ -1951,6 +1958,8 @@ if ($path === '/system-backups/restore' && $method === 'POST') {
 
 if ($path === '/health' && $method === 'GET') {
     $pdo->query('SELECT 1');
+    $rememberedLoginReady=false;
+    try{ensureRememberedLoginSchema($pdo);$rememberedLoginReady=true;}catch(Throwable){/* Never expose database details. */}
     $bookingBlocksReady=bookingBlockSchemaReadyFresh($pdo)||installBookingBlockSchema($pdo);
     $sessionCompensationReady=sessionCompensationSchemaReadyFresh($pdo)||installSessionCompensationSchema($pdo);
     $push=pushConfiguration($config);$pushConfig=is_array($config['push']??null)?$config['push']:[];$serviceAccount=trim((string)($pushConfig['service_account_file']??''));$pushServerReady=trim((string)($pushConfig['worker_key']??''))!==''&&$serviceAccount!==''&&is_file($serviceAccount);$pushReady=$push['enabled']&&$pushServerReady&&schemaTableExists($pdo,'app_push_subscriptions')&&schemaTableExists($pdo,'app_push_jobs');
@@ -1959,7 +1968,7 @@ if ($path === '/health' && $method === 'GET') {
     if($pushReady){try{ensurePushReceiptSchema($pdo);$pushReceiptsReady=true;}catch(Throwable){/* Do not expose database details. */}}
     $staffPushReady=false;
     if($pushReady){try{staffWebPushKeys($config);$staffPushReady=extension_loaded('openssl')&&extension_loaded('curl')&&extension_loaded('mbstring');}catch(Throwable){/* Report readiness without exposing private configuration. */}}
-    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'session_compensation_ready'=>$sessionCompensationReady, 'push_ready'=>$pushReady,'staff_push_ready'=>$staffPushReady,'push_receipts_ready'=>$pushReceiptsReady,'attendance_schema_ready'=>count($attendanceMissing)===0,'attendance_schema_missing'=>$attendanceMissing]+(($_GET['check']??'')==='studio-booking'?['studio_booking'=>studioBookingReadiness($pdo,$config)]:[]));
+    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'remembered_login_ready'=>$rememberedLoginReady, 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'session_compensation_ready'=>$sessionCompensationReady, 'push_ready'=>$pushReady,'staff_push_ready'=>$staffPushReady,'push_receipts_ready'=>$pushReceiptsReady,'attendance_schema_ready'=>count($attendanceMissing)===0,'attendance_schema_missing'=>$attendanceMissing]+(($_GET['check']??'')==='studio-booking'?['studio_booking'=>studioBookingReadiness($pdo,$config)]:[]));
 }
 
 if ($path === '/push/config' && $method === 'GET') {
@@ -2115,7 +2124,7 @@ function issueLoginSession(PDO $pdo, array $config, array $found, string $identi
     $found['role'] = authorizationRole($found);
     $rawToken = bin2hex(random_bytes(32));
     $days = max(1, min(7, (int)($config['app']['session_days'] ?? 7)));
-    $expiry = (new DateTimeImmutable("+$days days"))->format('Y-m-d H:i:s');
+    $expiry = (new DateTimeImmutable('now', new DateTimeZone('Africa/Cairo')))->modify("+$days days")->format('Y-m-d H:i:s');
     $pdo->prepare('DELETE FROM api_sessions WHERE expires_at <= NOW()')->execute();
     $pdo->prepare('INSERT INTO api_sessions (user_id, credential_version, token_hash, ip_hash, user_agent_hash, expires_at, last_used_at) VALUES (?, ?, ?, ?, ?, ?, NOW())')
         ->execute([$found['id'], (int)($found['credential_version'] ?? 1), hash('sha256', $rawToken), requestIpHash(), requestUserAgentHash(), $expiry]);
@@ -2136,6 +2145,7 @@ function issueLoginSession(PDO $pdo, array $config, array $found, string $identi
     }
     setSessionCookie($config, $rawToken, $days);
     setCsrfCookie($config);
+    rememberLoginDevice($pdo, $config, $found, $rawToken, true);
     $pdo->prepare('INSERT INTO auth_security_events (organization_id,user_id,event_type,identifier_hash,ip_hash,user_agent_hash) VALUES (?,?,?,?,?,?)')
         ->execute([$found['organization_id'], $found['id'], $eventType, hash('sha256', loginIdentity($identifier)), requestIpHash(), requestUserAgentHash()]);
     return ['session' => ['expires_at' => $expiry], 'user' => credentialSafeUser($found)];
@@ -2158,8 +2168,10 @@ if ($path === '/auth/staff/login' && $method === 'POST') {
 }
 
 if ($path === '/auth/session' && $method === 'GET') {
-    if (empty($_COOKIE[csrfCookieName($config)])) setCsrfCookie($config);
+    $csrf=$_COOKIE[csrfCookieName($config)]??null;
+    setCsrfCookie($config,is_string($csrf)&&preg_match('/^[a-f0-9]{64}$/D',$csrf)?$csrf:null);
     if (!$user) respond(['session' => null, 'user' => null]);
+    rememberLoginDevice($pdo, $config, $user, sessionToken($config));
     respond(['session' => ['active' => true], 'user' => $user]);
 }
 
@@ -2190,6 +2202,7 @@ if ($path === '/cron/push-queue' && $method === 'POST') {
 }
 
 if ($path === '/auth/logout' && $method === 'POST') {
+    forgetRememberedLogin($pdo, $config);
     if ($user) {
         try { attendanceCheckOut($pdo, $user); } catch (Throwable $attendanceError) { error_log('[Attendance check-out] '.$attendanceError->getMessage()); }
     }
@@ -2226,6 +2239,7 @@ if ($path === '/auth/password' && $method === 'PATCH') {
         audit($pdo,$user,'password_changed','users',(int)$account['id'],null,['client_id'=>$account['client_id']?(int)$account['client_id']:null,'forced'=>$forced,'sessions_revoked'=>true]);
         $pdo->prepare('INSERT INTO auth_security_events (organization_id,user_id,event_type,ip_hash,user_agent_hash) VALUES (?,?,?,?,?)')->execute([$user['organization_id'],$user['id'],'password_changed',requestIpHash(),requestUserAgentHash()]);
         $pdo->commit();setSessionCookie($config,$rawToken,$days);setCsrfCookie($config);
+        rememberLoginDevice($pdo,$config,array_merge($account,['credential_version'=>$version]),$rawToken,true);
         respond(['updated'=>true,'session'=>['expires_at'=>$expiry],'user'=>credentialSafeUser(array_merge($account,['password_status'=>'active','must_change_password'=>0]))]);
     } catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }

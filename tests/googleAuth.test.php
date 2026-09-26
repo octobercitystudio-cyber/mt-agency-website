@@ -17,6 +17,9 @@ function clearAccountLoginLimit(PDO $pdo,string $identity): void {}
 function registrationRateLimit(...$args): void {}
 function setSessionCookie(...$args): void { $GLOBALS['sessionCookies'] = ($GLOBALS['sessionCookies'] ?? 0)+1; }
 function setCsrfCookie(...$args): string { return 'csrf'; }
+// Device renewal has its own real database coverage in rememberedLogin.test.php.
+function rememberLoginDevice(...$args): void { $GLOBALS['rememberedLogins']=($GLOBALS['rememberedLogins']??0)+1; }
+function rememberedCookieName(array $config,string $kind): string { return 'mt_'.$kind; }
 function attendanceCheckIn(...$args): void {}
 function audit(...$args): void {}
 function schemaTableColumns(PDO $pdo,string $table): array { return array_column($pdo->query('PRAGMA table_info('.$table.')')->fetchAll(),'name'); }

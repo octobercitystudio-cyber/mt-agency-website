@@ -16,6 +16,7 @@ return [
         'setup_key' => 'replace-with-a-long-random-setup-key',
         'session_days' => 7,
         'session_idle_minutes' => 120,
+        'remember_device_days' => 90,
         'max_sessions_per_user' => 5,
         // Keep customer documents outside public_html.
         'upload_dir' => dirname(__DIR__, 2) . '/private_uploads/payment-proofs',
