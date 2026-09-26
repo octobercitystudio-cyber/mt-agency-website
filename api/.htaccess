@@ -1,6 +1,14 @@
 Options -Indexes
 RewriteEngine On
 
+# Let committed booking/account events finish their bounded push dispatch if
+# the requesting phone closes the connection. Keep normal request timeouts.
+<IfModule LiteSpeed>
+  RewriteCond %{REQUEST_METHOD} ^(?:POST|PATCH|DELETE)$
+  RewriteCond %{REQUEST_URI} ^/api/(?:registration/complete|client/studio-booking-requests|studio-booking-requests|bookings|reschedule-requests|payment-proofs|cron/push-queue|data/(?:bookings|client_packages|payments|promotion_subscriptions))(?:/|$)
+  RewriteRule ^ - [E=noabort:1]
+</IfModule>
+
 <FilesMatch "^(config\.php|config\.example\.php)$">
   Require all denied
 </FilesMatch>

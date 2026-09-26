@@ -87,7 +87,7 @@ test('production contracts scope owner recipients, delete transactionally, and g
   const [api, packages, ownerUi, ownerCss, clientUi, dashboard, bookingDialog, modalHook, demo] = await Promise.all([load('api/index.php'), load('src/erp/ERPPackages.jsx'), load('src/erp/OwnerNotifications.jsx'), load('src/erp/OwnerNotifications.css'), load('src/pages/ClientNotifications.jsx'), load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientBookingDialog.jsx'), load('src/hooks/useModalDialog.js'), load('src/lib/demoDataClient.js')]);
   assert.match(api, /notifyOwnersOfClientAction/); assert.match(api, /recipient_user_id=\?/); assert.match(api, /audience='owner'/); assert.match(api, /deleteEligibleBooking/); assert.match(api, /booking_session_protected/); assert.match(api, /DELETE FROM reschedule_requests/); assert.match(api, /booking_deleted/); assert.match(api, /WHERE id=\? AND organization_id=\? AND client_id=\? FOR UPDATE/); assert.match(api, /legacy_booking_cancellation_retired/); assert.match(api, /cancellation_reason_not_supported/);
   assert.match(packages, /detailsRequestRef/); assert.match(packages, /detailsRequestRef\.current\.token !== token/); assert.match(packages, /detailsRequestRef\.current\.packageId !== normalizedId/); assert.match(packages, /14 يومًا تقويميًا/); assert.doesNotMatch(packages, /14 يوم عمل/);
-  assert.match(ownerUi, /createPortal/); assert.match(ownerUi, /isolateBackground: true/); assert.match(ownerUi, /captureNotificationOpen/); assert.match(clientUi, /captureNotificationOpen/); assert.match(ownerCss, /owner-notifications__backdrop\{z-index:3000\}/); assert.match(modalHook, /element\.inert = true/); assert.match(modalHook, /aria-hidden/);
+  assert.match(ownerUi, /createPortal/); assert.match(ownerUi, /isolateBackground: true/); assert.doesNotMatch(ownerUi, /captureNotificationOpen/); assert.match(clientUi, /captureNotificationOpen/); assert.match(ownerCss, /owner-notifications__backdrop\{z-index:3000\}/); assert.match(modalHook, /element\.inert = true/); assert.match(modalHook, /aria-hidden/);
   assert.doesNotMatch(bookingDialog, /if \(isLocalPreview\) return/); assert.match(bookingDialog, /\/bookings\/request/); assert.match(bookingDialog, /\/reschedule-requests/); assert.match(dashboard, /\/payment-proofs/); assert.match(demo, /rolling_first_booking/);
 });
 
@@ -120,7 +120,9 @@ test('booking UI and generic owner APIs cannot invoke a reason-bearing cancellat
   assert.match(api, /booking_owner_action_retired/);
   assert.match(api, /if\(\$entity==='bookings'\).*cancellation_reason_not_supported/);
   assert.match(demo, /if \(entity === 'bookings'\).*booking_owner_action_retired/);
-  for (const center of [ownerUi, clientUi]) {
+  assert.match(ownerUi, /setFilter\('unread'\)/);
+  assert.doesNotMatch(ownerUi, /captured\.optimisticItems|clearSystemNotifications: unreadCount === 0/);
+  for (const center of [clientUi]) {
     assert.match(center, /pendingInitialOpenRef/);
     assert.match(center, /initialRequestInFlightRef/);
     assert.match(center, /resolveNotificationOpenBoundary/);

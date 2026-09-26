@@ -19,6 +19,7 @@ function sendFirebasePush(array $config,string $token,array $notification,int $c
 final class PushTestPDO extends PDO {
  public function __construct(){parent::__construct('sqlite::memory:');$this->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);}
  private function sql(string $sql):string {
+  $sql=str_replace(' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci','',$sql);
   $sql=str_replace('DATE_ADD(NOW(),INTERVAL 10 MINUTE)',"datetime('now','+10 minutes')",$sql);
   $sql=str_replace('DATE_ADD(NOW(),INTERVAL ? MINUTE)',"datetime('now','+' || ? || ' minutes')",$sql);
   return str_replace([' FOR UPDATE','NOW()'],['',"datetime('now')"],$sql);
@@ -72,4 +73,19 @@ foreach([[20,'BADPAYLOAD','push_payload_invalid'],[21,'BADCONFIG','push_provider
 }
 check(pushFailureCode(new RuntimeException('firebase_send_failed:404:missing project',404))==='push_provider_project','Missing project is not an expired device');
 check(pushFailureCode(new RuntimeException('UNREGISTERED in arbitrary error text',400))==='push_payload_invalid','Only structured FCM codes invalidate devices');
+// A failing legacy phone comes first; the current phone must still receive.
+$pdo->exec("INSERT INTO app_notifications(id,organization_id,recipient_user_id,audience,title,message,entity_type) VALUES(40,1,40,'owner','New booking','Confirmed','bookings');
+INSERT INTO app_push_jobs(id,organization_id,notification_id) VALUES(40,1,40);");
+foreach([[40,'BADCONFIG'.str_repeat('Q',90)],[41,str_repeat('H',90)]] as [$id,$token])$pdo->prepare('INSERT INTO app_push_subscriptions(id,organization_id,user_id,token,token_hash) VALUES(?,1,40,?,?)')->execute([$id,$token,hash('sha256',$token)]);
+$before=count($delivered);$result=processPushQueue($pdo,[],[40]);
+check($result['delivered_devices']===1&&count($delivered)===$before+1,'Failed old device never blocks a later healthy device');
+check($pdo->query('SELECT status FROM app_push_jobs WHERE id=40')->fetchColumn()==='pending','Failed device still gets a scheduled retry');
+$pdo->exec("UPDATE app_push_jobs SET available_at=CURRENT_TIMESTAMP WHERE id=40");
+processPushQueue($pdo,[],[40]);
+check(count($delivered)===$before+1,'Successful phone is not notified again on retries');
+$pdo->prepare('UPDATE app_push_subscriptions SET token=? WHERE id=40')->execute([str_repeat('R',90)]);
+$pdo->exec("UPDATE app_push_jobs SET available_at=CURRENT_TIMESTAMP WHERE id=40");
+processPushQueue($pdo,[],[40]);
+check(count($delivered)===$before+2,'Recovered device receives the missed notification once');
+check($pdo->query('SELECT status FROM app_push_jobs WHERE id=40')->fetchColumn()==='sent','Job completes after every active device succeeds');
 echo "PASS $checks push delivery and device-isolation checks.\n";

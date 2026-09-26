@@ -39,21 +39,48 @@ function scheduleImmediatePushDelivery(PDO $pdo,array $config,int $notificationI
     register_shutdown_function(static function()use($pdo,$config,&$ids):void{
         // A failed request can exit inside a transaction. Never deliver uncommitted events.
         if($pdo->inTransaction())return;
+        ignore_user_abort(true);
         if(function_exists('fastcgi_finish_request'))fastcgi_finish_request();
         elseif(function_exists('litespeed_finish_request'))litespeed_finish_request();
-        ignore_user_abort(true);
         try{processPushQueue($pdo,$config,array_values($ids));}
         catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();error_log('[push-dispatch] Delivery deferred to scheduled retry.');}
     });
 }
 
+function ensurePushReceiptSchema(PDO $pdo): void {
+    // Never run DDL inside a business transaction: MySQL would commit it implicitly.
+    if($pdo->inTransaction())throw new LogicException('Push receipt setup requires a committed transaction.');
+    $pdo->exec('CREATE TABLE IF NOT EXISTS app_push_delivery_receipts (
+        job_id BIGINT UNSIGNED NOT NULL, subscription_id BIGINT UNSIGNED NOT NULL, organization_id BIGINT UNSIGNED NOT NULL,
+        sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (job_id,subscription_id),
+        CONSTRAINT fk_push_receipt_job FOREIGN KEY (job_id) REFERENCES app_push_jobs(id) ON DELETE CASCADE,
+        CONSTRAINT fk_push_receipt_subscription FOREIGN KEY (subscription_id) REFERENCES app_push_subscriptions(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+}
+
 function processPushQueue(PDO $pdo,array $config,array $notificationIds=[]): array {
     if($pdo->inTransaction())throw new LogicException('Push delivery requires a committed transaction.');
+    ensurePushReceiptSchema($pdo);
     $pdo->exec("UPDATE app_push_jobs SET status='pending' WHERE status='processing' AND available_at<=NOW() AND attempts<5");$pdo->beginTransaction();$scope=$notificationIds ? ' AND notification_id IN ('.implode(',',array_map('intval',$notificationIds)).')' : '';
     $stmt=$pdo->query("SELECT * FROM app_push_jobs WHERE status='pending' AND available_at<=NOW() AND attempts<5".$scope." ORDER BY id LIMIT 20 FOR UPDATE");$jobs=$stmt->fetchAll();if($jobs){$ids=array_map('intval',array_column($jobs,'id'));$marks=implode(',',array_fill(0,count($ids),'?'));$pdo->prepare("UPDATE app_push_jobs SET status='processing',available_at=DATE_ADD(NOW(),INTERVAL 10 MINUTE) WHERE id IN ($marks)")->execute($ids);}$pdo->commit();$sent=0;$failed=0;$devices=0;
     foreach($jobs as $job){try{$notificationStmt=$pdo->prepare('SELECT id,organization_id,client_id,recipient_user_id,audience,title,message,action_tab,payload_json,entity_type FROM app_notifications WHERE id=? AND organization_id=? AND dismissed_at IS NULL AND read_at IS NULL');$notificationStmt->execute([$job['notification_id'],$job['organization_id']]);$notification=$notificationStmt->fetch();if(!$notification){$pdo->prepare("UPDATE app_push_jobs SET status='sent',attempts=attempts+1,sent_at=NOW(),last_error=NULL WHERE id=?")->execute([$job['id']]);$sent++;continue;}
             $where=['organization_id=?','is_active=1'];$params=[(int)$job['organization_id']];if((string)$notification['audience']==='client'){$where[]='client_id=?';$params[]=(int)$notification['client_id'];}elseif(!empty($notification['recipient_user_id'])){$where[]='user_id=?';$params[]=(int)$notification['recipient_user_id'];}else{$where[]='user_id IS NOT NULL';}$subscriptions=$pdo->prepare('SELECT id,user_id,token FROM app_push_subscriptions WHERE '.implode(' AND ',$where));$subscriptions->execute($params);
-            foreach($subscriptions->fetchAll() as $subscription){try{$unreadCount=pushUnreadCount($pdo,$notification,!empty($subscription['user_id'])?(int)$subscription['user_id']:null);sendFirebasePush($config,(string)$subscription['token'],$notification,$unreadCount);$devices++;}catch(RuntimeException $sendError){if(pushFailureCode($sendError)==='push_token_expired'){$pdo->prepare('UPDATE app_push_subscriptions SET is_active=0 WHERE id=?')->execute([$subscription['id']]);continue;}throw $sendError;}}
+            $deviceFailure=null;
+            foreach($subscriptions->fetchAll() as $subscription){
+                $receipt=$pdo->prepare('SELECT 1 FROM app_push_delivery_receipts WHERE job_id=? AND subscription_id=?');
+                $receipt->execute([$job['id'],$subscription['id']]);if($receipt->fetchColumn())continue;
+                try{
+                    $unreadCount=pushUnreadCount($pdo,$notification,!empty($subscription['user_id'])?(int)$subscription['user_id']:null);
+                    sendFirebasePush($config,(string)$subscription['token'],$notification,$unreadCount);
+                    $pdo->prepare('INSERT INTO app_push_delivery_receipts (job_id,subscription_id,organization_id) VALUES (?,?,?)')->execute([$job['id'],$subscription['id'],$job['organization_id']]);$devices++;
+                }catch(Throwable $sendError){
+                    if(pushFailureCode($sendError)==='push_token_expired'){$pdo->prepare('UPDATE app_push_subscriptions SET is_active=0 WHERE id=?')->execute([$subscription['id']]);continue;}
+                    // An old/broken device must never prevent the current phone from receiving the alert.
+                    $deviceFailure=$sendError;
+                }
+            }
+            if($deviceFailure)throw new RuntimeException(pushFailureCode($deviceFailure),(int)$deviceFailure->getCode());
             $pdo->prepare("UPDATE app_push_jobs SET status='sent',attempts=attempts+1,sent_at=NOW(),last_error=NULL WHERE id=? AND status='processing'")->execute([$job['id']]);$sent++;
         }catch(Throwable $error){$attempts=(int)$job['attempts']+1;$status=$attempts>=5?'failed':'pending';$delay=min(1440,5*(2**max(0,$attempts-1)));$pdo->prepare('UPDATE app_push_jobs SET status=?,attempts=?,available_at=DATE_ADD(NOW(),INTERVAL ? MINUTE),last_error=? WHERE id=?')->execute([$status,$attempts,$delay,mb_substr($error->getMessage(),0,1000),$job['id']]);$failed++;}}
     return ['processed'=>count($jobs),'sent_jobs'=>$sent,'failed_jobs'=>$failed,'delivered_devices'=>$devices];
