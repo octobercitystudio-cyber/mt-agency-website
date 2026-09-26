@@ -22,7 +22,7 @@ const friendlyError = error => {
   if (error?.message === 'push_permission_required') return 'اضغط تفعيل الإشعارات ثم وافق على طلب السماح من الهاتف.';
   if (error?.message === 'push_unsupported') return 'هذا الجهاز لا يدعم إشعارات التطبيق.';
   const code = String(error?.code || error?.message || 'unknown').replace(/[^a-zA-Z0-9_/-]/g, '').slice(0,80);
-  return `تعذر إكمال اتصال الإشعارات. كود التشخيص: ${code}.`; 
+  return `تعذر إكمال اتصال الإشعارات. كود التشخيص: ${code}.`;
 };
 
 export default function PushNotificationsBridge() {
@@ -32,6 +32,15 @@ export default function PushNotificationsBridge() {
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
   const manualCheck = useRef(false);
+  const checkBusy = useRef(false);
+  const [retryAt, setRetryAt] = useState(0);
+  const [clock, setClock] = useState(Date.now);
+  const retrySeconds = Math.max(0, Math.ceil((retryAt - clock) / 1000));
+  useEffect(() => {
+    if (!retryAt) return undefined;
+    const timer = window.setInterval(() => { const now = Date.now(); setClock(now); if (now >= retryAt) setRetryAt(0); }, 250);
+    return () => window.clearInterval(timer);
+  }, [retryAt]);
   const [diagnostic, setDiagnostic] = useState('');
   const currentPrincipal = currentUser ? `${currentUser.role}:${currentUser.id}` : '';
 
@@ -84,8 +93,9 @@ export default function PushNotificationsBridge() {
   }, [currentUser]);
 
   const enable = async () => {
+    if (checkBusy.current || Date.now() < retryAt) return;
     if (!configuration?.enabled || !configuration?.schema_ready) { setStatus('error'); setMessage('إشعارات الجهاز غير متاحة حاليًا.'); return; }
-    manualCheck.current = true; setDiagnostic(''); setStatus('requesting');
+    checkBusy.current = true; manualCheck.current = true; setDiagnostic(''); setStatus('requesting');
     setMessage('اسمح للمتصفح أو التطبيق بعرض الإشعارات على هذا الجهاز.');
     try {
       await registerPushNotifications(dataClient, configuration, true);
@@ -100,6 +110,13 @@ export default function PushNotificationsBridge() {
         setStatus('success');
         setMessage('تم تسجيل الجهاز وإرسال تجربة من الخادم. تأكد من وصول الإشعار وسماع صوته؛ نجاح الإرسال وحده لا يؤكد وصوله للهاتف.');
       } catch (error) {
+        if (['push_test_rate_limited', 'registration_rate_limited'].includes(error?.code)) {
+          const wait = Math.max(1, Number(error.retryAfter) || 60);
+          const now = Date.now(); setClock(now); setRetryAt(now + wait * 1000);
+          setStatus('idle'); setDiagnostic('');
+          setMessage('تم تسجيل الجهاز. تم بلوغ حد تجارب الإرسال؛ انتظر العدّاد ثم جرّب مرة واحدة. إشعارات الحجوزات والطلبات لا تتأثر بهذا الانتظار.');
+          return;
+        }
         setStatus('error');
         setDiagnostic(`server: ${error?.code || 'unknown'}`);
         setMessage(`تم تسجيل الجهاز، لكن الإرسال من الخادم لم ينجح. ${friendlyError(error)}`);
@@ -108,16 +125,19 @@ export default function PushNotificationsBridge() {
       setStatus('error');
       setDiagnostic(`registration: ${error?.code || error?.message || 'unknown'}`);
       setMessage(friendlyError(error));
-    }
+    } finally { checkBusy.current = false; }
   };
 
   const localTest = async () => {
+    if (checkBusy.current) return;
+    checkBusy.current = true;
     manualCheck.current = true; setStatus('requesting'); setDiagnostic('');
     try {
       await testLocalPushNotification(); setStatus('idle');
       setMessage('تم طلب عرض إشعار على الهاتف مباشرة. إذا لم يظهر أو لم يصدر صوتًا فراجع إعدادات الهاتف وChrome. إذا ظهر، اضغط «اختبار الإرسال من الخادم».');
       setDiagnostic('local_display_requested');
     } catch (error) { setStatus('error'); setMessage(friendlyError(error)); setDiagnostic(`local: ${error?.code || error?.message || 'unknown'}`); }
+    finally { checkBusy.current = false; }
   };
 
   const dismiss = () => {
@@ -127,5 +147,5 @@ export default function PushNotificationsBridge() {
   };
 
   if (!currentUser || currentUser.role === 'applicant' || !visible) return null;
-  return <PushNotificationPrompt staff={currentUser.role !== 'client'} status={status} message={message} diagnostic={diagnostic} onLocalTest={localTest} onEnable={enable} onDismiss={dismiss} />;
+  return <PushNotificationPrompt staff={currentUser.role !== 'client'} status={status} message={message} diagnostic={diagnostic} retrySeconds={retrySeconds} onLocalTest={localTest} onEnable={enable} onDismiss={dismiss} />;
 }

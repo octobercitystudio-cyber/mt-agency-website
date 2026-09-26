@@ -10,6 +10,7 @@ export default function PushNotificationPrompt({
   staff = false,
   message = '',
   diagnostic = '',
+  retrySeconds = 0,
   onLocalTest,
   onEnable,
   onDismiss,
@@ -44,10 +45,10 @@ export default function PushNotificationPrompt({
             type="button"
             className="push-notification-prompt__enable"
             onClick={onEnable}
-            disabled={isPending}
+            disabled={isPending || retrySeconds > 0}
           >
             {isPending ? <LoaderCircle className="push-notification-prompt__spinner" aria-hidden="true" /> : <BellRing aria-hidden="true" />}
-            <span>{isPending ? 'جارٍ التفعيل…' : 'اختبار الإرسال من الخادم'}</span>
+            <span>{isPending ? 'جارٍ التفعيل…' : retrySeconds > 0 ? `إعادة التجربة بعد ${retrySeconds} ث` : 'اختبار الإرسال من الخادم'}</span>
           </button>
           {onLocalTest && <button type="button" className="push-notification-prompt__dismiss" onClick={onLocalTest} disabled={isPending}>تجربة إشعار الهاتف فقط</button>}
           <button

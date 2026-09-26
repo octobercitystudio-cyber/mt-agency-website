@@ -22,6 +22,7 @@ const toError = (payload, fallback = 'تعذر الاتصال بالخادم.') 
   error.code = source?.code || 'api_error';
   error.confirmationToken = source?.confirmation_token;
   error.status = source?.status;
+  error.retryAfter = Number(source?.retry_after) || 0;
   error.requestId = requestId;
   return error;
 };

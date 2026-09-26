@@ -52,7 +52,7 @@ function registrationFullName(array $payload): string {
     return implode(' ',$parts);
 }
 
-function registrationRateLimit(PDO $pdo,string $scope,string $identity,int $limit,int $seconds,int $cooldown=0): void {
+function registrationRateLimit(PDO $pdo,string $scope,string $identity,int $limit,int $seconds,int $cooldown=0,string $errorCode='registration_rate_limited'): void {
     $key=authLimitKey('registration:'.$scope,$identity);$now=cairoNow();$stamp=$now->format('Y-m-d H:i:s');
     $pdo->beginTransaction();
     try {
@@ -60,7 +60,12 @@ function registrationRateLimit(PDO $pdo,string $scope,string $identity,int $limi
         $s=$pdo->prepare('SELECT attempts,window_started_at,last_attempt_at FROM auth_rate_limits WHERE limit_key=? FOR UPDATE');$s->execute([$key]);$row=$s->fetch();
         $zone=new DateTimeZone('Africa/Cairo');$elapsed=$now->getTimestamp()-(new DateTimeImmutable($row['window_started_at'],$zone))->getTimestamp();$sinceLast=$now->getTimestamp()-(new DateTimeImmutable($row['last_attempt_at'],$zone))->getTimestamp();
         $attempts=$elapsed>=$seconds?0:(int)$row['attempts'];
-        if ($attempts>=$limit || $sinceLast<$cooldown) {$pdo->rollBack();fail('محاولات كثيرة خلال وقت قصير. انتظر قليلًا ثم أعد المحاولة.',429,'registration_rate_limited');}
+        if ($attempts>=$limit || $sinceLast<$cooldown) {
+            $retryAfter=max(1,$attempts>=$limit?$seconds-$elapsed:0,$cooldown-$sinceLast);
+            $pdo->rollBack();header('Retry-After: '.(string)$retryAfter);
+            $message=$errorCode==='push_test_rate_limited'?'تم تسجيل الجهاز. انتظر '.$retryAfter.' ثانية قبل إرسال إشعار تجريبي آخر. هذا الحد لا يوقف إشعارات الحجوزات والطلبات.':'محاولات كثيرة خلال وقت قصير. انتظر قليلًا ثم أعد المحاولة.';
+            fail($message,429,$errorCode,['retry_after'=>$retryAfter]);
+        }
         $pdo->prepare('UPDATE auth_rate_limits SET attempts=?,window_started_at=?,last_attempt_at=? WHERE limit_key=?')->execute([$attempts+1,$elapsed>=$seconds?$stamp:$row['window_started_at'],$stamp,$key]);$pdo->commit();
     } catch(Throwable $error) {if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }

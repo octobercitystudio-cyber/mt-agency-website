@@ -66,7 +66,7 @@ function sendOwnPushTest(PDO $pdo,array $config,array $user,string $token): arra
     $s=$pdo->prepare('SELECT token FROM app_push_subscriptions WHERE organization_id=? AND token_hash=? AND is_active=1 AND '.($isClient?'client_id':'user_id').'=?');
     $s->execute([(int)$user['organization_id'],hash('sha256',$token),(int)($isClient?$user['client_id']:$user['id'])]);
     $registered=$s->fetchColumn();if(!$registered)fail('هذا الجهاز غير مسجل لحسابك. أعد تفعيل الإشعارات.',403,'push_device_not_registered');
-    registrationRateLimit($pdo,'push_test',(string)$user['id'],3,60);
+    registrationRateLimit($pdo,'push_test',(string)$user['id'],3,60,0,'push_test_rate_limited');
     $notification=['id'=>0,'organization_id'=>(int)$user['organization_id'],'client_id'=>$isClient?(int)$user['client_id']:null,'audience'=>$isClient?'client':'owner','recipient_user_id'=>$isClient?null:(int)$user['id'],'title'=>'تجربة إشعارات MT Agency','message'=>'وصل هذا الإشعار من الخادم إلى جهازك. راجع الصوت وإعدادات شاشة القفل.','action_tab'=>'home','is_test'=>true];
     try { sendFirebasePush($config,(string)$registered,$notification,0); }
     catch(RuntimeException $error) {
