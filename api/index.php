@@ -4,6 +4,7 @@ require_once __DIR__.'/owner_activity_notifications.php';
 require_once __DIR__.'/package_loyalty.php';
 require_once __DIR__.'/booking_conflicts.php';
 require_once __DIR__.'/push_delivery.php';
+require_once __DIR__.'/staff_webpush.php';
 require_once __DIR__ . '/client_contacts.php';
 require_once __DIR__ . '/payment_methods.php';
 require_once __DIR__ . '/client_booking_policy.php';
@@ -773,10 +774,12 @@ function pushUnreadCount(PDO $pdo,array $notification,?int $subscriptionUserId=n
 }
 
 function sendFirebasePush(array $config,string $token,array $notification,int $unreadCount=1): void {
-    $auth=firebaseAccessToken($config);$title=mb_substr(trim((string)($notification['title']??'MT Agency')),0,180);$body=mb_substr(trim((string)($notification['message']??'لديك تحديث جديد.')),0,500);$notificationId=(string)(int)($notification['id']??0);$tab=trim((string)($notification['action_tab']??''));if($tab==='montage')$tab='videos';$clientAudience=(string)($notification['audience']??'')==='client';
+    $title=mb_substr(trim((string)($notification['title']??'MT Agency')),0,180);$body=mb_substr(trim((string)($notification['message']??'لديك تحديث جديد.')),0,500);$notificationId=(string)(int)($notification['id']??0);$tab=trim((string)($notification['action_tab']??''));if($tab==='montage')$tab='videos';$clientAudience=(string)($notification['audience']??'')==='client';
     $staffRoutes=['requests'=>'/erp/requests','bookings'=>'/erp/bookings','packages'=>'/erp/packages','clients'=>'/erp/clients','finance'=>'/erp/finance','projects'=>'/erp/projects','offers'=>'/erp/offers','post-production'=>'/erp/post-production'];$url=$clientAudience?('/dashboard'.($tab!==''?'?tab='.rawurlencode($tab):'')):($staffRoutes[$tab]??'/erp');$payload=is_array($notification['payload']??null)?$notification['payload']:json_decode((string)($notification['payload_json']??''),true);$jobId=is_array($payload)?filter_var($payload['post_production_job_id']??null,FILTER_VALIDATE_INT):false;if($clientAudience&&in_array($tab,['montage','videos'],true)&&$jobId!==false&&$jobId>0)$url.=($tab!==''?'&':'?').'job='.(int)$jobId;
     $syncTopics=array_values(array_unique(['notifications',changeTopic((string)($notification['entity_type']??''))]));
     $message=['message'=>['token'=>$token,'notification'=>['title'=>$title,'body'=>$body],'data'=>['title'=>$title,'body'=>$body,'url'=>$url,'notification_id'=>$notificationId,'unread_count'=>(string)max(1,min(999,$unreadCount)),'sync_topics'=>implode(',',$syncTopics),'is_test'=>!empty($notification['is_test'])?'1':'0'],'webpush'=>['headers'=>['Urgency'=>'high','TTL'=>'86400'],'fcm_options'=>['link'=>'https://multitaskagency.com'.$url]]]];
+    if(str_starts_with($token,'webpush:')){sendStaffWebPush($config,$token,$message['message']['data']);return;}
+    $auth=firebaseAccessToken($config);
     $endpoint='https://fcm.googleapis.com/v1/projects/'.rawurlencode($auth['project_id']).'/messages:send';$curl=curl_init($endpoint);curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>20,CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$auth['token'],'Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode($message,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);$raw=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_HTTP_CODE);$error=curl_error($curl);curl_close($curl);
     if($status<200||$status>=300){$detail=is_string($raw)?mb_substr($raw,0,500):$error;throw new RuntimeException('firebase_send_failed:'.$status.':'.$detail,$status);}
 }
@@ -1952,22 +1955,38 @@ if ($path === '/health' && $method === 'GET') {
     $sessionCompensationReady=sessionCompensationSchemaReadyFresh($pdo)||installSessionCompensationSchema($pdo);
     $push=pushConfiguration($config);$pushConfig=is_array($config['push']??null)?$config['push']:[];$serviceAccount=trim((string)($pushConfig['service_account_file']??''));$pushServerReady=trim((string)($pushConfig['worker_key']??''))!==''&&$serviceAccount!==''&&is_file($serviceAccount);$pushReady=$push['enabled']&&$pushServerReady&&schemaTableExists($pdo,'app_push_subscriptions')&&schemaTableExists($pdo,'app_push_jobs');
     $attendanceRequired=['attendance_policies'=>['organization_id','user_id','track_attendance','scheduled_end','working_weekdays','monthly_salary','expected_working_days','absence_multiplier','early_leave_deduction_enabled'],'attendance_records'=>['organization_id','user_id','work_date','check_in_at','status','late_minutes','early_leave_minutes'],'attendance_adjustments'=>['organization_id','user_id','adjustment_month','amount']];$attendanceMissing=[];foreach($attendanceRequired as $table=>$columns){$available=schemaTableColumns($pdo,$table);foreach($columns as $column)if(!in_array($column,$available,true))$attendanceMissing[]=$table.'.'.$column;}
-    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'session_compensation_ready'=>$sessionCompensationReady, 'push_ready'=>$pushReady,'attendance_schema_ready'=>count($attendanceMissing)===0,'attendance_schema_missing'=>$attendanceMissing]+(($_GET['check']??'')==='studio-booking'?['studio_booking'=>studioBookingReadiness($pdo,$config)]:[]));
+    $staffPushReady=false;
+    if($pushReady){try{staffWebPushKeys($config);$staffPushReady=extension_loaded('openssl')&&extension_loaded('curl')&&extension_loaded('mbstring');}catch(Throwable){/* Report readiness without exposing private configuration. */}}
+    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'session_compensation_ready'=>$sessionCompensationReady, 'push_ready'=>$pushReady,'staff_push_ready'=>$staffPushReady,'attendance_schema_ready'=>count($attendanceMissing)===0,'attendance_schema_missing'=>$attendanceMissing]+(($_GET['check']??'')==='studio-booking'?['studio_booking'=>studioBookingReadiness($pdo,$config)]:[]));
 }
 
 if ($path === '/push/config' && $method === 'GET') {
     requireUser($user);$push=pushConfiguration($config);$push['schema_ready']=schemaTableExists($pdo,'app_push_subscriptions')&&schemaTableExists($pdo,'app_push_jobs');
-    if(!$push['schema_ready'])$push['enabled']=false;respond($push);
+    if(!$push['schema_ready'])$push['enabled']=false;
+    if($push['enabled']&&$user['role']!=='client'&&$user['role']!=='applicant') {
+        try{$keys=staffWebPushKeys($config);$push['transport']='webpush';$push['vapid_public_key']=$keys['publicKey'];$push['service_worker_scope']='/erp/';}
+        catch(Throwable $error){error_log('[staff-push-config] '.$error->getMessage());fail('تعذر تجهيز قناة إشعارات الإدارة على الخادم.',503,'staff_push_setup_failed');}
+    }
+    respond($push);
 }
 
 if ($path === '/push/subscriptions' && $method === 'POST') {
     $user=requireUser($user);if(!schemaTableExists($pdo,'app_push_subscriptions'))fail('تحديث قاعدة بيانات الإشعارات مطلوب.',503,'push_migration_required');$push=pushConfiguration($config);if(!$push['enabled'])fail('إشعارات التطبيق غير مفعلة على الخادم.',503,'push_not_configured');$payload=body();$token=trim((string)($payload['token']??''));$platform=trim((string)($payload['platform']??'web-android'));$label=mb_substr(trim((string)($payload['device_label']??'')),0,120);
-    if(strlen($token)<80||strlen($token)>4096||preg_match('/[\x00-\x20\x7F]/',$token))fail('رمز جهاز الإشعارات غير صحيح.',422,'invalid_push_token');if(!in_array($platform,['web-android','web'],true))fail('منصة الإشعارات غير مدعومة.',422,'invalid_push_platform');$hash=hash('sha256',$token);$userId=$user['role']==='client'?null:(int)$user['id'];$clientId=$user['role']==='client'?(int)$user['client_id']:null;
-    $stmt=$pdo->prepare('INSERT INTO app_push_subscriptions (organization_id,user_id,client_id,token_hash,token,platform,device_label,is_active,last_seen_at) VALUES (?,?,?,?,?,?,?,1,NOW()) ON DUPLICATE KEY UPDATE organization_id=VALUES(organization_id),user_id=VALUES(user_id),client_id=VALUES(client_id),token=VALUES(token),platform=VALUES(platform),device_label=VALUES(device_label),is_active=1,last_seen_at=NOW()');$stmt->execute([(int)$user['organization_id'],$userId,$clientId,$hash,$token,$platform,$label?:null]);respond(['registered'=>true]);
+    if(strlen($token)<80||strlen($token)>4096||preg_match('/[\x00-\x20\x7F]/',$token))fail('رمز جهاز الإشعارات غير صحيح.',422,'invalid_push_token');if(!in_array($platform,['web-android','web'],true))fail('منصة الإشعارات غير مدعومة.',422,'invalid_push_platform');if(str_starts_with($token,'webpush:')) {
+        if(in_array($user['role'],['client','applicant'],true))fail('قناة إشعارات الإدارة مخصصة لفريق العمل.',403,'staff_push_only');
+        try{staffWebPushSubscription($token);}catch(InvalidArgumentException){fail('بيانات تسجيل إشعارات الإدارة غير صحيحة.',422,'invalid_push_subscription');}
+    }
+    $hash=hash('sha256',$token);$userId=$user['role']==='client'?null:(int)$user['id'];$clientId=$user['role']==='client'?(int)$user['client_id']:null;
+    $stmt=$pdo->prepare('INSERT INTO app_push_subscriptions (organization_id,user_id,client_id,token_hash,token,platform,device_label,is_active,last_seen_at) VALUES (?,?,?,?,?,?,?,1,NOW()) ON DUPLICATE KEY UPDATE organization_id=VALUES(organization_id),user_id=VALUES(user_id),client_id=VALUES(client_id),token=VALUES(token),platform=VALUES(platform),device_label=VALUES(device_label),is_active=1,last_seen_at=NOW()');$stmt->execute([(int)$user['organization_id'],$userId,$clientId,$hash,$token,$platform,$label?:null]);
+    $legacy=(string)($payload['previous_token']??'');
+    if($userId&&str_starts_with($token,'webpush:')&&$legacy!==''&&$legacy!==$token) {
+        $pdo->prepare('UPDATE app_push_subscriptions SET is_active=0 WHERE organization_id=? AND user_id=? AND token_hash=?')->execute([(int)$user['organization_id'],$userId,hash('sha256',$legacy)]);
+    }
+    respond(['registered'=>true]);
 }
 
 if ($path === '/push/test' && $method === 'POST') {
-    $user=requireUser($user);requireRole($user,['owner','admin','operations','finance','client']);
+    $user=requireUser($user);requireRole($user,['owner','admin','operations','finance','staff','client']);
     respond(sendOwnPushTest($pdo,$config,$user,trim((string)(body()['token']??''))));
 }
 

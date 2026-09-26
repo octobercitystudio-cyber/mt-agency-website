@@ -1,5 +1,7 @@
 const APP_ORIGIN = self.location.origin;
-const DEFAULT_URL = '/login?source=android-notification';
+const STAFF_PUSH = new URL(self.location.href || APP_ORIGIN).searchParams.get('audience') === 'staff';
+const DEFAULT_URL = STAFF_PUSH ? '/erp/' : '/login?source=android-notification';
+const belongsToAudience = value => { const path = new URL(value, APP_ORIGIN).pathname; return STAFF_PUSH === /^\/(erp|adminmt|admin)(\/|$)/.test(path); };
 
 const normalizeDestination = value => {
   try {
@@ -27,7 +29,7 @@ const updateBadgeAndClients = async (count, data) => {
     if (typeof self.navigator?.setAppBadge === 'function') await self.navigator.setAppBadge(count);
   } catch { /* Android launchers can manage the badge from active notifications instead. */ }
   const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  windows.forEach(client => client.postMessage({ type: 'MT_PUSH_BADGE', unread_count: count, topics: String(data.sync_topics || 'notifications').split(',').filter(Boolean) }));
+  windows.filter(client => !client.url || belongsToAudience(client.url)).forEach(client => client.postMessage({ type: 'MT_PUSH_BADGE', unread_count: count, topics: String(data.sync_topics || 'notifications').split(',').filter(Boolean) }));
 };
 
 self.addEventListener('push', event => {
@@ -62,7 +64,7 @@ self.addEventListener('notificationclick', event => {
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windows) {
-      if (new URL(client.url).origin !== APP_ORIGIN) continue;
+      if (new URL(client.url).origin !== APP_ORIGIN || !belongsToAudience(client.url)) continue;
       await client.navigate(target);
       return client.focus();
     }

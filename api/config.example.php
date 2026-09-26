@@ -51,6 +51,8 @@ return [
         ],
         // Keep the service-account JSON outside public_html.
         'service_account_file' => dirname(__DIR__, 2) . '/private_config/firebase-service-account.json',
+        // Created once by PHP; back up this private file to preserve staff subscriptions.
+        'staff_vapid_file' => dirname(__DIR__, 2) . '/private_config/staff-webpush-vapid.json',
         'worker_key' => 'replace-with-a-long-random-push-worker-key',
     ],
 ];

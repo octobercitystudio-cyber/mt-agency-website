@@ -4,6 +4,7 @@ declare(strict_types=1);
 /** Return only a safe category; provider responses can contain tokens or account details. */
 function pushFailureCode(Throwable $error): string {
     $message=$error->getMessage();
+    if($message==='staff_push_token_expired')return 'push_token_expired';
     $start=strpos($message,'{');$provider=$start===false?null:json_decode(substr($message,$start),true);$providerCode='';
     foreach(($provider['error']['details']??[]) as $detail)if(($detail['@type']??'')==='type.googleapis.com/google.firebase.fcm.v1.FcmError')$providerCode=(string)($detail['errorCode']??'');
     if($providerCode==='UNREGISTERED')return 'push_token_expired';
@@ -20,7 +21,7 @@ function pushFailureMessage(string $code): string {
     return match($code) {
         'push_token_expired'=>'تسجيل إشعارات هذا الجهاز انتهى. أعد ربط الجهاز ثم جرّب الإرسال.',
         'push_sender_mismatch'=>'إعدادات الإرسال وتسجيل الجهاز مرتبطة بمشروعين مختلفين. يلزم تصحيح إعدادات الإشعارات على الخادم.',
-        'push_provider_credentials'=>'خدمة الإرسال رفضت بيانات اعتماد الخادم. يلزم مراجعة إعدادات Firebase.',
+        'push_provider_credentials'=>'خدمة الإرسال رفضت بيانات اعتماد الخادم. يلزم مراجعة إعدادات خدمة الإشعارات.',
         'push_payload_invalid'=>'خدمة الإرسال رفضت صيغة التنبيه. يلزم مراجعة إعدادات الخادم.',
         'push_provider_project'=>'مشروع خدمة الإشعارات غير متاح. يلزم مراجعة إعدادات الخادم.',
         'push_provider_busy'=>'خدمة الإرسال مشغولة الآن. حاول بعد قليل.',
