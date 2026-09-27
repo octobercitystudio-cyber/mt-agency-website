@@ -8,6 +8,6 @@ The guide displays the available studio services using the same snapshot functio
 
 Content is stored as JSON in the organization’s `app_config` row with key `client_package_guide`, included in existing database backups. Before the first edit, `api/package_guide_defaults.json` supplies the image-based studio and delivery descriptions. No database migration is required. Generic configuration writes cannot alter this protected key.
 
-Booking policy stays in `api/booking_terms.json` and cannot be edited through the guide. Checkout keeps its existing required consent and accepted-policy snapshot. Delivery descriptions are editable; weekly pickup hours remain in the existing post-production schedule editor.
+Booking policy stays in `api/booking_terms.json` and cannot be edited through the guide. Checkout keeps its existing required consent and accepted-policy snapshot. Delivery descriptions are editable; weekly pickup hours appear only on the customer deliveries page and remain editable in the existing post-production schedule editor. The guide links to deliveries instead of repeating the schedule. Both locations remind customers that pickup hours may change and should be reviewed before visiting.
 
 Validation: `tests/packageGuide.test.php` exercises production route/storage/authorization and catalog snapshots using SQLite; `tests/packageGuide.test.mjs` exercises the demo publication flow. Browser checks use isolated local demo data, never real customer orders.

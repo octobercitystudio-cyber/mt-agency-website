@@ -1,7 +1,7 @@
 import { Check, Clock3, Video, MonitorPlay, Package, CalendarDays } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { formatDurationMinutes, formatEGP } from '../lib/businessFormat';
 import { registrationValidityLabel } from '../lib/registrationPolicy';
-import CompanyPickupSchedule from './CompanyPickupSchedule';
 import PackageBookingTerms from './PackageBookingTerms';
 import './PackageGuide.css';
 
@@ -12,8 +12,7 @@ const groups = [
 ];
 
 export default function PackageGuideView({ data }) {
-  const { content, services = [], booking_terms, pickup_schedule } = data;
-  const hasPickup = (pickup_schedule?.enabled === true || Number(pickup_schedule?.enabled) === 1) && pickup_schedule?.windows?.length > 0;
+  const { content, services = [], booking_terms } = data;
   return <article className="package-guide" dir="rtl">
     <header className="package-guide-hero"><span>Multi Task Agency · كل التفاصيل قبل الحجز</span><h2>{content.title}</h2><p>{content.subtitle}</p></header>
     <section className="package-guide-packages" aria-label="أنظمة التصوير والباقات">
@@ -37,7 +36,7 @@ export default function PackageGuideView({ data }) {
       })}
     </section>
     <section className="package-guide-section"><div className="package-guide-section-heading"><MonitorPlay aria-hidden="true"/><div><h3>{content.studio_title}</h3><p>{content.studio_intro}</p></div></div><dl className="package-guide-features">{content.studio_features.map((feature, index) => <div key={index}><dt>{feature.title}</dt><dd>{feature.description}</dd></div>)}</dl></section>
-    <section className="package-guide-section"><div className="package-guide-section-heading"><Video aria-hidden="true"/><div><h3>{content.delivery_title}</h3><p>{content.delivery_intro}</p></div></div><div className="package-guide-delivery-grid">{content.delivery_options.map((option, index) => <article key={index}><span>{String(index + 1).padStart(2, '0')}</span><h4>{option.title}</h4><strong>{option.timeframe}</strong><p>{option.description}</p></article>)}</div>{hasPickup && <CompanyPickupSchedule schedule={pickup_schedule}/>}</section>
+    <section className="package-guide-section"><div className="package-guide-section-heading"><Video aria-hidden="true"/><div><h3>{content.delivery_title}</h3><p>{content.delivery_intro}</p></div></div><div className="package-guide-delivery-grid">{content.delivery_options.map((option, index) => <article key={index}><span>{String(index + 1).padStart(2, '0')}</span><h4>{option.title}</h4><strong>{option.timeframe}</strong><p>{option.description.replace('مواعيد الاستلام الموضحة أدناه عند توفرها', 'مواعيد الاستلام الموضحة في صفحة «التسليمات»')}</p></article>)}</div><p className="package-guide-notice">مواعيد الاستلام قابلة للتغيير. يُرجى مراجعة <Link to="/dashboard?tab=videos">صفحة التسليمات</Link> قبل التوجه إلى مقر الشركة.</p></section>
     <PackageBookingTerms terms={booking_terms}/>
     <p className="package-guide-footer-note">{content.footer_note}</p>
   </article>;

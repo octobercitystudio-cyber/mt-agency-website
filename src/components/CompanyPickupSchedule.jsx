@@ -14,6 +14,7 @@ export default function CompanyPickupSchedule({ schedule, preview = false }) {
       <div><span className="company-pickup-schedule__eyebrow">{preview ? 'معاينة ما سيظهر للعملاء' : 'الاستلام من مقر الشركة'}</span><h3 id={titleId}>مواعيد استلام الفيديوهات من مقر الشركة</h3></div>
       {enabled && <span className="company-pickup-schedule__badge"><CalendarDays aria-hidden="true" /> أسبوعيًا</span>}
     </header>
+    <p className="company-pickup-schedule__note">مواعيد الاستلام قابلة للتغيير. يُرجى مراجعة المواعيد المحدثة في هذه الصفحة قبل التوجه إلى مقر الشركة.</p>
     {enabled ? <><p className="company-pickup-schedule__intro"><Clock3 aria-hidden="true" /> كل المواعيد بتوقيت القاهرة، وتتكرر أسبوعيًا حتى تحديثها.</p>
       <dl className="company-pickup-schedule__days">{PICKUP_DAY_ORDER.filter(day => windows.some(window => Number(window.weekday) === day)).map(day => <div className="company-pickup-schedule__day" key={day}><dt>{PICKUP_WEEKDAYS[day]}</dt><dd>{windows.filter(window => Number(window.weekday) === day).sort((a, b) => a.start_time.localeCompare(b.start_time)).map((window, index) => <span className="company-pickup-schedule__range" key={`${window.start_time}-${index}`}><span>من <bdi>{formatTime12(window.start_time, window.start_time)}</bdi></span><span>إلى <bdi>{formatTime12(window.end_time, window.end_time)}</bdi></span></span>)}</dd></div>)}</dl>
       {schedule.note?.trim() && <p className="company-pickup-schedule__note">{schedule.note}</p>}
