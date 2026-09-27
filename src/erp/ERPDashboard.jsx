@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  AlertTriangle, ArrowLeft, BadgeDollarSign, CalendarDays, Check, Clock3,
+  AlertTriangle, ArrowLeft, BadgeDollarSign, BookOpen, CalendarDays, Check, Clock3,
   Eye, FileCheck2, FolderKanban, PackageCheck, PlayCircle, Plus, RefreshCw, TimerOff, UserPlus, UsersRound, X,
 } from 'lucide-react';
 import { dataClient, dataProvider } from '../dataClient';
@@ -348,6 +348,7 @@ const ERPDashboard = () => {
           <button type="button" data-variant="primary" className="ops-action ops-action--primary" onClick={openBookingCreate}><Plus size={17} /> حجز جديد</button>
           <button type="button" className="ops-action" onClick={() => setCreateAction('client')}><UserPlus size={17} /> عميل جديد</button>
           {['owner','admin'].includes(currentUser?.role) && <button type="button" className="ops-action" onClick={() => setCreateAction('promotion')}><FileCheck2 size={17} /> عرض حصري</button>}
+          {currentUser?.role === 'owner' && <button type="button" className="ops-action" onClick={() => navigate('/erp/package-guide')}><BookOpen size={17}/> تعديل دليل الباقات</button>}
         </>}
         details={<div className="ops-attendance-chip">
           <div><span>حضورك اليوم</span><strong>{attendance.loading ? 'جارٍ التحقق…' : !attendance.data?.self?.tracked ? 'غير خاضع للتتبع' : selfRecord?.check_out_at ? 'تم الانصراف' : selfRecord ? `دخول ${formatTime12(selfRecord.check_in_at)}` : 'لم يُسجل'}</strong></div>

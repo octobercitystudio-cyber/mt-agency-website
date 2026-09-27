@@ -1,0 +1,94 @@
+.package-guide,.package-guide-editor{color:#302b40;font-family:'Tajawal','Segoe UI',sans-serif;font-size:16px;line-height:1.9;min-width:0;overflow-wrap:anywhere}
+.package-guide *,.package-guide-editor *{box-sizing:border-box}
+.package-guide h2,.package-guide h3,.package-guide h4,.package-guide-editor h1,.package-guide-editor h2,.package-guide-editor h3{color:#362344;line-height:1.6;margin:0 0 10px;font-weight:800}
+.package-guide p,.package-guide-editor p{font-size:16px;line-height:1.9}
+.package-guide-hero{padding:30px;background:#f0e9fb;border:1px solid #ddd0ee;border-inline-start:5px solid #7750ac;border-radius:14px}
+.package-guide-hero>span{font-size:14px;font-weight:700;color:#674792}
+.package-guide-hero h2{font-size:32px;margin:9px 0 10px}
+.package-guide-hero p{margin:0;max-width:760px;color:#61506e}
+.package-guide-intro{margin:25px 0 18px}
+.package-guide-included{display:flex;gap:12px 24px;align-items:center;flex-wrap:wrap;padding:16px 20px;border-block:1px solid #e4ddea;background:#fff}
+.package-guide-included ul{list-style:none;padding:0;margin:0;display:flex;gap:12px 20px;flex-wrap:wrap}
+.package-guide-included li{display:flex;align-items:center;gap:8px}
+.package-guide-included svg{width:19px;color:#387556;flex-shrink:0}
+.package-guide-group{margin-top:32px}
+.package-guide-group>header,.package-guide-section-heading{display:flex;gap:13px;align-items:flex-start;margin-bottom:18px}
+.package-guide-group>header>svg,.package-guide-section-heading>svg{flex:0 0 25px;width:25px;height:25px;margin-top:6px;color:#754ea5}
+.package-guide-group h3,.package-guide-section h3{font-size:24px}
+.package-guide-group header p,.package-guide-section-heading p{margin:0;color:#61596b}
+.package-guide-price-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:16px}
+.package-guide-price{min-width:0;background:white;border:1px solid #ded5e7;border-radius:12px;padding:23px;box-shadow:0 4px 12px #41295d04}
+.package-guide-price h4{font-size:20px}
+.package-guide-price .package-guide-price-label{margin:19px 0 0;font-size:14px;color:#6b5e75}
+.package-guide-price .package-guide-amount{display:block;font-size:32px;font-weight:800;line-height:1.7;color:#623e93;font-variant-numeric:tabular-nums}
+.package-guide-price .package-guide-per-hour{margin:0 0 16px;font-size:14px;color:#675a73}
+.package-guide-price dl{margin:0;border-top:1px solid #e9e3ee}
+.package-guide-price dl>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px 12px;flex-wrap:wrap;padding-top:11px}
+.package-guide-price dt{font-size:14px;color:#675a73}
+.package-guide-price dd{font-size:16px;font-weight:700;margin:0;max-width:100%}
+.package-guide-price .package-guide-description{border-top:1px solid #e9e3ee;margin:16px 0 0;padding-top:12px}
+.package-guide-section{margin-top:38px;padding-top:28px;border-top:1px solid #e0d8e8}
+.package-guide-features{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 28px;margin:0}
+.package-guide-features>div{padding:19px 0;border-bottom:1px solid #e6dfed}
+.package-guide-features dt{font-size:18px;font-weight:800;color:#463257}
+.package-guide-features dd{margin:5px 0 0;color:#61596b;font-size:16px}
+.package-guide-delivery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.package-guide-delivery-grid>article{padding:22px;background:#f6f3fa;border-radius:10px;border:1px solid #e4daee;min-width:0}
+.package-guide-delivery-grid>article>span{font-size:14px;color:#82629f;font-weight:800;display:block;margin-bottom:12px}
+.package-guide-delivery-grid h4{font-size:19px}
+.package-guide-delivery-grid strong{color:#653f90;font-size:18px;display:block}
+.package-guide-delivery-grid p{margin:10px 0 0;color:#61596b}
+.package-guide-footer-note{margin:24px 0;padding:18px 0;border-top:1px solid #dfd5e9;color:#61516e}
+.package-guide-notice{padding:18px 20px;background:#f3eef9;border:1px solid #dcd0e9;border-radius:10px;margin:18px 0;color:#594467;font-size:16px;line-height:1.9}
+.package-guide-notice p{margin:0 0 7px}
+.package-guide-notice p:last-child{margin-bottom:0}
+.package-guide-notice--error{background:#fff2f3;border-color:#e6bac4;color:#953f50}
+.package-guide-notice--success{background:#f0f8f2;border-color:#c1dcc9;color:#346144}
+.package-guide-notice button,.package-guide-secondary,.package-guide-primary,.package-guide-remove{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 16px;font:700 16px/1.6 'Tajawal','Segoe UI',sans-serif;border-radius:9px;cursor:pointer;border:1px solid #cdbedd;background:white;color:#654291;text-decoration:none}
+.package-guide-primary{background:#6c429d;color:#fff;border-color:#6c429d}
+.package-guide-primary:hover:not(:disabled){background:#56307f}
+.package-guide-secondary:hover:not(:disabled){background:#f0e8fa}
+.package-guide-remove{color:#a54255;border-color:#e4cbd1;padding:9px}
+.package-guide-remove:hover:not(:disabled){background:#fff0f2}
+.package-guide-notice button svg,.package-guide-secondary svg,.package-guide-primary svg,.package-guide-remove svg{width:20px;height:20px;flex-shrink:0}
+.package-guide-editor button:disabled{opacity:.55;cursor:not-allowed}
+.package-guide-editor :is(button,a,input,textarea):focus-visible,.package-guide-page button:focus-visible{outline:3px solid #a583ca;outline-offset:3px}
+.package-guide-editor{--erp-font-size-body:16px;--erp-font-size-card:19px;--erp-font-size-section:23px;--erp-font-size-page:30px;--erp-line-height-body:1.9;max-width:1180px;width:100%;margin:0 auto;padding:8px 0 30px}
+.erp-layout .erp-main .package-guide-editor .package-guide-amount{font-size:32px!important;line-height:1.7!important}
+.erp-layout .erp-main .package-guide-editor .package-guide-hero h2{font-size:30px!important}
+.erp-layout .erp-main .package-guide-editor :is(label,label>span,legend,input,textarea,button){font-size:16px!important;line-height:1.85!important}
+.erp-layout .erp-main .package-guide-editor h1{font-size:27px!important;line-height:1.6!important}
+.erp-layout .erp-main .package-guide-editor h2{font-size:23px!important;line-height:1.65!important}
+.erp-layout .erp-main .package-guide-editor :is(h3,h4){font-size:19px!important;line-height:1.7!important}
+.package-guide-editor-header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap;margin:12px 0 22px}
+.package-guide-editor-header>div>span{display:flex;align-items:center;gap:8px;color:#74508e;font-size:14px}
+.package-guide-editor-header>div>span svg{width:18px}
+.package-guide-editor-header h1{font-size:30px;margin:8px 0}
+.package-guide-editor-header p{margin:0;color:#6b6074}
+.package-guide-editor a{color:#653e92;text-underline-offset:4px}
+.package-guide-editor-fields{padding:0;border:0;min-width:0}
+.package-guide-editor-section{background:#fff;border:1px solid #e2d8ea;border-radius:12px;padding:26px;margin:20px 0;min-width:0}
+.package-guide-editor-section h2{font-size:23px;margin-bottom:20px}
+.package-guide-editor-section h3{font-size:19px}
+.package-guide-editor-field{display:grid;gap:8px;margin-bottom:18px;min-width:0;color:#46364f;font-size:16px;font-weight:700}
+.package-guide-editor-field input,.package-guide-editor-field textarea{display:block;min-width:0;width:100%;border:1px solid #d2c5df;border-radius:8px;padding:11px 13px;font:400 16px/1.85 'Tajawal','Segoe UI',sans-serif;color:#3d3346;background:#fff;resize:vertical}
+.package-guide-editor-field input{min-height:48px}
+.package-guide-editor-field textarea{min-height:100px}
+.package-guide-editor-row{padding:20px;background:#faf8fc;border:1px solid #e3daec;border-radius:10px;margin-bottom:18px;min-width:0}
+.package-guide-editor-row-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+.package-guide-editor-row .package-guide-editor-field:last-child{margin-bottom:0}
+.package-guide-editor-list{padding:0;border:0;min-width:0}
+.package-guide-editor-list legend{font-size:18px;font-weight:700;padding:12px 0}
+.package-guide-editor-feature{display:flex;align-items:center;gap:12px}
+.package-guide-editor-feature>.package-guide-editor-field{flex:1}
+.package-guide-catalog-facts{display:flex;flex-wrap:wrap;gap:10px 22px;color:#614379;font-weight:700}
+.package-guide-editor-actions{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;padding:20px 0;margin-top:20px;border-top:1px solid #dcd1e8}
+.package-guide-editor-actions>span{color:#685775;font-size:16px}
+.package-guide-preview-label{font-weight:700;color:#65418f;margin-top:26px}
+.client-app .client-topbar-guide-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
+.client-app .client-guide-trigger{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:11px 17px;border:1px solid #d0bfe8;border-radius:10px;background:#f8f4ff;color:#643e92;font:700 16px/1.7 'Tajawal','Segoe UI',sans-serif;cursor:pointer}
+.client-app .client-guide-trigger svg{width:20px;height:20px;flex-shrink:0}
+.client-app .client-guide-trigger:hover{background:#eee4fa}
+.client-app .client-guide-trigger:focus-visible{outline:3px solid #a583ca;outline-offset:3px}
+@media(max-width:900px){.package-guide-delivery-grid{grid-template-columns:1fr}.package-guide-features{grid-template-columns:1fr}.package-guide-hero{padding:24px}.package-guide-hero h2{font-size:28px}}
+@media(max-width:540px){.package-guide-hero{padding:22px 17px}.package-guide-hero h2{font-size:26px}.package-guide-price{padding:20px}.package-guide-price .package-guide-amount{font-size:30px}.package-guide-group h3,.package-guide-section h3{font-size:22px}.package-guide-group>header,.package-guide-section-heading{gap:9px}.package-guide-editor-section{padding:20px 14px}.package-guide-editor-row{padding:16px 12px}.package-guide-editor-header h1{font-size:27px}.package-guide-editor-actions>.package-guide-primary{width:100%}.client-app .client-topbar-guide-actions{width:100%;display:grid;grid-template-columns:minmax(0,1fr)}.client-app .client-topbar-guide-actions>button{width:100%;white-space:normal}.package-guide-included{padding:16px}.package-guide-editor-feature{gap:8px}.package-guide-editor-row-title{flex-wrap:wrap}}

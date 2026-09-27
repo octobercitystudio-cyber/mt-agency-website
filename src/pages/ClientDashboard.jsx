@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ClientStudioRequests from '../components/StudioBookingRequests';
 import ClientStudioBooking from './ClientStudioBooking';
+import ClientPackageGuide from './ClientPackageGuide';
 import { clientNoticeIsLate } from '../lib/clientBookingNotice';
 import { dataClient } from '../dataClient';
 import {
-  CalendarDays, CheckCircle2, CircleDollarSign, Clock3, Home,
+  BookOpen, CalendarDays, CheckCircle2, CircleDollarSign, Clock3, Home,
   Film, FolderKanban, History, Inbox, KeyRound, Package, Plus, LogOut, Megaphone, Menu, RefreshCw, RotateCcw, Sparkles, X, XCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -54,7 +55,7 @@ const STATUS_META = {
 
 const initialBooking = { client_package_id: '', date: '', start_time: '12:00', end_time: '13:00', notes: '' };
 const initialReschedule = { booking: null, date: '', start_time: '12:00', end_time: '13:00', reason: '' };
-const CLIENT_TABS = ['home', 'schedule', 'packages', 'finance', 'offers', 'videos', 'security', 'requests', 'projects', 'history', 'book-studio'];
+const CLIENT_TABS = ['home', 'schedule', 'packages', 'finance', 'offers', 'videos', 'security', 'requests', 'projects', 'history', 'book-studio', 'package-guide'];
 const previewDate = (days = 0) => {
   const date = new Date();
   date.setHours(12, 0, 0, 0);
@@ -445,17 +446,17 @@ export default function ClientDashboard() {
         <nav aria-label="التنقل الرئيسي">
           {[['home', Home, 'الرئيسية'], ['schedule', CalendarDays, 'المواعيد'], ['packages', Package, 'باقاتي'], ['finance', CircleDollarSign, 'المدفوعات'], ['requests', Inbox, 'طلباتي'], ['videos', Film, 'التسليمات']].map(([key, Icon, label]) => <button key={key} aria-current={activeTab === key ? 'page' : undefined} className={activeTab === key ? 'active' : ''} onClick={() => navigateClient(key)}><Icon size={20}/><span>{label}</span></button>)}
           <span className="glance-nav-heading">المزيد لحسابك</span>
-          {[['projects', FolderKanban, 'خدماتي الحالية'], ['offers', Megaphone, 'العروض'], ['history', History, 'سجل الخدمات'], ['security', KeyRound, 'حسابي والأمان']].map(([key, Icon, label]) => <button key={key} aria-current={activeTab === key ? 'page' : undefined} className={activeTab === key ? 'active' : ''} onClick={() => navigateClient(key)}><Icon size={20}/><span>{label}</span></button>)}
+          {[['package-guide', BookOpen, 'دليل الباقات والتصوير'], ['projects', FolderKanban, 'خدماتي الحالية'], ['offers', Megaphone, 'العروض'], ['history', History, 'سجل الخدمات'], ['security', KeyRound, 'حسابي والأمان']].map(([key, Icon, label]) => <button key={key} aria-current={activeTab === key ? 'page' : undefined} className={activeTab === key ? 'active' : ''} onClick={() => navigateClient(key)}><Icon size={20}/><span>{label}</span></button>)}
         </nav>
         <button className="client-logout" onClick={handleLogout}><LogOut size={18}/> تسجيل الخروج</button>
       </aside>
       <nav className="glance-mobile-nav" aria-label="التنقل الرئيسي للهاتف">{[['home', Home, 'الرئيسية'], ['schedule', CalendarDays, 'المواعيد'], ['packages', Package, 'باقاتي']].map(([key, Icon, label]) => <button key={key} aria-current={activeTab === key ? 'page' : undefined} className={activeTab === key ? 'active' : ''} onClick={() => navigateClient(key)}><Icon/><span>{label}</span></button>)}<button className={moreOpen || !['home', 'schedule', 'packages'].includes(activeTab) ? 'active' : ''} aria-expanded={moreOpen} aria-controls="glance-more-menu" onClick={() => setMoreOpen(open => !open)}><Menu/><span>المزيد</span></button></nav>
-      {moreOpen && <section id="glance-more-menu" className="glance-more-menu" aria-label="صفحات حسابك"><header><h2>المزيد لحسابك</h2><button type="button" aria-label="إغلاق قائمة المزيد" onClick={() => setMoreOpen(false)}><X/></button></header>{[['finance', CircleDollarSign, 'المدفوعات'], ['requests', Inbox, 'طلباتي'], ['videos', Film, 'التسليمات'], ['projects', FolderKanban, 'خدماتي الحالية'], ['offers', Megaphone, 'العروض'], ['history', History, 'سجل الخدمات'], ['security', KeyRound, 'حسابي والأمان']].map(([key, Icon, label]) => <button type="button" key={key} onClick={() => navigateClient(key)}><Icon/>{label}</button>)}<button type="button" className="glance-more-logout" onClick={handleLogout}><LogOut/>تسجيل الخروج</button></section>}
+      {moreOpen && <section id="glance-more-menu" className="glance-more-menu" aria-label="صفحات حسابك"><header><h2>المزيد لحسابك</h2><button type="button" aria-label="إغلاق قائمة المزيد" onClick={() => setMoreOpen(false)}><X/></button></header>{[['package-guide', BookOpen, 'دليل الباقات والتصوير'], ['finance', CircleDollarSign, 'المدفوعات'], ['requests', Inbox, 'طلباتي'], ['videos', Film, 'التسليمات'], ['projects', FolderKanban, 'خدماتي الحالية'], ['offers', Megaphone, 'العروض'], ['history', History, 'سجل الخدمات'], ['security', KeyRound, 'حسابي والأمان']].map(([key, Icon, label]) => <button type="button" key={key} onClick={() => navigateClient(key)}><Icon/>{label}</button>)}<button type="button" className="glance-more-logout" onClick={handleLogout}><LogOut/>تسجيل الخروج</button></section>}
       <main className="client-main">
         <div className="glance-utility"><div className="glance-mobile-brand"><img src="/logo.webp" alt="شعار Multi Task Agency"/><strong>Multi Task<span>Agency</span></strong></div><span className="glance-today"><CalendarDays/>{new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Cairo' }).format(new Date())}</span><ClientNotifications key={clientId} clientId={clientId} onNavigate={navigateClient}/></div>
         <header className={`client-topbar ${activeTab === 'home' ? 'client-topbar--home' : ''}`}>
           <div className="client-topbar-profile"><div><div className="client-topbar-name-row"><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><span className="client-topbar-points" aria-label={`${formatClientPoints(client?.points)} نقطة`}><Sparkles aria-hidden="true"/><strong>{formatClientPoints(client?.points)}</strong><span>نقطة</span></span></div><p>كل ما يخص تصويرك، في نظرة واحدة.</p></div></div>
-          {activeTab !== 'book-studio' && <button ref={bookingTriggerRef} type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>{hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button>}
+          <div className="client-topbar-guide-actions">{activeTab !== 'book-studio' && <button ref={bookingTriggerRef} type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>{hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button>}{activeTab !== 'package-guide' && <button type="button" className="client-guide-trigger" onClick={() => navigateClient('package-guide')}><BookOpen/>دليل الباقات والتصوير</button>}</div>
         </header>
 
         {isLocalPreview && <div className="client-notice client-notice--success" role="status">معاينة عميل محلية ببيانات تمثيلية — تُحفظ الإجراءات على هذا الجهاز لتجربة دورة العمل كاملة.</div>}
@@ -502,6 +503,7 @@ export default function ClientDashboard() {
         {activeTab === 'finance' && <ClientFinanceView activePackages={activePackages} financialPackages={packages} invoices={invoices} payments={payments} proofs={proofs} projects={projects} offers={offers} proofForm={proofForm} proofBusy={proofBusy} onProofFormChange={updates => setProofForm(previous => ({ ...previous, ...updates }))} onSubmitProof={uploadProof} onSelectTarget={selectPaymentTarget} />}
         {activeTab === 'videos' && <ClientPostProduction highlightJobId={highlightedPostProductionJobId} />}
         {activeTab === 'security' && <ClientSecuritySettings />}
+        {activeTab === 'package-guide' && <ClientPackageGuide/>}
         {activeTab === 'requests' && <ClientStudioRequests/>}
         {activeTab === 'book-studio' && <ClientStudioBooking onBookExisting={bookAppointment} onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
       </main>

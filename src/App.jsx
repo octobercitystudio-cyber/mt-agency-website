@@ -50,6 +50,7 @@ const ERPFinance = lazy(() => import('./erp/ERPFinance'));
 const ERPFormationFund = lazy(() => import('./erp/ERPFormationFund'));
 const ERPSocialProfits = lazy(() => import('./erp/ERPSocialProfits'));
 const ERPSettings = lazy(() => import('./erp/ERPSettings'));
+const ERPPackageGuide = lazy(() => import('./erp/ERPPackageGuide'));
 const ERPReminders = lazy(() => import('./erp/ERPReminders'));
 const ERPOfferGenerator = lazy(() => import('./erp/ERPOfferGenerator'));
 const ERPPromotions = lazy(() => import('./erp/ERPPromotions'));
@@ -180,6 +181,7 @@ function App() {
               <Route path="formation-fund" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPFormationFund /></RoleProtectedRoute>} />
               <Route path="social-profits" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPSocialProfits /></RoleProtectedRoute>} />
               <Route path="settings" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPSettings /></RoleProtectedRoute>} />
+              <Route path="package-guide" element={<RoleProtectedRoute roles={['owner']}><ERPPackageGuide /></RoleProtectedRoute>} />
               <Route path="reminders" element={<ERPReminders />} />
               <Route path="offer-generator" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPOfferGenerator /></RoleProtectedRoute>} />
               <Route path="offers" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPPromotions /></RoleProtectedRoute>} />

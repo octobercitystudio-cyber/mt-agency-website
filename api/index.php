@@ -2337,6 +2337,7 @@ function insertPackageUsage(PDO $pdo, array $package, ?int $bookingId, string $m
 }
 
 require_once __DIR__ . '/post_production.php';
+require_once __DIR__ . '/package_guide.php';
 require_once __DIR__ . '/session_settlement.php';
 require_once __DIR__ . '/legacy_import.php';
 
@@ -2345,6 +2346,7 @@ handlePackageLoyaltyRoutes($pdo,$user,$path,$method);
 handleRegistrationRoutes($pdo, $config, $user, $path, $method);
 handleStudioBookingRoutes($pdo, $config, $user, $path, $method);
 handlePostProductionRoutes($pdo, $config, $user, $path, $method);
+handlePackageGuideRoutes($pdo, $user, $path, $method);
 handleLegacyImportRoutes($pdo, $config, $user, $path, $method);
 
 function ownerRecordDefinition(string $entity): array {
@@ -4033,6 +4035,7 @@ if (preg_match('#^/data/([a-z_]+)$#', $path, $m)) {
     }
 
     $payload=body(); $rows=$payload['rows']??null; $values=$payload['values']??null;
+    if ($table==='app_config') guardPackageGuideConfigWrite($pdo,$method,$payload,$where,$params);
     if($table==='clients'&&$method==='PATCH'){
         $values=is_array($values)?$values:$payload;
         if(array_key_exists('additional_phones',$values)){

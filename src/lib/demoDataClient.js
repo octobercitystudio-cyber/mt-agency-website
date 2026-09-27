@@ -1,5 +1,7 @@
 import { calendarBlocks, recurringBlocks, firstSeriesOverlap } from './bookingBlockRecurrence.js';
 import { COMPANY_PICKUP_SCHEDULE_KEY, emptyCompanyPickupSchedule, validateCompanyPickupSchedule } from './pickupSchedule.js';
+import { CLIENT_PACKAGE_GUIDE_KEY, defaultPackageGuide, validatePackageGuideContent } from './packageGuide.js';
+import { PACKAGE_BOOKING_TERMS } from './packageBookingTerms.js';
 import { syncDemoPackageLoyalty, demoPackageLoyaltyAudit } from './packageLoyaltyDemo.js';
 import { earliestClientBookingDate, clientBookingDateError } from './clientBookingDate.js';
 import { clientNoticeIsLate } from './clientBookingNotice.js';
@@ -778,6 +780,11 @@ class DemoQueryBuilder {
     const rows = tableRows(database, this.table);
     const matches = row => this.filters.every(({ column, op, value }) => compare(row[column], op, value));
     let result = [];
+
+    if (this.table === 'app_config' && this.method !== 'GET') {
+      const inputs = this.method === 'POST' ? this.payload : [this.payload];
+      if (inputs?.some(row => row?.key === CLIENT_PACKAGE_GUIDE_KEY) || (this.method !== 'POST' && rows.some(row => belongsToDemoOrganization(row) && matches(row) && row.key === CLIENT_PACKAGE_GUIDE_KEY))) throw formationDemoError('عدّل دليل الباقات من صفحته المخصصة.', 'guide_dedicated_route_required');
+    }
 
     if (this.method !== 'GET' && ['services', 'finance', 'payments', 'invoices', 'client_packages'].includes(this.table)) {
       throw formationDemoError('هذا السجل حساس ويجب تعديله من مسار العمل الموثق المخصص له.', 'forbidden');
@@ -2443,6 +2450,30 @@ const demoRequest = async (path, options = {}) => {
     return { id: row.id, promotion_id: promotion.id, subscribed: true, already_subscribed: !created };
   }
 
+  if (route === '/package-guide') {
+    if (!['owner', 'admin', 'operations', 'finance', 'staff', 'client'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض الدليل.', 'forbidden');
+    const response = async db => {
+      const row = tableRows(db, 'app_config').find(item => belongsToDemoOrganization(item) && item.key === CLIENT_PACKAGE_GUIDE_KEY);
+      const settings = row ? JSON.parse(row.value) : defaultPackageGuide();
+      const catalog = await registrationDemoCatalog({ ...db, services: tableRows(db, 'services').filter(item => belongsToDemoOrganization(item) && !item.archived_at) });
+      return { ...settings, services: catalog.services, booking_terms: clone(PACKAGE_BOOKING_TERMS), pickup_schedule: demoCompanyPickupSchedule(db) };
+    };
+    if ((options.method || 'GET') === 'GET') return response(database);
+    if (options.method !== 'PUT') throw formationDemoError('العملية غير متاحة.', 'method_not_allowed');
+    if (demoRole !== 'owner') throw formationDemoError('تعديل الدليل متاح للمالك فقط.', 'forbidden');
+    if (Object.keys(body).some(key => !['expected_revision', 'content'].includes(key))) throw formationDemoError('يمكن تعديل محتوى الدليل فقط.', 'invalid_package_guide');
+    if (!Number.isSafeInteger(body.expected_revision) || body.expected_revision < 0) throw formationDemoError('حدّث نسخة الدليل قبل الحفظ.', 'invalid_guide_revision');
+    const content = validatePackageGuideContent(body.content); const current = await response(database);
+    if (JSON.stringify(content) === JSON.stringify(validatePackageGuideContent(current.content)) && [current.revision, current.revision - 1].includes(body.expected_revision)) return current;
+    if (body.expected_revision !== current.revision) { const error = formationDemoError('تم تعديل الدليل من نافذة أخرى. أعد تحميل النسخة الأخيرة قبل الحفظ.', 'guide_revision_conflict'); error.status = 409; throw error; }
+    const working = clone(database); const next = { revision: current.revision + 1, updated_at: nowIso(), content };
+    const row = tableRows(working, 'app_config').find(item => belongsToDemoOrganization(item) && item.key === CLIENT_PACKAGE_GUIDE_KEY);
+    if (row) { row.value = JSON.stringify(next); row.type = 'json'; row.updated_at = nowText(); }
+    else addRow(working, 'app_config', { organization_id: demoOrganizationId, key: CLIENT_PACKAGE_GUIDE_KEY, value: JSON.stringify(next), type: 'json' });
+    addRow(working, 'audit_logs', { organization_id: demoOrganizationId, user_id: demoUserId, action: 'package_guide_updated', entity_type: 'package_guide', entity_id: demoOrganizationId, before_data: JSON.stringify(current.content), after_data: JSON.stringify(next) });
+    addRow(working, 'change_events', { organization_id: demoOrganizationId, client_id: null, topic: 'services', entity_type: 'package_guide', entity_id: demoOrganizationId, action: 'updated' });
+    writeDatabase(working); return response(working);
+  }
   if (route === '/post-production/pickup-schedule') {
     if (!['owner', 'admin', 'operations', 'client'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض مواعيد الاستلام.', 'forbidden');
     if ((options.method || 'GET') === 'GET') return demoCompanyPickupSchedule(database);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Users, CalendarDays, DollarSign, LogOut, Home, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, Inbox, Package, FolderKanban, Fingerprint, FlaskConical, RotateCcw, CheckCircle2, AlertCircle, Landmark, TrendingUp, Clapperboard } from 'lucide-react';
+import { BookOpen, Users, CalendarDays, DollarSign, LogOut, Home, Menu, LayoutDashboard, ClipboardList, FileText, Settings, Bell, Inbox, Package, FolderKanban, Fingerprint, FlaskConical, RotateCcw, CheckCircle2, AlertCircle, Landmark, TrendingUp, Clapperboard } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { NotificationsOffcanvas } from './ERPNotifications';
 import useOperationalAlerts from './useOperationalAlerts';
@@ -158,6 +158,7 @@ const ERPLayout = () => {
                   <Package size={20} /> الباقات المباعة
                 </NavLink>
               </li>}
+              {role === 'owner' && <li className="erp-nav-item"><NavLink to="/erp/package-guide" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}><BookOpen size={20}/> تعديل دليل الباقات</NavLink></li>}
               {canOpenProjects && <li className="erp-nav-item">
                 <NavLink to="/erp/projects" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
                   <FolderKanban size={20} /> المشروعات والمحتوى
