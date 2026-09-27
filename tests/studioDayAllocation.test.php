@@ -14,7 +14,7 @@ $daily=array_replace($selected,['kind'=>'daily','total_hours'=>4,'validity_days'
 failure('studio_hours_not_fully_scheduled',fn()=>normalizedStudioDates([$days[0]],$daily));
 failure('booking_outside_package_validity',fn()=>normalizedStudioDates($days,$daily));
 check(normalizedStudioDates([array_replace($days[0],['end_time'=>'16:00','duration_minutes'=>240])],$daily)[0]['duration_minutes']===240,'Daily package books its full four-hour session in one day');
-$hourlyPayload=['service_id'=>101,'selected_hours'=>4,'service_terms_fingerprint'=>$hourly['terms_fingerprint'],'bookings'=>$days,'terms_accepted'=>true,'terms_version'=>REGISTRATION_TERMS_VERSION,'idempotency_key'=>'hourly-multi-month-001','price'=>1,'deposit_amount'=>0];
+$hourlyPayload=['service_id'=>101,'selected_hours'=>4,'service_terms_fingerprint'=>$hourly['terms_fingerprint'],'bookings'=>$days,'terms_accepted'=>true,'terms_version'=>studioBookingTerms()['version'],'idempotency_key'=>'hourly-multi-month-001','price'=>1,'deposit_amount'=>0];
 $submitted=submitStudioBookingRequest($pdo,$client,$hourlyPayload,$proof);$hourlyId=$submitted['id'];
 $counts=[];foreach(['client_packages','payments','payment_allocations','finance'] as $table)$counts[$table]=countRows($pdo,$table);
 $pdo->exec("CREATE TRIGGER split_failure BEFORE INSERT ON payment_allocations WHEN CAST(NEW.amount AS REAL)<1000 BEGIN SELECT RAISE(ABORT,'split unavailable'); END");

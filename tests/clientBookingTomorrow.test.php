@@ -12,7 +12,7 @@ $client=['id'=>1,'client_id'=>1,'organization_id'=>1,'role'=>'client'];
 $service=registrationService($pdo,1,101);
 $today=cairoNow()->format('Y-m-d');$tomorrow=clientBookingEarliestDate(cairoNow());
 $row=['date'=>$today,'start_time'=>'16:00','end_time'=>'17:00','duration_minutes'=>60,'resource_id'=>1];
-$payload=['service_id'=>101,'service_terms_fingerprint'=>$service['terms_fingerprint'],'bookings'=>[$row],'terms_accepted'=>true,'terms_version'=>REGISTRATION_TERMS_VERSION,'idempotency_key'=>'tomorrow-fixture-request-001'];
+$payload=['service_id'=>101,'service_terms_fingerprint'=>$service['terms_fingerprint'],'bookings'=>[$row],'terms_accepted'=>true,'terms_version'=>studioBookingTerms()['version'],'idempotency_key'=>'tomorrow-fixture-request-001'];
 $proof=['path'=>'uploads/payment-proofs/'.str_repeat('a',36).'.png','mime'=>'image/png','original_name'=>'fixture.png','hash'=>str_repeat('b',64)];
 foreach ([$today=>'client_booking_before_tomorrow','2029-12-31'=>'past_booking'] as $date=>$code) {
     $invalid=array_replace($payload,['bookings'=>[array_replace($row,['date'=>$date])]]);

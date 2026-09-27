@@ -1,3 +1,4 @@
+import { PACKAGE_BOOKING_TERMS, PACKAGE_BOOKING_TERMS_VERSION } from '../src/lib/packageBookingTerms.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { webcrypto } from 'node:crypto';
@@ -9,12 +10,15 @@ const key = 'mt_agency_erp_demo_v12'; const db = () => JSON.parse(storage.get(ke
 const first = { date: '2027-02-06', start_time: '12:00', end_time: '13:00', duration_minutes: 60, resource_id: 1 }; const second = { ...first, date: '2027-02-07' };
 const image = () => new File([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+iBu8AAAAASUVORK5CYII=', 'base64')], 'receipt.png', { type: 'image/png' });
 async function setup() { resetDemoDatabase(); activateDemoMode('client'); const catalog = await demoClient.request('/registration/catalog'); const state = db(); state.client_packages.forEach(pkg => { pkg.status = 'expired'; }); storage.set(key, JSON.stringify(state)); return catalog.data.services.find(s => s.id === 101); }
-function submit(service, changes = {}, file = image()) { const body = new FormData(); body.append('payload', JSON.stringify({ service_id: service.id, service_terms_fingerprint: service.terms_fingerprint, bookings: [first, second], terms_accepted: true, terms_version: '2026-09-23', idempotency_key: crypto.randomUUID(), ...changes })); if (file) body.append('proof', file); return demoClient.request('/client/studio-booking-requests', { method: 'POST', body }); }
+function submit(service, changes = {}, file = image()) { const body = new FormData(); body.append('payload', JSON.stringify({ service_id: service.id, service_terms_fingerprint: service.terms_fingerprint, bookings: [first, second], terms_accepted: true, terms_version: PACKAGE_BOOKING_TERMS_VERSION, idempotency_key: crypto.randomUUID(), ...changes })); if (file) body.append('proof', file); return demoClient.request('/client/studio-booking-requests', { method: 'POST', body }); }
 const decide = (id, stage, extra = {}) => post(`/studio-booking-requests/${id}/decision`, { stage, action: 'approve', ...extra });
 test('multi-date request snapshots 50%, stays financially pending; owner receipt approval and chronological dates are exactly once', async () => {
   const service = await setup(); const baseline = db(); assert.equal(service.deposit_percent, 50); assert.equal(service.deposit_amount, service.price / 2);
   const idem = crypto.randomUUID(); const [a, b] = await Promise.all([submit(service, { idempotency_key: idem }), submit(service, { idempotency_key: idem })]); assert.equal(a.error, null); assert.equal(b.error, null); assert.equal(a.data.id, b.data.id); const id = a.data.id;
   assert.equal(db().studio_booking_requests.length, 1); for (const table of ['client_packages', 'payments', 'finance', 'payment_proofs']) assert.equal(db()[table].length, baseline[table].length);
+  assert.equal(db().studio_booking_requests[0].terms_version, PACKAGE_BOOKING_TERMS_VERSION);
+  assert.ok(db().studio_booking_requests[0].terms_accepted_at);
+  assert.deepEqual(db().studio_booking_requests[0].service_snapshot.booking_terms, PACKAGE_BOOKING_TERMS);
   assert.equal((await demoClient.request('/client/studio-booking-requests')).data.pending_count, 3);
   activateDemoMode('admin'); assert.equal((await decide(id, 'package', { payment_received_confirmed: true })).error?.code, 'forbidden');
   activateDemoMode('owner'); assert.equal((await decide(id, 'package')).error?.code, 'payment_confirmation_required'); assert.equal((await decide(id, 'booking', { booking_request_id: 1 })).error?.status, 409);
@@ -28,6 +32,8 @@ test('multi-date request snapshots 50%, stays financially pending; owner receipt
 test('image, consent, stale service, overlap, cumulative hours and schedule policies are enforced before insertion', async () => {
   const service = await setup(); for (const file of [null, new File(['wrong'], 'proof.svg', { type: 'image/svg+xml' }), new File(['fake'], 'proof.png', { type: 'image/png' }), new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'huge.png', { type: 'image/png' })]) assert.equal((await submit(service, {}, file)).error?.code, 'invalid_proof');
   assert.equal((await submit(service, { service_terms_fingerprint: 'stale' })).error?.code, 'service_terms_changed'); assert.ok((await submit(service, { terms_accepted: false })).error); assert.ok((await submit(service, { bookings: [] })).error);
+  for (const terms_accepted of [null, 1, 'true']) assert.equal((await submit(service, { terms_accepted })).error?.code, 'terms_acceptance_required');
+  for (const terms_version of ['', '2026-09-23', 'future-policy']) assert.equal((await submit(service, { terms_version })).error?.code, 'terms_acceptance_required');
   for (const bookings of [[first, first], [{ ...first, date: '2027-02-05' }], [{ ...first, start_time: '11:00', end_time: '12:00' }], [{ ...first, start_time: '21:00', end_time: '23:00', duration_minutes: 120 }], Array.from({ length: 11 }, (_, i) => ({ ...first, date: `2027-02-${String(6 + i).padStart(2, '0')}`, start_time: '12:00', end_time: '14:00', duration_minutes: 120 }))]) assert.ok((await submit(service, { bookings })).error);
   assert.equal(db().studio_booking_requests?.length || 0, 0);
   assert.match(validateStudioBookings({ ...service, kind: 'daily', validity_days: 1 }, [first, second]), /يوم واحد/); assert.match(validateStudioBookings({ ...service, validity_days: 1 }, [first, second]), /صلاحية/); assert.ok(validateStudioBookings(service, [{ ...first, date: 'bad' }]));

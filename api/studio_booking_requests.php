@@ -3,6 +3,12 @@ declare(strict_types=1);
 const STUDIO_TRANSFER_ACCOUNT = '01094084424';
 const STUDIO_SUBMITTED_MESSAGE = 'تم إرسال طلبك بنجاح، وبانتظار تأكيد الحجز خلال ساعة من ساعات العمل الرسمية: من 12 ظهرًا إلى 10 مساءً، والجمعة إجازة.';
 
+/** Shared with the client bundle; retain a copy with each accepted request. */
+function studioBookingTerms(): array {
+    static $terms;
+    return $terms ??= json_decode(file_get_contents(__DIR__.'/booking_terms.json'),true,512,JSON_THROW_ON_ERROR);
+}
+
 function requireStudioRequestSchema(PDO $pdo): void {
     if(schemaTableExists($pdo,'client_studio_booking_requests')&&schemaTableExists($pdo,'client_studio_booking_dates'))return;
     if($pdo->inTransaction())throw new RuntimeException('Studio request migration must run before a transaction.');
@@ -105,9 +111,10 @@ function studioRequestResult(array $row): array {
 function submitStudioBookingRequest(PDO $pdo,array $user,array $payload,array $proof): array {
     requireRole($user,['client']);$org=(int)$user['organization_id'];$clientId=(int)$user['client_id'];$key=(string)($payload['idempotency_key']??'');
     if(!preg_match('/^[A-Za-z0-9._:-]{16,128}$/',$key))fail('مفتاح حفظ الطلب غير صالح. أعد فتح الحجز.',422,'invalid_idempotency_key');
-    if(($payload['terms_accepted']??false)!==true||($payload['terms_version']??'')!==REGISTRATION_TERMS_VERSION)fail('وافق على شروط التصوير قبل إرسال الطلب.',422,'terms_acceptance_required');
+    $terms=studioBookingTerms();
+    if(($payload['terms_accepted']??false)!==true||($payload['terms_version']??'')!==$terms['version'])fail('راجع سياسة الحجز والتصوير كاملة ووافق عليها قبل إرسال الطلب. إذا كانت الصفحة مفتوحة من قبل، حدّثها لعرض أحدث الشروط.',422,'terms_acceptance_required');
     $serviceId=(int)($payload['service_id']??0);$fingerprint=is_string($payload['service_terms_fingerprint']??null)?$payload['service_terms_fingerprint']:'';
-    $hash=hash('sha256',json_encode(['service_id'=>$serviceId,'selected_hours'=>$payload['selected_hours']??null,'service_terms_fingerprint'=>$fingerprint,'bookings'=>$payload['bookings']??null,'proof_hash'=>$proof['hash'],'terms_version'=>REGISTRATION_TERMS_VERSION],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+    $hash=hash('sha256',json_encode(['service_id'=>$serviceId,'selected_hours'=>$payload['selected_hours']??null,'service_terms_fingerprint'=>$fingerprint,'bookings'=>$payload['bookings']??null,'proof_hash'=>$proof['hash'],'terms_version'=>$terms['version']],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
     $pdo->beginTransaction();
     try{
         $s=$pdo->prepare("SELECT id,name FROM clients WHERE id=? AND organization_id=? AND status='active' FOR UPDATE");$s->execute([$clientId,$org]);$client=$s->fetch();if(!$client)fail('حساب العميل غير متاح للحجز.',403,'client_not_active');
@@ -116,11 +123,12 @@ function submitStudioBookingRequest(PDO $pdo,array $user,array $payload,array $p
         requireClientPackagePurchase($pdo,$org,$clientId);
         $service=studioService($pdo,$org,$serviceId);if(!hash_equals($service['terms_fingerprint'],$fingerprint))fail('تم تحديث سعر الباقة أو شروطها. راجع التفاصيل الجديدة ثم وافق عليها.',409,'service_terms_changed');
         $service=studioPurchaseSelection($service,$payload['selected_hours']??$service['total_hours']);
+        $service['booking_terms']=$terms;
         $dates=normalizedStudioDates($payload['bookings']??null,$service);
         foreach($dates as $date){requireClientSingleDate($pdo,$org,$clientId,$date['date']);registrationBooking($pdo,$org,$service,$date);validateBookingSchedule($pdo,$org,$date['resource_id'],$date['date'],$date['start_time'],$date['end_time'],60,30,null,null,true);}
         $due=studioReviewDeadline()->format('Y-m-d H:i:s');
         $s=$pdo->prepare('INSERT INTO client_studio_booking_requests (organization_id,client_id,user_id,service_id,service_snapshot,deposit_amount,payment_method,transfer_account,proof_path,proof_mime,proof_original_name,proof_hash,idempotency_key,request_hash,terms_version,terms_accepted_at,review_due_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?)');
-        $s->execute([$org,$clientId,$user['id'],$serviceId,json_encode($service,JSON_UNESCAPED_UNICODE),$service['deposit_amount'],'vodafone_cash',STUDIO_TRANSFER_ACCOUNT,$proof['path'],$proof['mime'],$proof['original_name'],$proof['hash'],$key,$hash,REGISTRATION_TERMS_VERSION,$due]);$id=(int)$pdo->lastInsertId();
+        $s->execute([$org,$clientId,$user['id'],$serviceId,json_encode($service,JSON_UNESCAPED_UNICODE),$service['deposit_amount'],'vodafone_cash',STUDIO_TRANSFER_ACCOUNT,$proof['path'],$proof['mime'],$proof['original_name'],$proof['hash'],$key,$hash,$terms['version'],$due]);$id=(int)$pdo->lastInsertId();
         $s=$pdo->prepare('INSERT INTO client_studio_booking_dates (organization_id,request_id,resource_id,date,start_time,end_time,duration_minutes) VALUES (?,?,?,?,?,?,?)');
         foreach($dates as $date)$s->execute([$org,$id,$date['resource_id'],$date['date'],$date['start_time'].':00',$date['end_time'].':00',$date['duration_minutes']]);
         audit($pdo,$user,'studio_request_submitted','client_studio_booking_requests',$id,null,['client_id'=>$clientId,'appointment_count'=>count($dates),'deposit_amount'=>$service['deposit_amount']]);recordChangeEvent($pdo,$org,$clientId,'requests','client_studio_booking_requests',$id,'submitted');
