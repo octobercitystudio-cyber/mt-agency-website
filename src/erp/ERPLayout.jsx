@@ -158,15 +158,15 @@ const ERPLayout = () => {
                   <Package size={20} /> الباقات المباعة
                 </NavLink>
               </li>}
+              {canOpenPostProduction && <li className="erp-nav-item">
+                <NavLink to="/erp/post-production" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
+                  <Clapperboard size={20} /> المونتاج والتسليم
+                </NavLink>
+              </li>}
               {role === 'owner' && <li className="erp-nav-item"><NavLink to="/erp/package-guide" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}><BookOpen size={20}/> تعديل دليل الباقات</NavLink></li>}
               {canOpenProjects && <li className="erp-nav-item">
                 <NavLink to="/erp/projects" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
                   <FolderKanban size={20} /> المشروعات والمحتوى
-                </NavLink>
-              </li>}
-              {canOpenPostProduction && <li className="erp-nav-item">
-                <NavLink to="/erp/post-production" className={({isActive}) => `erp-nav-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
-                  <Clapperboard size={20} /> المونتاج والتسليم
                 </NavLink>
               </li>}
               <li className="erp-nav-item">
