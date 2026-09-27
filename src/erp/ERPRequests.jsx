@@ -9,6 +9,8 @@ import arCalendarLocale from '@fullcalendar/core/locales/ar';
 import { IntakeRequestCards } from '../components/IntakeRequests';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
+import useChangeSync from '../hooks/useChangeSync';
+import { buildCalendarRequestMarkers } from '../lib/bookingRequestCalendar';
 import { safeUiError } from '../lib/uiError';
 import { calculateDurationMinutes, formatBookingDate, formatDateTime12, formatDurationMinutes, formatEGP, formatPackageQuantity, formatTime12 } from '../lib/businessFormat';
 import ERPPageHero from './ERPPageHero';
@@ -19,6 +21,8 @@ const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 const emptyDecision = { open: false, kind: '', action: '', item: null, charge: false, note: '' };
 const time = value => formatTime12(value);
 const dateTimeLabel = value => formatDateTime12(value);
+const localDate = value => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+const initialCalendarRange = () => { const now = new Date(); return { from: localDate(new Date(now.getFullYear(), now.getMonth(), 1)), to: localDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)) }; };
 const calendarDateTime = (date, value, end = false) => {
   const raw = String(value || '').slice(0, 5);
   if (end && (raw === '24:00' || raw === '00:00')) {
@@ -51,39 +55,64 @@ export default function ERPRequests() {
   const [decisionBusy, setDecisionBusy] = useState(false);
   const [checkingId, setCheckingId] = useState('');
   const [notice, setNotice] = useState('');
-  const [calendarPreview, setCalendarPreview] = useState(null);
+  const [selectedRequestKey, setSelectedRequestKey] = useState(null);
+  const [calendarRange, setCalendarRange] = useState(initialCalendarRange);
+  const [loadedRange, setLoadedRange] = useState(null);
   const calendarRef = useRef(null);
+  const calendarSectionRef = useRef(null);
+  const fetchSequence = useRef(0);
 
   const fetchRequests = useCallback(async (showLoading = true) => {
+    const sequence = ++fetchSequence.current;
     if (showLoading) setLoading(true);
     setError('');
+    try {
     const queries = [
       canOperations ? dataClient.from('bookings').select('*').order('date', { ascending: true }) : Promise.resolve({ data: [] }),
       canOperations ? dataClient.from('reschedule_requests').select('*').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
       canFinance ? dataClient.from('payment_proofs').select('id,client_id,client_package_id,invoice_id,amount,original_name,mime_type,status,admin_note,created_at').eq('status', 'pending').order('created_at', { ascending: true }) : Promise.resolve({ data: [] }),
       dataClient.from('clients').select('id,name,phone1,color'),
-      canOperations ? dataClient.request('/booking-blocks', { method: 'GET' }) : Promise.resolve({ data: [] }),
+      canOperations ? dataClient.request(`/booking-blocks?from=${calendarRange.from}&to=${calendarRange.to}`, { method: 'GET' }) : Promise.resolve({ data: [] }),
       canOperations ? dataClient.from('client_packages').select('id,name,billing_unit') : Promise.resolve({ data: [] }),
     ];
     queries.push(canOperations ? dataClient.request('/intake-requests') : Promise.resolve({ data: { items: [], pending_count: 0 } }));
     queries.push(dataClient.request('/studio-booking-requests'));
     const [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult, intakeResult, studioResult] = await Promise.all(queries);
+    if (sequence !== fetchSequence.current) return null;
     const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult, intakeResult, studioResult].find(result => result.error);
     if (failed?.error) {
       setError(safeUiError(failed.error, 'تعذر تحميل بعض الطلبات الآن. أعد المحاولة بعد قليل.'));
-      if (showLoading) setLoading(false);
+      setLoadedRange(null);
+      setLoading(false);
       return null;
     }
     const nextData = { studio: studioResult.data?.items || [], studioPending: Number(studioResult.data?.pending_count || 0), intakes: intakeResult.data?.items || [], intakePending: Number(intakeResult.data?.pending_count || 0), bookings: bookingsResult.data || [], bookingBlocks: blocksResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [], packages: packagesResult.data || [] };
     setData(nextData);
-    if (showLoading) setLoading(false);
+    const pendingKeys = new Set(buildCalendarRequestMarkers(nextData).map(marker => marker.requestKey));
+    setSelectedRequestKey(previous => pendingKeys.has(previous) ? previous : null);
+    setLoadedRange(calendarRange);
+    setLoading(false);
     return nextData;
-  }, [canFinance, canOperations]);
+    } catch (requestError) {
+      if (sequence === fetchSequence.current) {
+        setError(safeUiError(requestError, 'تعذر تحديث الطلبات والإغلاقات لهذه الفترة. أعد المحاولة.'));
+        setLoadedRange(null);
+      }
+      return null;
+    } finally {
+      if (sequence === fetchSequence.current) setLoading(false);
+    }
+  }, [canFinance, canOperations, calendarRange]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchRequests(true);
   }, [fetchRequests]);
+
+  useChangeSync(topics => { if (topics.some(topic => ['bookings', 'requests', 'clients', 'payments'].includes(topic))) void fetchRequests(false); });
+  useEffect(() => { const reload = () => { void fetchRequests(false); }; window.addEventListener('erpRequestsUpdated', reload); return () => window.removeEventListener('erpRequestsUpdated', reload); }, [fetchRequests]);
+  const requestMarkers = useMemo(() => buildCalendarRequestMarkers(data), [data]);
+  const selectedMarkers = requestMarkers.filter(marker => marker.requestKey === selectedRequestKey);
 
   const pendingBookings = data.bookings.filter(item => item.status === 'pending').map(item => ({ ...item, duration_minutes: requestedDurationMinutes(item) }));
   const cancellations = data.bookings.filter(item => ['cancel_requested', 'late_cancel_requested'].includes(item.status));
@@ -94,7 +123,9 @@ export default function ERPRequests() {
   const bookingPackageName = booking => data.packages.find(item => Number(item.id) === Number(booking?.client_package_id))?.name || (booking?.client_package_id ? `باقة #${booking.client_package_id}` : 'بدون باقة');
   const requestAvailability = (kind, item, source = data) => {
     const original = kind === 'reschedule' ? source.bookings.find(booking => Number(booking.id) === Number(item.booking_id)) : item;
-    return getBookingAvailability(candidateForRequest(kind, item, original), source.bookings, {
+    const candidate = candidateForRequest(kind, item, original);
+    if (source === data && (!loadedRange || candidate.date < loadedRange.from || candidate.date > loadedRange.to || error)) return { status: 'unchecked', conflicts: [], candidate };
+    return getBookingAvailability(candidate, source.bookings, {
       excludeBookingId: kind === 'reschedule' ? item.booking_id : item.id,
       blocks: source.bookingBlocks,
     });
@@ -113,18 +144,32 @@ export default function ERPRequests() {
   ], [canFinance, canOperations, data.intakes.length]);
 
   const focusRequestOnCalendar = (kind, item, source = data) => {
-    const original = kind === 'reschedule' ? source.bookings.find(booking => Number(booking.id) === Number(item.booking_id)) : item;
+    const markers = buildCalendarRequestMarkers(source);
+    const marker = markers.find(row => row.kind === kind && String(row.requestId) === String(item.id) && row.phase !== 'from');
+    if (marker) focusMarker(marker);
+  };
+  const focusMarker = marker => {
+    setSelectedRequestKey(marker.requestKey);
+    setActiveTab(marker.tab);
+    window.setTimeout(() => { calendarRef.current?.getApi()?.gotoDate(marker.date); calendarSectionRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' }); }, 0);
+  };
+  const fetchDecisionData = async (kind, item) => {
+    try {
+    const fresh = await fetchRequests(false);
+    if (!fresh) return null;
+    const original = kind === 'reschedule' ? fresh.bookings.find(row => Number(row.id) === Number(item.booking_id)) : item;
     const candidate = candidateForRequest(kind, item, original);
-    const availability = requestAvailability(kind, item, source);
-    setCalendarPreview({ kind, item, candidate, availability });
-    if (candidate.date) window.setTimeout(() => calendarRef.current?.getApi()?.gotoDate(candidate.date), 0);
+    const result = await dataClient.request(`/booking-blocks?from=${candidate.date}&to=${candidate.date}`, { method: 'GET' });
+    if (result.error) { setError(safeUiError(result.error, 'تعذر التحقق من الإغلاقات المؤقتة. أعد المحاولة قبل اعتماد الموعد.')); return null; }
+    return { ...fresh, bookingBlocks: result.data || [] };
+    } catch (requestError) { setError(safeUiError(requestError, 'تعذر التحقق من الموعد. أعد المحاولة.')); return null; }
   };
 
   const openDecision = async (kind, action, item, charge = false) => {
     const requiresAvailability = (kind === 'booking' && action === 'confirm') || (kind === 'reschedule' && action === 'approve');
     if (requiresAvailability) {
       setCheckingId(`${kind}-${item.id}`);
-      const fresh = await fetchRequests(false);
+      const fresh = await fetchDecisionData(kind, item);
       setCheckingId('');
       if (!fresh) return;
       const availability = requestAvailability(kind, item, fresh);
@@ -142,7 +187,7 @@ export default function ERPRequests() {
     setDecisionBusy(true);
     const requiresAvailability = (decision.kind === 'booking' && decision.action === 'confirm') || (decision.kind === 'reschedule' && decision.action === 'approve');
     if (requiresAvailability) {
-      const fresh = await fetchRequests(false);
+      const fresh = await fetchDecisionData(decision.kind, decision.item);
       if (!fresh) { setDecisionBusy(false); return; }
       const availability = requestAvailability(decision.kind, decision.item, fresh);
       if (!(availability.status === 'available' || (isOwner && availability.status === 'blocked'))) {
@@ -188,18 +233,19 @@ export default function ERPRequests() {
     window.dispatchEvent(new CustomEvent('erpRequestsUpdated'));
   };
 
-  const calendarEvents = blockingBookings(data.bookings).map(booking => {
+  const representedBookingIds = new Set(requestMarkers.filter(marker => marker.bookingId != null && marker.phase !== 'to').map(marker => String(marker.bookingId)));
+  const calendarEvents = blockingBookings(data.bookings).filter(booking => !representedBookingIds.has(String(booking.id))).map(booking => {
     const client = data.clients.find(item => Number(item.id) === Number(booking.client_id)) || data.clients.find(item => item.name === booking.client_name);
     const color = safeBookingColor(client?.color);
     return {
       id: `booking-${booking.id}`,
-      title: `${time(booking.start_time)} · ${bookingClientName(booking)}`,
+      title: bookingClientName(booking),
       start: calendarDateTime(booking.date, booking.start_time),
       end: calendarDateTime(booking.date, booking.end_time, true),
       backgroundColor: color,
       borderColor: color,
       textColor: readableBookingTextColor(color),
-      extendedProps: { kind: 'blocking', client_color: color, status: booking.status },
+      extendedProps: { kind: 'blocking', client_color: color, status: booking.status, timeLabel: `${time(booking.start_time)} إلى ${time(booking.end_time)}` },
     };
   });
   data.bookingBlocks.forEach(block => calendarEvents.push({
@@ -208,23 +254,19 @@ export default function ERPRequests() {
     start: calendarDateTime(block.block_date, block.start_time),
     end: calendarDateTime(block.block_date, block.end_time, true),
     backgroundColor: '#fff1f2', borderColor: '#c56a76', textColor: '#8d2f3d',
-    extendedProps: { kind: 'booking_block', client_color: '#fff1f2', status: 'blocked' },
+    extendedProps: { kind: 'booking_block', client_color: '#fff1f2', status: 'blocked', timeLabel: `${time(block.start_time)} إلى ${time(block.end_time)}` },
   }));
-  if (calendarPreview?.availability?.candidate?.valid) {
-    const previewColor = calendarPreview.availability.status === 'available' ? '#16895a' : '#c13a4d';
-    const previewName = calendarPreview.kind === 'booking' ? calendarPreview.item.client_name : clientName(calendarPreview.item.client_id);
+  requestMarkers.forEach(marker => {
+    const tone = marker.kind === 'reschedule' ? 'blue' : marker.kind === 'cancellation' ? 'red' : 'amber';
+    const colors = { blue: ['#edf5ff', '#2358a0'], red: ['#fff0f2', '#a52640'], amber: ['#fff6dd', '#825012'] }[tone];
     calendarEvents.push({
-      id: `preview-${calendarPreview.kind}-${calendarPreview.item.id}`,
-      title: `معاينة · ${previewName}`,
-      start: calendarDateTime(calendarPreview.candidate.date, calendarPreview.candidate.start_time),
-      end: calendarDateTime(calendarPreview.candidate.date, calendarPreview.candidate.end_time, true),
-      backgroundColor: previewColor,
-      borderColor: previewColor,
-      textColor: '#ffffff',
-      classNames: ['requests-calendar-preview', `is-${calendarPreview.availability.status}`],
-      extendedProps: { kind: 'preview', client_color: previewColor },
+      id: marker.key, title: marker.clientName,
+      start: calendarDateTime(marker.date, marker.start_time), end: calendarDateTime(marker.date, marker.end_time, true),
+      backgroundColor: colors[0], borderColor: colors[1], textColor: colors[1],
+      classNames: ['requests-calendar-pending', `request-tone-${tone}`, `request-phase-${marker.phase}`, ...(marker.requestKey === selectedRequestKey ? ['is-selected'] : [])],
+      extendedProps: { kind: 'request', marker, timeLabel: `${time(marker.start_time)} إلى ${time(marker.end_time)}` },
     });
-  }
+  });
 
   return <div className="requests-center" dir="rtl">
     <ERPPageHero
@@ -247,11 +289,18 @@ export default function ERPRequests() {
       {tabs.map(({ key, label, icon: Icon }) => <button key={key} className={activeTab === key ? 'active' : ''} onClick={() => setActiveTab(key)}><Icon/>{label}<span>{counts[key]}</span></button>)}
     </nav>
 
-    {canOperations && ['bookings', 'reschedules'].includes(activeTab) && <section className="requests-calendar-reference" aria-labelledby="requests-calendar-title">
+    {canOperations && ['studio', 'bookings', 'reschedules', 'cancellations'].includes(activeTab) && <section ref={calendarSectionRef} className="requests-calendar-reference" aria-labelledby="requests-calendar-title">
       <header>
-        <div><span className="requests-calendar-kicker"><CalendarClock/>مرجع الحجوزات</span><h2 id="requests-calendar-title">المواعيد المشغولة في لمحة واحدة</h2></div>
-        <div className="requests-calendar-legend" aria-label="دليل التقويم"><span><i className="occupied"/>مؤكد / جارٍ / إلغاء قيد المراجعة = مشغول</span><span><i className="available"/>معاينة متاحة</span><span><i className="conflict"/>معاينة متعارضة</span></div>
+        <div><span className="requests-calendar-kicker"><CalendarClock/>الطلبات على التقويم</span><h2 id="requests-calendar-title">كل موعد وطلب تغيير أمامك</h2></div>
+        <div className="requests-calendar-legend" aria-label="دليل التقويم"><span><i className="new"/>حجز ينتظر التأكيد</span><span><i className="move"/>تغيير: من ← إلى</span><span><i className="conflict"/>إلغاء قيد المراجعة</span><span><i className="occupied"/>الحجوزات بألوان العملاء</span></div>
       </header>
+      <p className="requests-calendar-explainer">اضغط على الطلب لعرض تفاصيله. الموعد الحالي وطلب الإلغاء يظلان محجوزين حتى اعتماد القرار؛ الموعد المقترح لا يُعد مؤكدًا.</p>
+      {(!loadedRange || loading || error) && <p className="requests-calendar-freshness" role="status">{loading ? 'جارٍ تحديث الطلبات والإغلاقات لهذه الفترة…' : 'تعذر تحديث بعض البيانات. المعروض آخر بيانات محمّلة؛ أعد التحديث قبل مراجعة الإتاحة.'}</p>}
+      {!!selectedMarkers.length && <section className={`requests-calendar-selection request-tone-${selectedMarkers[0].kind === 'reschedule' ? 'blue' : selectedMarkers[0].kind === 'cancellation' ? 'red' : 'amber'}`} aria-label="تفاصيل الطلب المحدد" aria-live="polite">
+        <header><div><span>الطلب المحدد · بانتظار قرار الإدارة</span><h3>{selectedMarkers[0].clientName}</h3></div><button type="button" onClick={() => setSelectedRequestKey(null)} aria-label="إغلاق تفاصيل الطلب"><X size={18}/></button></header>
+        <div className="requests-calendar-selection-slots">{selectedMarkers.map(marker => <article key={marker.key}><strong>{marker.label}</strong><span>{formatBookingDate(marker.date)}</span><b>{time(marker.start_time)} إلى {time(marker.end_time)}</b><button type="button" onClick={() => calendarRef.current?.getApi()?.gotoDate(marker.date)}><Focus size={16}/>{marker.phase === 'from' ? 'اذهب للموعد الحالي' : marker.phase === 'to' ? 'اذهب للموعد الجديد' : 'اذهب ليوم الطلب'}</button></article>)}</div>
+        <button type="button" className="requests-review-link" onClick={() => document.getElementById(`request-card-${selectedMarkers[0].kind}-${selectedMarkers[0].requestId}`)?.scrollIntoView({ block: 'center', behavior: 'auto' })}>مراجعة الطلب واتخاذ القرار ↓</button>
+      </section>}
       <div className="requests-calendar-shell" aria-label="تقويم مرجع الحجوزات">
         <FullCalendar
           ref={calendarRef}
@@ -264,6 +313,8 @@ export default function ERPRequests() {
           buttonText={{ today: 'اليوم', month: 'شهر', week: 'أسبوع' }}
           headerToolbar={{ right: 'dayGridMonth,timeGridWeek', center: 'title', left: 'prev,next today' }}
           events={calendarEvents}
+          datesSet={info => { const end = new Date(info.end); end.setDate(end.getDate() - 1); const next = { from: localDate(info.start), to: localDate(end) }; setCalendarRange(previous => previous.from === next.from && previous.to === next.to ? previous : next); }}
+          eventClick={info => { if (info.event.extendedProps.marker) focusMarker(info.event.extendedProps.marker); }}
           eventDisplay="block"
           slotMinTime="00:00:00" scrollTime="12:00:00"
           slotMaxTime="24:00:00"
@@ -274,27 +325,30 @@ export default function ERPRequests() {
           height="auto"
           nowIndicator
           eventDidMount={info => {
-            const background = safeBookingColor(info.event.extendedProps.client_color);
-            const foreground = info.event.extendedProps.kind === 'preview' ? '#ffffff' : info.event.extendedProps.kind === 'booking_block' ? '#8d2f3d' : readableBookingTextColor(background);
+            const background = info.event.backgroundColor;
+            const foreground = info.event.textColor;
             info.el.style.setProperty('--fc-event-bg-color', background);
-            info.el.style.setProperty('--fc-event-border-color', background);
+            info.el.style.setProperty('--fc-event-border-color', info.event.borderColor);
             info.el.style.setProperty('--fc-event-text-color', foreground);
-            info.el.setAttribute('aria-label', `${info.event.title}، ${info.timeText || ''}`);
+            info.el.setAttribute('aria-label', `${info.event.title}، ${info.event.extendedProps.timeLabel}، ${info.event.extendedProps.marker?.label || 'مشغول'}`);
+            if (info.event.extendedProps.marker) { info.el.setAttribute('role', 'button'); info.el.tabIndex = 0; info.el.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); focusMarker(info.event.extendedProps.marker); } }; }
           }}
-          eventContent={arg => <div className="requests-calendar-event" style={{ color: arg.event.textColor }}>{arg.event.extendedProps.kind === 'booking_block' && <LockKeyhole/>}<strong>{arg.event.title}</strong>{arg.event.extendedProps.kind === 'preview' && <small>{calendarPreview?.availability.status === 'available' ? 'الموعد متاح' : 'الموعد غير متاح'}</small>}</div>}
+          eventWillUnmount={info => { info.el.onkeydown = null; }}
+          eventContent={arg => <div className="requests-calendar-event" style={{ color: arg.event.textColor }}>{arg.event.extendedProps.marker && <small className="requests-marker-label">{arg.event.extendedProps.marker.label}</small>}{arg.event.extendedProps.kind === 'booking_block' && <LockKeyhole/>}<strong>{arg.event.title}</strong><span>{arg.event.extendedProps.timeLabel}</span>{arg.event.extendedProps.marker?.counterpart && <small>{arg.event.extendedProps.marker.phase === 'from' ? 'إلى: ' : 'من: '}{formatBookingDate(arg.event.extendedProps.marker.counterpart.date)} · {time(arg.event.extendedProps.marker.counterpart.start_time)}</small>}</div>}
         />
       </div>
+      <p className="requests-calendar-scroll-hint">اسحب التقويم أفقيًا لرؤية أيام الأسبوع كاملة، أو اختر عرض الأسبوع.</p>
     </section>}
 
     <main className="requests-workspace">
       {loading ? <LoadingState/> : <>
-        {activeTab === 'studio' && <><p className="requests-intake-caption"><strong>{data.studio.filter(item => item.package_status === 'pending' || item.bookings.some(row => row.status === 'pending')).length} طلب تصوير بانتظار المراجعة</strong><span>العداد يجمع قرارات الباقات والمواعيد المعلقة؛ كل موعد له قرار مستقل.</span></p><StudioBookingRequestCards items={data.studio} role={role} onChanged={() => fetchRequests(false)}/></>}
+        {activeTab === 'studio' && <><p className="requests-intake-caption"><strong>{data.studio.filter(item => item.package_status === 'pending' || item.bookings.some(row => row.status === 'pending')).length} طلب تصوير بانتظار المراجعة</strong><span>العداد يجمع قرارات الباقات والمواعيد المعلقة؛ كل موعد له قرار مستقل.</span></p><StudioBookingRequestCards items={data.studio} role={role} onChanged={() => fetchRequests(false)} onFocusAppointment={(parent, appointment) => { const marker = requestMarkers.find(row => row.kind === 'studio' && String(row.requestId) === String(parent.id) && String(row.appointmentId) === String(appointment.id)); if (marker) focusMarker(marker); }}/></>}
         {activeTab === 'intakes' && <><p className="requests-intake-caption"><strong>{data.intakes.filter(item => ['registration', 'package', 'booking'].some(stage => item[`${stage}_status`] === 'pending')).length} عميل بانتظار المراجعة</strong><span>كل عميل في بطاقة واحدة. الأرقام في العدادات تمثل طلبات التسجيل والباقة والموعد المعلقة، وكل طلب يُحسب مرة واحدة.</span></p><IntakeRequestCards items={data.intakes} admin onChanged={() => fetchRequests(false)}/></>}
-        {activeTab === 'bookings' && <RequestGrid empty={!pendingBookings.length} emptyLabel="لا توجد حجوزات جديدة بانتظار التأكيد.">{pendingBookings.map(item => { const availability = requestAvailability('booking', item); const blocked = !(availability.status === 'available' || (isOwner && availability.status === 'blocked')); return <RequestCard key={item.id} tone="amber" icon={CalendarDays} title={item.client_name} badge="بانتظار التأكيد" meta={[bookingPackageName(item), item.service, formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, `المدة المطلوبة: ${formatDurationMinutes(item.duration_minutes || 0)}`]} note={item.notes} onFocus={() => focusRequestOnCalendar('booking', item)}><button className="calendar-focus" onClick={() => focusRequestOnCalendar('booking', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidateForRequest('booking', item)} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `booking-${item.id}`} title={blocked ? 'لا يمكن التأكيد قبل اختيار موعد متاح' : ''} onClick={() => openDecision('booking', 'confirm', item)}><Check/> {checkingId === `booking-${item.id}` ? 'جارٍ التحقق...' : 'تأكيد'}</button><button className="alternative" onClick={() => navigate('/erp/bookings')}><CalendarClock/> موعد بديل</button><button className="reject" onClick={() => openDecision('booking', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
+        {activeTab === 'bookings' && <RequestGrid empty={!pendingBookings.length} emptyLabel="لا توجد حجوزات جديدة بانتظار التأكيد.">{pendingBookings.map(item => { const availability = requestAvailability('booking', item); const blocked = !(availability.status === 'available' || (isOwner && availability.status === 'blocked')); return <RequestCard key={item.id} tone="amber" icon={CalendarDays} title={item.client_name} badge="بانتظار التأكيد" meta={[bookingPackageName(item), item.service, formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, `المدة المطلوبة: ${formatDurationMinutes(item.duration_minutes || 0)}`]} note={item.notes} requestId={`request-card-booking-${item.id}`}><button className="calendar-focus" onClick={() => focusRequestOnCalendar('booking', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidateForRequest('booking', item)} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `booking-${item.id}`} title={blocked ? 'لا يمكن التأكيد قبل اختيار موعد متاح' : ''} onClick={() => openDecision('booking', 'confirm', item)}><Check/> {checkingId === `booking-${item.id}` ? 'جارٍ التحقق...' : 'تأكيد'}</button><button className="alternative" onClick={() => navigate('/erp/bookings')}><CalendarClock/> موعد بديل</button><button className="reject" onClick={() => openDecision('booking', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
 
-        {activeTab === 'reschedules' && <RequestGrid empty={!data.reschedules.length} emptyLabel="لا توجد طلبات تغيير موعد.">{data.reschedules.map(item => { const old = bookingById(item.booking_id); const availability = requestAvailability('reschedule', item); const candidate = candidateForRequest('reschedule', item, old); const blocked = !(availability.status === 'available' || (isOwner && availability.status === 'blocked')); return <RequestCard key={item.id} tone="blue" icon={RotateCcw} title={clientName(item.client_id)} badge="طلب تغيير" meta={[]} note={item.reason} onFocus={() => focusRequestOnCalendar('reschedule', item)}><div className="requests-time-change"><div><span>الموعد الحالي</span><strong>{formatBookingDate(old?.date)}</strong><small>{time(old?.start_time)} – {time(old?.end_time)}</small></div><i>←</i><div><span>الموعد المقترح</span><strong>{formatBookingDate(item.proposed_date)}</strong><small>{time(item.proposed_start_time)} – {time(item.proposed_end_time)}</small></div></div><button className="calendar-focus" onClick={() => focusRequestOnCalendar('reschedule', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidate} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `reschedule-${item.id}`} title={blocked ? 'لا يمكن قبول موعد متعارض' : ''} onClick={() => openDecision('reschedule', 'approve', item)}><Check/> {checkingId === `reschedule-${item.id}` ? 'جارٍ التحقق...' : 'قبول التغيير'}</button><button className="reject" onClick={() => openDecision('reschedule', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
+        {activeTab === 'reschedules' && <RequestGrid empty={!data.reschedules.length} emptyLabel="لا توجد طلبات تغيير موعد.">{data.reschedules.map(item => { const old = bookingById(item.booking_id); const availability = requestAvailability('reschedule', item); const candidate = candidateForRequest('reschedule', item, old); const blocked = !(availability.status === 'available' || (isOwner && availability.status === 'blocked')); return <RequestCard key={item.id} tone="blue" icon={RotateCcw} title={clientName(item.client_id)} badge="طلب تغيير" meta={[]} note={item.reason} requestId={`request-card-reschedule-${item.id}`}><div className="requests-time-change"><div><span>الموعد الحالي</span><strong>{formatBookingDate(old?.date)}</strong><small>{time(old?.start_time)} – {time(old?.end_time)}</small></div><i>←</i><div><span>الموعد المقترح</span><strong>{formatBookingDate(item.proposed_date)}</strong><small>{time(item.proposed_start_time)} – {time(item.proposed_end_time)}</small></div></div><button className="calendar-focus" onClick={() => focusRequestOnCalendar('reschedule', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidate} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `reschedule-${item.id}`} title={blocked ? 'لا يمكن قبول موعد متعارض' : ''} onClick={() => openDecision('reschedule', 'approve', item)}><Check/> {checkingId === `reschedule-${item.id}` ? 'جارٍ التحقق...' : 'قبول التغيير'}</button><button className="reject" onClick={() => openDecision('reschedule', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}
 
-        {activeTab === 'cancellations' && <RequestGrid empty={!cancellations.length} emptyLabel="لا توجد طلبات حذف قيد المراجعة.">{cancellations.map(item => { const late = item.status === 'late_cancel_requested'; return <RequestCard key={item.id} tone={late ? 'red' : 'amber'} icon={XCircle} title={item.client_name} badge="طلب حذف موعد" meta={[formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, formatPackageQuantity(item.requested_quantity, 'hour')]}>{isOwner ? <><button className="approve" onClick={() => openDecision('cancellation', 'approve', item)}><ShieldCheck/> حذف الموعد</button><button className="neutral" onClick={() => openDecision('cancellation', 'reject', item)}><X/> الإبقاء على الموعد</button></> : <p className="requests-owner-only"><ShieldCheck/> قرار حذف الموعد متاح للمالك فقط.</p>}</RequestCard>})}</RequestGrid>}
+        {activeTab === 'cancellations' && <RequestGrid empty={!cancellations.length} emptyLabel="لا توجد طلبات حذف قيد المراجعة.">{cancellations.map(item => { const late = item.status === 'late_cancel_requested'; return <RequestCard key={item.id} tone={late ? 'red' : 'amber'} requestId={`request-card-cancellation-${item.id}`} icon={XCircle} title={item.client_name} badge="طلب حذف موعد" meta={[formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, formatPackageQuantity(item.requested_quantity, 'hour')]}><button className="calendar-focus" onClick={() => focusRequestOnCalendar('cancellation', item)}><Focus/> عرض طلب الإلغاء على التقويم</button>{isOwner ? <><button className="approve" onClick={() => openDecision('cancellation', 'approve', item)}><ShieldCheck/> حذف الموعد</button><button className="neutral" onClick={() => openDecision('cancellation', 'reject', item)}><X/> الإبقاء على الموعد</button></> : <p className="requests-owner-only"><ShieldCheck/> قرار حذف الموعد متاح للمالك فقط.</p>}</RequestCard>})}</RequestGrid>}
 
         {activeTab === 'proofs' && <RequestGrid empty={!data.proofs.length} emptyLabel="لا توجد إثباتات تحويل قيد المراجعة.">{data.proofs.map(item => <RequestCard key={item.id} tone="purple" icon={Banknote} title={clientName(item.client_id)} badge="إثبات جديد" meta={[formatEGP(item.amount), item.client_package_id ? `باقة #${item.client_package_id}` : `فاتورة #${item.invoice_id}`, dateTimeLabel(item.created_at), item.original_name]}><button className="view" onClick={() => window.open(`${API_BASE}/payment-proofs/${item.id}/file`, '_blank', 'noopener,noreferrer')}><Eye/> عرض الملف الآمن</button>{isOwner ? <><button className="approve" onClick={() => openDecision('proof', 'approve', item)}><Check/> اعتماد</button><button className="reject" onClick={() => openDecision('proof', 'reject', item)}><X/> رفض</button></> : <p className="requests-owner-only"><ShieldCheck/> القرار النهائي بالاعتماد أو الرفض متاح للمالك فقط.</p>}</RequestCard>)}</RequestGrid>}
       </>}
@@ -306,10 +360,11 @@ export default function ERPRequests() {
 
 function RequestGrid({ empty, emptyLabel, children }) { return empty ? <div className="requests-empty"><Inbox/><h3>الصندوق خالٍ</h3><p>{emptyLabel}</p></div> : <section className="requests-grid">{children}</section>; }
 function LoadingState() { return <div className="requests-empty"><RefreshCw className="requests-spin"/><h3>جارٍ تحميل الطلبات</h3><p>نراجع أحدث الحالات من الخادم.</p></div>; }
-function RequestCard({ tone, icon: Icon, title, badge, meta, note, children, onFocus }) { return <article className={`request-card ${tone}`} onFocusCapture={onFocus}><header><span className="request-card-icon"><Icon/></span><div><h3>{title}</h3><span>{badge}</span></div></header>{meta?.length > 0 && <div className="request-card-meta">{meta.map((value, index) => <span key={`${value}-${index}`}>{value}</span>)}</div>}{note && <p className="request-card-note">{note}</p>}<div className="request-card-body">{children}</div></article>; }
+function RequestCard({ tone, icon: Icon, title, badge, meta, note, children, requestId }) { return <article id={requestId} className={`request-card ${tone}`}><header><span className="request-card-icon"><Icon/></span><div><h3>{title}</h3><span>{badge}</span></div></header>{meta?.length > 0 && <div className="request-card-meta">{meta.map((value, index) => <span key={`${value}-${index}`}>{value}</span>)}</div>}{note && <p className="request-card-note">{note}</p>}<div className="request-card-body">{children}</div></article>; }
 function AvailabilityStrip({ availability, candidate, clientLabel }) {
   const first = availability.conflicts[0];
   const extra = Math.max(0, availability.conflicts.length - 1);
+  if (availability.status === 'unchecked') return <div className="request-availability invalid" role="status"><CalendarClock/><div><strong>الإتاحة تحتاج إلى مراجعة</strong><span>اعرض يوم الطلب على التقويم لتحميل الإغلاقات والمواعيد المحدثة.</span></div></div>;
   if (availability.status === 'invalid') return <div className="request-availability invalid" role="status" aria-live="polite"><AlertTriangle/><div><strong>تعذر التحقق من الموعد</strong><span>راجع التاريخ ووقت البداية والنهاية قبل الاعتماد.</span></div></div>;
   if (availability.status === 'blocked') return <div className="request-availability conflict" role="status" aria-live="polite"><LockKeyhole/><div><strong>مغلق بواسطة الإدارة</strong><span>تتقاطع الفترة المقترحة مع إغلاق إداري. اختر موعدًا آخر.</span></div></div>;
   if (availability.status === 'conflict') return <div className="request-availability conflict" role="status" aria-live="polite"><AlertTriangle/><div><strong>الموعد غير متاح</strong><span>يتعارض مع حجز {clientLabel(first)} من {time(first.start_time)} إلى {time(first.end_time)}{extra ? ` · و${extra} تعارض إضافي` : ''}.</span></div></div>;

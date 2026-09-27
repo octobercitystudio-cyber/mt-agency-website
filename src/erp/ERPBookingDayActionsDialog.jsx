@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarClock, Camera, Clock3, LockKeyhole, RefreshCw, X } from 'lucide-react';
+import { CalendarClock, CalendarPlus, Camera, Clock3, LockKeyhole, RefreshCw, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import BusinessTimeSelect from '../components/BusinessTimeSelect';
 import ClientCombobox from '../components/ClientCombobox';
@@ -29,6 +29,7 @@ export function ERPBookingDayActionsDialog({
   onClose,
   onTemporary,
   onDirect,
+  onBooking,
 }) {
   const close = useCallback(() => onClose(), [onClose]);
   const dialogRef = useModalDialog(isOpen, close, { returnFocusRef });
@@ -60,7 +61,11 @@ export function ERPBookingDayActionsDialog({
           </button>
         </header>
         <div className="booking-day-actions__grid">
-          <button type="button" data-dialog-initial onClick={onTemporary}>
+          <button type="button" data-dialog-initial onClick={onBooking}>
+            <CalendarPlus />
+            <span><strong>حجز موعد لعميل</strong><small>اختر أي عميل وحدّد باقته وساعات التصوير في هذا اليوم.</small></span>
+          </button>
+          <button type="button" onClick={onTemporary}>
             <LockKeyhole />
             <span>
               <strong>حجز مؤقت</strong>

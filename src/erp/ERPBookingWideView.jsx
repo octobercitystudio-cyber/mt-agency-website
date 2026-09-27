@@ -26,7 +26,7 @@ function BookingTimes({ start, end }) {
   return <span className="booking-calendar-ticket__time"><span className="booking-calendar-ticket__time-segment">من <bdi className="booking-calendar-ticket__time-value">{formatTime12(start, '')}</bdi></span><span className="booking-calendar-ticket__time-segment">إلى <bdi className="booking-calendar-ticket__time-value">{formatTime12(end, '')}</bdi></span></span>;
 }
 
-export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin, loading, loadError, blockLoadError, onRefresh, bookings, blocks, events, query, onQueryChange, status, onStatusChange, pendingBookings, decisionBusy, decisionError, onDecision, onAlternative, onNewBooking, onDayActions, onOpenBooking, onOpenBlock, onDateClick, onDatesSet, onEventClick, onRescheduleProposal, calendarRootRef, getStatusMeta, getClientColor }) {
+export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin, loading, loadError, blockLoadError, onRefresh, bookings, blocks, events, query, onQueryChange, status, onStatusChange, pendingBookings, decisionBusy, decisionError, onDecision, onAlternative, onNewBooking, onDayActions, onOpenBooking, onOpenBlock, onDateClick, onDayDoubleClick, onDateNavigation, onDatesSet, onEventClick, onRescheduleProposal, calendarRootRef, getStatusMeta, getClientColor }) {
   const calendarRef = useRef(null);
   const dayRailRef = useRef(null);
   const lastCalendarRangeRef = useRef('');
@@ -85,13 +85,17 @@ export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin
     calendarRef.current?.getApi().gotoDate(value);
   };
   const navigatePeriod = direction => {
+    onDateNavigation?.();
     const api = calendarRef.current?.getApi();
     if (!api) return;
     if (compact && api.view.type !== 'dayGridMonth') api.changeView('dayGridMonth', selectedDate);
     if (direction === 0) { chooseDate(cairoDateKey()); return; }
     if (direction < 0) api.prev(); else api.next();
   };
-  const changeView = value => calendarRef.current?.getApi().changeView(value, selectedDate);
+  const changeView = value => { onDateNavigation?.(); calendarRef.current?.getApi().changeView(value, selectedDate); };
+  const bookDate = (value, event) => { event.stopPropagation(); onDateClick({ dateStr: value, dayEl: event.currentTarget, jsEvent: event.nativeEvent }); };
+  const dayDoubleClick = (value, event) => { event.stopPropagation(); onDayDoubleClick?.(value, event.currentTarget); };
+  const dayKeyboard = (value, event) => { if (isAdmin && event.shiftKey && event.key === 'Enter') { event.preventDefault(); dayDoubleClick(value, event); } };
   const eventContent = arg => {
     const data = arg.event.extendedProps; const block = data.kind === 'booking_block';
     const meta = block ? { label: 'حجز مؤقت', color: '#956019' } : getStatusMeta(data.status);
@@ -107,7 +111,7 @@ export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin
     <header className="bookings-wide-header"><div><p>تنظيم الاستديو</p><h1>جدول الحجوزات</h1></div><div className="bookings-wide-header-actions">
       {isAdmin && <button type="button" className="bookings-wide-button" aria-expanded={pendingOpen} aria-controls="booking-pending-requests" onClick={() => setPendingOpen(open => !open)}><Clock size={17} />طلبات التأكيد <b>{pendingBookings.length}</b></button>}
       {isAdmin && <button type="button" className="bookings-wide-button" onClick={event => onDayActions(event.currentTarget)}><CalendarClock size={18} />إجراءات اليوم</button>}
-      <button type="button" className="bookings-wide-button primary" onClick={event => onNewBooking(event.currentTarget)}><CalendarPlus size={18} />حجز موعد جديد</button>
+      {isAdmin && <button type="button" className="bookings-wide-button primary" onClick={event => onNewBooking(event.currentTarget)}><CalendarPlus size={18} />حجز موعد جديد</button>}
     </div></header>
 
     {isAdmin && pendingOpen && <section id="booking-pending-requests" className="bookings-wide-requests" aria-label="طلبات بانتظار التأكيد"><header><h2>طلبات بانتظار التأكيد <span>{pendingBookings.length}</span></h2><div><button type="button" className="bookings-wide-button" disabled={loading} onClick={onRefresh}><RefreshCw size={16} />تحديث</button><button type="button" className="bookings-wide-icon-button" aria-label="إغلاق طلبات التأكيد" onClick={() => setPendingOpen(false)}><X size={18} /></button></div></header>
@@ -119,7 +123,7 @@ export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin
     {blockLoadError && <p className="bookings-wide-error" role="alert">{blockLoadError}<button type="button" onClick={onRefresh}>إعادة المحاولة</button></p>}
     <div className="bookings-wide-summary" aria-live="polite"><strong>{dateLabel(selectedDate)}</strong><span><b>{summary.total}</b> مواعيد{filtered ? ' مطابقة' : ''}</span><span><b>{summary.confirmed}</b> مؤكدة</span>{isAdmin && <span><b>{summary.temporary}</b> مؤقتة</span>}<span><b>{summary.inProgress}</b> تصوير جارٍ</span>{summary.completed > 0 && <span><b>{summary.completed}</b> مكتملة</span>}</div>
     <div className="bookings-wide-layout">
-      <section className="bookings-wide-calendar-panel" aria-label="تقويم المواعيد"><header className="bookings-wide-calendar-toolbar"><div><h2>{compact || viewType === 'dayGridMonth' ? monthLabel(displayedMonth) : calendarTitle}</h2><p>اختر يومًا للاطلاع على مواعيده.</p></div><div className="bookings-wide-navigation"><button type="button" className="bookings-wide-icon-button" aria-label={viewType === 'timeGridWeek' && !compact ? 'الأسبوع السابق' : 'الشهر السابق'} onClick={() => navigatePeriod(-1)}><ChevronRight /></button><button type="button" className="bookings-wide-button" onClick={() => navigatePeriod(0)}>اليوم</button><button type="button" className="bookings-wide-icon-button" aria-label={viewType === 'timeGridWeek' && !compact ? 'الأسبوع التالي' : 'الشهر التالي'} onClick={() => navigatePeriod(1)}><ChevronLeft /></button></div></header>
+      <section className="bookings-wide-calendar-panel" aria-label="تقويم المواعيد"><header className="bookings-wide-calendar-toolbar"><div><h2>{compact || viewType === 'dayGridMonth' ? monthLabel(displayedMonth) : calendarTitle}</h2><p>{isAdmin ? 'اضغط على اليوم لحجز موعد لعميل، أو مرتين لخيارات الحجز المؤقت وبدء التصوير.' : 'اختر يومًا للاطلاع على مواعيده.'}</p></div><div className="bookings-wide-navigation"><button type="button" className="bookings-wide-icon-button" aria-label={viewType === 'timeGridWeek' && !compact ? 'الأسبوع السابق' : 'الشهر السابق'} onClick={() => navigatePeriod(-1)}><ChevronRight /></button><button type="button" className="bookings-wide-button" onClick={() => navigatePeriod(0)}>اليوم</button><button type="button" className="bookings-wide-icon-button" aria-label={viewType === 'timeGridWeek' && !compact ? 'الأسبوع التالي' : 'الشهر التالي'} onClick={() => navigatePeriod(1)}><ChevronLeft /></button></div></header>
         <div className="bookings-wide-filters"><label className="bookings-wide-search"><Search size={18} aria-hidden="true" /><input type="search" aria-label="ابحث باسم العميل أو عنوان الحجز" placeholder="ابحث باسم العميل أو عنوان الحجز" value={query} onChange={event => onQueryChange(event.target.value)} /></label><select aria-label="تصفية حالة الحجز" value={status} onChange={event => onStatusChange(event.target.value)}><option value="all">كل الحالات</option><option value="confirmed">مؤكد</option>{isAdmin && <option value="temporary">حجز مؤقت</option>}<option value="pending">بانتظار التأكيد</option><option value="in_progress">تصوير جارٍ</option><option value="completed">مكتمل</option><option value="alternative_proposed">موعد بديل مقترح</option><option value="cancel_requested">طلب إلغاء</option><option value="late_cancel_requested">إلغاء متأخر</option></select><div className="bookings-wide-view-switch" aria-label="طريقة عرض التقويم"><button type="button" aria-pressed={viewType === 'dayGridMonth'} onClick={() => changeView('dayGridMonth')}>شهر</button><button type="button" aria-pressed={viewType === 'timeGridWeek'} onClick={() => changeView('timeGridWeek')}>أسبوع</button></div></div>
         {filtered && <p className="bookings-wide-filter-note">تظهر المواعيد المطابقة للبحث والحالة فقط؛ إخفاء موعد لا يعني أن فترته متاحة.<button type="button" onClick={() => { onQueryChange(''); onStatusChange('all'); }}>مسح التصفية</button></p>}
         {loading && <p className="bookings-wide-loading" role="status"><RefreshCw size={17} className="client-spin" />جارٍ تحميل المواعيد...</p>}
@@ -130,11 +134,11 @@ export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin
             eventClassNames={arg => ['bookings-wide-event', arg.event.extendedProps.kind === 'booking_block' ? 'booking-status-temporary' : `booking-status-${normalizeBookingViewStatus(arg.event.extendedProps.status)}`, ...(arg.event.extendedProps.reschedule_eligible ? ['is-reschedule-eligible'] : [])]}
             slotMinTime="00:00:00" scrollTime="12:00:00" slotMaxTime="24:00:00" allDaySlot={false} slotDuration="00:15:00" slotLabelInterval="01:00:00" eventMinHeight={90} eventTimeFormat={calendarTimeFormat} slotLabelFormat={calendarTimeFormat} eventContent={eventContent}
             dayMaxEvents={false} height="auto" headerToolbar={false} fixedWeekCount={false} nowIndicator={true}
-            dayCellContent={arg => <span className="bookings-wide-day-number"><button type="button" onClick={event => { event.stopPropagation(); chooseDate(dateKey(arg.date)); }} aria-label={`اختيار ${dateLabel(dateKey(arg.date))}`} aria-current={dateKey(arg.date) === selectedDate ? 'date' : undefined}>{arg.date.getDate()}</button></span>}
+            dayCellContent={arg => <span className="bookings-wide-day-number"><button type="button" onClick={event => bookDate(dateKey(arg.date), event)} onDoubleClick={event => dayDoubleClick(dateKey(arg.date), event)} onKeyDown={event => dayKeyboard(dateKey(arg.date), event)} aria-keyshortcuts={isAdmin ? "Shift+Enter" : undefined} aria-label={`حجز موعد يوم ${dateLabel(dateKey(arg.date))}`} aria-current={dateKey(arg.date) === selectedDate ? 'date' : undefined}>{arg.date.getDate()}</button></span>}
             dayCellClassNames={arg => [dateKey(arg.date) === selectedDate ? 'selected-day-highlight' : '']}
           />
         </div>
-        <div className="bookings-wide-mobile-dates"><label>انتقل إلى تاريخ<input type="date" aria-label="تاريخ المواعيد" value={selectedDate} onChange={event => chooseDate(event.target.value)} /></label><div ref={dayRailRef} className="bookings-wide-date-rail" aria-label="أيام الشهر">{Array.from({ length: monthDays }, (_, index) => { const value = `${displayedMonth}-${String(index + 1).padStart(2, '0')}`; const day = parseDate(value).getUTCDay(); return <button key={value} type="button" aria-current={value === selectedDate ? 'date' : undefined} onClick={() => chooseDate(value)} aria-label={dateLabel(value)}><small>{dayNames[day]}</small><b>{index + 1}</b></button>; })}</div><p>مرّر الأيام أو اختر التاريخ المطلوب من الحقل بالأعلى.</p></div>
+        <div className="bookings-wide-mobile-dates"><label>انتقل إلى تاريخ<input type="date" aria-label="تاريخ المواعيد" value={selectedDate} onChange={event => { onDateNavigation?.(); chooseDate(event.target.value); }} /></label><div ref={dayRailRef} className="bookings-wide-date-rail" aria-label="أيام الشهر">{Array.from({ length: monthDays }, (_, index) => { const value = `${displayedMonth}-${String(index + 1).padStart(2, '0')}`; const day = parseDate(value).getUTCDay(); return <button key={value} type="button" aria-current={value === selectedDate ? 'date' : undefined} onClick={event => bookDate(value, event)} onDoubleClick={event => dayDoubleClick(value, event)} onKeyDown={event => dayKeyboard(value, event)} aria-keyshortcuts={isAdmin ? "Shift+Enter" : undefined} aria-label={`حجز موعد يوم ${dateLabel(value)}`}><small>{dayNames[day]}</small><b>{index + 1}</b></button>; })}</div><p>اضغط على اليوم لحجز موعد. استخدم حقل التاريخ لتصفح المواعيد دون فتح حجز.{isAdmin && ' لخيارات اليوم اضغط مرتين أو Shift + Enter.'}</p></div>
         <footer className="bookings-wide-legend"><span><i className="confirmed" />مؤكد</span>{isAdmin && <span><i className="temporary" />حجز مؤقت</span>}<span><i className="completed" />مكتمل</span><span>لون الموعد هو لون العميل</span></footer>
       </section>
       <aside className="bookings-wide-agenda" aria-labelledby="booking-agenda-title"><header><p>اليوم المختار</p><h2 id="booking-agenda-title">{dateLabel(selectedDate)}</h2><span>{appointmentCount(summary.total)}{filtered ? ' مطابقة للتصفية' : ''}</span></header>{isAdmin && <button type="button" className="bookings-wide-button bookings-wide-agenda-action" onClick={event => onDayActions(event.currentTarget)}><CalendarClock size={17} />إجراءات هذا اليوم</button>}
@@ -143,6 +147,6 @@ export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin
         </article>; })}</div>
       </aside>
     </div>
-    <p className="bookings-wide-help">نقرة واحدة لاختيار اليوم.{isAdmin && <> <strong>نقرتان على مساحة فارغة</strong> لحجز مؤقت أو بدء جلسة تصوير.</>} كل المواعيد بتوقيت القاهرة.</p>
+    <p className="bookings-wide-help">{isAdmin ? <>نقرة واحدة على اليوم لحجز موعد لعميل. <strong>نقرتان على مساحة فارغة أو رقم اليوم</strong> لخيارات الحجز المؤقت وبدء التصوير.</> : 'نقرة واحدة لاختيار اليوم.'} كل المواعيد بتوقيت القاهرة.</p>
   </section>;
 }

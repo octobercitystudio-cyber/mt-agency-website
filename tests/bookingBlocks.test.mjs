@@ -204,14 +204,14 @@ test('production API and migration enforce a single atomic schedule owner', asyn
   assert.match(api, /bookingBlockDates/);
 });
 
-test('owner calendar selects on one click and opens day actions only from an empty-cell double click', async () => {
+test('owner calendar starts normal booking on one click and preserves separate double-click day actions', async () => {
   const [calendar, dialog, conversion, actions, css] = await Promise.all([load('src/erp/ERPBookings.jsx'),load('src/erp/ERPBookingBlockDialog.jsx'),load('src/erp/BookingBlockConversionForm.jsx'),load('src/erp/ERPBookingDayActionsDialog.jsx'),load('src/erp/ERPBookingBlockDialog.css')]);
   const view = await load('src/erp/ERPBookingWideView.jsx');
   assert.match(calendar, /import \{ bindBookingBlockDoubleClick, bookingBlockDayCellFromEvent \} from '\.\/bookingBlockInteraction'/);
   assert.match(calendar, /onDateClick=\{handleDateClick\}/); assert.match(view, /dateClick=\{onDateClick\}/); assert.match(calendar, /calendarRootRef=\{bookingCalendarRef\}/); assert.match(view, /ref=\{calendarRootRef\} className="bookings-wide-calendar"/); assert.doesNotMatch(calendar, /dayCellDidMount|dayCellWillUnmount|new WeakMap/); assert.match(calendar, /const dateSelectionTimerRef = useRef\(null\)/);
   assert.match(calendar, /useEffect\(\(\) => \(\) => \{\s*if \(dateSelectionTimerRef\.current !== null\) window\.clearTimeout\(dateSelectionTimerRef\.current\);\s*\}, \[\]\)/);
-  const singleClick = calendar.slice(calendar.indexOf('const handleDateClick'), calendar.indexOf('const openDayActionsForSelectedDate'));
-  assert.match(singleClick, /window\.clearTimeout\(dateSelectionTimerRef\.current\)/); assert.match(singleClick, /dateSelectionTimerRef\.current = window\.setTimeout/); assert.match(singleClick, /\}, 240\)/); assert.match(singleClick, /setSelectedDate/); assert.doesNotMatch(singleClick, /setDayActionsOpen|setBlockDialogOpen/);
+  const singleClick = calendar.slice(calendar.indexOf('const handleDateClick'), calendar.indexOf('const cancelDateClick'));
+  assert.match(singleClick, /window\.clearTimeout\(dateSelectionTimerRef\.current\)/); assert.match(singleClick, /dateSelectionTimerRef\.current = window\.setTimeout/); assert.match(singleClick, /450/); assert.match(singleClick, /setSelectedDate/); assert.match(singleClick, /setBookingInitialDate\(clickedDate\)/); assert.match(singleClick, /setIsModalOpen\(true\)/); assert.doesNotMatch(singleClick, /setDayActionsOpen|setBlockDialogOpen/);
   const delegatedDoubleClick = calendar.slice(calendar.indexOf('return bindBookingBlockDoubleClick(calendarRoot'), calendar.indexOf('}, [isAdmin])'));
   assert.match(delegatedDoubleClick, /bookingBlockDayCellFromEvent\(event, calendarRoot\)/); assert.match(delegatedDoubleClick, /getAttribute\?\.\('data-date'\)/); assert.match(delegatedDoubleClick, /window\.clearTimeout\(dateSelectionTimerRef\.current\)/); assert.match(delegatedDoubleClick, /dateSelectionTimerRef\.current = window\.setTimeout/); assert.match(delegatedDoubleClick, /\}, 0\)/); assert.match(delegatedDoubleClick, /dayActionTriggerRef\.current = calendarRoot/); assert.match(delegatedDoubleClick, /setDayActionsOpen\(true\)/); assert.doesNotMatch(delegatedDoubleClick, /setBlockDialogOpen/);
   const explicitDayAction = calendar.slice(calendar.indexOf('const openDayActionsForSelectedDate'), calendar.indexOf('const openBlockDialogForSelectedDate'));

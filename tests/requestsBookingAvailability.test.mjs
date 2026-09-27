@@ -38,7 +38,7 @@ test('invalid or missing candidate intervals cannot be approved', () => {
   assert.equal(getBookingAvailability({ date: '', start_time: '14:00', end_time: '15:00' }, []).available, false);
 });
 
-test('requests page exposes the Arabic calendar, saved colors, preview, strips and approval guards', async () => {
+test('requests page exposes the Arabic calendar, saved colors, pending markers, strips and approval guards', async () => {
   const root = new URL('../', import.meta.url);
   const [source, css] = await Promise.all([
     readFile(new URL('src/erp/ERPRequests.jsx', root), 'utf8'),
@@ -51,7 +51,8 @@ test('requests page exposes the Arabic calendar, saved colors, preview, strips a
   assert.match(source, /slotMaxTime="24:00:00"/);
   assert.match(source, /blockingBookings\(data\.bookings\)/);
   assert.match(source, /safeBookingColor\(client\?\.color\)/);
-  assert.match(source, /requests-calendar-preview/);
+  assert.match(source, /buildCalendarRequestMarkers\(data\)/);
+  assert.match(source, /requests-calendar-pending/);
   assert.match(source, /عرض على التقويم/);
   assert.match(source, /disabled=\{blocked \|\| checkingId/);
   assert.match(source, /requestError\.code === 'booking_conflict'/);

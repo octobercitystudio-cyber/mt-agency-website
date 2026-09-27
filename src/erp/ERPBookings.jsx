@@ -42,6 +42,7 @@ const calendarDateTime = (date, time, endOfDay = false) => {
   return `${date}T${normalized}:00`;
 };
 
+
 const calendarProposal = event => {
   const start = event.start;
   const end = event.end;
@@ -77,6 +78,8 @@ const ERPBookings = () => {
   const blockRequestSequenceRef = useRef(0);
   const currentBlockRangeRef = useRef({ from: `${cairoDateKey().slice(0, 7)}-01`, to: format(new Date(Number(cairoDateKey().slice(0, 4)), Number(cairoDateKey().slice(5, 7)), 0), 'yyyy-MM-dd') });
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [bookingInitialDate, setBookingInitialDate] = useState('');
+  const [bookingInitialClientName, setBookingInitialClientName] = useState('');
   const [selectedBookingDetails, setSelectedBookingDetails] = useState(null);
   const [decisionBusy, setDecisionBusy] = useState(null);
   const [decisionError, setDecisionError] = useState('');
@@ -117,6 +120,7 @@ const ERPBookings = () => {
       if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
       dateSelectionTimerRef.current = window.setTimeout(() => {
         setSelectedDate(clickedDate);
+        setIsModalOpen(false);
         dayActionTriggerRef.current = calendarRoot;
         setDayActionsOpen(true);
         dateSelectionTimerRef.current = null;
@@ -205,6 +209,8 @@ const ERPBookings = () => {
     if (requestedClient && (clients.length === 0 || services.length === 0)) return undefined;
     const timer = window.setTimeout(() => {
       if (requestedClient) setNewBooking(prev => ({ ...prev, client_name: requestedClient }));
+      setBookingInitialClientName(requestedClient || '');
+      setBookingInitialDate('');
       setIsModalOpen(true);
       navigate(location.pathname, { replace: true, state: null });
     }, 0);
@@ -304,18 +310,51 @@ const ERPBookings = () => {
 
   const handleDateClick = (arg) => {
     const clickedDate = String(arg.dateStr || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(clickedDate)) return;
+    if (!isAdmin) { setSelectedDate(clickedDate); return; }
     // FullCalendar may deliver its trailing dateClick after native dblclick.
     // Do not let it cancel the already queued day-action chooser.
-    if (lastDayDoubleClickRef.current.date === clickedDate && Date.now() - lastDayDoubleClickRef.current.at < 350) return;
+    if (lastDayDoubleClickRef.current.date === clickedDate && Date.now() - lastDayDoubleClickRef.current.at < 500) return;
     if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
+    const trigger = arg.dayEl || arg.jsEvent?.currentTarget || bookingCalendarRef.current;
     dateSelectionTimerRef.current = window.setTimeout(() => {
       setSelectedDate(clickedDate);
+      bookingTriggerRef.current = trigger;
+      setBookingInitialDate(clickedDate);
+      setBookingInitialClientName('');
+      setIsModalOpen(true);
       dateSelectionTimerRef.current = null;
-    }, 240);
+    }, arg.jsEvent?.detail === 0 ? 0 : 450);
+  };
+
+  const cancelDateClick = () => {
+    if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
+    dateSelectionTimerRef.current = null;
+  };
+
+  const handleDayDoubleClick = (date, trigger) => {
+    if (!isAdmin) return;
+    cancelDateClick();
+    lastDayDoubleClickRef.current = { date, at: Date.now() };
+    setSelectedDate(date);
+    setIsModalOpen(false);
+    dayActionTriggerRef.current = trigger;
+    setDayActionsOpen(true);
+  };
+
+  const openNormalBooking = (date, trigger) => {
+    if (!isAdmin) return;
+    cancelDateClick();
+    bookingTriggerRef.current = trigger;
+    setBookingInitialDate(date || '');
+    setBookingInitialClientName('');
+    setDayActionsOpen(false);
+    setIsModalOpen(true);
   };
 
   const openDayActionsForSelectedDate = trigger => {
     if (!isAdmin) return;
+    cancelDateClick();
     dayActionTriggerRef.current = trigger;
     setDayActionsOpen(true);
   };
@@ -337,6 +376,7 @@ const ERPBookings = () => {
   };
 
   const handleEventClick = (info) => {
+    cancelDateClick();
     if (info.event.extendedProps.kind === 'booking_block') {
       blockDetailsTriggerRef.current = info.el || null;
       setBlockError('');
@@ -608,9 +648,9 @@ const ERPBookings = () => {
         query={bookingQuery} onQueryChange={setBookingQuery} status={bookingStatus} onStatusChange={setBookingStatus}
         pendingBookings={pendingBookings} decisionBusy={decisionBusy} decisionError={decisionError} onDecision={submitDecision}
         onAlternative={booking => setAlternativeModal({ open: true, booking, date: booking.date, start_time: normalizeTime(booking.start_time || '12:00'), end_time: normalizeTime(booking.end_time || '13:00', { endOfDay: true }), note: '' })}
-        onNewBooking={trigger => { bookingTriggerRef.current = trigger; setIsModalOpen(true); }} onDayActions={openDayActionsForSelectedDate}
+        onNewBooking={trigger => openNormalBooking('', trigger)} onDayActions={openDayActionsForSelectedDate}
         onOpenBooking={openBookingDetails} onOpenBlock={(block, trigger) => { if (!isAdmin) return; blockDetailsTriggerRef.current = trigger; setBlockError(''); setSelectedBlock(block); }}
-        onDateClick={handleDateClick} onDatesSet={handleCalendarDatesSet} onEventClick={handleEventClick} onRescheduleProposal={handleCalendarRescheduleProposal}
+        onDateClick={handleDateClick} onDayDoubleClick={handleDayDoubleClick} onDateNavigation={cancelDateClick} onDatesSet={handleCalendarDatesSet} onEventClick={handleEventClick} onRescheduleProposal={handleCalendarRescheduleProposal}
         calendarRootRef={bookingCalendarRef} getStatusMeta={getStatusMeta} getClientColor={getClientColor}
       />
 
@@ -787,9 +827,9 @@ const ERPBookings = () => {
         </div>
       )}
 
-      <ERPAddBookingModal isOpen={isModalOpen} returnFocusRef={bookingTriggerRef} onClose={() => setIsModalOpen(false)} onSuccess={async () => { setIsModalOpen(false); await fetchData(true); }}/>
+      <ERPAddBookingModal isOpen={isModalOpen} initialDate={bookingInitialDate} prefilledClientName={bookingInitialClientName} returnFocusRef={bookingTriggerRef} onClose={() => setIsModalOpen(false)} onSuccess={async () => { setIsModalOpen(false); await fetchData(true); }}/>
 
-      <ERPBookingDayActionsDialog date={selectedDate} isOpen={dayActionsOpen} returnFocusRef={dayActionTriggerRef} onClose={() => setDayActionsOpen(false)} onTemporary={() => openBlockDialogForSelectedDate(dayActionTriggerRef.current)} onDirect={() => { setDayActionsOpen(false); directSessionTriggerRef.current=dayActionTriggerRef.current; setDirectSessionOpen(true); }}/>
+      <ERPBookingDayActionsDialog date={selectedDate} isOpen={dayActionsOpen} returnFocusRef={dayActionTriggerRef} onClose={() => setDayActionsOpen(false)} onBooking={() => openNormalBooking(selectedDate, dayActionTriggerRef.current)} onTemporary={() => openBlockDialogForSelectedDate(dayActionTriggerRef.current)} onDirect={() => { setDayActionsOpen(false); directSessionTriggerRef.current=dayActionTriggerRef.current; setDirectSessionOpen(true); }}/>
       <ERPDirectSessionDialog isOpen={directSessionOpen} date={selectedDate} clients={clients} resources={resources} returnFocusRef={directSessionTriggerRef} onClose={() => setDirectSessionOpen(false)} onSuccess={async result => { setDirectSessionOpen(false); setRescheduleNotice(`بدأت جلسة تصوير ${result?.booking?.client_name || ''} بنجاح.`); await fetchData(true); window.dispatchEvent(new CustomEvent('erpSessionChanged', { detail: { bookingId: result?.booking?.id, packageId: null, session: result?.session } })); }}/>
       <ERPBookingBlockDialog isOpen={blockDialogOpen} date={selectedDate} resources={resources} returnFocusRef={blockTriggerRef} onClose={() => setBlockDialogOpen(false)} onSuccess={handleBlockCreated}/>
       <ERPBookingBlockDetailsDialog block={selectedBlock} busy={blockBusy} error={blockError} clients={clients} packages={clientPackages} services={services} returnFocusRef={blockDetailsTriggerRef} onClose={() => setSelectedBlock(null)} onCancel={cancelBookingBlock} onConvert={async payload => { setBlockBusy(true); setBlockError(''); const { data, error } = await dataClient.request(`/booking-blocks/${selectedBlock.id}/convert`, { method: 'POST', body: JSON.stringify(payload) }); setBlockBusy(false); if(error) return setBlockError(error.message || 'تعذر تحويل الحجز.'); setSelectedBlock(null); setRescheduleNotice(`تم تحويل الحجز المؤقت إلى موعد مؤكد للعميل ${data?.booking?.client_name || ''}.`); await fetchData(true); window.dispatchEvent(new CustomEvent('erpBookingsUpdated', { detail: { topics: ['bookings','client_packages'] } })); }}/>

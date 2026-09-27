@@ -17,3 +17,36 @@
 @media(max-width:600px){.erp-main .requests-center .requests-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}.erp-main .requests-center .requests-summary>button:last-child:nth-child(even){grid-column:1/-1}.requests-intake-caption{padding:11px 12px;gap:3px;font-size:12px}.requests-intake-caption span{min-width:0;flex-basis:100%}}
 
 @media(max-width:600px){.erp-main .requests-center .requests-summary .total{grid-column:auto!important}.erp-main .requests-center .requests-summary>button:last-child:nth-child(even){grid-column:auto!important}.erp-main .requests-center .requests-tabs{overflow-x:auto!important;flex-wrap:nowrap!important;max-width:100%;min-width:0;scrollbar-width:thin}.erp-main .requests-center .requests-tabs button{flex:0 0 auto!important;white-space:nowrap!important;max-width:none!important}}
+/* Request markers retain full names and time ranges in both calendar views. */
+.requests-calendar-reference{scroll-margin-top:24px;min-width:0}
+.requests-calendar-explainer,.requests-calendar-freshness{margin:0;padding:12px 20px;font-size:15px;line-height:1.8;color:var(--erp-text-muted)}
+.requests-calendar-freshness{background:#fff7df;color:#805110;border-block:1px solid #efddb5}
+.requests-calendar-legend{font-size:13px;line-height:1.6}.requests-calendar-legend i.new{background:#b97915}.requests-calendar-legend i.move{background:#2358a0}
+.requests-calendar-reference .fc .requests-calendar-event{overflow:visible;gap:4px;white-space:normal;line-height:1.65;min-width:0;padding:3px}
+.requests-calendar-reference .fc .requests-calendar-event strong{font-size:15px!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere}
+.requests-calendar-reference .fc .requests-calendar-event span{font-size:14px!important;font-weight:800;white-space:normal;line-height:1.7}
+.requests-calendar-reference .fc .requests-calendar-event small{font-size:12px!important;white-space:normal!important;line-height:1.7;overflow-wrap:anywhere}
+.requests-calendar-reference .fc .requests-marker-label{font-weight:900;padding-bottom:3px;border-bottom:1px solid currentColor}
+.requests-calendar-reference .fc .fc-daygrid-event{white-space:normal;margin-top:5px;margin-bottom:5px}
+.requests-calendar-reference .fc .requests-calendar-pending{cursor:pointer;border-width:2px;border-style:dashed;animation:requestPendingOutline 2.4s ease-in-out infinite}
+.requests-calendar-reference .fc .requests-calendar-pending.request-phase-from{border-style:solid}
+.requests-calendar-reference .fc .requests-calendar-pending.is-selected{outline:3px solid #633bbb;outline-offset:2px;animation:none}
+.requests-calendar-reference .fc .requests-calendar-pending:focus-visible{outline:3px solid #633bbb;outline-offset:2px;animation:none}
+.requests-calendar-reference .fc .fc-timegrid-event{min-height:55px}.requests-calendar-reference .fc .fc-timegrid-event .fc-event-main{overflow:auto}
+@keyframes requestPendingOutline{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 3px #ba872849}}
+.requests-calendar-selection{margin:0 20px 16px;border:1px solid #e3c892;border-inline-start:4px solid #b97915;padding:16px;background:#fffaf0;color:#503613}
+.requests-calendar-selection.request-tone-blue{border-color:#a1bee3;background:#f2f7ff;color:#21477b}
+.requests-calendar-selection.request-tone-red{border-color:#dea2ad;background:#fff4f5;color:#80283c}
+.requests-calendar-selection>header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.requests-calendar-selection h3{margin:5px 0 14px;font-size:20px;overflow-wrap:anywhere}.requests-calendar-selection header span{font-size:14px}
+.requests-calendar-selection button{font:inherit;color:inherit;background:transparent;border:1px solid currentColor;border-radius:6px;padding:8px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;min-height:42px}
+.requests-calendar-selection>header>button{border:0;padding:6px;min-width:40px}
+.requests-calendar-selection-slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.requests-calendar-selection-slots article{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:14px;background:var(--erp-surface);border:1px solid #d9deea;font-size:16px;line-height:1.8}
+.requests-calendar-selection-slots article button{margin-top:7px;font-size:14px}
+.requests-calendar-selection .requests-review-link{margin-top:14px;border-style:dashed;font-size:15px}
+.requests-calendar-selection button:focus-visible{outline:3px solid #8051c4;outline-offset:3px}
+.requests-calendar-scroll-hint{display:none}
+@media(max-width:1050px){.requests-calendar-shell{overflow-x:auto!important;max-width:100%;overscroll-behavior-inline:contain}.requests-calendar-shell>.fc{min-width:850px}.requests-calendar-scroll-hint{display:block;margin:0;padding:0 14px 14px;font-size:13px;color:var(--erp-text-muted);line-height:1.7}}
+@media(max-width:600px){.requests-calendar-explainer,.requests-calendar-freshness{padding:12px 14px;font-size:14px}.requests-calendar-selection{margin:0 10px 12px;padding:12px}.requests-calendar-selection-slots{grid-template-columns:minmax(0,1fr)}.requests-calendar-selection-slots article{font-size:15px;padding:10px}.requests-calendar-selection h3{font-size:18px}.requests-calendar-legend{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.requests-calendar-reference .fc .requests-calendar-pending{animation:none}}

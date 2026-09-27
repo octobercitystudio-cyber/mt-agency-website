@@ -23,7 +23,7 @@ import { packageBookingValidRange, shiftBookingDate } from '../lib/packageBookin
 
 export const CUSTOM_SERVICE_OPTION = '__custom_service__';
 
-const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = '', initialClientId = '', initialPackageId = '', returnFocusRef }) => {
+const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = '', initialClientId = '', initialPackageId = '', initialDate = '', returnFocusRef }) => {
   const close = useCallback(() => onClose(), [onClose]);
   const dialogRef = useModalDialog(isOpen, close, { returnFocusRef });
   const clientSelectRef = useRef(null);
@@ -101,14 +101,15 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
       initialSelectionAppliedRef.current = false;
       fetchData();
       setIsClientModalOpen(false);
+      const dates = /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? [{ date: initialDate, start_time: '12:00', end_time: '13:00', requested_quantity: 1 }] : [];
       if (prefilledClientName) {
-        setNewBooking(prev => ({ ...prev, client_id: '', client_name: prefilledClientName, color: '#4318ff', category: '', service: '', dates: [], paid: 0, discount: 0, discount_reason: '', base_price: 0, schedule_extra: false, client_package_id: '' }));
+        setNewBooking(prev => ({ ...prev, client_id: '', client_name: prefilledClientName, color: '#4318ff', category: '', service: '', dates, paid: 0, discount: 0, discount_reason: '', base_price: 0, schedule_extra: false, client_package_id: '' }));
       } else {
-        setNewBooking({ client_id: '', client_name: '', color: '#4318ff', category: '', service: '', dates: [], delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'vodafone_cash', notes: '', schedule_extra: false, client_package_id: '' });
+        setNewBooking({ client_id: '', client_name: '', color: '#4318ff', category: '', service: '', dates, delivery_date: '', base_price: 0, discount: 0, discount_reason: '', paid: 0, payment_method: 'vodafone_cash', notes: '', schedule_extra: false, client_package_id: '' });
       }
     } }, 0);
     return () => window.clearTimeout(timer);
-  }, [fetchData, isOpen, prefilledClientName]);
+  }, [fetchData, isOpen, prefilledClientName, initialDate]);
 
   const getClientColor = (clientName) => {
     const client = clients.find(c => c.name === clientName);
@@ -380,6 +381,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
           </div>
         ) : (
           <form className="erp-booking-form" onSubmit={handleSaveBooking} style={{ padding: '25px' }}>
+            {initialDate && newBooking.dates[0] && <p className="erp-booking-package-calendar-note"><CalendarPlus/><span>التاريخ المختار: <strong>{formatBookingDate(newBooking.dates[0].date)}</strong> · اختر العميل ثم حدّد ساعات الحجز. يخضع الموعد لصلاحية الباقة ورصيدها وإتاحة الاستديو.</span></p>}
             
             <div className="erp-booking-primary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '25px' }}>
               <div className="erp-booking-client-field">
@@ -451,7 +453,7 @@ const ERPAddBookingModal = ({ isOpen, onClose, onSuccess, prefilledClientName = 
                     key={`package-calendar-${selectedPackage?.id || 'service'}-${calendarValidRange.start || 'today'}-${calendarValidRange.end || 'open'}`}
                     plugins={[ dayGridPlugin, interactionPlugin ]}
                     initialView="dayGridMonth"
-                    initialDate={calendarValidRange.start}
+                    initialDate={newBooking.dates[0]?.date || calendarValidRange.start}
                     validRange={calendarValidRange}
                     locale={arCalendarLocale}
                     direction="rtl"
