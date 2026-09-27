@@ -1,12 +1,11 @@
-import VerticalBookingCalendar from '../components/VerticalBookingCalendar';
 import { StudioBookingRequestCards } from '../components/StudioBookingRequests';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Banknote, CalendarClock, CalendarDays, Check, CheckCircle2, Eye, Focus, Inbox, LockKeyhole, RefreshCw, RotateCcw, Send, ShieldCheck, X, XCircle } from 'lucide-react';
-
-
-
-
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import arCalendarLocale from '@fullcalendar/core/locales/ar';
 import { IntakeRequestCards } from '../components/IntakeRequests';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
@@ -303,15 +302,42 @@ export default function ERPRequests() {
         <button type="button" className="requests-review-link" onClick={() => document.getElementById(`request-card-${selectedMarkers[0].kind}-${selectedMarkers[0].requestId}`)?.scrollIntoView({ block: 'center', behavior: 'auto' })}>مراجعة الطلب واتخاذ القرار ↓</button>
       </section>}
       <div className="requests-calendar-shell" aria-label="تقويم مرجع الحجوزات">
-        <VerticalBookingCalendar
-          ref={calendarRef} label="تقويم الطلبات العمودي" events={calendarEvents}
+        <FullCalendar
+          ref={calendarRef}
+          plugins={[dayGridPlugin, timeGridPlugin]}
+          initialView="dayGridMonth"
+          locales={[arCalendarLocale]}
+          locale="ar"
+          direction="rtl"
+          firstDay={6}
+          buttonText={{ today: 'اليوم', month: 'شهر', week: 'أسبوع' }}
+          headerToolbar={{ right: 'dayGridMonth,timeGridWeek', center: 'title', left: 'prev,next today' }}
+          events={calendarEvents}
           datesSet={info => { const end = new Date(info.end); end.setDate(end.getDate() - 1); const next = { from: localDate(info.start), to: localDate(end) }; setCalendarRange(previous => previous.from === next.from && previous.to === next.to ? previous : next); }}
           eventClick={info => { if (info.event.extendedProps.marker) focusMarker(info.event.extendedProps.marker); }}
-          emptyText={loading ? 'جارٍ تحميل الطلبات والإغلاقات…' : !loadedRange || error ? 'البيانات غير مكتملة؛ أعد التحديث قبل مراجعة الإتاحة.' : 'يعرض التقويم المواعيد والطلبات؛ تُراجع الإتاحة قبل التأكيد.'}
+          eventDisplay="block"
+          slotMinTime="00:00:00" scrollTime="12:00:00"
+          slotMaxTime="24:00:00"
+          slotDuration="00:15:00"
+          eventTimeFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
+          slotLabelFormat={{ hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' }}
+          allDaySlot={false}
+          height="auto"
+          nowIndicator
+          eventDidMount={info => {
+            const background = info.event.backgroundColor;
+            const foreground = info.event.textColor;
+            info.el.style.setProperty('--fc-event-bg-color', background);
+            info.el.style.setProperty('--fc-event-border-color', info.event.borderColor);
+            info.el.style.setProperty('--fc-event-text-color', foreground);
+            info.el.setAttribute('aria-label', `${info.event.title}، ${info.event.extendedProps.timeLabel}، ${info.event.extendedProps.marker?.label || 'مشغول'}`);
+            if (info.event.extendedProps.marker) { info.el.setAttribute('role', 'button'); info.el.tabIndex = 0; info.el.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); focusMarker(info.event.extendedProps.marker); } }; }
+          }}
+          eventWillUnmount={info => { info.el.onkeydown = null; }}
           eventContent={arg => <div className="requests-calendar-event" style={{ color: arg.event.textColor }}>{arg.event.extendedProps.marker && <small className="requests-marker-label">{arg.event.extendedProps.marker.label}</small>}{arg.event.extendedProps.kind === 'booking_block' && <LockKeyhole/>}<strong>{arg.event.title}</strong><span>{arg.event.extendedProps.timeLabel}</span>{arg.event.extendedProps.marker?.counterpart && <small>{arg.event.extendedProps.marker.phase === 'from' ? 'إلى: ' : 'من: '}{formatBookingDate(arg.event.extendedProps.marker.counterpart.date)} · {time(arg.event.extendedProps.marker.counterpart.start_time)}</small>}</div>}
         />
       </div>
-      <p className="requests-calendar-scroll-hint">أيام الأسبوع على اليمين، والأسابيع في أعمدة. اسحب أفقيًا لعرض بقية الشهر واضغط على الطلب لتفاصيله.</p>
+      <p className="requests-calendar-scroll-hint">اسحب التقويم أفقيًا لرؤية أيام الأسبوع كاملة، أو اختر عرض الأسبوع.</p>
     </section>}
 
     <main className="requests-workspace">

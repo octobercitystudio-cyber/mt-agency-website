@@ -18,15 +18,15 @@ test('month booking cards expose the full client name and complete time range', 
   assert.match(view, /data\.block_note && <span className="booking-calendar-ticket__note">\{data\.block_note\}/);
 });
 
-test('month grid exposes all dates with weekday rows and no selected-day sidebar', async () => {
+test('original calendar remains available without the selected-day sidebar', async () => {
   const view = await load('src/erp/ERPBookingWideView.jsx');
-  const calendar = await load('src/components/VerticalBookingCalendar.jsx');
-  assert.match(view, /<VerticalBookingCalendar/);
-  assert.doesNotMatch(view, /bookings-wide-date-rail|bookings-wide-agenda/);
-  assert.match(calendar, /type="date"/);
-  assert.match(calendar, /transposeCalendarDays\(range\.days\)/);
-  assert.match(calendar, /matrix\.rows\.map/);
-  assert.match(calendar, /scope="row" className="vertical-calendar-weekday"/);
-  assert.match(calendar, /grouped\.get\(date\)\.map/);
-  assert.doesNotMatch(view + calendar, /-webkit-line-clamp|text-overflow:\s*ellipsis/);
+  assert.match(view, /type="date" aria-label="تاريخ المواعيد" value=\{selectedDate\}/);
+  assert.match(view, /className="bookings-wide-date-rail" aria-label="أيام الشهر"/);
+  assert.match(view, /aria-current=\{value === selectedDate \? 'date' : undefined\}/);
+  assert.match(view, /ref=\{dayRailRef\}/);
+  assert.match(view, /rail\.scrollLeft/);
+  assert.doesNotMatch(view, /className="bookings-wide-agenda"/);
+  assert.match(view, /<FullCalendar/);
+  assert.match(view, /dayMaxEvents=\{false\}/, 'full month tickets are not silently hidden after four entries');
+  assert.doesNotMatch(view, /-webkit-line-clamp|text-overflow:\s*ellipsis/);
 });

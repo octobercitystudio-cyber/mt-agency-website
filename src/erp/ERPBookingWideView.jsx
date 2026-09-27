@@ -1,18 +1,99 @@
-import { useState } from 'react';
-import { CalendarPlus, Search, Clock, Check, Ban, RefreshCw, CalendarClock, LockKeyhole, CheckCircle, X } from 'lucide-react';
-import { calculateDurationMinutes, formatBookingDate, formatDurationMinutes, formatTime12 } from '../lib/businessFormat';
+import { useEffect, useRef, useState } from 'react';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import arCalendarLocale from '@fullcalendar/core/locales/ar';
+import { CalendarPlus, ChevronLeft, ChevronRight, Search, Clock, Check, Ban, RefreshCw, CalendarClock, LockKeyhole, CheckCircle, X } from 'lucide-react';
+import { cairoDateKey, calculateDurationMinutes, formatBookingDate, formatDurationMinutes, formatTime12 } from '../lib/businessFormat';
 import { bookingDaySummary, normalizeBookingViewStatus } from '../lib/bookingView';
 import { clientColorText } from '../lib/clientColors';
-import VerticalBookingCalendar from '../components/VerticalBookingCalendar';
 import './ERPBookingWideView.css';
-const dateLabel = value => formatBookingDate(value);
+
+const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const parseDate = value => new Date(`${value}T12:00:00Z`);
+const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const dayFormatter = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+const monthFormatter = new Intl.DateTimeFormat('ar-EG-u-nu-latn', { year: 'numeric', month: 'long', timeZone: 'UTC' });
+const dateLabel = value => dayFormatter.format(parseDate(value));
+const monthLabel = value => monthFormatter.format(parseDate(`${value}-01`));
+const calendarPlugins = [dayGridPlugin, interactionPlugin, timeGridPlugin];
+const calendarLocales = [arCalendarLocale];
+const calendarTimeFormat = { hour: 'numeric', minute: '2-digit', hour12: true, meridiem: 'short' };
+
 function BookingTimes({ start, end }) {
   return <span className="booking-calendar-ticket__time"><span className="booking-calendar-ticket__time-segment">من <bdi className="booking-calendar-ticket__time-value">{formatTime12(start, '')}</bdi></span><span className="booking-calendar-ticket__time-segment">إلى <bdi className="booking-calendar-ticket__time-value">{formatTime12(end, '')}</bdi></span></span>;
 }
+
 export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin, loading, loadError, blockLoadError, onRefresh, bookings, blocks, events, query, onQueryChange, status, onStatusChange, pendingBookings, decisionBusy, decisionError, onDecision, onAlternative, onNewBooking, onDayActions, onDateClick, onDayDoubleClick, onDateNavigation, onDatesSet, onEventClick, onRescheduleProposal, calendarRootRef, getStatusMeta }) {
+  const calendarRef = useRef(null);
+  const dayRailRef = useRef(null);
+  const lastCalendarRangeRef = useRef('');
+  const selectedDateRef = useRef(selectedDate);
+  useEffect(() => { selectedDateRef.current = selectedDate; }, [selectedDate]);
+  const [displayedMonth, setDisplayedMonth] = useState(selectedDate.slice(0, 7));
+  const [viewType, setViewType] = useState('dayGridMonth');
+  const [calendarTitle, setCalendarTitle] = useState(monthLabel(displayedMonth));
   const [pendingOpen, setPendingOpen] = useState(false);
+  const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 1150px)').matches);
   const filtered = query.trim() !== '' || status !== 'all';
   const summary = bookingDaySummary(bookings, blocks, selectedDate);
+  const monthDays = new Date(Date.UTC(Number(displayedMonth.slice(0, 4)), Number(displayedMonth.slice(5)), 0)).getUTCDate();
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1150px)');
+    const resize = () => { setCompact(media.matches); const api = calendarRef.current?.getApi(); if (media.matches && api?.view.type !== 'dayGridMonth') api?.changeView('dayGridMonth', selectedDateRef.current); window.requestAnimationFrame(() => api?.updateSize()); };
+    media.addEventListener('change', resize);
+    return () => media.removeEventListener('change', resize);
+  }, []);
+
+  useEffect(() => {
+    const rail = dayRailRef.current;
+    const selected = rail?.querySelector('[aria-current="date"]');
+    if (!rail?.clientWidth || !selected) return;
+    const r = rail.getBoundingClientRect(); const s = selected.getBoundingClientRect();
+    rail.scrollLeft += s.left + s.width / 2 - r.left - r.width / 2;
+  }, [selectedDate, displayedMonth, compact]);
+
+  useEffect(() => {
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    const start = dateKey(api.view.currentStart); const end = dateKey(api.view.currentEnd);
+    if (selectedDate < start || selectedDate >= end) api.gotoDate(selectedDate);
+  }, [selectedDate]);
+
+  const handleDatesSet = info => {
+    const rangeKey = `${info.startStr}|${info.endStr}|${info.view.type}`;
+    // FullCalendar can emit datesSet again when custom React content updates.
+    // Only an actual visible-range/view change may feed state back to it.
+    if (lastCalendarRangeRef.current === rangeKey) return;
+    lastCalendarRangeRef.current = rangeKey;
+    const month = dateKey(info.view.currentStart).slice(0, 7);
+    setDisplayedMonth(month);
+    setCalendarTitle(info.view.title);
+    setViewType(info.view.type);
+    const selected = selectedDateRef.current;
+    if (selected < dateKey(info.view.currentStart) || selected >= dateKey(info.view.currentEnd)) onSelectDate(dateKey(info.view.currentStart));
+    onDatesSet(info);
+  };
+  const chooseDate = value => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+    selectedDateRef.current = value;
+    onSelectDate(value);
+    calendarRef.current?.getApi().gotoDate(value);
+  };
+  const navigatePeriod = direction => {
+    onDateNavigation?.();
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    if (compact && api.view.type !== 'dayGridMonth') api.changeView('dayGridMonth', selectedDate);
+    if (direction === 0) { chooseDate(cairoDateKey()); return; }
+    if (direction < 0) api.prev(); else api.next();
+  };
+  const changeView = value => { onDateNavigation?.(); calendarRef.current?.getApi().changeView(value, selectedDate); };
+  const bookDate = (value, event) => { event.stopPropagation(); onDateClick({ dateStr: value, dayEl: event.currentTarget, jsEvent: event.nativeEvent }); };
+  const dayDoubleClick = (value, event) => { event.stopPropagation(); onDayDoubleClick?.(value, event.currentTarget); };
+  const dayKeyboard = (value, event) => { if (isAdmin && event.shiftKey && event.key === 'Enter') { event.preventDefault(); dayDoubleClick(value, event); } };
   const eventContent = arg => {
     const data = arg.event.extendedProps; const block = data.kind === 'booking_block';
     const meta = block ? { label: 'حجز مؤقت', color: '#956019' } : getStatusMeta(data.status);
@@ -39,24 +120,27 @@ export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin
     {loadError && <p className="bookings-wide-error" role="alert">{loadError}<button type="button" onClick={onRefresh}>إعادة المحاولة</button></p>}
     {blockLoadError && <p className="bookings-wide-error" role="alert">{blockLoadError}<button type="button" onClick={onRefresh}>إعادة المحاولة</button></p>}
     <div className="bookings-wide-summary" aria-live="polite"><strong>{dateLabel(selectedDate)}</strong><span><b>{summary.total}</b> مواعيد{filtered ? ' مطابقة' : ''}</span><span><b>{summary.confirmed}</b> مؤكدة</span>{isAdmin && <span><b>{summary.temporary}</b> مؤقتة</span>}<span><b>{summary.inProgress}</b> تصوير جارٍ</span>{summary.completed > 0 && <span><b>{summary.completed}</b> مكتملة</span>}</div>
-    <div className="bookings-wide-layout bookings-wide-layout--vertical">
-      <section className="bookings-wide-calendar-panel" aria-label="تقويم المواعيد">
-        <div className="bookings-wide-filters"><label className="bookings-wide-search"><Search size={18} aria-hidden="true"/><input type="search" aria-label="ابحث باسم العميل أو عنوان الحجز" placeholder="ابحث باسم العميل أو عنوان الحجز" value={query} onChange={event => onQueryChange(event.target.value)}/></label><select aria-label="تصفية حالة الحجز" value={status} onChange={event => onStatusChange(event.target.value)}><option value="all">كل الحالات</option><option value="confirmed">مؤكد</option>{isAdmin && <option value="temporary">حجز مؤقت</option>}<option value="pending">بانتظار التأكيد</option><option value="in_progress">تصوير جارٍ</option><option value="completed">مكتمل</option><option value="alternative_proposed">موعد بديل مقترح</option><option value="cancel_requested">طلب إلغاء</option><option value="late_cancel_requested">إلغاء متأخر</option></select></div>
+    <div className="bookings-wide-layout">
+      <section className="bookings-wide-calendar-panel" aria-label="تقويم المواعيد"><header className="bookings-wide-calendar-toolbar"><div><h2>{compact || viewType === 'dayGridMonth' ? monthLabel(displayedMonth) : calendarTitle}</h2><p>{isAdmin ? 'اضغط على اليوم لحجز موعد لعميل، أو مرتين لخيارات الحجز المؤقت وبدء التصوير.' : 'اختر يومًا للاطلاع على مواعيده.'}</p></div><div className="bookings-wide-navigation"><button type="button" className="bookings-wide-icon-button" aria-label={viewType === 'timeGridWeek' && !compact ? 'الأسبوع السابق' : 'الشهر السابق'} onClick={() => navigatePeriod(-1)}><ChevronRight /></button><button type="button" className="bookings-wide-button" onClick={() => navigatePeriod(0)}>اليوم</button><button type="button" className="bookings-wide-icon-button" aria-label={viewType === 'timeGridWeek' && !compact ? 'الأسبوع التالي' : 'الشهر التالي'} onClick={() => navigatePeriod(1)}><ChevronLeft /></button></div></header>
+        <div className="bookings-wide-filters"><label className="bookings-wide-search"><Search size={18} aria-hidden="true" /><input type="search" aria-label="ابحث باسم العميل أو عنوان الحجز" placeholder="ابحث باسم العميل أو عنوان الحجز" value={query} onChange={event => onQueryChange(event.target.value)} /></label><select aria-label="تصفية حالة الحجز" value={status} onChange={event => onStatusChange(event.target.value)}><option value="all">كل الحالات</option><option value="confirmed">مؤكد</option>{isAdmin && <option value="temporary">حجز مؤقت</option>}<option value="pending">بانتظار التأكيد</option><option value="in_progress">تصوير جارٍ</option><option value="completed">مكتمل</option><option value="alternative_proposed">موعد بديل مقترح</option><option value="cancel_requested">طلب إلغاء</option><option value="late_cancel_requested">إلغاء متأخر</option></select><div className="bookings-wide-view-switch" aria-label="طريقة عرض التقويم"><button type="button" aria-pressed={viewType === 'dayGridMonth'} onClick={() => changeView('dayGridMonth')}>شهر</button><button type="button" aria-pressed={viewType === 'timeGridWeek'} onClick={() => changeView('timeGridWeek')}>أسبوع</button></div></div>
         {filtered && <p className="bookings-wide-filter-note">تظهر المواعيد المطابقة للبحث والحالة فقط؛ إخفاء موعد لا يعني أن فترته متاحة.<button type="button" onClick={() => { onQueryChange(''); onStatusChange('all'); }}>مسح التصفية</button></p>}
-        {loading && <p className="bookings-wide-loading" role="status"><RefreshCw size={17}/>جارٍ تحميل المواعيد...</p>}
-        <div ref={calendarRootRef} className="bookings-wide-vertical-calendar">
-          <VerticalBookingCalendar selectedDate={selectedDate} onSelectDate={onSelectDate} events={events} datesSet={onDatesSet}
-            onNavigate={onDateNavigation} onDateClick={onDateClick} onDayDoubleClick={isAdmin ? onDayDoubleClick : undefined}
-            dayActionLabel={isAdmin ? 'حجز موعد يوم' : 'عرض يوم'} label="تقويم الحجوزات العمودي"
-            emptyText={loading ? 'جارٍ تحميل المواعيد…' : loadError || blockLoadError ? 'قد تكون البيانات غير مكتملة؛ حدّث المواعيد والإغلاقات قبل الحجز.' : filtered ? 'التقويم يعرض المواعيد المطابقة للتصفية فقط؛ الخانات الفارغة لا تؤكد الإتاحة.' : 'تُراجع إتاحة الموعد عند الحجز؛ الخانات الفارغة لا تمثل تأكيدًا للإتاحة.'}
-            eventClick={onEventClick} eventContent={eventContent}
-            eventClassNames={({ event }) => [event.extendedProps.kind === 'booking_block' ? 'booking-status-temporary' : 'booking-status-' + normalizeBookingViewStatus(event.extendedProps.status)]}
-            eventAction={event => isAdmin && event.extendedProps.reschedule_eligible && <button type="button" className="vertical-calendar-change" onClick={click => { click.stopPropagation(); onDateNavigation?.(); onRescheduleProposal({ event: { ...event, start: new Date(event.start), end: new Date(event.end) }, el: click.currentTarget, revert: () => {} }); }}><CalendarClock aria-hidden="true"/>تغيير الموعد</button>}
+        {loading && <p className="bookings-wide-loading" role="status"><RefreshCw size={17} className="client-spin" />جارٍ تحميل المواعيد...</p>}
+        <div ref={calendarRootRef} className="bookings-wide-calendar" role="region" aria-label="تقويم الحجوزات الشهري والأسبوعي" tabIndex={0}>
+          <FullCalendar ref={calendarRef} plugins={calendarPlugins} initialView="dayGridMonth" initialDate={selectedDate} locales={calendarLocales} locale="ar" direction="rtl" firstDay={6} events={events} dateClick={onDateClick} datesSet={handleDatesSet} eventClick={onEventClick} eventDisplay="block" eventInteractive={true}
+            eventDidMount={info => { const data = info.event.extendedProps; const title = data.kind === 'booking_block' ? data.block_title : data.client_name; info.el.setAttribute('aria-label', `${title}، من ${formatTime12(data.start_time)} إلى ${formatTime12(data.end_time)}`); }}
+            editable={isAdmin} eventStartEditable={isAdmin} eventDurationEditable={isAdmin} eventDrop={onRescheduleProposal} eventResize={onRescheduleProposal} eventAllow={(dropInfo, draggedEvent) => Boolean(draggedEvent.extendedProps.reschedule_eligible) && dropInfo.start.getDay() !== 5}
+            eventClassNames={arg => ['bookings-wide-event', arg.event.extendedProps.kind === 'booking_block' ? 'booking-status-temporary' : `booking-status-${normalizeBookingViewStatus(arg.event.extendedProps.status)}`, ...(arg.event.extendedProps.reschedule_eligible ? ['is-reschedule-eligible'] : [])]}
+            slotMinTime="00:00:00" scrollTime="12:00:00" slotMaxTime="24:00:00" allDaySlot={false} slotDuration="00:15:00" slotLabelInterval="01:00:00" eventMinHeight={90} eventTimeFormat={calendarTimeFormat} slotLabelFormat={calendarTimeFormat} eventContent={eventContent}
+            dayMaxEvents={false} height="auto" headerToolbar={false} fixedWeekCount={false} nowIndicator={true}
+            dayCellContent={arg => <span className="bookings-wide-day-number"><button type="button" onClick={event => bookDate(dateKey(arg.date), event)} onDoubleClick={event => dayDoubleClick(dateKey(arg.date), event)} onKeyDown={event => dayKeyboard(dateKey(arg.date), event)} aria-keyshortcuts={isAdmin ? "Shift+Enter" : undefined} aria-label={`حجز موعد يوم ${dateLabel(dateKey(arg.date))}`} aria-current={dateKey(arg.date) === selectedDate ? 'date' : undefined}>{arg.date.getDate()}</button></span>}
+            dayCellClassNames={arg => [dateKey(arg.date) === selectedDate ? 'selected-day-highlight' : '']}
           />
         </div>
-        <footer className="bookings-wide-legend"><span><i className="confirmed"/>مؤكد</span>{isAdmin && <span><i className="temporary"/>حجز مؤقت</span>}<span><i className="completed"/>مكتمل</span><span>لون الموعد هو لون العميل</span></footer>
+        <div className="bookings-wide-mobile-dates"><label>انتقل إلى تاريخ<input type="date" aria-label="تاريخ المواعيد" value={selectedDate} onChange={event => { onDateNavigation?.(); chooseDate(event.target.value); }} /></label><div ref={dayRailRef} className="bookings-wide-date-rail" aria-label="أيام الشهر">{Array.from({ length: monthDays }, (_, index) => { const value = `${displayedMonth}-${String(index + 1).padStart(2, '0')}`; const day = parseDate(value).getUTCDay(); return <button key={value} type="button" aria-current={value === selectedDate ? 'date' : undefined} onClick={event => bookDate(value, event)} onDoubleClick={event => dayDoubleClick(value, event)} onKeyDown={event => dayKeyboard(value, event)} aria-keyshortcuts={isAdmin ? "Shift+Enter" : undefined} aria-label={`حجز موعد يوم ${dateLabel(value)}`}><small>{dayNames[day]}</small><b>{index + 1}</b></button>; })}</div><p>اضغط على اليوم لحجز موعد. استخدم حقل التاريخ لتصفح المواعيد دون فتح حجز.{isAdmin && ' لخيارات اليوم اضغط مرتين أو Shift + Enter.'}</p></div>
+        <footer className="bookings-wide-legend"><span><i className="confirmed" />مؤكد</span>{isAdmin && <span><i className="temporary" />حجز مؤقت</span>}<span><i className="completed" />مكتمل</span><span>لون الموعد هو لون العميل</span></footer>
       </section>
+
     </div>
-    <p className="bookings-wide-help">{isAdmin ? <>نقرة واحدة على اليوم لحجز موعد لعميل. <strong>نقرتان على مساحة فارغة أو رقم اليوم</strong> لخيارات الحجز المؤقت وبدء التصوير. لتعديل حجز مؤكد استخدم زر «تغيير الموعد» داخل بطاقته.</> : 'نقرة واحدة لاختيار اليوم.'} كل المواعيد بتوقيت القاهرة.</p>
+    <p className="bookings-wide-help">{isAdmin ? <>نقرة واحدة على اليوم لحجز موعد لعميل. <strong>نقرتان على مساحة فارغة أو رقم اليوم</strong> لخيارات الحجز المؤقت وبدء التصوير.</> : 'نقرة واحدة لاختيار اليوم.'} كل المواعيد بتوقيت القاهرة.</p>
   </section>;
 }

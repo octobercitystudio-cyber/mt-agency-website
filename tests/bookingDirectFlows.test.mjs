@@ -51,6 +51,6 @@ test('production and stop-dialog contracts enforce package-only allocation for p
   const branchStart=dialog.indexOf(': isUnassigned ? <>',dialog.indexOf('isOperations ?'));
   const branchEnd=dialog.indexOf(': <>',branchStart+1);const packageOnlyBranch=dialog.slice(branchStart,branchEnd);
   assert.ok(branchStart>0&&branchEnd>branchStart);assert.match(packageOnlyBranch,/data-unassigned-package-only/);assert.match(packageOnlyBranch,/preview\.eligible_packages\.map/);assert.doesNotMatch(packageOnlyBranch,/new_package|package_overage|custom_invoice|custom_project|waive|SettlementChoice/);assert.match(dialog,/وقت غير مسند/);
-  assert.match(calendar,/<ERPBookingWideView/);assert.match(view,/<VerticalBookingCalendar/);assert.match(view,/data\.block_note/);assert.doesNotMatch(view,/-webkit-line-clamp/);
+  assert.match(calendar,/<ERPBookingWideView/);assert.match(view,/className="bookings-wide-mobile-dates"/);assert.match(view,/data\.block_note/);assert.doesNotMatch(view,/-webkit-line-clamp/);
   assert.match(actions,/وابدأ المؤقت الآن بدون باقة/);assert.doesNotMatch(actions,/المؤق الآن/);assert.match(actions,/aria-label="إغلاق"/);
 });

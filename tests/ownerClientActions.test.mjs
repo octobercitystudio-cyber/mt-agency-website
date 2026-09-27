@@ -40,11 +40,13 @@ test('opening before initial load adopts only the first response boundary and le
 
 test('every client mutation creates one independently scoped notification for each owner', async () => {
   const state = JSON.parse(storage.get('mt_agency_erp_demo_v12'));
-  const upcoming = new Date(); upcoming.setDate(upcoming.getDate() + 8); if (upcoming.getDay() === 5) upcoming.setDate(upcoming.getDate() + 1);
+  const upcoming = new Date(); upcoming.setHours(12, 0, 0, 0); upcoming.setDate(upcoming.getDate() + 8); if (upcoming.getDay() === 5) upcoming.setDate(upcoming.getDate() + 1);
   const packageDate = upcoming.toISOString().slice(0,10);
   Object.assign(state.bookings.find(row => row.id === 301), { date: packageDate, start_time: '18:00', end_time: '19:00' });
   Object.assign(state.bookings.find(row => row.id === 302), { date: packageDate, start_time: '20:00', end_time: '21:00', client_id: 1 });
-  const emptyDay = new Date(upcoming); emptyDay.setDate(emptyDay.getDate() + 2); if (emptyDay.getDay() === 5) emptyDay.setDate(emptyDay.getDate() + 1);
+  const emptyDay = new Date(upcoming); emptyDay.setDate(emptyDay.getDate() + 2);
+  const occupiedDates = new Set([...state.bookings.map(row => row.date), ...(state.studio_booking_requests || []).flatMap(request => (request.bookings || []).map(row => row.date))]);
+  while (emptyDay.getDay() === 5 || occupiedDates.has(emptyDay.toISOString().slice(0,10))) emptyDay.setDate(emptyDay.getDate() + 1);
   const newDate = emptyDay.toISOString().slice(0,10);
   state.client_packages.find(row => row.id === 201).expires_at = '2027-12-31';
   storage.set('mt_agency_erp_demo_v12', JSON.stringify(state));

@@ -5,13 +5,14 @@ import test from 'node:test';
 const root = new URL('../', import.meta.url);
 const load = path => readFile(new URL(path, root), 'utf8');
 
-test('vertical appointment cards retain visibility filtering, times, duration and detail actions', async () => {
+test('calendar appointment cards retain times, duration and details without the day sidebar', async () => {
   const [bookings, view] = await Promise.all([load('src/erp/ERPBookings.jsx'), load('src/erp/ERPBookingWideView.jsx')]);
 
   assert.match(bookings, /import \{ isClientBookingVisible \} from '\.\.\/lib\/clientBookingVisibility'/);
   assert.match(bookings, /const visibleBookings = bookings\.filter\(isClientBookingVisible\)/);
   assert.match(bookings, /const displayedBookings = filterBookingsForDisplay\(visibleBookings/);
   assert.match(bookings, /const bookingEvents = displayedBookings\.map/);
+  assert.doesNotMatch(view, /<aside className="bookings-wide-agenda"/);
   assert.match(bookings, /const hasActivePhoto = bookings\.some/, 'display filtering must not replace the source records used by booking rules');
   assert.match(view, /<BookingTimes start=\{data\.start_time\} end=\{data\.end_time\}/);
   assert.match(view, /formatDurationMinutes\(calculateDurationMinutes\(data\.start_time, data\.end_time\)\)/);

@@ -122,17 +122,10 @@
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-search input { border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-calendar .fc-daygrid-day.fc-day-today { background: #f4fbfa !important; }
 .erp-layout .erp-main .erp-bookings-wide .bookings-wide-calendar .fc-daygrid-day.selected-day-highlight { background: #eef8f8 !important; }
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-layout--vertical{display:block;grid-template-columns:minmax(0,1fr)}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar{width:100%;min-width:0;overflow:hidden}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .vertical-calendar-event-main{padding:0}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .booking-calendar-ticket{padding:15px;border-radius:9px;min-height:110px}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .vertical-calendar-change{margin-top:8px;font-size:16px!important}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .booking-calendar-ticket__client{font-size:18px!important}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .vertical-calendar-day-events{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
 
-/* Transposed calendar cells keep complete names and times in a compact stack. */
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .booking-calendar-ticket{padding:10px;min-height:0}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .booking-calendar-ticket__client{font-size:16px!important}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .booking-calendar-ticket__status{flex-wrap:wrap;gap:5px}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .booking-calendar-ticket__time{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
-.erp-layout .erp-main .erp-bookings-wide .bookings-wide-vertical-calendar .vertical-calendar-change{font-size:14px!important;margin:6px 6px 8px;width:calc(100% - 12px);padding:5px}
+/* The original calendar fills the space previously occupied by the day sidebar. */
+.erp-layout .erp-main .erp-bookings-wide .bookings-wide-layout { grid-template-columns: minmax(0, 1fr); }
+@media(max-width:1150px) {
+  .erp-layout .erp-main .erp-bookings-wide .bookings-wide-calendar { display: block; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+  .erp-layout .erp-main .erp-bookings-wide .bookings-wide-calendar > .fc { min-width: 980px; }
+}
