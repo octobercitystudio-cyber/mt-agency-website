@@ -84,6 +84,7 @@ export default function UnifiedLogin() {
   return <main className="unified-login-container" dir="rtl">
     <section className="unified-login-box" aria-labelledby="unified-login-title">
       <div className="unified-login-brand"><img src="/logo.webp" width="82" height="78" alt="Multi Task Agency" /><p dir="ltr">Multi Task Agency</p></div>
+      <ClientAppDownload />
       <header className="unified-login-heading">
         <span className="unified-quiet-rule" aria-hidden="true" />
         <h1 id="unified-login-title">مساحتك، بخطوة واحدة.</h1>
@@ -110,7 +111,6 @@ export default function UnifiedLogin() {
         <div className="unified-login-feedback" aria-live="polite">{error && <p id="login-error" role="alert">{error}</p>}</div>
       </form>
       <div className="unified-registration"><span>عميل جديد؟</span><Link className="unified-text-button" to={clientAuthPath('/register', clientDestination)}>إنشاء حساب <ArrowDownLeft aria-hidden="true" /></Link></div>
-      <ClientAppDownload />
     </section>
     <footer className="unified-login-footer"><Link to="/">العودة للموقع الرئيسي <ArrowRight aria-hidden="true" /></Link></footer>
     {import.meta.env.DEV && <details className="unified-login-preview"><summary>خيارات المعاينة المحلية</summary><div><button type="button" disabled={busy} onClick={handleLocalPreview}>دخول تجريبي كعميل</button></div></details>}

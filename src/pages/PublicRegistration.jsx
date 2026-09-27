@@ -68,6 +68,7 @@ export default function PublicRegistration() {
   return <main className="registration-page" dir="rtl">
     <div className="registration-shell">
       <header className="registration-topbar"><Link to="/" aria-label="الموقع الرئيسي"><img src="/logo.webp" alt="Multi Task Agency"/></Link><span>لديك حساب؟ <Link to={clientAuthPath('/login', clientDestination)}>تسجيل الدخول <ArrowLeft size={15}/></Link></span></header>
+      <ClientAppDownload />
       <div className="registration-intro"><span className="registration-kicker">مساحتك في Multi Task</span><h1>حسابك جاهز لبداية جديدة.</h1><p>سجّل بياناتك مرة واحدة، ثم اختر باقتك ومواعيد تصويرك من حسابك.</p></div>
       <div className="registration-grid">
         <section className="registration-form-card" aria-labelledby="registration-title">
@@ -92,7 +93,6 @@ export default function PublicRegistration() {
             </fieldset>
             <p className="registration-bottom-note">يمكنك اختيار الخدمة والمواعيد لاحقًا من لوحة حسابك.</p>
           </form>}
-          <ClientAppDownload />
         </section>
         <aside className="registration-summary"><span className="registration-summary-icon"><ShieldCheck aria-hidden="true"/></span><h2>حساب واحد،<br/>كل تفاصيل تصويرك.</h2><p>ابدأ حسابك الآن، واختر الخدمة ونسّق مواعيدك وقتما يناسبك.</p><ul><li><CheckCircle2 aria-hidden="true"/><div><strong>تسجيل فوري</strong><span>حسابك جاهز دون انتظار موافقة.</span></div></li><li><UserRound aria-hidden="true"/><div><strong>باقاتك في مكان واحد</strong><span>تابع الساعات المتاحة وتفاصيل باقتك.</span></div></li><li><CalendarDays aria-hidden="true"/><div><strong>حجز يناسب جدولك</strong><span>اختر مواعيدك وتابع حالة طلباتك بسهولة.</span></div></li></ul></aside>
       </div>
