@@ -48,7 +48,7 @@ export default function ERPBookingWideView({ selectedDate, onSelectDate, isAdmin
           <VerticalBookingCalendar selectedDate={selectedDate} onSelectDate={onSelectDate} events={events} datesSet={onDatesSet}
             onNavigate={onDateNavigation} onDateClick={onDateClick} onDayDoubleClick={isAdmin ? onDayDoubleClick : undefined}
             dayActionLabel={isAdmin ? 'حجز موعد يوم' : 'عرض يوم'} label="تقويم الحجوزات العمودي"
-            emptyText={loading ? 'جارٍ تحميل مواعيد اليوم…' : loadError || blockLoadError ? 'قد تكون البيانات غير مكتملة؛ حدّث المواعيد والإغلاقات قبل الحجز.' : filtered ? 'لا توجد مواعيد مطابقة للتصفية لهذا اليوم؛ هذا لا يؤكد إتاحته.' : 'لا توجد مواعيد مسجلة لهذا اليوم؛ تُراجع الإتاحة عند الحجز.'}
+            emptyText={loading ? 'جارٍ تحميل المواعيد…' : loadError || blockLoadError ? 'قد تكون البيانات غير مكتملة؛ حدّث المواعيد والإغلاقات قبل الحجز.' : filtered ? 'التقويم يعرض المواعيد المطابقة للتصفية فقط؛ الخانات الفارغة لا تؤكد الإتاحة.' : 'تُراجع إتاحة الموعد عند الحجز؛ الخانات الفارغة لا تمثل تأكيدًا للإتاحة.'}
             eventClick={onEventClick} eventContent={eventContent}
             eventClassNames={({ event }) => [event.extendedProps.kind === 'booking_block' ? 'booking-status-temporary' : 'booking-status-' + normalizeBookingViewStatus(event.extendedProps.status)]}
             eventAction={event => isAdmin && event.extendedProps.reschedule_eligible && <button type="button" className="vertical-calendar-change" onClick={click => { click.stopPropagation(); onDateNavigation?.(); onRescheduleProposal({ event: { ...event, start: new Date(event.start), end: new Date(event.end) }, el: click.currentTarget, revert: () => {} }); }}><CalendarClock aria-hidden="true"/>تغيير الموعد</button>}

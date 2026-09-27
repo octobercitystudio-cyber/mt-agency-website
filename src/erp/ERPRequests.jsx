@@ -307,11 +307,11 @@ export default function ERPRequests() {
           ref={calendarRef} label="تقويم الطلبات العمودي" events={calendarEvents}
           datesSet={info => { const end = new Date(info.end); end.setDate(end.getDate() - 1); const next = { from: localDate(info.start), to: localDate(end) }; setCalendarRange(previous => previous.from === next.from && previous.to === next.to ? previous : next); }}
           eventClick={info => { if (info.event.extendedProps.marker) focusMarker(info.event.extendedProps.marker); }}
-          emptyText={loading ? 'جارٍ تحميل الطلبات والإغلاقات…' : !loadedRange || error ? 'لا توجد بيانات مكتملة لهذا اليوم؛ أعد التحديث قبل مراجعة الإتاحة.' : 'لا توجد مواعيد أو طلبات ظاهرة لهذا اليوم؛ تُراجع الإتاحة قبل التأكيد.'}
+          emptyText={loading ? 'جارٍ تحميل الطلبات والإغلاقات…' : !loadedRange || error ? 'البيانات غير مكتملة؛ أعد التحديث قبل مراجعة الإتاحة.' : 'يعرض التقويم المواعيد والطلبات؛ تُراجع الإتاحة قبل التأكيد.'}
           eventContent={arg => <div className="requests-calendar-event" style={{ color: arg.event.textColor }}>{arg.event.extendedProps.marker && <small className="requests-marker-label">{arg.event.extendedProps.marker.label}</small>}{arg.event.extendedProps.kind === 'booking_block' && <LockKeyhole/>}<strong>{arg.event.title}</strong><span>{arg.event.extendedProps.timeLabel}</span>{arg.event.extendedProps.marker?.counterpart && <small>{arg.event.extendedProps.marker.phase === 'from' ? 'إلى: ' : 'من: '}{formatBookingDate(arg.event.extendedProps.marker.counterpart.date)} · {time(arg.event.extendedProps.marker.counterpart.start_time)}</small>}</div>}
         />
       </div>
-      <p className="requests-calendar-scroll-hint">الأيام مرتبة رأسيًا. انتقل لأي شهر أو أسبوع، واضغط على الطلب لعرض تفاصيله.</p>
+      <p className="requests-calendar-scroll-hint">أيام الأسبوع على اليمين، والأسابيع في أعمدة. اسحب أفقيًا لعرض بقية الشهر واضغط على الطلب لتفاصيله.</p>
     </section>}
 
     <main className="requests-workspace">

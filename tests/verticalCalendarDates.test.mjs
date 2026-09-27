@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { verticalCalendarRange, shiftVerticalCalendar, groupVerticalCalendarEvents } from '../src/lib/verticalCalendarDates.js';
+import { verticalCalendarRange, shiftVerticalCalendar, groupVerticalCalendarEvents, transposeCalendarDays } from '../src/lib/verticalCalendarDates.js';
 
 test('vertical month includes every day, including leap day and empty booking days', () => {
   const leap = verticalCalendarRange('2028-02-17', 'month');
@@ -45,4 +45,32 @@ test('midnight-end bookings appear once on their start day, sorted without chang
   assert.deepEqual(grouped.get(days[2]), []);
   assert.equal(grouped.size, 3);
   assert.deepEqual(events, snapshot);
+});
+
+test('month matrix places weekdays vertically and weeks horizontally without losing or repeating dates', () => {
+  const days = verticalCalendarRange('2026-09-27').days;
+  const matrix = transposeCalendarDays(days);
+  assert.equal(matrix.weekCount, 5);
+  assert.deepEqual(matrix.rows.map(row => row.weekday), [6, 0, 1, 2, 3, 4, 5]);
+  assert.deepEqual(matrix.rows[0].cells, [null, '2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26']);
+  assert.deepEqual(matrix.rows[3].cells, ['2026-09-01', '2026-09-08', '2026-09-15', '2026-09-22', '2026-09-29']);
+  assert.deepEqual(matrix.rows.flatMap(row => row.cells).filter(Boolean).sort(), days);
+  for (const row of matrix.rows) for (const date of row.cells.filter(Boolean)) {
+    assert.equal(new Date(`${date}T12:00:00Z`).getUTCDay(), row.weekday);
+  }
+});
+
+test('month matrix supports four and six weeks, leap day and single-week view', () => {
+  assert.equal(transposeCalendarDays(verticalCalendarRange('2025-02-12').days).weekCount, 4);
+  const six = transposeCalendarDays(verticalCalendarRange('2026-05-15').days);
+  assert.equal(six.weekCount, 6);
+  assert.equal(six.rows[6].cells[0], '2026-05-01');
+  assert.equal(six.rows[1].cells[5], '2026-05-31');
+  const leap = transposeCalendarDays(verticalCalendarRange('2028-02-02').days);
+  assert.ok(leap.rows[3].cells.includes('2028-02-29'));
+  const week = transposeCalendarDays(verticalCalendarRange('2027-01-01', 'week').days);
+  assert.equal(week.weekCount, 1);
+  assert.equal(week.rows[0].cells[0], '2026-12-26');
+  assert.equal(week.rows[6].cells[0], '2027-01-01');
+  assert.equal(transposeCalendarDays([]).weekCount, 0);
 });
