@@ -6,6 +6,7 @@ import { useData } from '../store/DataContext';
 import { normalizeRegistrationDigits, registrationFullName } from '../lib/registrationPolicy';
 import { safeUiError } from '../lib/uiError';
 import RegistrationBotCheck from '../components/RegistrationBotCheck';
+import ClientAppDownload from '../components/ClientAppDownload';
 import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
 import './PublicRegistration.css';
 
@@ -91,6 +92,7 @@ export default function PublicRegistration() {
             </fieldset>
             <p className="registration-bottom-note">يمكنك اختيار الخدمة والمواعيد لاحقًا من لوحة حسابك.</p>
           </form>}
+          <ClientAppDownload />
         </section>
         <aside className="registration-summary"><span className="registration-summary-icon"><ShieldCheck aria-hidden="true"/></span><h2>حساب واحد،<br/>كل تفاصيل تصويرك.</h2><p>ابدأ حسابك الآن، واختر الخدمة ونسّق مواعيدك وقتما يناسبك.</p><ul><li><CheckCircle2 aria-hidden="true"/><div><strong>تسجيل فوري</strong><span>حسابك جاهز دون انتظار موافقة.</span></div></li><li><UserRound aria-hidden="true"/><div><strong>باقاتك في مكان واحد</strong><span>تابع الساعات المتاحة وتفاصيل باقتك.</span></div></li><li><CalendarDays aria-hidden="true"/><div><strong>حجز يناسب جدولك</strong><span>اختر مواعيدك وتابع حالة طلباتك بسهولة.</span></div></li></ul></aside>
       </div>

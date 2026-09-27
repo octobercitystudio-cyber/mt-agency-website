@@ -1,0 +1,60 @@
+.client-app-download {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e8e2ee;
+}
+
+.client-app-download .client-app-download-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px;
+  border: 1px solid #d9cce9;
+  border-radius: 10px;
+  background: #f7f3fc;
+  color: #5e3994;
+  font: 700 16px/1.7 'Tajawal', 'Segoe UI', sans-serif;
+  text-decoration: none;
+  text-align: start;
+  transition: background .18s, border-color .18s;
+}
+
+.client-app-download-link > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.client-app-download-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #ebe2f6;
+}
+
+.client-app-download-icon svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 1.8;
+}
+
+.client-app-download .client-app-download-link:hover {
+  background: #eee5f8;
+  border-color: #a98cc9;
+}
+
+.client-app-download .client-app-download-link:focus-visible {
+  outline: 3px solid #8a60ba;
+  outline-offset: 3px;
+}
+
+.client-app-download .client-app-download-link:active {
+  background: #e5d8f3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .client-app-download .client-app-download-link { transition: none; }
+}
