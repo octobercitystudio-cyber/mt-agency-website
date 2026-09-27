@@ -5,19 +5,17 @@ import test from 'node:test';
 const root = new URL('../', import.meta.url);
 const load = path => readFile(new URL(path, root), 'utf8');
 
-test('selected-day appointment cards show start, end, and calculated photography duration', async () => {
+test('vertical appointment cards retain visibility filtering, times, duration and detail actions', async () => {
   const [bookings, view] = await Promise.all([load('src/erp/ERPBookings.jsx'), load('src/erp/ERPBookingWideView.jsx')]);
 
   assert.match(bookings, /import \{ isClientBookingVisible \} from '\.\.\/lib\/clientBookingVisibility'/);
   assert.match(bookings, /const visibleBookings = bookings\.filter\(isClientBookingVisible\)/);
   assert.match(bookings, /const displayedBookings = filterBookingsForDisplay\(visibleBookings/);
   assert.match(bookings, /const bookingEvents = displayedBookings\.map/);
-  assert.match(view, /bookingDayAgenda\(bookings, blocks, selectedDate\)/);
-  assert.match(view, /agenda\.map\(\(\{ kind, record \}\)/);
   assert.match(bookings, /const hasActivePhoto = bookings\.some/, 'display filtering must not replace the source records used by booking rules');
-  assert.match(view, /className="booking-time-summary"><BookingTimes start=\{record\.start_time\} end=\{record\.end_time\}/);
-  assert.match(view, /formatDurationMinutes\(calculateDurationMinutes\(record\.start_time, record\.end_time\)\)/);
-  assert.match(view, /onOpenBlock\(record, event\.currentTarget\) : onOpenBooking\(record, event\.currentTarget\)/);
+  assert.match(view, /<BookingTimes start=\{data\.start_time\} end=\{data\.end_time\}/);
+  assert.match(view, /formatDurationMinutes\(calculateDurationMinutes\(data\.start_time, data\.end_time\)\)/);
+  assert.match(view, /eventClick=\{onEventClick\}/);
 });
 
 test('daily appointment time summary remains compact and wraps on narrow screens', async () => {

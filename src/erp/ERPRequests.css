@@ -50,3 +50,12 @@
 @media(max-width:1050px){.requests-calendar-shell{overflow-x:auto!important;max-width:100%;overscroll-behavior-inline:contain}.requests-calendar-shell>.fc{min-width:850px}.requests-calendar-scroll-hint{display:block;margin:0;padding:0 14px 14px;font-size:13px;color:var(--erp-text-muted);line-height:1.7}}
 @media(max-width:600px){.requests-calendar-explainer,.requests-calendar-freshness{padding:12px 14px;font-size:14px}.requests-calendar-selection{margin:0 10px 12px;padding:12px}.requests-calendar-selection-slots{grid-template-columns:minmax(0,1fr)}.requests-calendar-selection-slots article{font-size:15px;padding:10px}.requests-calendar-selection h3{font-size:18px}.requests-calendar-legend{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.requests-calendar-reference .fc .requests-calendar-pending{animation:none}}
+.requests-calendar-reference .requests-calendar-shell{padding:0;overflow-x:hidden!important;min-width:0}
+.requests-calendar-reference .vertical-calendar-event .requests-calendar-event{display:grid;gap:7px;overflow:visible;line-height:1.7}
+.erp-layout .erp-main .requests-calendar-reference .vertical-calendar-event .requests-calendar-event :is(strong,span,small){white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;font-size:16px!important;line-height:1.8!important;color:inherit}
+.erp-layout .erp-main .requests-calendar-reference .vertical-calendar-event .requests-calendar-event strong{font-size:18px!important}
+.requests-calendar-reference .vertical-calendar-event .requests-marker-label{font-weight:800;padding-bottom:5px;border-bottom:1px solid currentColor}
+.requests-calendar-reference .vertical-calendar-event.requests-calendar-pending{border-width:2px;border-style:dashed;animation:requestPendingOutline 2.4s ease-in-out infinite}
+.requests-calendar-reference .vertical-calendar-event.requests-calendar-pending.is-selected{outline:3px solid #633bbb;outline-offset:2px;animation:none}
+.requests-calendar-reference .vertical-calendar-event.requests-calendar-pending:focus-within{outline:3px solid #633bbb;outline-offset:2px;animation:none}
+@media(prefers-reduced-motion:reduce){.requests-calendar-reference .vertical-calendar-event.requests-calendar-pending{animation:none}}

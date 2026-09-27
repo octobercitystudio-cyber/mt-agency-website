@@ -30,31 +30,29 @@ test('calendar controls are Arabic and event colors come from each client', asyn
     load('src/erp/ERPRescheduleBookingDialog.css'),
   ]);
 
-  assert.match(view, /import arCalendarLocale from '@fullcalendar\/core\/locales\/ar'/);
-  assert.match(view, /const calendarLocales = \[arCalendarLocale\]/);
-  assert.match(view, /locales=\{calendarLocales\}/);
-  assert.match(view, />شهر<\/button>/);
-  assert.match(view, />أسبوع<\/button>/);
+  const calendar = await load('src/components/VerticalBookingCalendar.jsx');
+  assert.match(view, /<VerticalBookingCalendar/);
+  assert.match(calendar, />شهر<\/button>/);
+  assert.match(calendar, />أسبوع<\/button>/);
   assert.match(bookings, /const clientColor = getClientColor\(b\.client_name\)/);
   assert.match(bookings, /client_color: clientColor/);
   assert.match(bookings, /clientColorsHydrated \? calendarEvents : \[\]/);
   assert.doesNotMatch(bookings + view, /key=\{`bookings-calendar-/,'color refresh must not remount and reset the displayed month');
   assert.match(view, /'--booking-client-color': block \? '#b77a25' : data\.client_color/);
-  assert.match(view, /eventDisplay="block"/);
   assert.match(view, /getStatusMeta\(data\.status\)/);
   assert.match(rescheduleCss, /width: 44px; height: 44px; flex: 0 0 44px/);
 });
 
-test('calendar drag and resize revert before opening the confirmation flow', async () => {
+test('vertical calendar change-date action opens the existing confirmation flow with the original time', async () => {
   const [bookings, view] = await Promise.all([load('src/erp/ERPBookings.jsx'), load('src/erp/ERPBookingWideView.jsx')]);
 
   assert.match(bookings, /start: calendarDateTime\(b\.date, b\.start_time\)/);
   assert.match(bookings, /end: calendarDateTime\(b\.date, b\.end_time, true\)/);
   assert.match(bookings, /reschedule_eligible: isAdmin && b\.status === 'confirmed'/);
   assert.match(bookings, /onRescheduleProposal=\{handleCalendarRescheduleProposal\}/);
-  assert.match(view, /eventDrop=\{onRescheduleProposal\}/);
-  assert.match(view, /eventResize=\{onRescheduleProposal\}/);
-  assert.match(bookings, /const proposal = calendarProposal\(info\.event\);[\s\S]*info\.revert\(\);[\s\S]*openReschedule\(booking, proposal\)/);
+  assert.match(view, /eventAction=\{event => isAdmin && event\.extendedProps\.reschedule_eligible/);
+  assert.match(view, /onRescheduleProposal\(\{ event: \{ \.\.\.event, start: new Date\(event\.start\), end: new Date\(event\.end\)/);
+  assert.match(bookings, /const proposal = calendarProposal\(info\.event\);[\s\S]*info\.revert\(\);[\s\S]*openReschedule\(booking, proposal, info\.el \|\| null\)/);
 });
 
 test('backend keeps admin rescheduling authenticated and role-bound', async () => {

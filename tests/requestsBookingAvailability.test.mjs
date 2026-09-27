@@ -45,10 +45,12 @@ test('requests page exposes the Arabic calendar, saved colors, pending markers, 
     readFile(new URL('src/erp/ERPRequests.css', root), 'utf8'),
   ]);
   assert.match(source, /مرجع الحجوزات/);
-  assert.match(source, /locales=\{\[arCalendarLocale\]\}/);
-  assert.match(source, /buttonText=\{\{ today: 'اليوم', month: 'شهر', week: 'أسبوع'/);
-  assert.match(source, /slotMinTime="00:00:00"/);
-  assert.match(source, /slotMaxTime="24:00:00"/);
+  const calendar = await readFile(new URL('src/components/VerticalBookingCalendar.jsx', root), 'utf8');
+  assert.match(source, /<VerticalBookingCalendar/);
+  assert.match(calendar, /dir="rtl"/);
+  assert.match(calendar, />اليوم<\/button>/);
+  assert.match(calendar, />شهر<\/button>/);
+  assert.match(calendar, />أسبوع<\/button>/);
   assert.match(source, /blockingBookings\(data\.bookings\)/);
   assert.match(source, /safeBookingColor\(client\?\.color\)/);
   assert.match(source, /buildCalendarRequestMarkers\(data\)/);

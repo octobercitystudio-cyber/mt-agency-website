@@ -18,7 +18,7 @@ import { activeServiceCategories, isProjectServiceCategory } from '../lib/servic
 import useChangeSync from '../hooks/useChangeSync';
 import { ERPBookingBlockDetailsDialog, ERPBookingBlockDialog } from './ERPBookingBlockDialog';
 import { ERPBookingDayActionsDialog, ERPDirectSessionDialog } from './ERPBookingDayActionsDialog';
-import { bindBookingBlockDoubleClick, bookingBlockDayCellFromEvent } from './bookingBlockInteraction';
+
 import { isClientBookingVisible } from '../lib/clientBookingVisibility';
 
 // FullCalendar Imports
@@ -109,24 +109,6 @@ const ERPBookings = () => {
     if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
   }, []);
 
-  useEffect(() => {
-    const calendarRoot = bookingCalendarRef.current;
-    if (!isAdmin || !calendarRoot) return undefined;
-    return bindBookingBlockDoubleClick(calendarRoot, event => {
-      const dayCell = bookingBlockDayCellFromEvent(event, calendarRoot);
-      const clickedDate = String(dayCell?.getAttribute?.('data-date') || '').slice(0, 10);
-      if (!dayCell || !/^\d{4}-\d{2}-\d{2}$/.test(clickedDate)) return;
-      lastDayDoubleClickRef.current = { date: clickedDate, at: Date.now() };
-      if (dateSelectionTimerRef.current !== null) window.clearTimeout(dateSelectionTimerRef.current);
-      dateSelectionTimerRef.current = window.setTimeout(() => {
-        setSelectedDate(clickedDate);
-        setIsModalOpen(false);
-        dayActionTriggerRef.current = calendarRoot;
-        setDayActionsOpen(true);
-        dateSelectionTimerRef.current = null;
-      }, 0);
-    });
-  }, [isAdmin]);
   const isOwner = currentUser?.role === 'owner';
   const [newBooking, setNewBooking] = useState({
     client_name: '',
@@ -419,7 +401,7 @@ const ERPBookings = () => {
     const proposal = calendarProposal(info.event);
     const booking = bookings.find(item => String(item.id) === String(info.event.extendedProps.booking_id));
     info.revert();
-    if (booking && info.event.extendedProps.reschedule_eligible) openReschedule(booking, proposal);
+    if (booking && info.event.extendedProps.reschedule_eligible) openReschedule(booking, proposal, info.el || null);
   };
 
   const handleRescheduleSuccess = async updated => {

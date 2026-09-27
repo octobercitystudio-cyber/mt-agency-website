@@ -63,11 +63,10 @@ test('calendars and notifications explicitly format times in 12-hour notation', 
     load('api/index.php'),
     load('src/lib/demoDataClient.js'),
   ]);
-  assert.match(bookings, /const calendarTimeFormat = \{[^}]*hour12: true/);
-  assert.match(bookings, /eventTimeFormat=\{calendarTimeFormat\}/);
-  assert.match(bookings, /slotLabelFormat=\{calendarTimeFormat\}/);
-  assert.match(requests, /eventTimeFormat=\{\{[^}]*hour12: true/);
-  assert.match(requests, /slotLabelFormat=\{\{[^}]*hour12: true/);
+  assert.match(bookings, /formatTime12\(start, ''\)/);
+  assert.match(bookings, /formatTime12\(end, ''\)/);
+  assert.match(requests, /const time = value => formatTime12\(value\)/);
+  assert.match(requests, /timeLabel: `\$\{time\(booking\.start_time\)\} إلى \$\{time\(booking\.end_time\)\}`/);
   assert.match(api, /function displayBusinessTime12/);
   assert.match(api, /\$start=displayBusinessTime12/);
   assert.match(api, /\$end=displayBusinessTime12/);
