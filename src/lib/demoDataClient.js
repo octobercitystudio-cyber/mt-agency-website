@@ -18,7 +18,7 @@ import { cairoDateKey, centsToMoney, formatDurationMinutes, formatTime12, moneyT
 import { getBookingAvailability, bookingTimeToMinutes } from '../erp/bookingAvailability.js';
 import { buildDemoClientServiceHistory } from './clientServiceHistory.js';
 import { cairoDateTimeToIso, cairoDateTimeToEpoch } from './promotionTime.js';
-import { FIXED_SERVICE_CATEGORIES, RETIRED_SERVICE_CATEGORIES, isFixedServiceCategory, validateCustomCategory } from './serviceCategories.js';
+import { FIXED_SERVICE_CATEGORIES, RETIRED_SERVICE_CATEGORIES, isFixedServiceCategory, isHourlyShootingService, validateCustomCategory } from './serviceCategories.js';
 import { isValidClientPassword } from './clientPasswordPolicy.js';
 import { isSellablePackageTemplate, normalizedPackageUnit, validatePackageDraft } from './clientPackageDraft.js';
 import { appointmentStartIsPast, cairoAppointmentNowKey } from './packageSaleAppointments.js';
@@ -1478,7 +1478,20 @@ const demoSessionPackageWhatsAppSummary = (database, booking, pkg, actualMinutes
   const purchasedQuantity = Number(pkg.purchased_quantity || 0); const consumedQuantity = Number(pkg.consumed_quantity || 0); const paymentDueQuantity = Number(pkg.payment_due_quantity || 0);
   const totalCents = moneyToCents(pkg.total_price) + Math.max(0, moneyToCents(pkg.overage_amount)); const paidCents = moneyToCents(pkg.paid_amount); const outstandingCents = Math.max(0, totalCents - paidCents);
   const thresholdReached = outstandingCents > 0 && (unit === 'hour' ? paymentDueMinutes > 0 && consumedMinutes >= paymentDueMinutes : paymentDueQuantity > 0 && consumedQuantity >= paymentDueQuantity);
-  return { client_id: Number(client.id), client_name: client.name, client_phone: client.phone1 || '', recipient: client.phone1 || '', client_points: Math.max(0, Number(client.points || 0)), package_id: Number(pkg.id), package_name: pkg.name, billing_unit: unit, today_minutes: actualMinutes, today_quantity: unit === 'reel' ? actualReels : demoSettlementHours(actualMinutes), purchased_minutes: purchasedMinutes, purchased_quantity: purchasedQuantity, consumed_minutes: consumedMinutes, consumed_quantity: consumedQuantity, remaining_minutes: unit === 'hour' ? Math.max(0, purchasedMinutes - consumedMinutes) : null, remaining_quantity: Math.max(0, purchasedQuantity - consumedQuantity), payment_due_minutes: paymentDueMinutes, payment_due_quantity: paymentDueQuantity, payment_due_reached: thresholdReached, total_amount: centsToMoney(totalCents), paid_amount: centsToMoney(paidCents), outstanding_amount: centsToMoney(outstandingCents), expires_at: pkg.expires_at || '' };
+  return { client_id: Number(client.id), client_name: client.name, client_phone: client.phone1 || '', recipient: client.phone1 || '', client_points: Math.max(0, Number(client.points || 0)), package_id: Number(pkg.id), package_name: pkg.name, package_status: pkg.status, billing_unit: unit, today_minutes: actualMinutes, today_quantity: unit === 'reel' ? actualReels : demoSettlementHours(actualMinutes), purchased_minutes: purchasedMinutes, purchased_quantity: purchasedQuantity, consumed_minutes: consumedMinutes, consumed_quantity: consumedQuantity, remaining_minutes: unit === 'hour' ? Math.max(0, purchasedMinutes - consumedMinutes) : null, remaining_quantity: Math.max(0, purchasedQuantity - consumedQuantity), payment_due_minutes: paymentDueMinutes, payment_due_quantity: paymentDueQuantity, payment_due_reached: thresholdReached, total_amount: centsToMoney(totalCents), paid_amount: centsToMoney(paidCents), outstanding_amount: centsToMoney(outstandingCents), expires_at: pkg.expires_at || '' };
+};
+
+const expireDemoHourlyPackageAfterSession = (database, pkg, booking, ended) => {
+  if (!pkg || pkg.status !== 'active' || pkg.billing_unit !== 'hour' || !isHourlyShootingService(findById(database, 'services', pkg.service_id))) return;
+  if (demoPackageMinutes(pkg, 'held') > 0) return;
+  const openStatuses = ['pending', 'confirmed', 'alternative_proposed', 'cancel_requested', 'late_cancel_requested', 'in_progress'];
+  if (database.bookings.some(row => Number(row.client_package_id) === Number(pkg.id) && openStatuses.includes(row.status))) return;
+  const pendingDate = (database.studio_booking_requests || []).some(request => request.package_status === 'approved' && Number(request.client_id) === Number(pkg.client_id) && request.bookings.some(date => date.status === 'pending' && Number(request.service_snapshot?.day_package_ids?.[date.id] ?? request.client_package_id) === Number(pkg.id)));
+  if (pendingDate) return;
+  const before = clone(pkg);
+  Object.assign(pkg, { status: 'expired', expires_at: ended.slice(0, 10), version: Number(pkg.version || 1) + 1 });
+  demoAudit(database, 'hourly_package_session_expired', 'client_packages', pkg.id, before, { ...clone(pkg), booking_id: booking.id, session_ended_at: ended });
+  addRow(database, 'change_events', { client_id: pkg.client_id, topic: 'client_packages', entity_type: 'client_packages', entity_id: pkg.id, action: 'session_expiry' });
 };
 
 const demoSettleAndComplete = (database, bookingId, body) => {
@@ -1541,6 +1554,7 @@ const demoSettleAndComplete = (database, bookingId, body) => {
   if (preview.requires_package_assignment && !workBooking.client_package_id) throw formationDemoError('لا يمكن إكمال جلسة بوقت غير مسند إلى باقة.', 'unassigned_package_required');
   const ended = nowText();
   Object.assign(workBooking, { status: 'completed', timer_ended_at: ended, actual_seconds: actual * 60, actual_hours: demoSettlementHours(actual), actual_reels: reels, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), overage_quantity: demoSettlementHours(excess), overage_amount: mode === 'package_overage' ? centsToMoney(dueCents) : 0 }); Object.assign(session, { status: 'completed', ended_at: ended, actual_seconds: actual * 60, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), adjustment_reason: String(body.reason || '').trim(), settlement_version: Number(session.settlement_version || 1) + 1 });
+  for (const pkg of new Set([original, targetPackage])) expireDemoHourlyPackageAfterSession(working, pkg, workBooking, ended);
   const postProductionJob = demoEnsurePostProductionJob(working, workBooking, session);
   const response = { booking_id: workBooking.id, session_id: session.id, settlement_id: header.id, post_production_job_id: postProductionJob.id, status: 'completed', actual_minutes: actual, complimentary_seconds: Math.max(0, Number(sourceSession.complimentary_seconds || 0)), covered_minutes: covered, excess_minutes: excess, billable_minutes: billableMinutes, waived_minutes: waived, settlement_mode: mode, target_package_id: targetPackage?.id || null, invoice_id: invoice?.id || null, project_id: project?.id || null, payment_id: payment?.id || null, amount_due: centsToMoney(dueCents), amount_paid: centsToMoney(paidCents), billing_unit: unit, whatsapp_summary: demoSessionPackageWhatsAppSummary(working, workBooking, targetPackage || original, actual, reels) }; demoAudit(working, 'session_settle_and_complete', 'booking_sessions', session.id, sourceSession, { ...response, client_id: workBooking.client_id }); header.response = clone(response); writeDatabase(working); return clone(response);
 };

@@ -1,5 +1,7 @@
 export const CUSTOM_CATEGORY_VALUE = '__custom_category__';
 
+export const isHourlyShootingService = service => ['تصوير بالساعة', 'تصوير ساعة', 'بالساعة', 'hourly', 'hour'].includes(String(service?.category || '').trim().toLowerCase());
+
 export const FIXED_SERVICE_CATEGORIES = [
   { value: 'تصوير بالساعة', label: 'تصوير بالساعة', unit: 'hour', timer: 1, tone: 'studio' },
   { value: 'باقة يومية', label: 'باقة يومية', unit: 'hour', timer: 1, tone: 'studio' },
