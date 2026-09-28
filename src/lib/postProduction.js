@@ -1,5 +1,9 @@
 import { formatDurationMinutes } from './businessFormat.js';
 
+export const UPLOAD_COMPLETED_NOTICE = 'اكتمل رفع فيديوهات الجلسة بنجاح. يُرجى مراجعة رابط فولدر التسليم والتأكد من اكتمال الملفات، ثم تحميلها وحفظ نسخة منها خلال 48 ساعة من وقت إتاحة الرابط.';
+
+export const deliveryLinkDraft = link => ({ title: link.title, link_kind: link.link_kind, url: link.url, is_active: Number(link.is_active ?? 1), is_pinned: Number(link.is_pinned || 0) });
+
 export const POST_PRODUCTION_STATUS = {
   editing_in_progress: { label: 'جاري العمل في المونتاج', short: 'المونتاج', step: 1, tone: 'editing' },
   editing_completed: { label: 'اكتمل المونتاج', short: 'اكتمل المونتاج', step: 2, tone: 'completed' },

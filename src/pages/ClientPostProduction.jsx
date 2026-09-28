@@ -3,7 +3,7 @@ import { CalendarDays, Check, Clock3, Clapperboard, CloudUpload, ExternalLink, F
 import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
 import { formatBookingDate, formatDateTime12, formatTime12 } from '../lib/businessFormat';
-import { postProductionDuration, postProductionMeta, postProductionSessionLabel } from '../lib/postProduction';
+import { UPLOAD_COMPLETED_NOTICE, postProductionDuration, postProductionMeta, postProductionSessionLabel } from '../lib/postProduction';
 import CompanyPickupSchedule from '../components/CompanyPickupSchedule';
 import './ClientPostProduction.css';
 
@@ -85,6 +85,7 @@ export default function ClientPostProduction({ highlightJobId = null }) {
           <ol className="client-production-rail" aria-label={`تقدم الجلسة: ${meta.label}`}>{railSteps.map(([Icon, label], index) => <li key={label} className={stage >= index + 1 ? 'is-done' : ''} aria-current={stage === index + 1 ? 'step' : undefined}><i><Icon aria-hidden="true" /></i><span>{label}</span></li>)}</ol>
 
           <section className="client-delivery-area">
+            {job.status === 'upload_completed' && job.active_delivery_links.length > 0 && <p className="client-upload-completed-note"><Check aria-hidden="true" />{UPLOAD_COMPLETED_NOTICE}</p>}
             {job.active_delivery_links.length > 0 && <><h4><FolderOpen /> روابط الفيديوهات</h4><div className="client-drive-links">{job.active_delivery_links.map(link => <article key={link.id || link.url} className="client-drive-delivery"><a href={link.url} target="_blank" rel="noopener noreferrer" title={`${link.title} — ${link.url}`}><span><strong>{link.title}</strong><small>{link.link_kind === 'video' ? 'فيديو على Google Drive' : 'فولدر على Google Drive'}</small>{link.available_until && <b>متاح حتى {dateTimeLabel(link.available_until)}</b>}</span><ExternalLink aria-hidden="true" /></a><p><Clock3 aria-hidden="true" />{VIDEO_DOWNLOAD_NOTICE}</p></article>)}</div></>}
             {!job.active_delivery_links.length && ['upload_completed', 'delivered'].includes(job.status) && <p className="client-delivery-note"><CloudUpload /> لا يوجد رابط نشط الآن. تُخفى روابط Google Drive تلقائيًا بعد مرور 48 ساعة على رفعها.</p>}
 

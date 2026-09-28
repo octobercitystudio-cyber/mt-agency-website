@@ -50,9 +50,9 @@ test('production settlement creates one job safely and the API enforces versione
   assert.match(module, /j\.client_id=\?/);
   assert.doesNotMatch(module.slice(module.indexOf("if ($clientOnly)"), module.indexOf("function validateDriveDeliveryLinks")), /\$row\['history'\] = \$clientOnly/);
   assert.match(module, /\['drive\.google\.com','docs\.google\.com'\]/);
-  assert.match(module, /DELETE FROM video_delivery_links.*INSERT INTO video_delivery_links/s);
-  assert.match(module, /l\.created_at > DATE_SUB\(NOW\(\), INTERVAL 48 HOUR\)/);
-  assert.match(module, /DATE_ADD\(l\.created_at,INTERVAL 48 HOUR\) AS available_until/);
+  assert.match(await load('api/delivery_link_pinning.php'), /DELETE FROM video_delivery_links.*INSERT INTO video_delivery_links/s);
+  assert.match(module, /l\.published_at > DATE_SUB\(NOW\(\), INTERVAL 48 HOUR\)/);
+  assert.match(module, /DATE_ADD\(l\.published_at,INTERVAL 48 HOUR\) AS available_until/);
   assert.match(module, /private_runtime_dir/);
   assert.match(module, /pickup_runtime_not_private/);
   assert.match(module, /\+7 days/);
@@ -290,5 +290,41 @@ test('demo upgrader preserves general pickup as legacy without copying it to eve
   await demoClient.request('/post-production?status=all', { method: 'GET' });
   const upgraded = JSON.parse(storage.get('mt_agency_erp_demo_v12'));
   assert.deepEqual(upgraded.pickup_availability_legacy, legacy); assert.deepEqual(upgraded.pickup_availability_by_job, {});
+  deactivateDemoMode();
+});
+
+test('pinned folder survives status changes and becomes available only when uploaded', async () => {
+  const storage = setupBrowser();
+  const { activateDemoMode, deactivateDemoMode, demoClient, resetDemoDatabase } = await import('../src/lib/demoDataClient.js');
+  await resetDemoDatabase(); activateDemoMode('owner', 1);
+  const db = JSON.parse(storage.get('mt_agency_erp_demo_v12'));
+  Object.assign(db.post_production_jobs.find(row => row.id === 1901), { status: 'editing_in_progress', version: 1 });
+  db.video_delivery_links = db.video_delivery_links.filter(row => row.post_production_job_id !== 1901);
+  storage.set('mt_agency_erp_demo_v12', JSON.stringify(db));
+  const folder = { title: 'فولدر مثبت', link_kind: 'folder', url: 'https://drive.google.com/drive/folders/pinned-test', is_active: 1, is_pinned: 1 };
+  const request = (path, method, body) => demoClient.request(path, { method, body: JSON.stringify(body) });
+  const link = () => JSON.parse(storage.get('mt_agency_erp_demo_v12')).video_delivery_links.find(row => row.post_production_job_id === 1901);
+  assert.equal((await request('/post-production/1901/delivery-links', 'PUT', { expected_version: 1, links: [folder] })).error, null);
+  assert.equal(link().published_at, null);
+  assert.equal((await request('/post-production/1901/delivery-links', 'PUT', { expected_version: 2, links: [] })).error.code, 'pinned_delivery_folder_protected');
+  activateDemoMode('client', 1);
+  assert.deepEqual((await demoClient.request('/client/post-production')).data.items.find(row => row.id === 1901).delivery_links, []);
+  activateDemoMode('owner', 1);
+  let version = 2;
+  for (const status of ['editing_completed', 'uploading', 'upload_completed']) {
+    const result = await request('/post-production/1901/status', 'PATCH', { expected_version: version++, status });
+    assert.equal(result.error, null);
+    assert.equal(link().is_pinned, 1);
+  }
+  const published = link().published_at; assert.ok(published);
+  activateDemoMode('client', 1);
+  assert.equal((await demoClient.request('/client/post-production')).data.items.find(row => row.id === 1901).delivery_links[0].url, folder.url);
+  activateDemoMode('owner', 1);
+  for (const status of ['editing_in_progress', 'upload_completed']) {
+    assert.equal((await request('/owner/post-production/1901/status-correction', 'POST', { expected_version: version++, status, reason: 'تصحيح حالة تجريبية' })).error, null);
+    assert.equal(link().published_at, published);
+  }
+  assert.equal((await request('/post-production/1901/delivery-links', 'PUT', { expected_version: version, links: [{ ...folder, title: 'اسم جديد' }] })).error, null);
+  assert.equal(link().published_at, published);
   deactivateDemoMode();
 });

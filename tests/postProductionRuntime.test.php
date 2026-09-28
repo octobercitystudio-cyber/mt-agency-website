@@ -8,7 +8,7 @@ function rejected(callable $call,string $code):void {try{$call();}catch(RuntimeE
 final class DeliveryPDO extends PDO {
  public function __construct(){parent::__construct('sqlite::memory:');$this->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);}
  public function prepare(string $sql,array $options=[]):PDOStatement|false {
-  $sql=str_replace(['DATE_SUB(NOW(), INTERVAL 48 HOUR)','DATE_ADD(l.created_at,INTERVAL 48 HOUR)'],["datetime('now','-48 hours')","datetime(l.created_at,'+48 hours')"],$sql);
+  $sql=str_replace(['DATE_SUB(NOW(), INTERVAL 48 HOUR)','DATE_ADD(l.published_at,INTERVAL 48 HOUR)'],["datetime('now','-48 hours')","datetime(l.published_at,'+48 hours')"],$sql);
   return parent::prepare($sql,$options);
  }
 }
@@ -35,6 +35,7 @@ try {
  INSERT INTO booking_sessions VALUES(1,1,3600,'2030-01-01','2030-01-01'),(2,1,3600,'2030-01-02','2030-01-02'),(3,2,3600,'2030-01-03','2030-01-03');
  INSERT INTO post_production_jobs VALUES(1,1,1,7,11,'upload_completed',1,'2030-01-01',0,1,'2030-01-01','2030-01-01'),(2,1,2,8,22,'ready_for_pickup',1,'2030-01-02',0,1,'2030-01-02','2030-01-02'),(3,2,3,9,33,'uploading',1,'2030-01-03',0,1,'2030-01-03','2030-01-03');
  INSERT INTO video_delivery_links VALUES(1,1,1,'Current','folder','https://drive.google.com/drive/folders/test',0,1,datetime('now')),(2,1,1,'Expired','folder','https://drive.google.com/drive/folders/old',0,1,datetime('now','-49 hours')),(3,1,1,'Inactive','folder','https://drive.google.com/drive/folders/off',0,0,datetime('now'));");
+ $pdo->exec('ALTER TABLE video_delivery_links ADD COLUMN is_pinned INTEGER DEFAULT 0; ALTER TABLE video_delivery_links ADD COLUMN published_at TEXT; UPDATE video_delivery_links SET published_at=created_at');
  $user=['organization_id'=>1,'client_id'=>11];
  $rows=postProductionRows($pdo,$config,$user,true);
  check(count($rows)===1 && $rows[0]['id']===1,'Deliveries only belong to requesting client and organization');
@@ -42,6 +43,13 @@ try {
  check($rows[0]['package_name']==='Monthly Package','Package details retained');
  check(count($rows[0]['delivery_links'])===1 && $rows[0]['delivery_links'][0]['title']==='Current','Only active unexpired delivery links returned');
  check(!isset($rows[0]['client_name'],$rows[0]['history']),'Internal fields remain private');
+ $pdo->exec("UPDATE post_production_jobs SET status='uploading' WHERE id=1; UPDATE video_delivery_links SET is_pinned=1 WHERE id=1");
+ check(postProductionRows($pdo,$config,$user,true)[0]['delivery_links']===[],'Pinned folders stay private before upload completion');
+ $pdo->exec("UPDATE post_production_jobs SET status='upload_completed' WHERE id=1; UPDATE video_delivery_links SET created_at=datetime('now','-5 days') WHERE id=1");
+ check(count(postProductionRows($pdo,$config,$user,true)[0]['delivery_links'])===1,'Recently published folder remains visible even if saved days ago');
+ $pdo->exec("UPDATE video_delivery_links SET published_at=datetime('now','-49 hours') WHERE id=1");
+ check(postProductionRows($pdo,$config,$user,true)[0]['delivery_links']===[],'Pinned folder cannot bypass client expiry');
+ $pdo->exec("UPDATE video_delivery_links SET published_at=datetime('now') WHERE id=1");
  check(!file_exists($root),'List endpoint is read-only');
  $file=pickupFile($config,1,1);
  check(is_dir(dirname($file)),'First write creates private nested directory');
