@@ -69,11 +69,32 @@ test('legacy shared package closes after its last booked session and preserves f
   const last = database().client_packages.find(row => row.id === 201); assert.equal(last.status, 'expired'); assert.equal(last.consumed_minutes, 90);
 });
 
-test('monthly and daily hour-billed packages keep their existing validity', async () => {
-  for (const category of ['باقة شهرية', 'باقة يومية']) {
+test('monthly hour-billed packages keep their existing validity', async () => {
+  for (const category of ['باقة شهرية']) {
     resetDemoDatabase(); const { pkg } = fixture(category); await finish();
     const after = database().client_packages.find(row => row.id === 201); assert.equal(after.status, 'active', category); assert.equal(after.expires_at, pkg.expires_at);
   }
+});
+
+test('daily packages expire after early or full completion without changing payment or actual usage', async () => {
+  for (const minutes of [45, 120]) {
+    resetDemoDatabase(); const { pkg, booking } = fixture('باقة يومية');
+    const db = database(); Object.assign(db.client_packages.find(row => row.id === 201), { validity_mode_snapshot: 'shooting_day', starts_at: booking.date, expires_at: booking.date }); save(db);
+    await finish(301, minutes);
+    const after = database().client_packages.find(row => row.id === 201);
+    assert.equal(after.status, 'expired'); assert.equal(after.consumed_minutes, minutes);
+    assert.equal(after.purchased_minutes, 120); assert.equal(after.total_price, pkg.total_price); assert.equal(after.paid_amount, pkg.paid_amount);
+    assert.equal(clientPackageBlocksPurchase(after), false);
+  }
+});
+
+test('sold daily validity snapshot still expires after the service category changes', async () => {
+  fixture('باقة شهرية'); const db = database(); db.client_packages.find(row => row.id === 201).validity_mode_snapshot = 'shooting_day'; save(db);
+  await finish(); assert.equal(database().client_packages.find(row => row.id === 201).status, 'expired');
+});
+
+test('zero-minute daily cancellation keeps the package available', async () => {
+  fixture('باقة يومية'); await finish(301, 0); assert.equal(database().client_packages.find(row => row.id === 201).status, 'active');
 });
 
 test('cancelled zero-minute session does not expire the hourly package', async () => {
@@ -95,4 +116,5 @@ test('hourly checkout explains session expiry and preserves independently schedu
   assert.match(registrationValidityLabel({ kind: 'hourly' }), /بانتهاء جلسة التصوير/);
   assert.match(registrationValidityLabel({ kind: 'hourly' }), /المواعيد القادمة مستقلة/);
   assert.match(registrationValidityLabel({ kind: 'monthly', validity_days: 30 }), /30/);
+  assert.match(registrationValidityLabel({ kind: 'daily' }), /تنتهي بانتهاء جلسة التصوير/);
 });

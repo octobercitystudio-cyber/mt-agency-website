@@ -2,6 +2,8 @@ export const CUSTOM_CATEGORY_VALUE = '__custom_category__';
 
 export const isHourlyShootingService = service => ['تصوير بالساعة', 'تصوير ساعة', 'بالساعة', 'hourly', 'hour'].includes(String(service?.category || '').trim().toLowerCase());
 
+export const isDailyShootingPackage = (pkg, service) => pkg?.validity_mode_snapshot === 'shooting_day' || ['daily', 'daily package', 'day package', 'باقة يومية', 'باقات يومية', 'الباقات اليومية', 'باقة اليوم'].includes(String(service?.category || '').trim().toLowerCase());
+
 export const FIXED_SERVICE_CATEGORIES = [
   { value: 'تصوير بالساعة', label: 'تصوير بالساعة', unit: 'hour', timer: 1, tone: 'studio' },
   { value: 'باقة يومية', label: 'باقة يومية', unit: 'hour', timer: 1, tone: 'studio' },

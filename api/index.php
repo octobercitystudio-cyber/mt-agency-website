@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/staff_routes.php';
-require_once __DIR__.'/hourly_session_expiry.php';
+require_once __DIR__.'/shooting_session_expiry.php';
 require_once __DIR__.'/owner_mfa.php';
 require_once __DIR__.'/owner_activity_notifications.php';
 require_once __DIR__.'/package_loyalty.php';
@@ -1298,7 +1298,7 @@ function completeBookingSession(PDO $pdo, array $user, int $bookingId, array $pa
         $ended=cairoNow()->format('Y-m-d H:i:s');$actualHours=round($actualMinutes/60,4);$actualReels=$unit==='reel'?$billable:(float)($booking['actual_reels']??0);
         $pdo->prepare("UPDATE booking_sessions SET ended_at=?,actual_seconds=?,billable_quantity=?,status='completed',ended_by=?,adjustment_reason=? WHERE id=?")->execute([$ended,$actualSeconds,$billable,$user['id'],trim((string)($payload['reason']??''))?:null,$session['id']]);
         $pdo->prepare("UPDATE bookings SET status='completed',timer_ended_at=?,actual_seconds=?,actual_hours=?,actual_reels=?,billable_quantity=?,overage_quantity=?,overage_amount=?,session_version=session_version+1 WHERE id=?")->execute([$ended,$actualSeconds,$actualHours,$actualReels,$billable,$overage,$overageAmount,$bookingId]);releaseBookingSlots($pdo,$bookingId);
-        if(!empty($booking['client_package_id'])){expireHourlyPackageAfterSession($pdo,$user,(int)$booking['client_package_id'],$bookingId,$ended);notifyPackagePaymentDue($pdo,(int)$user['organization_id'],(int)$booking['client_id'],(int)$booking['client_package_id'],(string)$booking['client_name']);}
+        if(!empty($booking['client_package_id'])){expireShootingPackageAfterSession($pdo,$user,(int)$booking['client_package_id'],$bookingId,$ended);notifyPackagePaymentDue($pdo,(int)$user['organization_id'],(int)$booking['client_id'],(int)$booking['client_package_id'],(string)$booking['client_name']);}
         audit($pdo,$user,'session_complete','booking_sessions',(int)$session['id'],$session,['client_id'=>(int)$booking['client_id'],'booking_id'=>$bookingId,'actual_minutes'=>$actualMinutes,'actual_seconds'=>$actualSeconds,'billable_quantity'=>$billable,'included_quantity'=>$included,'overage_quantity'=>$overage,'overage_amount'=>$overageAmount]);
         $pdo->commit();return ['booking_id'=>$bookingId,'session_id'=>(int)$session['id'],'status'=>'completed','actual_minutes'=>$actualMinutes,'actual_seconds'=>$actualSeconds,'billable_quantity'=>$billable,'included_quantity'=>$included,'overage_quantity'=>$overage,'overage_amount'=>$overageAmount,'billing_unit'=>$unit];
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
