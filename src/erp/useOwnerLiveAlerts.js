@@ -11,14 +11,16 @@ export default function useOwnerLiveAlerts(userId) {
   const [message, setMessage] = useState('');
   const [toast, setToast] = useState(null);
   const enabledRef = useRef(enabled);
-  const setPreference = value => { enabledRef.current = value; setEnabled(value); try { localStorage.setItem(preference, value ? 'on' : 'off'); } catch { /* preference is optional */ } };
+  const setPreference = value => { enabledRef.current = value; setEnabled(value); try { localStorage.setItem(preference, value ? 'on' : 'off'); } catch { /* preference is optional */ } window.dispatchEvent(new CustomEvent('mtOwnerAlertPreference', { detail: { key: preference } })); };
   useEffect(() => {
     enabledRef.current = saved(preference); setEnabled(enabledRef.current); setReady(false); setToast(null);
     const unlock = () => { if (enabledRef.current) void sound.unlock().then(() => setReady(true)).catch(() => setReady(false)); };
     const storage = event => { if (event.key === preference) { enabledRef.current = saved(preference); setEnabled(enabledRef.current); unlock(); } };
+    const localPreference = event => storage({ key: event.detail?.key });
     unlock();
     window.addEventListener('pointerdown', unlock); window.addEventListener('keydown', unlock); window.addEventListener('storage', storage);
-    return () => { window.removeEventListener('pointerdown', unlock); window.removeEventListener('keydown', unlock); window.removeEventListener('storage', storage); sound.close(); };
+    window.addEventListener('mtOwnerAlertPreference', localPreference);
+    return () => { window.removeEventListener('pointerdown', unlock); window.removeEventListener('keydown', unlock); window.removeEventListener('storage', storage); window.removeEventListener('mtOwnerAlertPreference', localPreference); sound.close(); };
   }, [preference, sound]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(null), 15000); return () => clearTimeout(timer); }, [toast]);
   const ingest = useCallback(items => {

@@ -6,6 +6,8 @@ import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import ERPPageHero from './ERPPageHero';
 import OwnerRecordActions from './OwnerRecordActions';
+import OwnerLiveAlerts from './OwnerLiveAlerts';
+import useOwnerLiveAlerts from './useOwnerLiveAlerts';
 import { CUSTOM_CATEGORY_VALUE, FIXED_SERVICE_CATEGORIES, applyCategoryDefaults, buildServiceCategoryGroups, categoryCustomValue, categoryEditorValue, resolveServiceCategory, serviceUsesProjectFields } from '../lib/serviceCategories';
 import useModalDialog from '../hooks/useModalDialog';
 import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
@@ -31,6 +33,7 @@ const formatServicePrice = value => {
 
 const ERPSettings = () => {
   const { currentUser } = useData();
+  const notificationAlerts = useOwnerLiveAlerts(currentUser?.id);
   const isOwner = currentUser?.role === 'owner';
   const [services, setServices] = useState([]);
   const [users, setUsers] = useState([]);
@@ -503,6 +506,10 @@ const ERPSettings = () => {
         description="أدر الخدمات والباقات وحسابات الفريق ونظام النقاط والنسخ الاحتياطي."
         actions={isOwner ? <button data-variant="primary" onClick={event => { serviceDialogTriggerRef.current = event.currentTarget; setAddForm(emptyService); setServiceFormError(''); setServiceModal('add'); }}><i className="fas fa-plus"></i> إضافة خدمة / باقة جديدة</button> : null}
       />
+
+      <section className="setting-section" id="notificationSettings" aria-label="إعدادات إشعارات الموبايل">
+        <OwnerLiveAlerts alerts={notificationAlerts} settings />
+      </section>
 
       <div className="setting-section" id="servicesSection">
         <div className="d-flex align-items-center justify-content-between border-bottom pb-4">

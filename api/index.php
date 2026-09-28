@@ -2570,6 +2570,12 @@ if ($path === '/operational-alerts' && $method === 'GET') {
     respond(['items'=>operationalAlerts($pdo,$user),'generated_at'=>cairoNow()->format(DATE_ATOM)]);
 }
 
+if ($path === '/app-notifications/device-state' && $method === 'POST') {
+    $user=requireUser($user);requireRole($user,['owner','admin','operations','finance','staff','client']);
+    require_once __DIR__.'/notification_device_state.php';
+    respond(notificationDeviceState($pdo,$user,body()));
+}
+
 if ($path === '/app-notifications' && $method === 'GET') {
     $user=requireUser($user);$status=(string)($_GET['status']??'all');$type=trim((string)($_GET['type']??''));$channel=trim((string)($_GET['channel']??''));$cursor=max(0,(int)($_GET['cursor']??0));$limit=max(1,min(50,(int)($_GET['limit']??20)));if(!in_array($status,['all','unread'],true))fail('مرشح الإشعارات غير صحيح.',422,'invalid_notification_filter');
     if($user['role']==='client')materializePackageLifecycleNotifications($pdo,(int)$user['organization_id'],(int)$user['client_id']);

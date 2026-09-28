@@ -2574,6 +2574,11 @@ const demoRequest = async (path, options = {}) => {
     return { cursor: nextCursor, high_watermark: highWatermark, has_more: nextCursor < highWatermark, topics: [...new Set(events.map(event => event.topic))], events: clone(events), server_now: new Date().toISOString() };
   }
   if (route === '/operational-alerts' && (options.method || 'GET') === 'GET') return { items: demoOperationalAlerts(database), generated_at: demoCairoNowIso() };
+  if (route === '/app-notifications/device-state' && options.method === 'POST') {
+    const ids = new Set(Array.isArray(body.ids) ? body.ids.map(Number) : []);
+    const unread = database.app_notifications.filter(item => !item.read_at && !item.dismissed_at && (demoRole === 'client' ? item.audience === 'client' && Number(item.client_id) === currentDemoClientId(database) : item.audience === 'staff' || item.audience === 'owner' && Number(item.recipient_user_id) === Number(demoUserId)));
+    return { unread_ids: unread.filter(item => ids.has(Number(item.id))).map(item => Number(item.id)), unread_count: unread.length };
+  }
   if (route === '/app-notifications' && (options.method || 'GET') === 'GET') {
     if (demoRole === 'client' && demoMaterializePackageLifecycleNotifications(database, currentDemoClientId(database)) > 0) writeDatabase(database);
     const status = url.searchParams.get('status') || 'all'; const type = url.searchParams.get('type') || ''; const channel = url.searchParams.get('channel') || ''; const cursor = Number(url.searchParams.get('cursor') || 0); const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit') || 20))); const clientId = demoRole === 'client' ? currentDemoClientId(database) : null;

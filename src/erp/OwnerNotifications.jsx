@@ -5,7 +5,7 @@ import { dataClient } from '../dataClient';
 import useModalDialog from '../hooks/useModalDialog';
 import { formatDateTime12 } from '../lib/businessFormat';
 import { markNotificationsReadThrough, notificationBoundary, unreadNotifications } from '../lib/notificationReadBoundary';
-import { clearSystemNotification, syncAppBadge } from '../lib/pushNotifications';
+import { reconcileDeviceNotifications } from '../lib/notificationDeviceSync';
 import './OwnerNotifications.css';
 import useChangeSync from '../hooks/useChangeSync';
 import OwnerLiveAlerts from './OwnerLiveAlerts';
@@ -26,15 +26,17 @@ const timeLabel = value => formatDateTime12(value, '');
 
 export default function OwnerNotifications({ userId, onNavigate }) {
   const alerts = useOwnerLiveAlerts(userId);
+  const { ingest } = alerts;
   const requestSequence = useRef(0);
-  const principalRef = useRef(userId); principalRef.current = userId;
+  const principalRef = useRef(userId);
   const bellRef = useRef(null);
   const [open, setOpen] = useState(false); const [filter, setFilter] = useState('unread'); const [items, setItems] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0); const [loading, setLoading] = useState(true); const [loadingOlder, setLoadingOlder] = useState(false);
   const [nextCursor, setNextCursor] = useState(null); const [error, setError] = useState(''); const [announcement, setAnnouncement] = useState('');
   const close = useCallback(() => setOpen(false), []); const dialogRef = useModalDialog(open, close, { returnFocusRef: bellRef, isolateBackground: true });
+  useEffect(() => { principalRef.current = userId; return () => { principalRef.current = null; }; }, [userId]);
 
-  const load = useCallback(async ({ quiet = false, cursor = null, append = false, status = filter } = {}) => {
+  const load = useCallback(async ({ quiet = false, cursor = null, append = false, status = filter, clearTests = false } = {}) => {
     const sequence = ++requestSequence.current; const principal = userId;
     if (append) setLoadingOlder(true); else if (!quiet) setLoading(true); setError('');
     const cursorQuery = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
@@ -44,10 +46,11 @@ export default function OwnerNotifications({ userId, onNavigate }) {
       setError('تعذر تحديث إشعارات العملاء الآن.'); setLoading(false); setLoadingOlder(false); return;
     }
     const received = safeItems(data?.items);
-    if (!append && !cursor) alerts.ingest(received);
+    if (!append && !cursor) ingest(received);
     setItems(current => append ? [...current, ...received.filter(item => !current.some(existing => Number(existing.id) === Number(item.id)))] : received);
     setUnreadCount(Number(data?.unread_count ?? unreadNotifications(received))); setNextCursor(data?.next_cursor || null); setLoading(false); setLoadingOlder(false);
-  }, [userId, alerts.ingest, filter]);
+    void reconcileDeviceNotifications(dataClient, { staff: true, clearTests, isCurrent: () => principalRef.current === principal && sequence === requestSequence.current });
+  }, [userId, ingest, filter]);
 
   useChangeSync(useCallback(topics => { if (topics.includes('notifications')) void load({ quiet: true }); }, [load]));
 
@@ -61,24 +64,28 @@ export default function OwnerNotifications({ userId, onNavigate }) {
     return () => { window.clearInterval(timer); window.removeEventListener('erpRequestsUpdated', refresh); window.removeEventListener('demoDataChanged', refresh); window.removeEventListener('mtPushChange', pushRefresh); };
   }, [load]);
 
-  useEffect(() => { if (!loading) syncAppBadge(unreadCount); }, [loading, unreadCount]);
-
   const updateItem = (id, update) => setItems(current => current.map(item => Number(item.id) === Number(id) ? { ...item, ...update } : item));
   const openCenter = () => {
     setFilter('unread'); setOpen(true); setAnnouncement('الإشعارات غير المقروءة');
-    void load({ quiet: true, status: 'unread' });
+    void load({ quiet: true, status: 'unread', clearTests: true });
   };
-  const markRead = async item => { if (item.read_at) return; updateItem(item.id, { read_at: new Date().toISOString() }); setUnreadCount(count => Math.max(0, count - 1)); clearSystemNotification(item.id); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/read`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
+  const markRead = async item => {
+    if (!item.read_at) {
+      updateItem(item.id, { read_at: new Date().toISOString() }); setUnreadCount(count => Math.max(0, count - 1));
+      await dataClient.request(`/app-notifications/${item.id}/read`, { method: 'POST', body: '{}' });
+    }
+    // Re-fetch committed state before cancelling a phone alert; failed writes
+    // must not discard an unread notification or leave an optimistic badge.
+    await load({ quiet: true, clearTests: true });
+  };
   const openItem = async item => { await markRead(item); close(); onNavigate(destination(item)); };
-  const dismiss = async (event, item) => { event.stopPropagation(); setItems(current => current.filter(row => Number(row.id) !== Number(item.id))); if (!item.read_at) setUnreadCount(count => Math.max(0, count - 1)); clearSystemNotification(item.id); const { error: requestError } = await dataClient.request(`/app-notifications/${item.id}/dismiss`, { method: 'POST', body: '{}' }); if (requestError) load({ quiet: true }); };
+  const dismiss = async (event, item) => { event.stopPropagation(); setItems(current => current.filter(row => Number(row.id) !== Number(item.id))); if (!item.read_at) setUnreadCount(count => Math.max(0, count - 1)); await dataClient.request(`/app-notifications/${item.id}/dismiss`, { method: 'POST', body: '{}' }); await load({ quiet: true, clearTests: true }); };
   const readAll = async () => {
     const boundary = notificationBoundary(items); if (!boundary) return;
-    const { data, error: requestError } = await dataClient.request('/app-notifications/read-all', { method: 'POST', body: JSON.stringify({ up_to_id: boundary, channel: 'client-actions' }) });
+    const { error: requestError } = await dataClient.request('/app-notifications/read-all', { method: 'POST', body: JSON.stringify({ up_to_id: boundary, channel: 'client-actions' }) });
     if (requestError) { setError('تعذر حفظ حالة القراءة. حاول مرة أخرى.'); return; }
     setItems(current => markNotificationsReadThrough(current, boundary));
-    const readIds = Array.isArray(data?.read_ids) ? data.read_ids : items.filter(item => Number(item.id) <= boundary).map(item => item.id);
-    readIds.forEach(id => clearSystemNotification(id));
-    void load({ quiet: true });
+    void load({ quiet: true, clearTests: true });
   };
 
   const visible = useMemo(() => filter === 'unread' ? items.filter(item => !item.read_at) : items, [filter, items]);
@@ -93,7 +100,6 @@ export default function OwnerNotifications({ userId, onNavigate }) {
     {open && createPortal(<div className="owner-notifications__backdrop" onMouseDown={event => event.target === event.currentTarget && close()}>
       <section ref={dialogRef} id="owner-notification-center" className="owner-notifications__panel" role="dialog" aria-modal="true" aria-labelledby="owner-notifications-title">
         <header><div><span>مركز إجراءات العميل</span><h2 id="owner-notifications-title">الإشعارات الواردة</h2></div><button data-dialog-initial type="button" onClick={close} aria-label="إغلاق الإشعارات"><X/></button></header>
-        <OwnerLiveAlerts alerts={alerts} onOpen={openItem} settings onDeviceSettings={close}/>
         <div className="owner-notifications__toolbar"><div role="tablist" aria-label="تصفية الإشعارات"><button type="button" role="tab" aria-selected={filter === 'unread'} onClick={() => setFilter('unread')}>غير المقروء</button><button type="button" role="tab" aria-selected={filter === 'all'} onClick={() => setFilter('all')}>الكل</button></div><button type="button" onClick={readAll} disabled={!unreadCount}><CheckCheck/> قراءة الكل</button></div>
         {error && <div className="owner-notifications__error" role="status"><span>{error}</span><button type="button" onClick={() => load()}><RefreshCw/> إعادة المحاولة</button></div>}
         <div className="owner-notifications__list">

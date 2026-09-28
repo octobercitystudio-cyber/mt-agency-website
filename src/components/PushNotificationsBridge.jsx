@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { dataClient } from '../dataClient';
 import { useData } from '../store/DataContext';
 import PushNotificationPrompt from './PushNotificationPrompt';
@@ -7,7 +8,6 @@ import {
   dismissPushPrompt,
   loadPushConfiguration,
   pushEnvironmentSupported,
-  pushPromptDismissed,
   registerPushNotifications,
   syncAppBadge,
   testPushDelivery,
@@ -27,6 +27,7 @@ const friendlyError = error => {
 
 export default function PushNotificationsBridge() {
   const { currentUser } = useData();
+  const { pathname } = useLocation();
   const [configuration, setConfiguration] = useState(null);
   const [visible, setVisible] = useState(false);
   const [status, setStatus] = useState('idle');
@@ -54,7 +55,7 @@ export default function PushNotificationsBridge() {
       },
       onRegistered: () => { if (!manualCheck.current) { setStatus('success'); setVisible(false); } },
       onPermissionNeeded: permission => {
-        if (currentPrincipal.startsWith('client:') || pushPromptDismissed()) return;
+        if (currentPrincipal.startsWith('client:') || !manualCheck.current) return;
         setStatus(permission === 'denied' ? 'denied' : 'idle');
         setMessage(permission === 'denied' ? friendlyError({ code: 'denied' }) : 'اضغط تفعيل الإشعارات ووافق على طلب الهاتف لتصلك تنبيهات الإدارة والتطبيق مغلق.');
         setVisible(true);
@@ -62,7 +63,7 @@ export default function PushNotificationsBridge() {
       onError: error => {
         // Some browsers defer the system prompt until ordinary interaction; retry then automatically.
         if (['push_permission_required', 'push_permission_denied'].includes(error?.message)) return;
-        setStatus('error'); setMessage(friendlyError(error)); setVisible(true);
+        setStatus('error'); setMessage(friendlyError(error)); setVisible(manualCheck.current);
       },
     });
   }, [currentPrincipal]);
@@ -147,5 +148,6 @@ export default function PushNotificationsBridge() {
   };
 
   if (!currentUser || currentUser.role === 'applicant' || !visible) return null;
+  if (currentUser.role !== 'client' && pathname !== '/erp/settings') return null;
   return <PushNotificationPrompt staff={currentUser.role !== 'client'} status={status} message={message} diagnostic={diagnostic} retrySeconds={retrySeconds} onLocalTest={localTest} onEnable={enable} onDismiss={dismiss} />;
 }
