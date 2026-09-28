@@ -4,6 +4,7 @@ Disallow: /login
 Disallow: /change-password
 Disallow: /reset-password
 Disallow: /dashboard
+Disallow: /p-
 Disallow: /erp/
 Disallow: /adminmt/
 

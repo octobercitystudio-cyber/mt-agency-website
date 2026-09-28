@@ -1,3 +1,4 @@
+import { staffPath } from '../lib/staffRoutes';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Menu, User, X } from 'lucide-react';
@@ -92,7 +93,7 @@ export default function Header() {
         </li>
         {navLinks.slice(2).map(link => <li key={link.to}><NavLink to={link.to} className="nav-link" tabIndex={drawerTabIndex} onClick={closeNavigation}>{link.label}</NavLink></li>)}
       </ul></nav></div>
-      <div className="top-bar-left">{isErpAuth ? <Link to="/erp" className="btn-secondary login-btn" tabIndex={drawerTabIndex} onClick={closeNavigation}><User/> {isEnglish ? 'ERP System' : 'برنامج الشركة'}</Link> : <Link to="/login" className="btn-secondary login-btn" tabIndex={drawerTabIndex} onClick={closeNavigation}><User/> {isEnglish ? 'Login' : 'تسجيل الدخول'}</Link>}</div>
+      <div className="top-bar-left">{isErpAuth ? <Link to={staffPath('')} className="btn-secondary login-btn" tabIndex={drawerTabIndex} onClick={closeNavigation}><User/> {isEnglish ? 'Company workspace' : 'برنامج الشركة'}</Link> : <Link to="/login" className="btn-secondary login-btn" tabIndex={drawerTabIndex} onClick={closeNavigation}><User/> {isEnglish ? 'Login' : 'تسجيل الدخول'}</Link>}</div>
     </div>
   </header>;
 }

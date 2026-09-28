@@ -283,7 +283,7 @@ const sitemapEntries = pages.flatMap(page => ['ar', 'en'].map(locale => {
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${sitemapEntries.join('\n')}\n</urlset>\n`;
 await fs.writeFile(path.join(distDirectory, 'sitemap.xml'), sitemap, 'utf8');
 
-const robots = `User-agent: *\nAllow: /\nDisallow: /login\nDisallow: /change-password\nDisallow: /reset-password\nDisallow: /dashboard\nDisallow: /erp/\nDisallow: /adminmt/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
+const robots = `User-agent: *\nAllow: /\nDisallow: /login\nDisallow: /change-password\nDisallow: /reset-password\nDisallow: /dashboard\nDisallow: /p-\nDisallow: /erp/\nDisallow: /adminmt/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
 await fs.writeFile(path.join(distDirectory, 'robots.txt'), robots, 'utf8');
 
 console.log(`Generated ${pages.length * 2} localized public pages, 404.html, sitemap.xml and robots.txt.`);

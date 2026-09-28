@@ -1,4 +1,5 @@
-export const isStaffPushPage = (pathname = globalThis.location?.pathname || '') => /^\/(erp|adminmt|admin)(\/|$)/.test(pathname);
+import { isStaffPortalPath } from './staffRoutes.js';
+export const isStaffPushPage = (pathname = globalThis.location?.pathname || '') => isStaffPortalPath(pathname) || /^\/(erp|adminmt|admin)(\/|$)/.test(pathname);
 export const pushTokenStorageKey = (staff = isStaffPushPage()) => staff ? 'mt:push:staff-webpush-token' : 'mt:push:fcm-token';
 
 export const readyPushRegistration = async (staff = isStaffPushPage()) => {

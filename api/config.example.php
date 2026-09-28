@@ -18,6 +18,8 @@ return [
         'session_idle_minutes' => 120,
         'remember_device_days' => 90,
         'max_sessions_per_user' => 5,
+        // Generated privately on first setup. Back this up separately; never publish it.
+        'mfa_key_file' => dirname(__DIR__, 2) . '/private_config/owner-mfa.key',
         // Keep customer documents outside public_html.
         'upload_dir' => dirname(__DIR__, 2) . '/private_uploads/payment-proofs',
         // Short-lived pickup availability JSON. This directory must already

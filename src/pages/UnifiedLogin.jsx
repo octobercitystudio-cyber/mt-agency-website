@@ -1,3 +1,4 @@
+import { staffPath } from '../lib/staffRoutes';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowDownLeft, Eye, EyeOff, LoaderCircle, X } from 'lucide-react';
@@ -42,7 +43,7 @@ export default function UnifiedLogin() {
     if (['client', 'applicant'].includes(currentUser.role)) {
       navigate(currentUser.must_change_password ? clientAuthPath('/change-password', clientDestination) : clientDestination, { replace: true });
     } else if (STAFF_ROLES.includes(currentUser.role)) {
-      navigate('/erp', { replace: true });
+      navigate(staffPath(''), { replace: true });
     }
   }, [clientDestination, currentUser, isAuthReady, navigate]);
 

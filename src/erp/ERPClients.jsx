@@ -1,3 +1,4 @@
+import { staffPath } from '../lib/staffRoutes';
 import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useState, useEffect, useRef } from 'react';
 import { dataClient } from '../dataClient';
@@ -446,7 +447,7 @@ const ERPClients = () => {
 
       {bulkOwnerQueue[0] && <OwnerActionDialog entity="clients" record={bulkOwnerQueue[0]} label={bulkOwnerQueue[0].name} onClose={cancelBulkOwnerAction} onChanged={finishOwnerClientAction} onError={failOwnerClientAction} />}
 
-      {selectedClient && <ClientProfileDrawer client={selectedClient} activePackages={activePackages} formatHours={formatHours} onClose={() => setSelectedClient(null)} onEdit={() => openEditClient(selectedClient)} onBook={() => openBookingForClient(selectedClient)} onOpenCalendar={() => navigate('/erp/bookings')} onWhatsApp={openWhatsApp} onFinance={action => { setFinanceAction(action); setFinanceMethod('كاش'); setIsFinanceModalOpen(true); }} onStartSession={startSession} onOpenHistory={openHistory} />}
+      {selectedClient && <ClientProfileDrawer client={selectedClient} activePackages={activePackages} formatHours={formatHours} onClose={() => setSelectedClient(null)} onEdit={() => openEditClient(selectedClient)} onBook={() => openBookingForClient(selectedClient)} onOpenCalendar={() => navigate(staffPath('/bookings'))} onWhatsApp={openWhatsApp} onFinance={action => { setFinanceAction(action); setFinanceMethod('كاش'); setIsFinanceModalOpen(true); }} onStartSession={startSession} onOpenHistory={openHistory} />}
 
       <div hidden>
       <div className="erp-page-tools" aria-label="بحث وفرز العملاء">
@@ -623,7 +624,7 @@ const ERPClients = () => {
                 </div>
                 
                 <div className="erp-client-actions-grid" style={{ display: 'flex', flexWrap: 'nowrap', gap: '10px', background: 'var(--erp-bg)', padding: '10px', borderRadius: '1rem', border: '1px solid #dee2e6', overflowX: 'auto', marginTop: '20px' }}>
-                  <button onClick={() => navigate('/erp/bookings')} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
+                  <button onClick={() => navigate(staffPath('/bookings'))} style={{ background: '#0d6efd', color: 'var(--erp-surface)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>
                     <CalendarPlus size={20} /> <span style={{ fontSize: '0.8rem' }}>حجز جديد</span>
                   </button>
                   {sessionUser?.role === 'owner' && <><button onClick={() => { setFinanceError(''); setFinanceAction('deposit'); setIsFinanceModalOpen(true); }} style={{ background: '#0dcaf0', color: 'var(--erp-text-main)', padding: '10px 5px', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', boxShadow: '0 .125rem .25rem rgba(0,0,0,.075)', cursor: 'pointer' }}>

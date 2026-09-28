@@ -1,3 +1,4 @@
+import { staffPath } from '../src/lib/staffRoutes.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -61,5 +62,5 @@ for (const staff of [true, false]) test(`${staff ? 'staff' : 'customer'} worker 
   windows = windows.filter(window => window.url !== origin + navigations[0].path);
   await click();
   assert.equal(opened.length, 1);
-  assert.equal(new URL(opened[0]).pathname, staff ? '/erp/' : '/login');
+  assert.equal(new URL(opened[0]).pathname, staff ? staffPath('/') : '/login');
 });

@@ -146,7 +146,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https"
-                    android:host="@string/hostName" android:pathPrefix="/adminmt"
+                    android:host="@string/hostName" android:pathPrefix="/p-e2f8474bcda6b5ea"
                 
                 />
                 <data android:scheme="https" android:host="@string/hostName" android:pathPrefix="/erp" />

@@ -1,11 +1,15 @@
+const STAFF_BASE = '/p-e2f8474bcda6b5ea';
 const APP_ORIGIN = self.location.origin;
 const STAFF_PUSH = new URL(self.location.href || APP_ORIGIN).searchParams.get('audience') === 'staff';
-const DEFAULT_URL = STAFF_PUSH ? '/erp/' : '/login?source=android-notification';
-const belongsToAudience = value => { const path = new URL(value, APP_ORIGIN).pathname; return STAFF_PUSH === /^\/(erp|adminmt|admin)(\/|$)/.test(path); };
+const DEFAULT_URL = STAFF_PUSH ? STAFF_BASE + '/' : '/login?source=android-notification';
+const belongsToAudience = value => { const path = new URL(value, APP_ORIGIN).pathname; return STAFF_PUSH === (path === STAFF_BASE || path.startsWith(STAFF_BASE + '/') || /^\/(erp|adminmt|admin)(\/|$)/.test(path)); };
 
 const normalizeDestination = value => {
   try {
     const target = new URL(value || DEFAULT_URL, APP_ORIGIN);
+    if (target.origin !== APP_ORIGIN) return DEFAULT_URL;
+    if (/^\/erp(\/|$)/.test(target.pathname)) target.pathname = STAFF_BASE + target.pathname.slice(4);
+    if (target.pathname === '/adminmt/login') target.pathname = STAFF_BASE + '/login';
     if (target.origin === APP_ORIGIN && target.pathname === '/dashboard' && target.searchParams.get('tab') === 'montage') {
       target.searchParams.set('tab', 'videos');
     }

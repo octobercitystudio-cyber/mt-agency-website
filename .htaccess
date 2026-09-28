@@ -10,7 +10,7 @@ RewriteRule ^ https://multitaskagency.com%{REQUEST_URI} [R=301,L]
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "DENY"
-  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Referrer-Policy "same-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
   Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
   Header always set X-Permitted-Cross-Domain-Policies "none"
@@ -20,7 +20,7 @@ RewriteRule ^ https://multitaskagency.com%{REQUEST_URI} [R=301,L]
     Header always set Cache-Control "no-cache, must-revalidate, max-age=0"
   </FilesMatch>
 
-  SetEnvIf Request_URI "^/(?:erp|adminmt|dashboard|login)(?:/|$)" MT_PRIVATE_PAGE
+  SetEnvIf Request_URI "^/(?:p-e2f8474bcda6b5ea|erp|adminmt|dashboard|login)(?:/|$)" MT_PRIVATE_PAGE
   Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0" env=MT_PRIVATE_PAGE
   Header always set Pragma "no-cache" env=MT_PRIVATE_PAGE
   Header always set X-Robots-Tag "noindex, nofollow, noarchive" env=MT_PRIVATE_PAGE
@@ -72,7 +72,7 @@ RewriteRule ^(.+)$ - [F,L]
 # The root is the crawlable Arabic default. Private application routes keep an
 # empty SPA shell so public prerendered content never flashes inside the ERP.
 RewriteRule ^$ dist/index.html [L]
-RewriteRule ^(?:login|register|change-password|reset-password|dashboard|erp|adminmt)(?:/|$) dist/app.html [L,NC]
+RewriteRule ^(?:login|register|change-password|reset-password|dashboard|p-e2f8474bcda6b5ea|erp|adminmt)(?:/|$) dist/app.html [L,NC]
 
 # Unknown public routes are real 404 responses instead of SPA soft-404 pages.
 ErrorDocument 404 /dist/404.html

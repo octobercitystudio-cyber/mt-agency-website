@@ -28,9 +28,10 @@ $index=file_get_contents(__DIR__.'/../api/index.php');
 foreach(['normalizePhone','loginPhoneCandidates','loginIdentity','authorizationRole','credentialSafeUser','issueLoginSession','clearAuthCookies','insertSystemBackupRow'] as $name){if(!preg_match('/^function '.preg_quote($name,'/').'\b.*?^\}/ms',$index,$m))throw new RuntimeException('Missing '.$name);eval($m[0]);}
 require __DIR__.'/../api/client_contacts.php';
 require __DIR__.'/../api/auth_identity.php';
+require __DIR__.'/../api/owner_mfa.php';
 final class AuthPDO extends PDO {
  public function __construct(){parent::__construct('sqlite::memory:');$this->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);}
- private function sql(string $sql): string { return str_ireplace([' FOR UPDATE','NOW()','DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)'],['','CURRENT_TIMESTAMP',"datetime('now','-1 day')"],$sql); }
+ private function sql(string $sql): string { return str_ireplace([' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',' FOR UPDATE','NOW()','DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)'],['','','CURRENT_TIMESTAMP',"datetime('now','-1 day')"],$sql); }
  public function prepare(string $query,array $options=[]): PDOStatement|false{return parent::prepare($this->sql($query),$options);}
  public function exec(string $statement): int|false{return parent::exec($this->sql($statement));}
 }

@@ -128,7 +128,7 @@ test('owner and client interfaces expose responsive tabs, safe deep links, statu
     load('src/App.jsx'), load('src/erp/ERPLayout.jsx'), load('src/erp/ERPPostProduction.jsx'), load('src/erp/ERPPostProduction.css'), load('src/pages/ClientDashboard.jsx'), load('src/pages/ClientPostProduction.jsx'), load('src/pages/ClientPostProduction.css'), load('src/pages/UnifiedLogin.jsx'), load('api/post_production.php'),
   ]);
   assert.match(app, /path="post-production"/); assert.match(app, /ERPPostProduction/);
-  assert.match(layout, /\/erp\/post-production/); assert.match(layout, /المونتاج والتسليم/);
+  assert.match(layout, /staffPath\('\/post-production'\)/); assert.match(layout, /المونتاج والتسليم/);
   for (const copy of ['العمل النشط', 'التفاصيل والتحكم', 'روابط Google Drive', 'تاريخ الحالات']) assert.ok(owner.includes(copy), copy);
   assert.match(owner, /expected_version/); assert.match(owner, /CompanyPickupScheduleEditor/); assert.match(owner, /valid_next_statuses/);
   assert.match(owner, /OwnerProgressRail/); assert.match(ownerCss, /owner-production-rail/);

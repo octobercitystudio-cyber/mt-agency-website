@@ -169,7 +169,7 @@ test('receivables card opens an accessible responsive audit dialog with all requ
   assert.match(dashboard, /view\.loading/);
   assert.match(dashboard, /view\.error/);
   assert.match(dashboard, /!view\.data\?\.items\?\.length/);
-  assert.match(dashboard, /to="\/erp\/packages"/);
+  assert.match(dashboard, /to=\{staffPath\('\/packages'\)\}/);
   assert.match(css, /\.receivables-backdrop\{/);
   assert.match(css, /@media\(max-width:760px\)[\s\S]*?\.receivables-row\{[^}]*grid-template-columns:1fr 1fr/);
 });

@@ -1,3 +1,4 @@
+import { staffPath } from '../lib/staffRoutes';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { dataClient } from '../dataClient';
@@ -148,6 +149,6 @@ export default function PushNotificationsBridge() {
   };
 
   if (!currentUser || currentUser.role === 'applicant' || !visible) return null;
-  if (currentUser.role !== 'client' && pathname !== '/erp/settings') return null;
+  if (currentUser.role !== 'client' && pathname !== staffPath('/settings')) return null;
   return <PushNotificationPrompt staff={currentUser.role !== 'client'} status={status} message={message} diagnostic={diagnostic} retrySeconds={retrySeconds} onLocalTest={localTest} onEnable={enable} onDismiss={dismiss} />;
 }

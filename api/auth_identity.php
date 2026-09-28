@@ -53,9 +53,10 @@ function staffLoginIdentifier(mixed $value): string {
 }
 
 function authenticatePortalAccount(PDO $pdo, string $identifier, mixed $password, ?array $found, array $roles): array {
+    if ($found && authorizationRole($found) === 'owner') enforceLoginRateLimit($pdo, 'user:'.$found['id']);
     $temporaryExpired = $found && ($found['password_status'] ?? '') === 'temporary'
         && !empty($found['temporary_expires_at']) && strtotime((string)$found['temporary_expires_at']) <= time();
-    $passwordValid = $found && password_verify($password, (string)$found['password_hash']);
+    $passwordValid = password_verify($password, (string)($found['password_hash'] ?? '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.'));
     if (!$found || $temporaryExpired || !$passwordValid || !in_array(authorizationRole($found), $roles, true)) {
         recordLoginFailure($pdo, $identifier, $found);
         usleep(random_int(300000, 650000));
@@ -66,6 +67,7 @@ function authenticatePortalAccount(PDO $pdo, string $identifier, mixed $password
         fail('دخول هذا الحساب موقوف. تواصل مع إدارة الشركة لإعادة تفعيله.', 403, 'account_disabled');
     }
     $found['role'] = authorizationRole($found);
+    if ($found['role'] === 'owner') clearAccountLoginLimit($pdo, 'user:'.$found['id']);
     clearAccountLoginLimit($pdo, $identifier);
     if (password_needs_rehash((string)$found['password_hash'], PASSWORD_DEFAULT)) {
         $found['password_hash'] = password_hash($password, PASSWORD_DEFAULT);

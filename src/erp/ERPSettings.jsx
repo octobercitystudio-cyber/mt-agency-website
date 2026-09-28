@@ -8,6 +8,7 @@ import ERPPageHero from './ERPPageHero';
 import OwnerRecordActions from './OwnerRecordActions';
 import OwnerLiveAlerts from './OwnerLiveAlerts';
 import useOwnerLiveAlerts from './useOwnerLiveAlerts';
+import OwnerSecuritySettings from './OwnerSecuritySettings';
 import { CUSTOM_CATEGORY_VALUE, FIXED_SERVICE_CATEGORIES, applyCategoryDefaults, buildServiceCategoryGroups, categoryCustomValue, categoryEditorValue, resolveServiceCategory, serviceUsesProjectFields } from '../lib/serviceCategories';
 import useModalDialog from '../hooks/useModalDialog';
 import DurationHoursMinutesInput from '../components/DurationHoursMinutesInput';
@@ -510,6 +511,7 @@ const ERPSettings = () => {
       <section className="setting-section" id="notificationSettings" aria-label="إعدادات إشعارات الموبايل">
         <OwnerLiveAlerts alerts={notificationAlerts} settings />
       </section>
+      {isOwner && <OwnerSecuritySettings preview={currentUser?.is_local_preview} />}
 
       <div className="setting-section" id="servicesSection">
         <div className="d-flex align-items-center justify-content-between border-bottom pb-4">

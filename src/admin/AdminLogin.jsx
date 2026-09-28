@@ -1,3 +1,4 @@
+import { staffPath } from '../lib/staffRoutes';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BriefcaseBusiness, Eye, EyeOff, LoaderCircle } from 'lucide-react';
@@ -10,6 +11,8 @@ const STAFF_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
 const CLIENT_ROLES = ['client', 'applicant'];
 
 const staffLoginError = error => {
+  if (['mfa_required', 'mfa_invalid', 'mfa_temporarily_blocked'].includes(error?.code)) return error.message;
+  if (error?.code === 'csrf_failed') return 'حدّث صفحة الدخول ثم حاول مجددًا.';
   if (error?.code === 'validation_error') return 'أدخل البريد الإلكتروني أو رقم الموبايل المسجّل، وكلمة المرور.';
   if (error?.code === 'invalid_credentials') return 'بيانات الدخول غير صحيحة. راجع البيانات وحاول مرة أخرى.';
   if (error?.code === 'account_disabled') return 'دخول هذا الحساب موقوف. تواصل مع مسؤول النظام لإعادة تفعيله.';
@@ -31,13 +34,16 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldError, setFieldError] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const mfaInput = useRef(null);
   const identifierInput = useRef(null);
   const passwordInput = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!isAuthReady) return;
-    if (STAFF_ROLES.includes(currentUser?.role)) navigate('/erp', { replace: true });
+    if (STAFF_ROLES.includes(currentUser?.role)) navigate(staffPath(''), { replace: true });
     else if (!staffApp && CLIENT_ROLES.includes(currentUser?.role)) navigate(currentUser.must_change_password ? '/change-password' : '/dashboard', { replace: true });
   }, [currentUser, isAuthReady, navigate, staffApp]);
 
@@ -47,7 +53,7 @@ export default function AdminLogin() {
       return;
     }
     setPassword('');
-    navigate('/erp', { replace: true });
+    navigate(staffPath(''), { replace: true });
   };
 
   const handleSubmit = async event => {
@@ -67,8 +73,14 @@ export default function AdminLogin() {
       return;
     }
     setLoading(true); setError(''); setFieldError('');
-    try { completeStaffLogin(await loginStaff(value, password)); }
-    catch (loginError) { setError(staffLoginError(loginError)); }
+    try { completeStaffLogin(await loginStaff(value, password, mfaCode)); }
+    catch (loginError) {
+      if (['mfa_required', 'mfa_invalid', 'mfa_temporarily_blocked'].includes(loginError?.code)) {
+        setMfaRequired(true); setMfaCode('');
+        setTimeout(() => mfaInput.current?.focus(), 0);
+      }
+      setError(staffLoginError(loginError));
+    }
     finally { setLoading(false); }
   };
 
@@ -105,6 +117,12 @@ export default function AdminLogin() {
         <button type="button" className="staff-login-submit" disabled={loading} onClick={switchToStaffAccount}>{loading ? 'جارٍ تبديل الحساب…' : 'تبديل إلى حساب فريق العمل'}</button>
       </section> : <form className="staff-login-form" onSubmit={handleSubmit} noValidate aria-busy={loading}>
         <fieldset disabled={loading || !isAuthReady}>
+          {mfaRequired ? <div className="staff-login-field">
+            <label htmlFor="staff-mfa-code">كود التحقق بخطوتين</label>
+            <p>أدخل الكود الظاهر في تطبيق المصادقة. إذا فقدت الوصول إليه، استخدم أحد رموز الاسترداد المحفوظة.</p>
+            <input ref={mfaInput} id="staff-mfa-code" name="code" type="text" autoComplete="one-time-code" dir="ltr" maxLength={40} value={mfaCode} onChange={event => setMfaCode(event.target.value)} required />
+            <button type="button" className="staff-login-reveal" onClick={() => { setMfaRequired(false); setMfaCode(''); setPassword(''); setError(''); }}>العودة لبيانات الدخول</button>
+          </div> : <>
           <div className="staff-login-field">
             <label htmlFor="staff-identifier">البريد الإلكتروني أو رقم الموبايل</label>
             <input ref={identifierInput} id="staff-identifier" name="identifier" type="text" autoComplete="username" autoCapitalize="none" spellCheck="false" dir="ltr" maxLength={254} value={identifier} onChange={event => { setIdentifier(event.target.value); setError(''); setFieldError(''); }} placeholder="name@company.com / 01xxxxxxxxx" aria-invalid={fieldError === 'identifier'} aria-describedby={`staff-identifier-hint${error ? ' staff-login-error' : ''}`} required />
@@ -117,10 +135,11 @@ export default function AdminLogin() {
               <button type="button" className="staff-login-reveal" aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'} aria-pressed={showPassword} aria-controls="staff-password" onClick={() => setShowPassword(value => !value)}>{showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}</button>
             </div>
           </div>
+          </>}
         </fieldset>
         <div className="staff-login-feedback" aria-live="polite">{error && <p id="staff-login-error" role="alert">{error}</p>}</div>
         <button type="submit" className="staff-login-submit" disabled={loading || !isAuthReady}>
-          <span>{loading ? 'جارٍ تسجيل الدخول…' : !isAuthReady ? 'جارٍ تجهيز الدخول…' : 'الدخول إلى لوحة العمل'}</span>
+          <span>{loading ? 'جارٍ تسجيل الدخول…' : !isAuthReady ? 'جارٍ تجهيز الدخول…' : mfaRequired ? 'تأكيد الكود والدخول' : 'الدخول إلى لوحة العمل'}</span>
           {loading || !isAuthReady ? <LoaderCircle className="staff-login-spinner" aria-hidden="true" /> : <ArrowLeft aria-hidden="true" />}
         </button>
       </form>}

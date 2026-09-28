@@ -34,7 +34,7 @@ test('WhatsApp and direct-call actions use the exact company number and accessib
 });
 
 test('the contact dock is not rendered anywhere inside the owner ERP dashboard', () => {
-  assert.match(actionSource, /const isErpDashboard = pathname\.startsWith\('\/erp'\)/);
+  assert.match(actionSource, /const isErpDashboard = pathname\.startsWith\(staffPath\(''\)\)/);
   assert.match(actionSource, /if \(isErpDashboard\) return null/);
   assert.doesNotMatch(actionSource, /global-contact-actions--erp/);
 });

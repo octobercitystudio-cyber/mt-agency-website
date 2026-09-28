@@ -1,3 +1,4 @@
+import { staffPath, STAFF_LOGIN_PATH } from '../lib/staffRoutes';
 import { Phone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
@@ -11,11 +12,11 @@ const GlobalContactActions = () => {
   const { pathname } = useLocation();
   const { i18n } = useTranslation();
   const isEnglish = String(i18n.language).startsWith('en');
-  const isErpDashboard = pathname.startsWith('/erp');
+  const isErpDashboard = pathname.startsWith(staffPath(''));
   const surface = pathname === '/dashboard' ? 'client' : 'standard';
 
   if (isErpDashboard) return null;
-  if (['/register', '/dashboard', '/login', '/adminmt/login', '/change-password', '/reset-password'].includes(pathname)) return null;
+  if (['/register', '/dashboard', '/login', STAFF_LOGIN_PATH, '/change-password', '/reset-password'].includes(pathname)) return null;
 
   return (
     <nav

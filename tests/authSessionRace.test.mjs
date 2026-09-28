@@ -1,3 +1,4 @@
+import { STAFF_LOGIN_PATH } from '../src/lib/staffRoutes.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -49,10 +50,10 @@ test('route protection uses the server user role as its single source of truth',
 
 
 test('staff login has its own entry and staff logout returns to it', () => {
-  assert.match(staffLoginSource, /loginStaff\(value, password\)/);
+  assert.match(staffLoginSource, /loginStaff\(value, password, mfaCode\)/);
   assert.match(staffLoginSource, /if \(!STAFF_ROLES\.includes\(user\?\.role\)\)/);
-  assert.match(appSource, /if \(!ERP_ROLES\.includes\(currentUser\?\.role\)\) return <Navigate to="\/adminmt\/login"/);
-  assert.match(erpLayoutSource, /navigate\('\/adminmt\/login', \{ replace: true \}\)/);
+  assert.match(appSource, /if \(!ERP_ROLES\.includes\(currentUser\?\.role\)\) return <Navigate to=\{STAFF_LOGIN_PATH\}/);
+  assert.match(erpLayoutSource, /navigate\(STAFF_LOGIN_PATH, \{ replace: true \}\)/);
   assert.doesNotMatch(loginSource, /local-owner/);
   assert.doesNotMatch(staffLoginSource, /GoogleSignIn|to="\/register"/);
 });

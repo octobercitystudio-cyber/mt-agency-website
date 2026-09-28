@@ -1,3 +1,4 @@
+import { STAFF_BASE, STAFF_LOGIN_PATH, staffPath } from '../src/lib/staffRoutes.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -20,7 +21,7 @@ test('every notification worker scope resolves to exactly one installed MTA app'
     assert.equal(handles(customer, path), true, path);
     assert.equal(handles(staff, path), false, path);
   }
-  for (const path of ['/erp', '/erp/', '/erp/requests', '/erp/bookings', '/adminmt/login']) {
+  for (const path of ['/erp', '/erp/', '/erp/requests', '/erp/bookings', STAFF_LOGIN_PATH, STAFF_BASE, staffPath('/requests')]) {
     assert.equal(handles(customer, path), false, path);
     assert.equal(handles(staff, path), true, path);
   }

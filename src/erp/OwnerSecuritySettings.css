@@ -1,0 +1,20 @@
+.owner-security {color:#18223a; font-size:16px; line-height:1.8}
+.owner-security header {display:flex;align-items:flex-start;gap:14px}
+.owner-security header>svg {color:#6024c9;flex:none;margin-top:7px}
+.owner-security h2 {font-size:22px;margin:0 0 8px}
+.owner-security h3 {font-size:18px}
+.owner-security p {max-width:850px}
+.owner-security button {border:1px solid #d2c4eb;border-radius:10px;padding:10px 16px;background:#f5efff;color:#49288c;font-weight:700;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.owner-security button:disabled {opacity:.6;cursor:wait}
+.owner-security button svg {width:19px}
+.owner-security label {display:grid;gap:8px;margin:16px 0;max-width:420px;font-weight:700}
+.owner-security input {min-width:0;width:100%;border:1px solid #cbd1dd;border-radius:10px;padding:12px;background:#fff;color:#18223a;font-size:18px}
+.owner-security-actions {display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.owner-security-setup {display:grid;justify-items:start;gap:10px}
+.owner-security-setup img {max-width:100%;height:auto}
+.owner-security-setup code {white-space:normal;overflow-wrap:anywhere;background:#f5f3fa;padding:12px;max-width:100%;user-select:text}
+.owner-security-recovery {padding:20px;background:#f6f3fc;border-radius:12px;border:1px solid #ddd2ee}
+.owner-security-recovery pre {font-size:16px;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+.owner-security-error {color:#b42335;background:#fff0f1;padding:12px;border-radius:10px}
+.owner-security-on {color:#166b44}
+@media(max-width:480px){.owner-security-recovery {padding:12px}.owner-security-recovery pre {font-size:13px}.owner-security-actions button {width:100%;justify-content:center}}

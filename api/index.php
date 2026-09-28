@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/staff_routes.php';
+require_once __DIR__.'/owner_mfa.php';
 require_once __DIR__.'/owner_activity_notifications.php';
 require_once __DIR__.'/package_loyalty.php';
 require_once __DIR__.'/booking_conflicts.php';
@@ -257,7 +259,7 @@ function clearAuthCookies(array $config): void {
 
 function requireCsrf(array $config, string $path, string $method): void {
     if (in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) return;
-    if (in_array($path, ['/auth/login', '/auth/staff/login', '/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue', '/cron/booking-tick'], true)) return;
+    if (in_array($path, ['/auth/login', '/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue', '/cron/booking-tick'], true)) return;
     $cookie = (string)($_COOKIE[csrfCookieName($config)] ?? $_COOKIE['mt_csrf'] ?? '');
     $header = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
     if ($cookie === '' || $header === '' || !hash_equals($cookie, $header)) {
@@ -320,6 +322,8 @@ function clientCredentialMutationRequested(array $payload): bool {
 
 function loginIdentity(string $identifier): string {
     $email = strtolower(trim($identifier));
+    // Internal per-owner identity must not collapse into its numeric user ID.
+    if (preg_match('/^user:[1-9][0-9]*$/D', $email)) return $email;
     if (str_contains($email, '@')) return $email;
     $phone = normalizePhone($identifier);
     return $phone !== '' ? $phone : $email;
@@ -348,6 +352,7 @@ function recordLoginFailure(PDO $pdo, string $identifier, ?array $user = null): 
         ['account', authLimitKey('account', loginIdentity($identifier)), 5, 15],
         ['ip', authLimitKey('ip', requestIpHash()), 20, 60],
     ];
+    if ($user && authorizationRole($user) === 'owner' && $identifier !== 'user:'.$user['id']) $entries[] = ['account', authLimitKey('account', 'user:'.$user['id']), 5, 15];
     $pdo->beginTransaction();
     try {
         foreach ($entries as [$scope, $key, $threshold, $blockMinutes]) {
@@ -782,7 +787,7 @@ function pushUnreadCount(PDO $pdo,array $notification,?int $subscriptionUserId=n
 
 function sendFirebasePush(array $config,string $token,array $notification,int $unreadCount=1): void {
     $title=mb_substr(trim((string)($notification['title']??'MT Agency')),0,180);$body=mb_substr(trim((string)($notification['message']??'لديك تحديث جديد.')),0,500);$notificationId=(string)(int)($notification['id']??0);$tab=trim((string)($notification['action_tab']??''));if($tab==='montage')$tab='videos';$clientAudience=(string)($notification['audience']??'')==='client';
-    $staffRoutes=['requests'=>'/erp/requests','bookings'=>'/erp/bookings','packages'=>'/erp/packages','clients'=>'/erp/clients','finance'=>'/erp/finance','projects'=>'/erp/projects','offers'=>'/erp/offers','post-production'=>'/erp/post-production'];$url=$clientAudience?('/dashboard'.($tab!==''?'?tab='.rawurlencode($tab):'')):($staffRoutes[$tab]??'/erp');$payload=is_array($notification['payload']??null)?$notification['payload']:json_decode((string)($notification['payload_json']??''),true);$jobId=is_array($payload)?filter_var($payload['post_production_job_id']??null,FILTER_VALIDATE_INT):false;if($clientAudience&&in_array($tab,['montage','videos'],true)&&$jobId!==false&&$jobId>0)$url.=($tab!==''?'&':'?').'job='.(int)$jobId;
+    $staffRoutes=['requests'=>staffPortalPath('/requests'),'bookings'=>staffPortalPath('/bookings'),'packages'=>staffPortalPath('/packages'),'clients'=>staffPortalPath('/clients'),'finance'=>staffPortalPath('/finance'),'projects'=>staffPortalPath('/projects'),'offers'=>staffPortalPath('/offers'),'post-production'=>staffPortalPath('/post-production')];$url=$clientAudience?('/dashboard'.($tab!==''?'?tab='.rawurlencode($tab):'')):($staffRoutes[$tab]??staffPortalPath(''));$payload=is_array($notification['payload']??null)?$notification['payload']:json_decode((string)($notification['payload_json']??''),true);$jobId=is_array($payload)?filter_var($payload['post_production_job_id']??null,FILTER_VALIDATE_INT):false;if($clientAudience&&in_array($tab,['montage','videos'],true)&&$jobId!==false&&$jobId>0)$url.=($tab!==''?'&':'?').'job='.(int)$jobId;
     $syncTopics=array_values(array_unique(['notifications',changeTopic((string)($notification['entity_type']??''))]));
     $message=['message'=>['token'=>$token,'notification'=>['title'=>$title,'body'=>$body],'data'=>['title'=>$title,'body'=>$body,'url'=>$url,'notification_id'=>$notificationId,'unread_count'=>(string)max(1,min(999,$unreadCount)),'sync_topics'=>implode(',',$syncTopics),'is_test'=>!empty($notification['is_test'])?'1':'0'],'webpush'=>['headers'=>['Urgency'=>'high','TTL'=>'86400'],'fcm_options'=>['link'=>'https://multitaskagency.com'.$url]]]];
     if(str_starts_with($token,'webpush:')){sendStaffWebPush($config,$token,$message['message']['data']);return;}
@@ -1754,7 +1759,7 @@ function nextClientColor(PDO $pdo,int $organizationId): string {
 }
 
 function systemBackupExcludedTables(): array {
-    return ['api_sessions','auth_rate_limits','password_reset_tokens','registration_email_challenges','auth_google_challenges','registration_bot_challenges','remembered_login_devices'];
+    return ['api_sessions','auth_rate_limits','password_reset_tokens','registration_email_challenges','auth_google_challenges','registration_bot_challenges','remembered_login_devices','owner_mfa'];
 }
 
 function systemBackupChildQueries(): array {
@@ -1958,6 +1963,8 @@ if ($path === '/system-backups/restore' && $method === 'POST') {
 
 if ($path === '/health' && $method === 'GET') {
     $pdo->query('SELECT 1');
+    $ownerMfaReady=false;
+    try{ensureOwnerMfaSchema($pdo);$ownerMfaReady=true;}catch(Throwable){/* Never expose database details. */}
     $rememberedLoginReady=false;
     try{ensureRememberedLoginSchema($pdo);$rememberedLoginReady=true;}catch(Throwable){/* Never expose database details. */}
     $bookingBlocksReady=bookingBlockSchemaReadyFresh($pdo)||installBookingBlockSchema($pdo);
@@ -1968,7 +1975,7 @@ if ($path === '/health' && $method === 'GET') {
     if($pushReady){try{ensurePushReceiptSchema($pdo);$pushReceiptsReady=true;}catch(Throwable){/* Do not expose database details. */}}
     $staffPushReady=false;
     if($pushReady){try{staffWebPushKeys($config);$staffPushReady=extension_loaded('openssl')&&extension_loaded('curl')&&extension_loaded('mbstring');}catch(Throwable){/* Report readiness without exposing private configuration. */}}
-    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'remembered_login_ready'=>$rememberedLoginReady, 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'session_compensation_ready'=>$sessionCompensationReady, 'push_ready'=>$pushReady,'staff_push_ready'=>$staffPushReady,'push_receipts_ready'=>$pushReceiptsReady,'attendance_schema_ready'=>count($attendanceMissing)===0,'attendance_schema_missing'=>$attendanceMissing]+(($_GET['check']??'')==='studio-booking'?['studio_booking'=>studioBookingReadiness($pdo,$config)]:[]));
+    respond(['status' => 'ok', 'time' => date(DATE_ATOM), 'owner_mfa_ready'=>$ownerMfaReady, 'remembered_login_ready'=>$rememberedLoginReady, 'integrity_archive_ready' => schemaTableExists($pdo,'booking_archives'), 'booking_blocks_ready'=>$bookingBlocksReady, 'session_compensation_ready'=>$sessionCompensationReady, 'push_ready'=>$pushReady,'staff_push_ready'=>$staffPushReady,'push_receipts_ready'=>$pushReceiptsReady,'attendance_schema_ready'=>count($attendanceMissing)===0,'attendance_schema_missing'=>$attendanceMissing]+(($_GET['check']??'')==='studio-booking'?['studio_booking'=>studioBookingReadiness($pdo,$config)]:[]));
 }
 
 if ($path === '/push/config' && $method === 'GET') {
@@ -2152,6 +2159,7 @@ function issueLoginSession(PDO $pdo, array $config, array $found, string $identi
 }
 
 handleGoogleAuth($pdo, $config, $path, $method);
+handleOwnerMfa($pdo, $config, $user, $path, $method);
 
 if ($path === '/auth/login' && $method === 'POST') {
     $payload = body();
@@ -2164,6 +2172,7 @@ if ($path === '/auth/staff/login' && $method === 'POST') {
     $payload = body();
     $identifier = $payload['identifier'] ?? '';
     $found = authenticateStaffPassword($pdo, $identifier, $payload['password'] ?? null);
+    if ($found['role'] === 'owner') verifyOwnerMfa($pdo, $config, $found, $payload['code'] ?? null);
     respond(issueLoginSession($pdo, $config, $found, staffLoginIdentifier($identifier), 'staff_login_succeeded'));
 }
 

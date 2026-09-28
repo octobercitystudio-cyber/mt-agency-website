@@ -1,3 +1,4 @@
+import { staffPath, STAFF_LOGIN_PATH } from './lib/staffRoutes';
 import { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -6,6 +7,8 @@ import { DataProvider, useData } from './store/DataContext';
 import PublicLayout from './layouts/PublicLayout';
 import PushNotificationsBridge from './components/PushNotificationsBridge';
 import GlobalContactActions from './components/GlobalContactActions';
+import ContextMenuPolicy from './components/ContextMenuPolicy';
+import LegacyStaffEntry from './pages/LegacyStaffEntry';
 import { safeClientDestination, clientAuthPath } from './lib/clientAuthDestination';
 
 const ERP_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
@@ -63,13 +66,13 @@ const ERPPostProduction = lazy(() => import('./erp/ERPPostProduction'));
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { currentUser } = useData();
-  if (!['owner', 'admin'].includes(currentUser?.role)) return <Navigate to="/adminmt/login" replace />;
+  if (!['owner', 'admin'].includes(currentUser?.role)) return <Navigate to={STAFF_LOGIN_PATH} replace />;
   return children;
 };
 
 const ErpProtectedRoute = ({ children }) => {
   const { currentUser } = useData();
-  if (!ERP_ROLES.includes(currentUser?.role)) return <Navigate to="/adminmt/login" replace />;
+  if (!ERP_ROLES.includes(currentUser?.role)) return <Navigate to={STAFF_LOGIN_PATH} replace />;
   return children;
 };
 
@@ -92,7 +95,7 @@ const ForcedPasswordRoute = ({ children }) => {
 
 const RoleProtectedRoute = ({ roles, children }) => {
   const { currentUser } = useData();
-  if (!currentUser || !roles.includes(currentUser.role)) return <Navigate to="/erp" replace />;
+  if (!currentUser || !roles.includes(currentUser.role)) return <Navigate to={staffPath('')} replace />;
   return children;
 };
 
@@ -103,7 +106,7 @@ const ScrollToTop = () => {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
     }
-    
+
     if (pathname === '/' && window.location.hash) return undefined;
     window.scrollTo(0, 0);
     setTimeout(() => {
@@ -130,6 +133,7 @@ function App() {
   return (
     <DataProvider>
       <BrowserRouter>
+        <ContextMenuPolicy />
         <ScrollToTop />
         <PushNotificationsBridge />
         <GlobalContactActions />
@@ -160,9 +164,11 @@ function App() {
             <Route path="/change-password" element={<PrivateSurface><ForcedPasswordRoute><ForcedPasswordChange /></ForcedPasswordRoute></PrivateSurface>} />
             <Route path="/reset-password" element={<PrivateSurface><ResetPassword /></PrivateSurface>} />
             <Route path="/dashboard" element={<PrivateSurface><ClientProtectedRoute><ClientSurface /></ClientProtectedRoute></PrivateSurface>} />
-            <Route path="/adminmt/login" element={<PrivateSurface><AdminLogin /></PrivateSurface>} />
-            <Route 
-              path="/erp/*" 
+            <Route path={STAFF_LOGIN_PATH} element={<PrivateSurface><AdminLogin /></PrivateSurface>} />
+            <Route path="/erp/*" element={<PrivateSurface><LegacyStaffEntry /></PrivateSurface>} />
+            <Route path="/adminmt/*" element={<PrivateSurface><LegacyStaffEntry /></PrivateSurface>} />
+            <Route
+              path={staffPath('/*')}
               element={
                 <PrivateSurface><ErpProtectedRoute>
                   <ERPLayout />
@@ -186,8 +192,8 @@ function App() {
               <Route path="offer-generator" element={<RoleProtectedRoute roles={['owner', 'admin', 'operations', 'finance']}><ERPOfferGenerator /></RoleProtectedRoute>} />
               <Route path="offers" element={<RoleProtectedRoute roles={['owner', 'admin']}><ERPPromotions /></RoleProtectedRoute>} />
             </Route>
-            <Route 
-              path="/adminmt/*" 
+            <Route
+              path={staffPath('/site/*')}
               element={
                 <PrivateSurface><ProtectedRoute>
                   <AdminLayout />

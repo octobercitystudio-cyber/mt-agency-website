@@ -1,3 +1,4 @@
+import { staffPath } from './staffRoutes.js';
 import { isStaffPushPage, pushTokenStorageKey, readyPushRegistration, subscribeStaffPush } from './pushScope.js';
 const LEGACY_TOKEN_KEY = 'mt:push:fcm-token';
 const DISMISSED_KEY = 'mt:push:prompt-dismissed-at';
@@ -168,7 +169,7 @@ export const testLocalPushNotification = async () => {
     icon: '/app-icon-192.png?v=104', badge: '/app-icon-monochrome.png?v=105',
     tag: 'mt-notification-local-test', dir: 'rtl', lang: 'ar',
     renotify: true, silent: false, vibrate: [220, 100, 220],
-    data: { url: isStaffPushPage() ? '/erp/' : '/dashboard' },
+    data: { url: isStaffPushPage() ? staffPath('/') : '/dashboard' },
   });
   return { requested: true };
 };

@@ -167,13 +167,13 @@ const auth = {
     }
   },
 
-  async signInStaffWithPassword({ identifier, password }) {
+  async signInStaffWithPassword({ identifier, password, code }) {
     try {
       const value = typeof identifier === 'string' ? identifier.trim() : '';
       const normalized = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value.toLowerCase() : requireLoginPhone(value);
       const data = await apiRequest('/auth/staff/login', {
         method: 'POST',
-        body: JSON.stringify({ identifier: normalized, password }),
+        body: JSON.stringify({ identifier: normalized, password, code }),
       });
       return completeSignIn(data, STAFF_LOGIN_ROLES);
     } catch (error) {

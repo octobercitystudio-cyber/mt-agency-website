@@ -9,20 +9,20 @@ android {
         applicationId 'com.multitaskagency.staff'
         minSdkVersion 23
         targetSdkVersion 36
-        versionCode 3
-        versionName '1.0.2'
+        versionCode 4
+        versionName '1.0.3'
         resValue 'string', 'appName', 'MTA Team'
         resValue 'string', 'launcherName', 'MTA Team'
-        resValue 'string', 'launchUrl', 'https://multitaskagency.com/adminmt/login?source=android-staff-app'
+        resValue 'string', 'launchUrl', 'https://multitaskagency.com/p-e2f8474bcda6b5ea/login?source=android-staff-app'
         resValue 'string', 'hostName', 'multitaskagency.com'
         resValue 'string', 'fullScopeUrl', 'https://multitaskagency.com/'
         resValue 'string', 'providerAuthority', 'com.multitaskagency.staff.fileprovider'
         resValue 'string', 'generatorApp', 'MTA Team'
         resValue 'string', 'fallbackType', 'customtabs'
         resValue 'string', 'orientation', 'portrait-primary'
-        resValue 'string', 'shortcut_name_0', 'لوحة إدارة الشركة'
-        resValue 'string', 'shortcut_short_name_0', 'الإدارة'
-        resValue 'string', 'notification_settings_shortcut', 'إعدادات الإشعارات'
+        resValue 'string', 'shortcut_name_0', 'Ù„ÙˆØ­Ø© Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ø´Ø±ÙƒØ©'
+        resValue 'string', 'shortcut_short_name_0', 'Ø§Ù„Ø¥Ø¯Ø§Ø±Ø©'
+        resValue 'string', 'notification_settings_shortcut', 'Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ø¥Ø´Ø¹Ø§Ø±Ø§Øª'
         resValue 'bool', 'enableNotification', 'true'
         resValue 'bool', 'enableSiteSettingsShortcut', 'true'
         resValue 'integer', 'splashScreenFadeOutDuration', '300'

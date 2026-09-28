@@ -1,3 +1,4 @@
+import { staffPath, STAFF_LOGIN_PATH } from '../lib/staffRoutes';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag, Search } from 'lucide-react';
 import { useData } from '../store/DataContext';
@@ -12,7 +13,7 @@ const AdminLayout = () => {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/adminmt/login', { replace: true });
+    navigate(STAFF_LOGIN_PATH, { replace: true });
   };
 
   return (
@@ -25,39 +26,39 @@ const AdminLayout = () => {
         </div>
         
         <nav className="sidebar-nav">
-          <NavLink to="/adminmt/hero" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to={staffPath('/site/hero')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Type size={20} />
             الرئيسية (Hero)
           </NavLink>
-          <NavLink to="/adminmt/about" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to={staffPath('/site/about')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <LayoutDashboard size={20} />
             من نحن
           </NavLink>
-          <NavLink to="/adminmt/services" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to={staffPath('/site/services')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Grid size={20} />
             الخدمات
           </NavLink>
-          <NavLink to="/adminmt/portfolio" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to={staffPath('/site/portfolio')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Image size={20} />
             معرض الأعمال
           </NavLink>
-          <NavLink to="/adminmt/studio" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to={staffPath('/site/studio')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Image size={20} />
             الاستوديوهات
           </NavLink>
-          <NavLink to="/adminmt/contact" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to={staffPath('/site/contact')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Type size={20} />
             بيانات التواصل
           </NavLink>
-          <NavLink to="/adminmt/offers" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to={staffPath('/site/offers')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Tag size={20} />
             إدارة العروض
           </NavLink>
-          <NavLink to="/adminmt/settings" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to={staffPath('/site/settings')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Settings size={20} />
             إعدادات عامة
           </NavLink>
-          <NavLink to="/adminmt/seo" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to={staffPath('/site/seo')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Search size={20} />
             إعدادات الـ SEO
           </NavLink>

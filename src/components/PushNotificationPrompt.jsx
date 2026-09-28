@@ -38,14 +38,14 @@ export default function PushNotificationPrompt({
         <div className="push-notification-prompt__copy">
           <h2 id="push-notification-prompt-title">{staff ? 'إشعارات الإدارة على موبايلك' : 'ابقَ على اطلاع'}</h2>
           <p>تسجيل الجهاز تلقائي. وصول التنبيه والصوت والشاشة مقفولة يحتاج السماح بالإشعارات والعمل في الخلفية من الهاتف.</p>
-          {androidStaff && <a className="push-notification-prompt__settings" href="intent://notification-settings#Intent;scheme=mta-team;package=com.multitaskagency.staff;S.browser_fallback_url=https%3A%2F%2Fmultitaskagency.com%2Fdownloads%2FMTA-Team-1.0.2.apk;end">ضبط إشعارات الموبايل</a>}
+          {androidStaff && <a className="push-notification-prompt__settings" href="intent://notification-settings#Intent;scheme=mta-team;package=com.multitaskagency.staff;S.browser_fallback_url=https%3A%2F%2Fmultitaskagency.com%2Fdownloads%2FMTA-Team-1.0.3.apk;end">ضبط إشعارات الموبايل</a>}
           <details><summary>إعدادات الصوت والأيقونة وشاشة القفل</summary>
             <p>من إعدادات الهاتف ← التطبيقات ← {staff ? 'MTA Team' : 'MTA'} ← الإشعارات: اسمح بالصوت وشاشة القفل والإشعارات العائمة وشارات الأيقونة. يظهر شعار الشركة في الإشعار؛ شكله الصغير في الشريط العلوي أحادي اللون. الشارة قد تكون رقمًا أو نقطة حسب واجهة الهاتف.</p>
             {staff && <>
               <p><strong>شاومي:</strong> فعّل التشغيل التلقائي في الخلفية، واختر «بدون قيود» في بطارية التطبيق.</p>
               <p><strong>أوبو:</strong> اسمح بالنشاط في الخلفية من استخدام البطارية، وفعّل التشغيل التلقائي إذا كان متاحًا.</p>
               <p>راجع نفس القيود للمتصفح المستخدم داخل التطبيق، غالبًا Chrome. بعد ضبط الإعدادات جرّب إشعار الخادم، ثم اقفل الشاشة وتحقق من وصول طلب جديد من عميل.</p>
-              <p><a href="/downloads/MTA-Team-1.0.2.apk" download>تحديث MTA Team إلى 1.0.2</a>. لو تطبيق العملاء مثبت على نفس الجهاز، <a href="/downloads/MTA-1.0.6.apk" download>حدّث MTA أيضًا</a> لمنع تداخل توجيه الإشعارات. ثبّت التحديث فوق النسخة الحالية.</p>
+              <p><a href="/downloads/MTA-Team-1.0.3.apk" download>تحديث MTA Team إلى 1.0.2</a>. لو تطبيق العملاء مثبت على نفس الجهاز، <a href="/downloads/MTA-1.0.6.apk" download>حدّث MTA أيضًا</a> لمنع تداخل توجيه الإشعارات. ثبّت التحديث فوق النسخة الحالية.</p>
               <p>يمكن فتح حالة الإشعارات وإعدادات الهاتف بالضغط المطول على أيقونة MTA Team ثم «إعدادات الإشعارات».</p>
             </>}
             <p>لا يستطيع التطبيق تجاوز الإيقاف الإجباري أو منع الإشعارات أو وضع عدم الإزعاج. تختلف أسماء الإعدادات حسب إصدار الهاتف.</p>

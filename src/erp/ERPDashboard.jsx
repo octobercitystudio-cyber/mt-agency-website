@@ -1,3 +1,4 @@
+import { staffPath } from '../lib/staffRoutes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -84,7 +85,7 @@ const ReceivablesDialog = ({ open, onClose, returnFocusRef, view, onRetry }) => 
             <Check aria-hidden="true" />
             <strong>لا توجد مستحقات غير محصلة</strong>
             <span>لا توجد أرصدة مستحقة على الباقات النشطة حاليًا.</span>
-            <Link to="/erp/packages" onClick={onClose}>فتح الباقات المباعة</Link>
+            <Link to={staffPath('/packages')} onClick={onClose}>فتح الباقات المباعة</Link>
           </div>
         ) : (
           <div className="receivables-dialog__body">
@@ -139,7 +140,7 @@ const ReceivablesDialog = ({ open, onClose, returnFocusRef, view, onRetry }) => 
 
         <footer className="receivables-dialog__footer">
           <span>يمكن حذف أي باقة من «إدارة الباقات ← تحكم المالك».</span>
-          <Link to="/erp/packages" onClick={onClose}>إدارة الباقات <ArrowLeft aria-hidden="true" /></Link>
+          <Link to={staffPath('/packages')} onClick={onClose}>إدارة الباقات <ArrowLeft aria-hidden="true" /></Link>
         </footer>
       </section>
     </div>
@@ -198,11 +199,11 @@ const ERPDashboard = () => {
       const failedModules = [bookingsResult, pendingBookings, reschedules, proofs, packages, tasks, sessionEligibility, dashboardKpis, intakeRequests, studioRequests].filter((result) => result.error);
       if (failedModules.length || partialKpiFailure) console.error('Dashboard data modules unavailable:', [...failedModules.map((result) => result.error), ...(dashboardKpis.data?.partial_errors || [])]);
       const actions = [
-        ...(studioRequests.data?.items || []).filter(item => item.package_status === 'pending' || item.bookings.some(row => row.status === 'pending')).slice(0, 8).map(item => ({ id: `studio-${item.id}`, kind: 'booking', title: `طلب تصوير — ${item.client_name}`, meta: `${Number(item.package_status === 'pending') + item.bookings.filter(row => row.status === 'pending').length} قرارات قيد المراجعة`, to: '/erp/requests' })),
-        ...(intakeRequests.data?.items || []).filter(item => ['registration', 'package', 'booking'].some(stage => item[`${stage}_status`] === 'pending')).slice(0, 8).map(item => ({ id: `intake-${item.id}`, kind: 'booking', title: `طلبات العميل — ${item.name}`, meta: `${['registration', 'package', 'booking'].filter(stage => item[`${stage}_status`] === 'pending').length} طلب قيد المراجعة`, to: '/erp/requests' })),
-        ...(pendingBookings.data || []).map((item) => ({ ...item, kind: 'booking', title: `${formatBookingStatus(normalizeStatus(item.status))} — ${item.client_name}`, meta: `${formatBookingDate(item.date)} · ${formatTime12(item.start_time, '')}`, to: '/erp/requests' })),
-        ...(reschedules.data || []).map((item) => ({ ...item, kind: 'reschedule', title: 'طلب تغيير موعد', meta: `${formatBookingDate(item.proposed_date)} · ${formatTime12(item.proposed_start_time, '')}`, to: '/erp/requests' })),
-        ...(proofs.data || []).map((item) => ({ ...item, kind: 'payment', title: 'إثبات تحويل يحتاج مراجعة', meta: money(item.amount), to: '/erp/requests' })),
+        ...(studioRequests.data?.items || []).filter(item => item.package_status === 'pending' || item.bookings.some(row => row.status === 'pending')).slice(0, 8).map(item => ({ id: `studio-${item.id}`, kind: 'booking', title: `طلب تصوير — ${item.client_name}`, meta: `${Number(item.package_status === 'pending') + item.bookings.filter(row => row.status === 'pending').length} قرارات قيد المراجعة`, to: staffPath('/requests') })),
+        ...(intakeRequests.data?.items || []).filter(item => ['registration', 'package', 'booking'].some(stage => item[`${stage}_status`] === 'pending')).slice(0, 8).map(item => ({ id: `intake-${item.id}`, kind: 'booking', title: `طلبات العميل — ${item.name}`, meta: `${['registration', 'package', 'booking'].filter(stage => item[`${stage}_status`] === 'pending').length} طلب قيد المراجعة`, to: staffPath('/requests') })),
+        ...(pendingBookings.data || []).map((item) => ({ ...item, kind: 'booking', title: `${formatBookingStatus(normalizeStatus(item.status))} — ${item.client_name}`, meta: `${formatBookingDate(item.date)} · ${formatTime12(item.start_time, '')}`, to: staffPath('/requests') })),
+        ...(reschedules.data || []).map((item) => ({ ...item, kind: 'reschedule', title: 'طلب تغيير موعد', meta: `${formatBookingDate(item.proposed_date)} · ${formatTime12(item.proposed_start_time, '')}`, to: staffPath('/requests') })),
+        ...(proofs.data || []).map((item) => ({ ...item, kind: 'payment', title: 'إثبات تحويل يحتاج مراجعة', meta: money(item.amount), to: staffPath('/requests') })),
       ].slice(0, 8);
       const kpis = dashboardKpis.data || {};
       const packageMap = Object.fromEntries((packages.data || []).map(pkg => [Number(pkg.id), pkg]));
@@ -348,7 +349,7 @@ const ERPDashboard = () => {
           <button type="button" data-variant="primary" className="ops-action ops-action--primary" onClick={openBookingCreate}><Plus size={17} /> حجز جديد</button>
           <button type="button" className="ops-action" onClick={() => setCreateAction('client')}><UserPlus size={17} /> عميل جديد</button>
           {['owner','admin'].includes(currentUser?.role) && <button type="button" className="ops-action" onClick={() => setCreateAction('promotion')}><FileCheck2 size={17} /> عرض حصري</button>}
-          {currentUser?.role === 'owner' && <button type="button" className="ops-action" onClick={() => navigate('/erp/package-guide')}><BookOpen size={17}/> تعديل دليل الباقات</button>}
+          {currentUser?.role === 'owner' && <button type="button" className="ops-action" onClick={() => navigate(staffPath('/package-guide'))}><BookOpen size={17}/> تعديل دليل الباقات</button>}
         </>}
         details={<div className="ops-attendance-chip">
           <div><span>حضورك اليوم</span><strong>{attendance.loading ? 'جارٍ التحقق…' : !attendance.data?.self?.tracked ? 'غير خاضع للتتبع' : selfRecord?.check_out_at ? 'تم الانصراف' : selfRecord ? `دخول ${formatTime12(selfRecord.check_in_at)}` : 'لم يُسجل'}</strong></div>
@@ -373,7 +374,7 @@ const ERPDashboard = () => {
         <article className="ops-panel ops-runway">
           <div className="ops-panel__heading">
             <div><span className="ops-kicker">المشهد التشغيلي</span><h2>مسار الاستديو اليوم</h2></div>
-            <Link to="/erp/bookings">فتح التقويم <ArrowLeft size={16} /></Link>
+            <Link to={staffPath('/bookings')}>فتح التقويم <ArrowLeft size={16} /></Link>
           </div>
           {state.loading ? <div className="ops-skeleton ops-skeleton--timeline" /> : (
             <div className={`runway ${timelineBookings.length === 0 ? 'runway--empty' : ''}`} aria-label="جدول حجوزات اليوم على مدار 24 ساعة">
@@ -391,7 +392,7 @@ const ERPDashboard = () => {
                       {canStartBooking(booking) && <button type="button" className="runway-booking__start" onClick={event => openSessionStart(booking, event)} aria-label={`ابدأ تصوير ${booking.client_name}`}><PlayCircle aria-hidden="true" /> ابدأ التصوير</button>}
                       {booking.normalizedStatus === 'in_progress' && <span className="runway-booking__running" role="status"><i /> التصوير جارٍ</span>}
                     </div>
-                    <div className="runway-booking__footer"><em>{formatBookingStatus(booking.normalizedStatus)}</em><span className="runway-booking__controls"><button type="button" className="runway-booking__details" onClick={() => navigate('/erp/bookings')} aria-label={`عرض حجز ${booking.client_name}`}><Eye /></button>{booking.normalizedStatus === 'completed' && <span className="runway-booking__completed"><Check /> تم</span>}</span></div>
+                    <div className="runway-booking__footer"><em>{formatBookingStatus(booking.normalizedStatus)}</em><span className="runway-booking__controls"><button type="button" className="runway-booking__details" onClick={() => navigate(staffPath('/bookings'))} aria-label={`عرض حجز ${booking.client_name}`}><Eye /></button>{booking.normalizedStatus === 'completed' && <span className="runway-booking__completed"><Check /> تم</span>}</span></div>
                   </article>
                 ))}
               </div>
@@ -404,13 +405,13 @@ const ERPDashboard = () => {
           {state.loading ? <div className="ops-skeleton ops-skeleton--list" /> : state.actions.length === 0 ? <div className="ops-empty ops-empty--compact"><Check size={26} /><h3>لا توجد قرارات معلقة</h3><p>صندوق الطلبات مراجع بالكامل.</p></div> : (
             <div className="ops-queue__list">{state.actions.map((item) => <Link to={item.to} key={`${item.kind}-${item.id}`}><span className={`ops-queue__icon ops-queue__icon--${item.kind}`}>{item.kind === 'payment' ? <BadgeDollarSign size={17} /> : <Clock3 size={17} />}</span><div><strong>{item.title}</strong><small>{item.meta}</small></div><ArrowLeft size={16} /></Link>)}</div>
           )}
-          <Link className="ops-panel__footer" to="/erp/requests">عرض صندوق الطلبات كاملًا</Link>
+          <Link className="ops-panel__footer" to={staffPath('/requests')}>عرض صندوق الطلبات كاملًا</Link>
         </aside>
       </section>
 
       <section className="ops-grid-lower">
         <article className="ops-panel ops-attendance">
-          <div className="ops-panel__heading"><div><span className="ops-kicker">فريق العمل</span><h2>الحضور اليوم</h2></div><Link to="/erp/attendance">السجل الكامل <ArrowLeft size={16} /></Link></div>
+          <div className="ops-panel__heading"><div><span className="ops-kicker">فريق العمل</span><h2>الحضور اليوم</h2></div><Link to={staffPath('/attendance')}>السجل الكامل <ArrowLeft size={16} /></Link></div>
           {attendance.error ? <div className="ops-inline-error">{attendance.error}</div> : attendance.loading ? <div className="ops-skeleton ops-skeleton--list" /> : teamTracked.length === 0 ? (
             <div className="ops-empty ops-empty--compact"><UsersRound size={28} /><h3>لا يوجد موظفون خاضعون للحضور</h3><p>المالكان معفيان افتراضيًا. يمكنك تفعيل التتبع لكل شخص من صفحة الحضور.</p>{attendance.data?.preview && <span className="ops-preview-label">معاينة محلية</span>}</div>
           ) : <><div className="attendance-totals"><span><b>{teamCounts.present}</b> حاضر</span><span><b>{teamCounts.late}</b> متأخر</span><span><b>{teamCounts.absent}</b> لم يسجل</span></div><div className="attendance-mini-list">{teamTracked.map((member) => <div key={member.user_id}><span className={`attendance-dot attendance-dot--${!member.record_id ? 'absent' : Number(member.late_minutes) ? 'late' : 'present'}`} /><strong>{member.full_name}</strong><small>{member.check_in_at ? formatTime12(member.check_in_at) : 'لم يسجل بعد'}</small></div>)}</div></>}
@@ -438,7 +439,7 @@ const ERPDashboard = () => {
         onSuccess={() => setQuickActionNotice('تم إنشاء العرض الحصري بنجاح.')}
       />
       <ReceivablesDialog open={receivablesDialog.open} onClose={closeReceivables} returnFocusRef={receivablesTriggerRef} view={receivablesDialog} onRetry={loadReceivables} />
-      <ERPStartSessionDialog open={sessionStart.open} bookings={sessionStart.booking ? [sessionStart.booking] : []} clientName={sessionStart.booking?.client_name} contextName={state.packageMap[Number(sessionStart.booking?.client_package_id)]?.name || sessionStart.booking?.service} returnFocusRef={sessionTriggerRef} onClose={() => setSessionStart({ open: false, booking: null })} onStarted={handleSessionStarted} onCreateBooking={() => navigate('/erp/bookings')}/>
+      <ERPStartSessionDialog open={sessionStart.open} bookings={sessionStart.booking ? [sessionStart.booking] : []} clientName={sessionStart.booking?.client_name} contextName={state.packageMap[Number(sessionStart.booking?.client_package_id)]?.name || sessionStart.booking?.service} returnFocusRef={sessionTriggerRef} onClose={() => setSessionStart({ open: false, booking: null })} onStarted={handleSessionStarted} onCreateBooking={() => navigate(staffPath('/bookings'))}/>
     </main>
   );
 };

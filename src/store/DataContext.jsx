@@ -1,3 +1,4 @@
+import { isStaffPortalPath } from '../lib/staffRoutes';
 import { requireLoginPhone } from '../lib/phoneLogin';
 import { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../data/studioGalleries';
@@ -26,7 +27,7 @@ const getPublicDataClient = () => {
   return publicDataClientPromise;
 };
 
-const isPublicSurface = () => !/^\/(?:login|register|change-password|reset-password|dashboard|erp(?:\/|$)|adminmt(?:\/|$))/.test(window.location.pathname);
+const isPublicSurface = () => !isStaffPortalPath(window.location.pathname) && !/^\/(?:login|register|change-password|reset-password|dashboard|erp(?:\/|$)|adminmt(?:\/|$))/.test(window.location.pathname);
 
 const restoreLocalPreviewSession = () => {
   if (!import.meta.env.DEV) return null;
@@ -412,7 +413,7 @@ export const DataProvider = ({ children }) => {
     await dataClient.auth.signOut();
   };
 
-  const loginStaff = async (username, password) => {
+  const loginStaff = async (username, password, code) => {
     authRevisionRef.current += 1;
     if (import.meta.env.DEV && username === 'local-owner' && password === 'local-preview') {
       const demoClient = await getDemoClient();
@@ -432,7 +433,7 @@ export const DataProvider = ({ children }) => {
     }
 
     const dataClient = await getDataClient();
-    const { data, error } = await dataClient.auth.signInStaffWithPassword({ identifier: username, password });
+    const { data, error } = await dataClient.auth.signInStaffWithPassword({ identifier: username, password, code });
     if (error) throw error;
     applySession(data.session);
     return data.user;

@@ -1,3 +1,4 @@
+import { staffPath } from '../lib/staffRoutes';
 import { isBlockingBooking } from './bookingAvailability';
 import { PAYMENT_METHODS } from '../lib/paymentMethods';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -378,7 +379,7 @@ export default function ERPPackages() {
     {details.open && <PackageDetailsDialog dialogRef={detailsDialogRef} details={details} onClose={closeDetailsDialog} onRetry={() => fetchDetails(details.pkg.id)} onTab={tab => setDetails(current => ({ ...current, tab }))}/>}
     <ERPAddBookingModal isOpen={bookingPackage.open} initialClientId={bookingPackage.pkg?.client_id} initialPackageId={bookingPackage.pkg?.id} returnFocusRef={bookingTriggerRef} onClose={() => setBookingPackage({ open: false, pkg: null })} onSuccess={handlePackageBookingCreated}/>
     <PackagePaymentModal isOpen={paymentPackage.open} pkg={paymentPackage.pkg} person={client(paymentPackage.pkg?.client_id)} returnFocusRef={paymentTriggerRef} onClose={() => setPaymentPackage({ open: false, pkg: null })} onSuccess={handlePackagePaymentCreated}/>
-    <ERPStartSessionDialog open={sessionStart.open} bookings={sessionStart.bookings} clientName={sessionStart.person?.name} contextName={sessionStart.pkg?.name} returnFocusRef={sessionTriggerRef} onClose={() => setSessionStart({ open: false, pkg: null, person: null, bookings: [] })} onStarted={handleSessionStarted} onCreateBooking={() => navigate(`/erp/bookings?client_id=${sessionStart.pkg?.client_id || ''}&package_id=${sessionStart.pkg?.id || ''}`)}/>
+    <ERPStartSessionDialog open={sessionStart.open} bookings={sessionStart.bookings} clientName={sessionStart.person?.name} contextName={sessionStart.pkg?.name} returnFocusRef={sessionTriggerRef} onClose={() => setSessionStart({ open: false, pkg: null, person: null, bookings: [] })} onStarted={handleSessionStarted} onCreateBooking={() => navigate(staffPath(`/bookings?client_id=${sessionStart.pkg?.client_id || ''}&package_id=${sessionStart.pkg?.id || ''}`))}/>
   </div>;
 }
 

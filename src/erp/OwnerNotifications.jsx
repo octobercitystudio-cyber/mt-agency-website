@@ -1,3 +1,4 @@
+import { staffPath } from '../lib/staffRoutes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, CalendarClock, CheckCheck, CircleDollarSign, FileCheck2, Inbox, RefreshCw, Trash2, X } from 'lucide-react';
@@ -12,8 +13,8 @@ import OwnerLiveAlerts from './OwnerLiveAlerts';
 import useOwnerLiveAlerts from './useOwnerLiveAlerts';
 
 const safeItems = value => Array.isArray(value) ? value.filter(item => item && Number(item.id) > 0 && item.title && item.message) : [];
-const routes = { requests: '/erp/requests', bookings: '/erp/bookings', offers: '/erp/offers', finance: '/erp/finance', packages: '/erp/packages', projects: '/erp/projects', clients: '/erp/clients', 'post-production': '/erp/post-production' };
-const destination = item => routes[item.action_tab] || '/erp';
+const routes = { requests: staffPath('/requests'), bookings: staffPath('/bookings'), offers: staffPath('/offers'), finance: staffPath('/finance'), packages: staffPath('/packages'), projects: staffPath('/projects'), clients: staffPath('/clients'), 'post-production': staffPath('/post-production') };
+const destination = item => routes[item.action_tab] || staffPath('');
 const itemIcon = item => item.action_tab === 'finance' ? CircleDollarSign : item.action_tab === 'offers' ? FileCheck2 : item.action_tab === 'requests' ? Inbox : CalendarClock;
 const clientInitial = title => String(title).split('—').at(-1)?.trim()?.charAt(0) || 'ع';
 const dateBucket = value => {
