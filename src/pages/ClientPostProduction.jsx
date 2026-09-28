@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, Clock3, Clapperboard, CloudUpload, ExternalLink, Film, FolderOpen, RefreshCw, Video } from 'lucide-react';
+import { CalendarDays, Check, Clock3, Clapperboard, CloudUpload, ExternalLink, Film, FolderOpen, RefreshCw, TriangleAlert, Video } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
 import { formatBookingDate, formatDateTime12, formatTime12 } from '../lib/businessFormat';
@@ -59,6 +59,16 @@ export default function ClientPostProduction({ highlightJobId = null }) {
       <div><span>كل أعمالك بعد التصوير</span><h2 id="client-videos-title">تسليمات الفيديوهات</h2><p>تابع حالة كل جلسة، نزّل الفيديوهات المتاحة، وراجع مواعيد الاستلام الأسبوعية من مقر الشركة.</p></div>
       <button type="button" onClick={() => loadJobs()} aria-label="تحديث صفحة تسليمات الفيديوهات"><RefreshCw className={loading ? 'is-spinning' : ''} /></button>
     </header>
+
+    <aside className="client-download-policy" aria-labelledby="client-download-policy-title">
+      <TriangleAlert aria-hidden="true" />
+      <div>
+        <span className="client-download-policy__label">خاص بالاستلام عبر رابط</span>
+        <h3 id="client-download-policy-title">تنبيه مهم: تحميل الفيديوهات خلال 48 ساعة فقط</h3>
+        <p>عند استلام فيديوهاتك عبر رابط، يجب تحميل جميع الملفات وحفظ نسخة منها على جهازك خلال <strong>48 ساعة من وقت رفعها وإتاحة الرابط</strong>. بعد انتهاء هذه المدة، <strong>تُحذف الفيديوهات من رابط التسليم ويصبح غير متاح للتحميل</strong>.</p>
+        <p className="client-download-policy__reminder">يرجى التأكد من اكتمال التحميل وحفظ جميع الملفات قبل انتهاء المهلة؛ مشاهدة الفيديوهات عبر الرابط لا تعني حفظها على جهازك.</p>
+      </div>
+    </aside>
 
     {!loading && !error && <CompanyPickupSchedule schedule={pickupSchedule} />}
 
