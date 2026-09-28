@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Copy, ImagePlus, Package, Plus, Trash2 } from 'lucide-react';
 import useChangeSync from '../hooks/useChangeSync';
 import { dataClient } from '../dataClient';
@@ -14,13 +14,14 @@ import { packageBookingMonthWindow, shiftBookingMonth, shiftBookingDate } from '
 import { earliestClientBookingDate, clientBookingDateError } from '../lib/clientBookingDate';
 const bookingAvailabilityMessage = 'يمكنك إرسال طلبك في أي وقت، حتى خارج مواعيد العمل. التأكيد خلال ساعة عمل من 12 ظهرًا إلى 10 مساءً، والجمعة إجازة.';
 const stepLabels = ['اختيار الباقة', 'مواعيد التصوير', 'التحويل وإرسال الطلب'];
-export default function ClientStudioBooking({ onClose, onRequests, onBookExisting }) {
+export default function ClientStudioBooking({ onClose, onRequests, onBookExisting, initialServiceId = '' }) {
   const [eligibility, setEligibility] = useState(null);
   const [selectedHours, setSelectedHours] = useState(1);
   const [services, setServices] = useState([]); const [loading, setLoading] = useState(true); const [step, setStep] = useState(0); const [serviceId, setServiceId] = useState('');
   const [bookings, setBookings] = useState([]); const [date, setDate] = useState(''); const [duration, setDuration] = useState(60); const [availability, setAvailability] = useState({ data: null, loading: false, error: '' }); const [availabilityMonth, setAvailabilityMonth] = useState(''); const [revision, setRevision] = useState(0); const [slotKey, setSlotKey] = useState(''); const [slotBusy, setSlotBusy] = useState(false);
   const [proof, setProof] = useState(null); const [preview, setPreview] = useState(''); const [consent, setConsent] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [success, setSuccess] = useState(null); const [copied, setCopied] = useState(false);
   const wizardRef = useRef(null); const errorRef = useRef(null); const submitBusyRef = useRef(false);
+  const initialServiceApplied = useRef(false);
   const submitted = Boolean(success);
   useEffect(() => {
     if (loading) return undefined;
@@ -47,8 +48,31 @@ export default function ClientStudioBooking({ onClose, onRequests, onBookExistin
   const monthWindow = useMemo(() => packageBookingMonthWindow(draftValidity, availabilityMonth, earliestDate), [draftValidity, availabilityMonth, earliestDate]);
   const slots = availability.data?.days?.find(day => day.date === date)?.slots || [];
   const moveMonth = amount => { if (amount < 0 && !monthWindow.canPrevious || amount > 0 && !monthWindow.canNext) return; setAvailabilityMonth(shiftBookingMonth(monthWindow.month, amount)); setDate(''); setSlotKey(''); setAvailability({ data: null, loading: true, error: '' }); };
-  const loadCatalog = async () => { setLoading(true); const eligibilityResult = await dataClient.request('/client/package-eligibility'); if (eligibilityResult.error) { setEligibility(null); setError(safeUiError(eligibilityResult.error, 'تعذر التحقق من باقتك الحالية. أعد المحاولة.')); setLoading(false); return eligibilityResult; } setEligibility(eligibilityResult.data); if (!eligibilityResult.data?.can_purchase) { setLoading(false); return eligibilityResult; } const result = await dataClient.request('/registration/catalog'); if (result.error) setError(safeUiError(result.error, 'تعذر تحميل الباقات. أعد المحاولة.')); else setServices(result.data?.services || []); setLoading(false); return result; };
-  useEffect(() => { void loadCatalog(); }, []); // eslint-disable-line react-hooks/set-state-in-effect -- Initial remote loading state.
+  const loadCatalog = useCallback(async () => {
+    setLoading(true);
+    const eligibilityResult = await dataClient.request('/client/package-eligibility');
+    if (eligibilityResult.error) { setEligibility(null); setError(safeUiError(eligibilityResult.error, 'تعذر التحقق من باقتك الحالية. أعد المحاولة.')); setLoading(false); return eligibilityResult; }
+    setEligibility(eligibilityResult.data);
+    if (!eligibilityResult.data?.can_purchase) { setLoading(false); return eligibilityResult; }
+    const result = await dataClient.request('/registration/catalog');
+    if (result.error) setError(safeUiError(result.error, 'تعذر تحميل الباقات. أعد المحاولة.'));
+    else {
+      const catalog = result.data?.services || [];
+      setServices(catalog);
+      if (initialServiceId && !initialServiceApplied.current) {
+        initialServiceApplied.current = true;
+        const selected = catalog.find(item => String(item.id) === String(initialServiceId));
+        if (selected) {
+          setServiceId(String(selected.id));
+          setSelectedHours(Math.max(1, Number(selected.total_hours || 1)));
+          setDuration(selected.kind === 'daily' || selected.package_validity_mode === 'shooting_day' ? Number(selected.total_hours) * 60 : 60);
+        } else setError('هذه الباقة لم تعد متاحة للاشتراك. يُرجى اختيار باقة أخرى من القائمة.');
+      }
+    }
+    setLoading(false);
+    return result;
+  }, [initialServiceId]);
+  useEffect(() => { void loadCatalog(); }, [loadCatalog]); // eslint-disable-line react-hooks/set-state-in-effect -- Initial remote loading state.
   useEffect(() => { if (!proof) return; const objectUrl = URL.createObjectURL(proof); setPreview(objectUrl); return () => URL.revokeObjectURL(objectUrl); }, [proof]); // eslint-disable-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (!serviceId || step !== 1 || monthWindow.days < 1) return undefined;

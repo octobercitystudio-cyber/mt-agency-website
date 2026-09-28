@@ -375,6 +375,7 @@ export default function ClientDashboard() {
     const requested = tab === 'montage' ? 'videos' : tab;
     const next = CLIENT_TABS.includes(requested) ? requested : 'home';
     const params = new URLSearchParams(searchParams);
+    params.delete('service');
     if (next === 'home') params.delete('tab'); else params.set('tab', next);
     const jobId = Number(payload.post_production_job_id || 0);
     if (jobId > 0 && next === 'videos') params.set('job', String(jobId)); else params.delete('job');
@@ -503,9 +504,11 @@ export default function ClientDashboard() {
         {activeTab === 'finance' && <ClientFinanceView activePackages={activePackages} financialPackages={packages} invoices={invoices} payments={payments} proofs={proofs} projects={projects} offers={offers} proofForm={proofForm} proofBusy={proofBusy} onProofFormChange={updates => setProofForm(previous => ({ ...previous, ...updates }))} onSubmitProof={uploadProof} onSelectTarget={selectPaymentTarget} />}
         {activeTab === 'videos' && <ClientPostProduction highlightJobId={highlightedPostProductionJobId} />}
         {activeTab === 'security' && <ClientSecuritySettings />}
-        {activeTab === 'package-guide' && <ClientPackageGuide/>}
+        {activeTab === 'package-guide' && (
+          <ClientPackageGuide onSubscribe={service => { setSearchParams({ tab: 'book-studio', service: String(service.id) }); setMoreOpen(false); }}/>
+        )}
         {activeTab === 'requests' && <ClientStudioRequests/>}
-        {activeTab === 'book-studio' && <ClientStudioBooking onBookExisting={bookAppointment} onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
+        {activeTab === 'book-studio' && <ClientStudioBooking key={searchParams.get('service') || 'default'} initialServiceId={searchParams.get('service') || ''} onBookExisting={bookAppointment} onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
       </main>
 
       {detailBookingId && detailBooking && <BookingDetailDialog booking={detailBooking} packageName={packages.find(pkg => Number(pkg.id) === Number(detailBooking.client_package_id))?.name} onClose={() => setDetailBookingId(null)}><BookingRow booking={detailBooking} session={sessionByBookingId.get(Number(detailBooking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(detailBooking, action)} onReschedule={() => { setDetailBookingId(null); setReschedule({ ...initialReschedule, booking: detailBooking, date: detailBooking.date, start_time: normalizeTime(detailBooking.start_time), end_time: normalizeTime(detailBooking.end_time, { endOfDay: true }) }); }} onCancel={() => { setDetailBookingId(null); requestCancel(detailBooking); }}/></BookingDetailDialog>}

@@ -11,7 +11,7 @@ const groups = [
   { kind: 'monthly', title: 'الباقات الشهرية', note: 'monthly_note', Icon: Package },
 ];
 
-export default function PackageGuideView({ data }) {
+export default function PackageGuideView({ data, onSubscribe }) {
   const { content, services = [], booking_terms } = data;
   return <article className="package-guide" dir="rtl">
     <header className="package-guide-hero"><span>Multi Task Agency · كل التفاصيل قبل الحجز</span><h2>{content.title}</h2><p>{content.subtitle}</p></header>
@@ -31,6 +31,7 @@ export default function PackageGuideView({ data }) {
             <dl><div><dt>ساعات التصوير</dt><dd>{formatDurationMinutes(Number(service.total_hours) * 60)}</dd></div><div><dt>الصلاحية</dt><dd>{registrationValidityLabel(service)}</dd></div><div><dt>مقدم الحجز{service.deposit_percent != null && <> ({Number(service.deposit_percent)}%)</>}</dt><dd><bdi>{formatEGP(service.deposit_amount)}</bdi></dd></div></dl>
             {service.payment_due_text && <p className="package-guide-description">{service.payment_due_text}</p>}
             {content.package_descriptions?.[String(service.id)] && <p className="package-guide-description">{content.package_descriptions[String(service.id)]}</p>}
+            {onSubscribe && <div className="package-guide-subscribe"><button type="button" className="package-guide-primary" aria-label={`اشترك الآن في ${service.name}`} onClick={() => onSubscribe(service)}>اشترك الآن</button></div>}
           </article>)}</div>
         </section>;
       })}

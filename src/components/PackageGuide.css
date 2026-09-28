@@ -17,7 +17,9 @@
 .package-guide-group h3,.package-guide-section h3{font-size:24px}
 .package-guide-group header p,.package-guide-section-heading p{margin:0;color:#61596b}
 .package-guide-price-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:16px}
-.package-guide-price{min-width:0;background:white;border:1px solid #ded5e7;border-radius:12px;padding:23px;box-shadow:0 4px 12px #41295d04}
+.package-guide-price{display:flex;flex-direction:column;min-width:0;background:white;border:1px solid #ded5e7;border-radius:12px;padding:23px;box-shadow:0 4px 12px #41295d04}
+.package-guide-subscribe{margin-top:auto;padding-top:22px}
+.package-guide-subscribe .package-guide-primary{width:100%;min-height:48px}
 .package-guide-price h4{font-size:20px}
 .package-guide-price .package-guide-price-label{margin:19px 0 0;font-size:14px;color:#6b5e75}
 .package-guide-price .package-guide-amount{display:block;font-size:32px;font-weight:800;line-height:1.7;color:#623e93;font-variant-numeric:tabular-nums}

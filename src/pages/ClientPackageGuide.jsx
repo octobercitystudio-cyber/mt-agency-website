@@ -5,7 +5,7 @@ import { safeUiError } from '../lib/uiError';
 import useChangeSync from '../hooks/useChangeSync';
 import PackageGuideView from '../components/PackageGuideView';
 
-export default function ClientPackageGuide() {
+export default function ClientPackageGuide({ onSubscribe }) {
   const [state, setState] = useState({ data: null, loading: true, error: '' });
   const sequence = useRef(0);
   const load = useCallback(async () => {
@@ -25,6 +25,6 @@ export default function ClientPackageGuide() {
   return <section className="package-guide-page" aria-label="دليل الباقات والتصوير" aria-busy={state.loading}>
     {state.loading && <p className="package-guide-notice" role="status">جارٍ تحميل أحدث تفاصيل الباقات…</p>}
     {state.error && <div className="package-guide-notice package-guide-notice--error" role="alert"><p>{state.error}</p><button type="button" onClick={load}><RefreshCw aria-hidden="true"/> إعادة المحاولة</button></div>}
-    {state.data && <PackageGuideView data={state.data}/>}
+    {state.data && <PackageGuideView data={state.data} onSubscribe={onSubscribe}/>}
   </section>;
 }
