@@ -13,8 +13,12 @@ public class StaffDelegationService extends DelegationService {
     @Override
     public synchronized boolean onNotifyNotificationWithChannel(String tag, int id,
             Notification notification, String channelName) {
+        getSharedPreferences("mta_push_status", MODE_PRIVATE).edit()
+                .putLong("received_at", System.currentTimeMillis()).apply();
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return super.onNotifyNotificationWithChannel(tag, id, notification, channelName);
+            boolean posted = super.onNotifyNotificationWithChannel(tag, id, notification, channelName);
+            recordDisplay(posted);
+            return posted;
         }
         // Check the existing ABH channel before making any changes. Never bypass a user's block.
         if (!onAreNotificationsEnabled(channelName)) return false;
@@ -41,9 +45,15 @@ public class StaffDelegationService extends DelegationService {
         Notification display = Notification.Builder.recoverBuilder(this, notification)
                 .setChannelId(channelId).setSmallIcon(R.drawable.ic_notification_icon)
                 .setNumber(1).setBadgeIconType(Notification.BADGE_ICON_SMALL)
+                .setOnlyAlertOnce(false).setAutoCancel(true)
                 .setVisibility(Notification.VISIBILITY_PRIVATE).setPublicVersion(publicVersion)
                 .setGroupAlertBehavior(Notification.GROUP_ALERT_ALL).build();
-        try { manager.notify(tag, id, display); return true; }
+        try { manager.notify(tag, id, display); recordDisplay(true); return true; }
         catch (SecurityException denied) { return false; }
+    }
+
+    private void recordDisplay(boolean posted) {
+        if (posted) getSharedPreferences("mta_push_status", MODE_PRIVATE).edit()
+                .putLong("posted_at", System.currentTimeMillis()).apply();
     }
 }

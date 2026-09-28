@@ -95,6 +95,22 @@
   margin-top: 13px;
 }
 
+.push-notification-prompt__settings {
+  display: block;
+  margin-block: 12px;
+  padding: 12px;
+  border: 1px solid #d7c5f6;
+  border-radius: 9px;
+  color: #5b21b6;
+  background: #f5efff;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.push-notification-prompt__copy details p { margin-block: 10px; }
+.push-notification-prompt__copy details a { color: #5b21b6; text-decoration: underline; }
+
 .push-notification-prompt__actions button {
   min-height: 44px;
   border-radius: 9px;

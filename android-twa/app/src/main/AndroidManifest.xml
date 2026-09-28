@@ -146,8 +146,13 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https"
                     android:host="@string/hostName"
-                
+                    android:path="/"
                 />
+                <!-- Keep /erp/ exclusive to MTA Team, including notification delegation. -->
+                <data android:pathPrefix="/dashboard" />
+                <data android:path="/login" />
+                <data android:path="/register" />
+                <data android:path="/reset-password" />
             </intent-filter>
 
             

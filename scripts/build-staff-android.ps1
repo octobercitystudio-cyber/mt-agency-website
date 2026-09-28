@@ -2,10 +2,15 @@ param(
   [Parameter(Mandatory=$true)][string]$Keystore,
   [Parameter(Mandatory=$true)][string]$PasswordFile,
   [string]$JdkPath,
-  [string]$SdkPath
+  [string]$SdkPath,
+  [ValidateSet('staff','app')][string]$Edition='staff'
 )
 $ErrorActionPreference='Stop'
 $sourceProject=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../android-twa')).Path
+$gradleSource=Get-Content -LiteralPath (Join-Path $sourceProject "$Edition/build.gradle") -Raw
+$version=[regex]::Match($gradleSource, 'versionName\s+[''"]([0-9]+\.[0-9]+\.[0-9]+)[''"]').Groups[1].Value
+if(!$version){throw 'Missing Android version name.'}
+$filename=if($Edition -eq 'staff'){"MTA-Team-$version.apk"}else{"MTA-$version.apk"}
 # Native Android/Java tools can misread Arabic paths on Windows. Stage only
 # build inputs in a fresh ASCII directory; never copy local keys or caches.
 $project=Join-Path $env:TEMP ('mta-team-build-'+[guid]::NewGuid().ToString('N'))
@@ -35,10 +40,10 @@ $previousJava=$env:JAVA_HOME; $previousSdk=$env:ANDROID_HOME; $previousPassword=
 try {
   $env:JAVA_HOME=$JdkPath; $env:ANDROID_HOME=$SdkPath
   Push-Location $project
-  try { & ./gradlew.bat :staff:assembleRelease --no-daemon '-Djavax.net.ssl.trustStoreType=Windows-ROOT' '-Djavax.net.ssl.trustStore=NONE'; if($LASTEXITCODE -ne 0){throw 'Android compilation failed.'} } finally { Pop-Location }
-  $unsigned=Join-Path $project 'staff/build/outputs/apk/release/staff-release-unsigned.apk'
-  $aligned=Join-Path $project 'staff/build/outputs/apk/release/staff-release-aligned.apk'
-  $output=Join-Path $project 'MTA-Team-1.0.1.apk'
+  try { & ./gradlew.bat ":${Edition}:assembleRelease" --no-daemon '-Djavax.net.ssl.trustStoreType=Windows-ROOT' '-Djavax.net.ssl.trustStore=NONE'; if($LASTEXITCODE -ne 0){throw 'Android compilation failed.'} } finally { Pop-Location }
+  $unsigned=Join-Path $project "$Edition/build/outputs/apk/release/$Edition-release-unsigned.apk"
+  $aligned=Join-Path $project "$Edition/build/outputs/apk/release/$Edition-release-aligned.apk"
+  $output=Join-Path $project $filename
   & (Join-Path $buildTools.FullName 'zipalign.exe') -f -p 4 $unsigned $aligned
   if($LASTEXITCODE -ne 0){throw 'APK alignment failed.'}
   $stagedKey=Join-Path $project 'signing.keystore'
@@ -48,9 +53,9 @@ try {
   if($LASTEXITCODE -ne 0){throw 'APK signing failed.'}
   & (Join-Path $buildTools.FullName 'apksigner.bat') verify --verbose --print-certs $output
   if($LASTEXITCODE -ne 0){throw 'APK signature verification failed.'}
-  $destination=Join-Path $sourceProject 'MTA-Team-1.0.1.apk'
+  $destination=Join-Path $sourceProject $filename
   Copy-Item -LiteralPath $output -Destination $destination -Force
-  Write-Output ('Signed team installer: '+$destination)
+  Write-Output ('Signed installer: '+$destination)
 } finally {
   if($stagedKey -and (Test-Path -LiteralPath $stagedKey)){Remove-Item -LiteralPath $stagedKey}
   $env:JAVA_HOME=$previousJava; $env:ANDROID_HOME=$previousSdk; $env:MTA_ANDROID_SIGN_PASSWORD=$previousPassword

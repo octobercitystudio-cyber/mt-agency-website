@@ -173,7 +173,14 @@
                 android:resource="@xml/filepaths" />
         </provider>
 
-        <activity android:name=".StaffNotificationSettingsActivity" android:exported="true" android:excludeFromRecents="true" />
+        <activity android:name=".StaffNotificationSettingsActivity" android:exported="true" android:excludeFromRecents="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mta-team" android:host="notification-settings" />
+            </intent-filter>
+        </activity>
 
         <service
             android:name=".StaffDelegationService"

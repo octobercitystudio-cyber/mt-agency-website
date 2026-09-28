@@ -20,6 +20,8 @@ plugins {
     id 'com.android.application'
 }
 
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
 def twaManifest = [
     applicationId: 'com.multitaskagency.app',
     hostName: 'multitaskagency.com', // The domain being opened in the TWA.
@@ -57,8 +59,8 @@ android {
         applicationId "com.multitaskagency.app"
         minSdkVersion 23
         targetSdkVersion 36
-        versionCode 6
-        versionName "1.0.5"
+        versionCode 7
+        versionName "1.0.6"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name

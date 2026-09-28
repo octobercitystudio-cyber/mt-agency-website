@@ -33,7 +33,7 @@ test('staff notifications preserve delegated permission and channel identity acr
  assert.match(service, /if \(channel == null\)/); assert.match(service, /setShowBadge\(true\)/);
  assert.match(service, /setPublicVersion\(publicVersion\)/); assert.match(service, /Notification.VISIBILITY_PRIVATE/);
  assert.match(service, /setSmallIcon\(R.drawable.ic_notification_icon\)/);
- assert.match(gradle, /versionCode 2/); assert.match(gradle, /src\/main\/java/);
+ assert.match(gradle, /versionCode 3/); assert.match(gradle, /src\/main\/java/);
  assert.match(settings, /Settings.ACTION_APP_NOTIFICATION_SETTINGS/);
  assert.match(shortcuts, /StaffNotificationSettingsActivity/);
 });

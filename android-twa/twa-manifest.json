@@ -21,8 +21,8 @@
     "path": "./android.keystore",
     "alias": "mtagency"
   },
-  "appVersionCode": 6,
-  "appVersion": "1.0.5",
+  "appVersionCode": 7,
+  "appVersion": "1.0.6",
   "shortcuts": [
     {
       "name": "لوحة القيادة",
