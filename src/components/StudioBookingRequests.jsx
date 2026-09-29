@@ -1,3 +1,4 @@
+import ClientPendingAppointmentRequests from './ClientPendingAppointmentRequests';
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarDays, Check, Clock3, Eye, Inbox, Package, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
@@ -8,7 +9,7 @@ import { safeUiError } from '../lib/uiError';
 import { IntakeRequestCards } from './IntakeRequests';
 import './StudioBookingRequests.css';
 import useModalDialog from '../hooks/useModalDialog';
-const labels = { pending: 'قيد المراجعة', approved: 'تمت الموافقة', rejected: 'لم تتم الموافقة' };
+const labels = { pending: 'قيد المراجعة', approved: 'تمت الموافقة', rejected: 'لم تتم الموافقة', withdrawn: 'ألغاه العميل' };
 export function StudioBookingRequestCards({ items = [], role = 'client', onChanged, onFocusAppointment }) {
   const [decision, setDecision] = useState(null); const [note, setNote] = useState(''); const [received, setReceived] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [proofPreview, setProofPreview] = useState(null);
   const proofDialogRef = useModalDialog(Boolean(proofPreview), () => setProofPreview(null), { isolateBackground: true });
@@ -30,5 +31,5 @@ export default function ClientStudioRequests() {
   const [items, setItems] = useState([]); const [legacy, setLegacy] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const load = useCallback(async () => { setLoading(true); setError(''); const [result, old] = await Promise.all([dataClient.request('/client/studio-booking-requests'), dataClient.request('/client/intake-requests')]); if (result.error) setError(safeUiError(result.error, 'تعذر تحميل طلباتك.')); else setItems(result.data?.items || []); if (!old.error) setLegacy(old.data?.items || []); setLoading(false); }, []);
   useEffect(() => { void load(); }, [load]); // eslint-disable-line react-hooks/set-state-in-effect
-  return <section className="client-intake" dir="rtl"><header className="intake-heading"><div><span className="intake-eyebrow">خطوات حجزك في مكان واحد</span><h2>صندوق طلباتك</h2><p>تابع اعتماد المقدم والباقة، ثم تأكيد كل موعد تصوير.</p></div><button onClick={load} disabled={loading}><RefreshCw/> تحديث الحالة</button></header>{error && <p className="intake-error" role="alert">{error}</p>}{loading ? <p role="status">جارٍ تحميل طلباتك…</p> : <StudioBookingRequestCards items={items}/>} {!!legacy.length && <details className="studio-legacy"><summary>طلبات تسجيل سابقة</summary><IntakeRequestCards items={legacy}/></details>}</section>;
+  return <section className="client-intake" dir="rtl"><header className="intake-heading"><div><span className="intake-eyebrow">خطوات حجزك في مكان واحد</span><h2>صندوق طلباتك</h2><p>تابع اعتماد المقدم والباقة، ثم تأكيد كل موعد تصوير.</p></div><button onClick={load} disabled={loading}><RefreshCw/> تحديث الحالة</button></header>{error && <p className="intake-error" role="alert">{error}</p>}<ClientPendingAppointmentRequests onChanged={load}/>{loading ? <p role="status">جارٍ تحميل طلباتك…</p> : <StudioBookingRequestCards items={items}/>} {!!legacy.length && <details className="studio-legacy"><summary>طلبات تسجيل سابقة</summary><IntakeRequestCards items={legacy}/></details>}</section>;
 }

@@ -16,6 +16,7 @@ require_once __DIR__ . '/auth_identity.php';
 require_once __DIR__ . '/remembered_login.php';
 require_once __DIR__ . '/payment_proof_review.php';
 require_once __DIR__ . '/studio_booking_requests.php';
+require_once __DIR__ . '/client_request_withdrawal.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -2355,6 +2356,7 @@ if($user&&in_array($user['role'],['owner','admin','operations','finance'],true)&
 handlePackageLoyaltyRoutes($pdo,$user,$path,$method);
 handleRegistrationRoutes($pdo, $config, $user, $path, $method);
 handleStudioBookingRoutes($pdo, $config, $user, $path, $method);
+handleClientRequestWithdrawalRoutes($pdo, $user, $path, $method);
 handlePostProductionRoutes($pdo, $config, $user, $path, $method);
 handlePackageGuideRoutes($pdo, $user, $path, $method);
 handleLegacyImportRoutes($pdo, $config, $user, $path, $method);
