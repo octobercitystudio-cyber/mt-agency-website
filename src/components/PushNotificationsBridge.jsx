@@ -1,4 +1,5 @@
 import { staffPath } from '../lib/staffRoutes';
+import { authAudience, roleMatchesAudience } from '../lib/authAudience';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { dataClient } from '../dataClient';
@@ -44,7 +45,7 @@ export default function PushNotificationsBridge() {
     return () => window.clearInterval(timer);
   }, [retryAt]);
   const [diagnostic, setDiagnostic] = useState('');
-  const currentPrincipal = currentUser ? `${currentUser.role}:${currentUser.id}` : '';
+  const currentPrincipal = roleMatchesAudience(currentUser?.role, authAudience(pathname)) ? `${currentUser.role}:${currentUser.id}` : '';
 
   useEffect(() => {
     if (!currentPrincipal || currentPrincipal.startsWith('applicant:') || !pushEnvironmentSupported()) return undefined;
@@ -88,7 +89,7 @@ export default function PushNotificationsBridge() {
   useEffect(() => {
     if (!currentUser || currentUser.role === 'applicant' || !('serviceWorker' in navigator)) return undefined;
     const receiveBadge = event => {
-      if (event.data?.type === 'MT_PUSH_BADGE') { syncAppBadge(event.data.unread_count); window.dispatchEvent(new CustomEvent('mtPushChange', { detail: { topics: event.data.topics || ['notifications'], source: 'service-worker' } })); }
+      if (event.data?.type === 'MT_PUSH_BADGE' && event.data.audience === authAudience()) { syncAppBadge(event.data.unread_count); window.dispatchEvent(new CustomEvent('mtPushChange', { detail: { topics: event.data.topics || ['notifications'], source: 'service-worker' } })); }
     };
     navigator.serviceWorker.addEventListener('message', receiveBadge);
     return () => navigator.serviceWorker.removeEventListener('message', receiveBadge);

@@ -30,7 +30,7 @@ test('a broken legacy cache cannot blank the login application', () => {
 test('client login waits for session restoration and accepts only client password results', () => {
   assert.match(loginSource, /disabled=\{loading \|\| !isAuthReady\}/);
   assert.doesNotMatch(loginSource, /STAFF_ROLES\.includes\(user\.role\)/);
-  assert.match(loginSource, /STAFF_ROLES\.includes\(currentUser\.role\)/);
+  assert.doesNotMatch(loginSource, /STAFF_ROLES\.includes\(currentUser\.role\)|navigate\(staffPath/);
   assert.match(loginSource, /loginError\?\.message/);
   assert.doesNotMatch(dataContextSource, /alert\("خطأ في تسجيل الدخول: " \+ error\.message\)/);
 });

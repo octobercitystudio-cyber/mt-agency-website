@@ -13,8 +13,12 @@ export const syncAppBadge = async (value, { clearSystemNotifications = false } =
   if (typeof navigator === 'undefined') return;
   const count = normalizedBadgeCount(value);
   try {
-    if (count > 0 && typeof navigator.setAppBadge === 'function') await navigator.setAppBadge(count);
-    else if (count === 0 && typeof navigator.clearAppBadge === 'function') await navigator.clearAppBadge();
+    // Android delegates notifications to each APK. Origin-wide badging can
+    // otherwise badge the customer app while running inside the staff app.
+    if (!/Android/i.test(navigator.userAgent || '') && !isStaffPushPage()) {
+      if (count > 0 && typeof navigator.setAppBadge === 'function') await navigator.setAppBadge(count);
+      else if (count === 0 && typeof navigator.clearAppBadge === 'function') await navigator.clearAppBadge();
+    }
   } catch { /* Badge support is launcher/browser dependent. */ }
   if (!clearSystemNotifications || !('serviceWorker' in navigator)) return;
   try {
@@ -69,6 +73,7 @@ const firebaseMessaging = async configuration => {
 
 const foregroundNotification = async payload => {
   const data = payload?.data || {};
+  if (isStaffPushPage() || (data.audience && data.audience !== 'client') || (data.url && isStaffPushPage(new URL(data.url, globalThis.location.origin).pathname))) return;
   const unreadCount = normalizedBadgeCount(data.unread_count || 1);
   const syncTopics = String(data.sync_topics || 'notifications').split(',').map(topic => topic.trim()).filter(Boolean);
   window.dispatchEvent(new CustomEvent('mtPushChange', { detail: { topics: [...new Set(syncTopics)], source: 'firebase' } }));
@@ -100,6 +105,7 @@ export const registerPushNotifications = async (dataClient, configuration, reque
     throw error;
   }
   const staff = configuration.transport === 'webpush';
+  if (staff !== isStaffPushPage()) throw new Error('push_audience_mismatch');
   const storageKey = pushTokenStorageKey(staff);
   const registration = await readyPushRegistration(staff);
   let token, messaging, onMessage;

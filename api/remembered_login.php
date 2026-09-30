@@ -6,7 +6,7 @@ function rememberedLoginDays(array $config): int {
 }
 
 function rememberedCookieName(array $config,string $kind): string {
-    return (isProduction($config)?'__Host-':'').'mt_'.$kind;
+    return (isProduction($config)?'__Host-':'').'mt_'.$kind.(!empty($config['_auth_audience'])?'_'.$config['_auth_audience']:'');
 }
 
 function rememberedDeviceSecrets(array $config): ?array {
@@ -80,11 +80,12 @@ function resumeRememberedLogin(PDO $pdo,array $config): string {
     $hash=hash('sha256',$secrets[0]);$agent=requestUserAgentHash();
     $pdo->beginTransaction();
     try{
-        $query=$pdo->prepare('SELECT d.* FROM remembered_login_devices d JOIN users u ON u.id=d.user_id
+        $query=$pdo->prepare('SELECT d.*,u.role AS account_role FROM remembered_login_devices d JOIN users u ON u.id=d.user_id
             WHERE d.token_hash=? AND d.device_hash=? AND d.user_agent_hash=? AND d.expires_at>NOW()
             AND d.credential_version=u.credential_version AND u.is_active=1 FOR UPDATE');
         $query->execute([$hash,hash('sha256',$secrets[1]),$agent]);$device=$query->fetch();
         if(!$device){$pdo->commit();return '';}
+        if(!empty($config['_auth_audience']) && (($config['_auth_audience']==='client')!==in_array($device['account_role'],['client','applicant'],true))){$pdo->commit();return '';}
         $idle=max(15,min(1440,(int)($config['app']['session_idle_minutes']??120)));
         $active=$pdo->prepare('SELECT 1 FROM api_sessions WHERE token_hash=? AND credential_version=? AND user_id=? AND user_agent_hash=? AND expires_at>NOW() AND last_used_at>DATE_SUB(NOW(), INTERVAL '.$idle.' MINUTE)');
         $active->execute([$device['session_token_hash'],$device['credential_version'],$device['user_id'],$agent]);

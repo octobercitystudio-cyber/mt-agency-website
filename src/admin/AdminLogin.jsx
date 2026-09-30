@@ -44,7 +44,6 @@ export default function AdminLogin() {
   useEffect(() => {
     if (!isAuthReady) return;
     if (STAFF_ROLES.includes(currentUser?.role)) navigate(staffPath(''), { replace: true });
-    else if (!staffApp && CLIENT_ROLES.includes(currentUser?.role)) navigate(currentUser.must_change_password ? '/change-password' : '/dashboard', { replace: true });
   }, [currentUser, isAuthReady, navigate, staffApp]);
 
   const completeStaffLogin = user => {

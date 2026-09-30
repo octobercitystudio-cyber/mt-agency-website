@@ -1,5 +1,6 @@
 import { requireLoginPhone } from './phoneLogin.js';
 import { sharedReadRequestScheduler } from './readRequestScheduler.js';
+import { authAudience, authCsrfCookieNames, roleMatchesAudience } from './authAudience.js';
 
 const API_BASE = (import.meta.env?.VITE_API_URL || '/api').replace(/\/$/, '');
 
@@ -9,7 +10,7 @@ const readCookie = (name) => document.cookie
   ?.slice(name.length + 1) || '';
 
 const csrfToken = () => decodeURIComponent(
-  readCookie('__Host-mt_csrf') || readCookie('mt_csrf') || '',
+  authCsrfCookieNames().map(readCookie).find(Boolean) || '',
 );
 
 const toError = (payload, fallback = 'تعذر الاتصال بالخادم.') => {
@@ -30,6 +31,7 @@ const toError = (payload, fallback = 'تعذر الاتصال بالخادم.') 
 const apiRequest = async (path, options = {}) => {
   const method = (options.method || 'GET').toUpperCase();
   const headers = { ...(options.headers || {}) };
+  headers['X-MTA-Audience'] = authAudience();
   if (!(options.body instanceof FormData)) headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     const token = csrfToken();
@@ -184,15 +186,15 @@ const auth = {
   async getSession() {
     try {
       const data = await apiRequest('/auth/session');
-      cachedUser = data.user;
-      return { data: { session: data.session ? { ...data.session, user: data.user } : null }, error: null };
+      cachedUser = roleMatchesAudience(data.user?.role) ? data.user : null;
+      return { data: { session: data.session && cachedUser ? { ...data.session, user: cachedUser } : null }, error: null };
     } catch (error) {
       return { data: { session: null }, error };
     }
   },
 
   async getUser() {
-    if (cachedUser) return { data: { user: cachedUser }, error: null };
+    if (cachedUser && roleMatchesAudience(cachedUser.role)) return { data: { user: cachedUser }, error: null };
     const result = await this.getSession();
     return { data: { user: result.data.session?.user || null }, error: result.error };
   },

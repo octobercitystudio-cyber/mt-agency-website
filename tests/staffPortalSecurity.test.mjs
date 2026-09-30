@@ -21,12 +21,12 @@ test('opaque portal has one route contract across browser, web server, push and 
 });
 
 test('MFA challenge never hydrates a session and the verified retry includes the code', async t => {
-  const oldFetch=globalThis.fetch, oldDocument=globalThis.document, events=[],requests=[];
-  globalThis.document={cookie:'__Host-mt_csrf=csrf-fixture'};
+  const oldFetch=globalThis.fetch, oldDocument=globalThis.document, oldLocation=globalThis.location, events=[],requests=[];
+  globalThis.document={cookie:'__Host-mt_csrf_staff=csrf-fixture'};globalThis.location={pathname:STAFF_LOGIN_PATH};
   const responses=[{ok:false,status:401,payload:{error:{code:'mfa_required',message:'Code required'}}},{ok:true,status:200,payload:{data:{session:{active:true},user:{id:1,role:'owner'}}}}];
   globalThis.fetch=async(url,options)=>{requests.push({url,options});const result=responses.shift();return {...result,headers:{get:()=>null},json:async()=>result.payload};};
   const sub=hostingerClient.auth.onAuthStateChange((event,session)=>events.push({event,session}));
-  t.after(()=>{globalThis.fetch=oldFetch;globalThis.document=oldDocument;sub.data.subscription.unsubscribe();});
+  t.after(()=>{globalThis.fetch=oldFetch;globalThis.document=oldDocument;globalThis.location=oldLocation;sub.data.subscription.unsubscribe();});
   const input={identifier:'owner@example.test',password:'fixture'};
   assert.equal((await hostingerClient.auth.signInStaffWithPassword(input)).error.code,'mfa_required');assert.equal(events.length,0);
   assert.equal((await hostingerClient.auth.signInStaffWithPassword({...input,code:'123456'})).data.user.role,'owner');assert.equal(events.length,1);

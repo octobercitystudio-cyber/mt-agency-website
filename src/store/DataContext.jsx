@@ -1,4 +1,5 @@
 import { isStaffPortalPath } from '../lib/staffRoutes';
+import { roleMatchesAudience } from '../lib/authAudience';
 import { requireLoginPhone } from '../lib/phoneLogin';
 import { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../data/studioGalleries';
@@ -33,7 +34,7 @@ const restoreLocalPreviewSession = () => {
   if (!import.meta.env.DEV) return null;
   try {
     const user = JSON.parse(sessionStorage.getItem(LOCAL_PREVIEW_SESSION_KEY) || 'null');
-    if (!user?.is_local_preview || !user?.role) return null;
+    if (!user?.is_local_preview || !roleMatchesAudience(user?.role)) return null;
     return user;
   } catch {
     sessionStorage.removeItem(LOCAL_PREVIEW_SESSION_KEY);
@@ -178,7 +179,7 @@ export const DataProvider = ({ children }) => {
   const authRevisionRef = useRef(0);
 
   const applySession = useCallback((session) => {
-    const user = session?.user || null;
+    const user = roleMatchesAudience(session?.user?.role) ? session.user : null;
     const role = user?.role;
     if (import.meta.env.DEV && user?.is_local_preview) sessionStorage.setItem(LOCAL_PREVIEW_SESSION_KEY, JSON.stringify(user));
     setCurrentUser(user);

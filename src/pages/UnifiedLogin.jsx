@@ -1,4 +1,3 @@
-import { staffPath } from '../lib/staffRoutes';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowDownLeft, Eye, EyeOff, LoaderCircle, X } from 'lucide-react';
@@ -9,7 +8,6 @@ import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestinat
 import ClientAppDownload from '../components/ClientAppDownload';
 import './UnifiedLogin.css';
 
-const STAFF_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
 const SUPPORT_PHONE = '01114466646';
 
 const loginErrorMessage = loginError => {
@@ -42,8 +40,6 @@ export default function UnifiedLogin() {
     if (!isAuthReady || !currentUser?.role) return;
     if (['client', 'applicant'].includes(currentUser.role)) {
       navigate(currentUser.must_change_password ? clientAuthPath('/change-password', clientDestination) : clientDestination, { replace: true });
-    } else if (STAFF_ROLES.includes(currentUser.role)) {
-      navigate(staffPath(''), { replace: true });
     }
   }, [clientDestination, currentUser, isAuthReady, navigate]);
 

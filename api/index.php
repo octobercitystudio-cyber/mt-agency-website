@@ -51,7 +51,7 @@ if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
 }
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token');
+    header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, X-MTA-Audience');
     http_response_code(204);
     exit;
 }
@@ -219,17 +219,17 @@ function isSecureRequest(array $config): bool {
 }
 
 function sessionCookieName(array $config): string {
-    return isProduction($config) ? '__Host-mt_session' : 'mt_session';
+    return (isProduction($config) ? '__Host-mt_session' : 'mt_session') . (!empty($config['_auth_audience']) ? '_'.$config['_auth_audience'] : '');
 }
 
 function csrfCookieName(array $config): string {
-    return isProduction($config) ? '__Host-mt_csrf' : 'mt_csrf';
+    return (isProduction($config) ? '__Host-mt_csrf' : 'mt_csrf') . (!empty($config['_auth_audience']) ? '_'.$config['_auth_audience'] : '');
 }
 
 function sessionToken(array $config): string {
     $name = sessionCookieName($config);
     $token = $_COOKIE[$name] ?? '';
-    if ($token === '' && $name !== 'mt_session') $token = $_COOKIE['mt_session'] ?? '';
+    if ($token === '' && empty($config['_auth_audience']) && $name !== 'mt_session') $token = $_COOKIE['mt_session'] ?? '';
     return is_string($token) ? $token : '';
 }
 
@@ -247,7 +247,9 @@ function setCsrfCookie(array $config, ?string $token = null): string {
 }
 
 function clearAuthCookies(array $config): void {
-    foreach (array_unique([sessionCookieName($config), csrfCookieName($config), rememberedCookieName($config, 'remember'), rememberedCookieName($config, 'device'), 'mt_session', 'mt_csrf', 'mt_remember', 'mt_device']) as $name) {
+    $names = [sessionCookieName($config), csrfCookieName($config), rememberedCookieName($config, 'remember'), rememberedCookieName($config, 'device')];
+    if (empty($config['_auth_audience'])) $names = array_merge($names, ['mt_session', 'mt_csrf', 'mt_remember', 'mt_device']);
+    foreach (array_unique($names) as $name) {
         unset($_COOKIE[$name]);
         setcookie($name, '', [
             'expires' => time() - 3600,
@@ -262,7 +264,7 @@ function clearAuthCookies(array $config): void {
 function requireCsrf(array $config, string $path, string $method): void {
     if (in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) return;
     if (in_array($path, ['/auth/login', '/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue', '/cron/booking-tick'], true)) return;
-    $cookie = (string)($_COOKIE[csrfCookieName($config)] ?? $_COOKIE['mt_csrf'] ?? '');
+    $cookie = (string)($_COOKIE[csrfCookieName($config)] ?? (empty($config['_auth_audience']) ? ($_COOKIE['mt_csrf'] ?? '') : ''));
     $header = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
     if ($cookie === '' || $header === '' || !hash_equals($cookie, $header)) {
         fail('انتهت صلاحية حماية الطلب. حدّث الصفحة ثم حاول مرة أخرى.', 403, 'csrf_failed');
@@ -436,6 +438,10 @@ function sessionUser(PDO $pdo, array $config, bool $allowResume = true): ?array 
         return null;
     }
     $user['role'] = authorizationRole($user);
+    if (!empty($config['_auth_audience'])) {
+        $clientRole = in_array($user['role'], ['client', 'applicant'], true);
+        if (($config['_auth_audience'] === 'client') !== $clientRole) return null;
+    }
     $pdo->prepare('UPDATE api_sessions SET last_used_at = NOW() WHERE token_hash = ? AND last_used_at < DATE_SUB(NOW(), INTERVAL 2 MINUTE)')->execute([$tokenHash]);
     $user['permissions'] = $user['permissions'] ? json_decode($user['permissions'], true) : [];
     $user['must_change_password'] = (bool)$user['must_change_password'];
@@ -460,6 +466,27 @@ function setSessionCookie(array $config, string $token, int $days): void {
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
+}
+
+// Adopt an existing valid login only into the matching portal. Never copy an
+// owner's credentials into customer cookies (or revive a logged-out session).
+function migratePortalSession(PDO $pdo, array $config): void {
+    if (empty($config['_auth_audience']) || sessionToken($config) !== '' || rememberedDeviceSecrets($config)) return;
+    $legacyConfig = $config;
+    unset($legacyConfig['_auth_audience']);
+    if (sessionToken($legacyConfig) === '') return;
+    $legacyUser = sessionUser($pdo, $legacyConfig, false);
+    if (!$legacyUser) return;
+    $clientRole = in_array($legacyUser['role'], ['client','applicant'], true);
+    if (($config['_auth_audience'] === 'client') !== $clientRole) return;
+    $token = sessionToken($legacyConfig);
+    $remembered = rememberedDeviceSecrets($legacyConfig);
+    setSessionCookie($config, $token, max(1,min(7,(int)($config['app']['session_days']??7))));
+    if ($remembered) setRememberedDeviceCookies($config, ...$remembered);
+    rememberLoginDevice($pdo, $config, $legacyUser, $token);
+    // Move, rather than duplicate, the remembered device so scoped logout also
+    // revokes the original credentials and old tabs cannot resurrect them.
+    clearAuthCookies($legacyConfig);
 }
 
 function changeTopic(string $entityType): string {
@@ -791,7 +818,7 @@ function sendFirebasePush(array $config,string $token,array $notification,int $u
     $title=mb_substr(trim((string)($notification['title']??'MT Agency')),0,180);$body=mb_substr(trim((string)($notification['message']??'لديك تحديث جديد.')),0,500);$notificationId=(string)(int)($notification['id']??0);$tab=trim((string)($notification['action_tab']??''));if($tab==='montage')$tab='videos';$clientAudience=(string)($notification['audience']??'')==='client';
     $staffRoutes=['requests'=>staffPortalPath('/requests'),'bookings'=>staffPortalPath('/bookings'),'packages'=>staffPortalPath('/packages'),'clients'=>staffPortalPath('/clients'),'finance'=>staffPortalPath('/finance'),'projects'=>staffPortalPath('/projects'),'offers'=>staffPortalPath('/offers'),'post-production'=>staffPortalPath('/post-production')];$url=$clientAudience?('/dashboard'.($tab!==''?'?tab='.rawurlencode($tab):'')):($staffRoutes[$tab]??staffPortalPath(''));$payload=is_array($notification['payload']??null)?$notification['payload']:json_decode((string)($notification['payload_json']??''),true);$jobId=is_array($payload)?filter_var($payload['post_production_job_id']??null,FILTER_VALIDATE_INT):false;if($clientAudience&&in_array($tab,['montage','videos'],true)&&$jobId!==false&&$jobId>0)$url.=($tab!==''?'&':'?').'job='.(int)$jobId;
     $syncTopics=array_values(array_unique(['notifications',changeTopic((string)($notification['entity_type']??''))]));
-    $message=['message'=>['token'=>$token,'notification'=>['title'=>$title,'body'=>$body],'data'=>['title'=>$title,'body'=>$body,'url'=>$url,'notification_id'=>$notificationId,'unread_count'=>(string)max(1,min(999,$unreadCount)),'sync_topics'=>implode(',',$syncTopics),'is_test'=>!empty($notification['is_test'])?'1':'0'],'webpush'=>['headers'=>['Urgency'=>'high','TTL'=>'86400'],'fcm_options'=>['link'=>'https://multitaskagency.com'.$url]]]];
+    $message=['message'=>['token'=>$token,'notification'=>['title'=>$title,'body'=>$body],'data'=>['audience'=>$clientAudience?'client':'staff','title'=>$title,'body'=>$body,'url'=>$url,'notification_id'=>$notificationId,'unread_count'=>(string)max(1,min(999,$unreadCount)),'sync_topics'=>implode(',',$syncTopics),'is_test'=>!empty($notification['is_test'])?'1':'0'],'webpush'=>['headers'=>['Urgency'=>'high','TTL'=>'86400'],'fcm_options'=>['link'=>'https://multitaskagency.com'.$url]]]];
     if(str_starts_with($token,'webpush:')){sendStaffWebPush($config,$token,$message['message']['data']);return;}
     $auth=firebaseAccessToken($config);
     $endpoint='https://fcm.googleapis.com/v1/projects/'.rawurlencode($auth['project_id']).'/messages:send';$curl=curl_init($endpoint);curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>20,CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$auth['token'],'Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode($message,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]);$raw=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_HTTP_CODE);$error=curl_error($curl);curl_close($curl);
@@ -1926,6 +1953,14 @@ function buildFilters(array $definition, array $filters, array &$params, string 
 $pdo = db($config);
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = routePath();
+// File previews open in a new browser tab and cannot attach custom headers.
+$filePreview = $method === 'GET' && preg_match('#^/payment-proofs/\d+/file$#', $path);
+$audience = (string)($_SERVER['HTTP_X_MTA_AUDIENCE'] ?? ($filePreview ? ($_GET['audience'] ?? '') : ''));
+if ($audience !== '' && !in_array($audience, ['staff', 'client'], true)) fail('مساحة الدخول غير صحيحة.', 400, 'invalid_auth_audience');
+$config['_auth_audience'] = $audience;
+$loginAudience = ['/auth/staff/login'=>'staff', '/auth/login'=>'client'][$path] ?? null;
+if ($audience !== '' && $loginAudience !== null && $loginAudience !== $audience) fail('استخدم صفحة الدخول الخاصة بحسابك.', 403, 'auth_audience_mismatch');
+if ($method === 'GET' && in_array($path, ['/auth/session'], true)) migratePortalSession($pdo, $config);
 requireCsrf($config, $path, $method);
 $user = sessionUser($pdo, $config);
 
@@ -1996,6 +2031,7 @@ if ($path === '/push/subscriptions' && $method === 'POST') {
         if(in_array($user['role'],['client','applicant'],true))fail('قناة إشعارات الإدارة مخصصة لفريق العمل.',403,'staff_push_only');
         try{staffWebPushSubscription($token);}catch(InvalidArgumentException){fail('بيانات تسجيل إشعارات الإدارة غير صحيحة.',422,'invalid_push_subscription');}
     }
+    if (!in_array($user['role'], ['client','applicant'], true) && !str_starts_with($token,'webpush:')) fail('أعد فتح تطبيق الإدارة لتحديث قناة الإشعارات.',422,'push_audience_mismatch');
     $hash=hash('sha256',$token);$userId=$user['role']==='client'?null:(int)$user['id'];$clientId=$user['role']==='client'?(int)$user['client_id']:null;
     $stmt=$pdo->prepare('INSERT INTO app_push_subscriptions (organization_id,user_id,client_id,token_hash,token,platform,device_label,is_active,last_seen_at) VALUES (?,?,?,?,?,?,?,1,NOW()) ON DUPLICATE KEY UPDATE organization_id=VALUES(organization_id),user_id=VALUES(user_id),client_id=VALUES(client_id),token=VALUES(token),platform=VALUES(platform),device_label=VALUES(device_label),is_active=1,last_seen_at=NOW()');$stmt->execute([(int)$user['organization_id'],$userId,$clientId,$hash,$token,$platform,$label?:null]);
     $legacy=(string)($payload['previous_token']??'');

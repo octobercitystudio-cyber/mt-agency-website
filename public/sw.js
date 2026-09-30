@@ -8,6 +8,7 @@ const normalizeDestination = value => {
   try {
     const target = new URL(value || DEFAULT_URL, APP_ORIGIN);
     if (target.origin !== APP_ORIGIN) return DEFAULT_URL;
+    if (!belongsToAudience(target.href)) return DEFAULT_URL;
     if (/^\/erp(\/|$)/.test(target.pathname)) target.pathname = STAFF_BASE + target.pathname.slice(4);
     if (target.pathname === '/adminmt/login') target.pathname = STAFF_BASE + '/login';
     if (target.origin === APP_ORIGIN && target.pathname === '/dashboard' && target.searchParams.get('tab') === 'montage') {
@@ -18,7 +19,15 @@ const normalizeDestination = value => {
 };
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
+self.addEventListener('activate', event => event.waitUntil((async () => {
+  // Remove historical alerts delivered through the wrong app registration.
+  const notifications = await self.registration.getNotifications();
+  for (const notification of notifications) {
+    const url = notification.data?.url;
+    if (url && !belongsToAudience(url)) notification.close();
+  }
+  await self.clients.claim();
+})()));
 
 const pushPayload = event => {
   if (!event.data) return {};
@@ -29,17 +38,22 @@ const pushPayload = event => {
 const badgeCount = value => Math.max(1, Math.min(999, Math.trunc(Number(value) || 1)));
 
 const updateBadgeAndClients = async (count, data) => {
-  try {
-    if (typeof self.navigator?.setAppBadge === 'function') await self.navigator.setAppBadge(count);
-  } catch { /* Android launchers can manage the badge from active notifications instead. */ }
+  // Do not setAppBadge from the root worker: it also covers the staff app.
+  // Android derives each APK's badge from its own delegated notifications.
   const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  windows.filter(client => !client.url || belongsToAudience(client.url)).forEach(client => client.postMessage({ type: 'MT_PUSH_BADGE', unread_count: count, topics: String(data.sync_topics || 'notifications').split(',').filter(Boolean) }));
+  windows.filter(client => client.url && belongsToAudience(client.url)).forEach(client => client.postMessage({ type: 'MT_PUSH_BADGE', audience: STAFF_PUSH ? 'staff' : 'client', unread_count: count, topics: String(data.sync_topics || 'notifications').split(',').filter(Boolean) }));
 };
 
 self.addEventListener('push', event => {
   const payload = pushPayload(event);
   const data = payload.data || {};
   const notification = payload.notification || {};
+  // Drop stale subscriptions that used the other application's transport.
+  if (data.audience && data.audience !== (STAFF_PUSH ? 'staff' : 'client')) return;
+  const rawDestination = data.url || notification.click_action;
+  if (rawDestination) {
+    try { if (!belongsToAudience(rawDestination)) return; } catch { return; }
+  }
   const unreadCount = badgeCount(data.unread_count);
   const title = notification.title || data.title || 'MT Agency';
   const body = notification.body || data.body || 'لديك تحديث جديد في حسابك.';

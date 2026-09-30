@@ -10,11 +10,12 @@ function schemaTableExists(...$args):bool{return true;}
 function pushUnreadCount(PDO $pdo,array $notification,?int $user=null):int{return 4;}
 function sendFirebasePush(array $config,string $token,array $notification,int $count=1):void{
  global $delivered;
+ $transportToken=$token;$token=str_starts_with($token,'webpush:')?substr($token,8):$token;
  if(str_starts_with($token,'EXPIRED'))throw new RuntimeException('firebase_send_failed:404:'.json_encode(['error'=>['details'=>[['@type'=>'type.googleapis.com/google.firebase.fcm.v1.FcmError','errorCode'=>'UNREGISTERED']]]]),404);
  if(str_starts_with($token,'BADPAYLOAD'))throw new RuntimeException('firebase_send_failed:400:bad request',400);
  if(str_starts_with($token,'BADCONFIG'))throw new RuntimeException('firebase_oauth_failed:401',401);
  if(str_starts_with($token,'FAIL'))throw new RuntimeException('temporary_failure',503);
- $delivered[]=['token'=>$token,'notification'=>$notification,'count'=>$count];
+ $delivered[]=['token'=>$transportToken,'notification'=>$notification,'count'=>$count];
 }
 final class PushTestPDO extends PDO {
  public function __construct(){parent::__construct('sqlite::memory:');$this->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);}
@@ -37,9 +38,11 @@ INSERT INTO app_notifications(id,organization_id,client_id,audience,title,messag
 UPDATE app_notifications SET read_at=CURRENT_TIMESTAMP WHERE id=3;
 UPDATE app_notifications SET dismissed_at=CURRENT_TIMESTAMP WHERE id=4;
 INSERT INTO app_push_jobs(id,organization_id,notification_id) VALUES(1,1,1),(2,1,2),(3,1,3),(4,1,4),(5,1,5),(6,2,6);");
-$ownerToken=str_repeat('O',90);$clientToken=str_repeat('C',90);
+$ownerToken='webpush:'.str_repeat('O',90);$clientToken=str_repeat('C',90);
 $s=$pdo->prepare('INSERT INTO app_push_subscriptions(id,organization_id,user_id,client_id,token,token_hash) VALUES(?,?,?,?,?,?)');
-foreach([[1,1,10,null,$ownerToken],[2,1,null,77,$clientToken],[3,1,20,null,str_repeat('X',90)],[4,2,10,null,str_repeat('Z',90)],[5,1,30,null,'FAIL'.str_repeat('F',86)]] as $row)$s->execute([...$row,hash('sha256',$row[4])]);
+foreach([[1,1,10,null,$ownerToken],[2,1,null,77,$clientToken],[3,1,20,null,'webpush:'.str_repeat('X',90)],[4,2,10,null,'webpush:'.str_repeat('Z',90)],[5,1,30,null,'webpush:FAIL'.str_repeat('F',86)]] as $row)$s->execute([...$row,hash('sha256',$row[4])]);
+$legacyToken=str_repeat('L',90);
+$s->execute([90,1,10,null,$legacyToken,hash('sha256',$legacyToken)]);
 $pdo->beginTransaction();try{processPushQueue($pdo,[]);throw new RuntimeException('Must reject uncommitted transaction');}catch(LogicException){check(true,'Uncommitted events never send');}$pdo->rollBack();
 $result=processPushQueue($pdo,[],[1,2,3,4]);
 check($result['processed']===4 && $result['delivered_devices']===2,'Closed clients receive only unread, undismissed events');
@@ -51,6 +54,7 @@ $result=processPushQueue($pdo,[],[5]);check($result['failed_jobs']===1,'Temporar
 $job=$pdo->query('SELECT * FROM app_push_jobs WHERE id=5')->fetch();check($job['status']==='pending' && (int)$job['attempts']===1 && $job['available_at']>date('Y-m-d H:i:s'),'Retry scheduled in future');
 check($pdo->query('SELECT status FROM app_push_jobs WHERE id=6')->fetchColumn()==='pending','Immediate delivery does not drain unrelated org jobs');
 $owner=['id'=>10,'organization_id'=>1,'role'=>'owner'];$client=['id'=>77,'client_id'=>77,'organization_id'=>1,'role'=>'client'];
+try{sendOwnPushTest($pdo,[],$owner,$legacyToken);throw new LogicException('Legacy transport accepted');}catch(RuntimeException $error){check($error->getMessage()==='push_audience_mismatch','Owner test cannot target customer app transport');}
 check(sendOwnPushTest($pdo,[],$owner,$ownerToken)['sent'],'Owner can test own registered device');
 check(sendOwnPushTest($pdo,[],$client,$clientToken)['sent'],'Client can test own registered device');
 check(end($delivered)['notification']['is_test'] && end($delivered)['count']===0,'Test does not add unread count');
@@ -59,7 +63,7 @@ foreach([[$owner,$clientToken],[$client,$ownerToken],[array_replace($owner,['org
 }
 // Payload/configuration failures must never deactivate valid devices.
 foreach([[20,'BADPAYLOAD','push_payload_invalid'],[21,'BADCONFIG','push_provider_credentials'],[22,'EXPIRED','push_token_expired']] as [$id,$prefix,$expected]) {
- $token=$prefix.str_repeat('T',90);
+ $token='webpush:'.$prefix.str_repeat('T',90);
  $pdo->prepare("INSERT INTO app_push_subscriptions(id,organization_id,user_id,token,token_hash) VALUES(?,1,?,?,?)")->execute([$id,$id,$token,hash('sha256',$token)]);
  $pdo->prepare("INSERT INTO app_notifications(id,organization_id,recipient_user_id,audience,title,message,entity_type) VALUES(?,1,?,'owner','Test','Test','users')")->execute([$id,$id]);
  $pdo->prepare("INSERT INTO app_push_jobs(id,organization_id,notification_id) VALUES(?,1,?)")->execute([$id,$id]);
@@ -76,14 +80,14 @@ check(pushFailureCode(new RuntimeException('UNREGISTERED in arbitrary error text
 // A failing legacy phone comes first; the current phone must still receive.
 $pdo->exec("INSERT INTO app_notifications(id,organization_id,recipient_user_id,audience,title,message,entity_type) VALUES(40,1,40,'owner','New booking','Confirmed','bookings');
 INSERT INTO app_push_jobs(id,organization_id,notification_id) VALUES(40,1,40);");
-foreach([[40,'BADCONFIG'.str_repeat('Q',90)],[41,str_repeat('H',90)]] as [$id,$token])$pdo->prepare('INSERT INTO app_push_subscriptions(id,organization_id,user_id,token,token_hash) VALUES(?,1,40,?,?)')->execute([$id,$token,hash('sha256',$token)]);
+foreach([[40,'webpush:BADCONFIG'.str_repeat('Q',90)],[41,'webpush:'.str_repeat('H',90)]] as [$id,$token])$pdo->prepare('INSERT INTO app_push_subscriptions(id,organization_id,user_id,token,token_hash) VALUES(?,1,40,?,?)')->execute([$id,$token,hash('sha256',$token)]);
 $before=count($delivered);$result=processPushQueue($pdo,[],[40]);
 check($result['delivered_devices']===1&&count($delivered)===$before+1,'Failed old device never blocks a later healthy device');
 check($pdo->query('SELECT status FROM app_push_jobs WHERE id=40')->fetchColumn()==='pending','Failed device still gets a scheduled retry');
 $pdo->exec("UPDATE app_push_jobs SET available_at=CURRENT_TIMESTAMP WHERE id=40");
 processPushQueue($pdo,[],[40]);
 check(count($delivered)===$before+1,'Successful phone is not notified again on retries');
-$pdo->prepare('UPDATE app_push_subscriptions SET token=? WHERE id=40')->execute([str_repeat('R',90)]);
+$pdo->prepare('UPDATE app_push_subscriptions SET token=? WHERE id=40')->execute(['webpush:'.str_repeat('R',90)]);
 $pdo->exec("UPDATE app_push_jobs SET available_at=CURRENT_TIMESTAMP WHERE id=40");
 processPushQueue($pdo,[],[40]);
 check(count($delivered)===$before+2,'Recovered device receives the missed notification once');

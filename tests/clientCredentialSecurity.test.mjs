@@ -141,7 +141,7 @@ test('production client sends the CSRF cookie header to validate and complete', 
     const { hostingerClient } = await import(hostingerUrl.href); const payload = JSON.stringify({ token: 'c'.repeat(64) });
     assert.equal((await hostingerClient.request('/auth/password-reset/validate', { method: 'POST', body: payload })).error?.code, 'csrf_failed');
     assert.equal((await hostingerClient.request('/auth/password-reset/complete', { method: 'POST', body: payload })).error?.code, 'csrf_failed');
-    globalThis.document.cookie = 'mt_csrf=csrf-demo-token';
+    globalThis.document.cookie = 'mt_csrf_client=csrf-demo-token';
     assert.equal((await hostingerClient.request('/auth/password-reset/validate', { method: 'POST', body: payload })).data.valid, true);
     assert.equal((await hostingerClient.request('/auth/password-reset/complete', { method: 'POST', body: payload })).data.updated, true);
     assert.deepEqual(requests.map(request => request.header), ['', '', 'csrf-demo-token', 'csrf-demo-token']);

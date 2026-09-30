@@ -13,7 +13,7 @@ test('authenticated mutations require a same-site CSRF token', () => {
   assert.match(api, /HTTP_X_CSRF_TOKEN/);
   assert.match(api, /hash_equals\(\$cookie, \$header\)/);
   assert.match(client, /X-CSRF-Token/);
-  assert.match(client, /__Host-mt_csrf/);
+  assert.match(client, /authCsrfCookieNames/);
 });
 
 test('sessions use hardened cookies, an idle timeout and a device binding', () => {

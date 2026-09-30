@@ -4,7 +4,7 @@ ob_start();
 date_default_timezone_set('Africa/Cairo');
 set_error_handler(static function(int $level,string $message,string $file,int $line): never { throw new ErrorException($message,0,$level,$file,$line); });
 $index=file_get_contents(__DIR__.'/../api/index.php');
-foreach(['isProduction','isSecureRequest','requestIpHash','requestUserAgentHash','sessionCookieName','csrfCookieName','sessionToken','setSessionCookie','setCsrfCookie','clearAuthCookies','sessionUser','authorizationRole','credentialSafeUser','issueLoginSession','systemBackupExcludedTables','requireCsrf'] as $name){
+foreach(['isProduction','isSecureRequest','requestIpHash','requestUserAgentHash','sessionCookieName','csrfCookieName','sessionToken','setSessionCookie','setCsrfCookie','clearAuthCookies','sessionUser','migratePortalSession','authorizationRole','credentialSafeUser','issueLoginSession','systemBackupExcludedTables','requireCsrf'] as $name){
     if(!preg_match('/^function '.preg_quote($name,'/').'\b.*?^\}/ms',$index,$match))throw new RuntimeException('Missing '.$name);
     eval($match[0]);
 }
@@ -133,5 +133,36 @@ check(rememberedLoginDays(['app'=>['remember_device_days'=>999]])===90,'Device l
 check(rememberedLoginDays(['app'=>['remember_device_days'=>30]])===30,'Shorter policy supported');
 $_SERVER['HTTP_X_CSRF_TOKEN']='bad';
 try{requireCsrf($config,'/bookings','POST');throw new LogicException('CSRF bypassed');}catch(RuntimeException $e){check($e->getMessage()==='csrf_failed','Remembering never bypasses CSRF');}
+// Two installed apps share one browser cookie jar, but not login credentials.
+[$pdo,$ownerAccount]=fixture('owner');
+$pdo->exec("INSERT INTO users(id,organization_id,client_id,full_name,email,phone,role,permissions,must_change_password,password_status,credential_version,is_active) VALUES(2,1,10,'Client','client@example.test','01000000002','client','[]',0,'active',1,1)");
+$clientAccount=$pdo->query('SELECT * FROM users WHERE id=2')->fetch();
+$staffConfig=$config+['_auth_audience'=>'staff'];$clientConfig=$config+['_auth_audience'=>'client'];
+issueLoginSession($pdo,$config,$ownerAccount,$ownerAccount['phone']);
+$legacyOwnerCookies=$_COOKIE;
+migratePortalSession($pdo,$clientConfig);
+check(sessionUser($pdo,$clientConfig)===null,'Legacy owner never restored inside customer app');
+migratePortalSession($pdo,$staffConfig);
+check(sessionUser($pdo,$staffConfig)['id']===1,'Valid legacy owner migrated to staff without password prompt');
+route($pdo,$staffConfig,'/auth/session');
+$staffToken=sessionToken($staffConfig);$staffSecrets=rememberedDeviceSecrets($staffConfig);
+issueLoginSession($pdo,$clientConfig,$clientAccount,$clientAccount['phone']);
+check(sessionUser($pdo,$clientConfig)['id']===2 && sessionUser($pdo,$staffConfig)['id']===1,'Both accounts coexist in one cookie jar');
+check(sessionToken($staffConfig)===$staffToken && rememberedDeviceSecrets($staffConfig)===$staffSecrets,'Customer login preserves remembered staff login');
+$_SERVER['HTTP_X_CSRF_TOKEN']=$_COOKIE[csrfCookieName($staffConfig)];
+try{requireCsrf($clientConfig,'/bookings','POST');throw new LogicException('Wrong CSRF accepted');}catch(RuntimeException $e){check($e->getMessage()==='csrf_failed','Staff CSRF rejected for customer mutation');}
+$_SERVER['HTTP_X_CSRF_TOKEN']=$_COOKIE[csrfCookieName($clientConfig)];requireCsrf($clientConfig,'/bookings','POST');
+$clientCookies=$_COOKIE;
+route($pdo,$clientConfig,'/auth/logout');
+check(sessionUser($pdo,$staffConfig)['id']===1,'Customer logout leaves owner signed in');
+migratePortalSession($pdo,$clientConfig);check(sessionUser($pdo,$clientConfig)===null,'Customer logout cannot migrate the owner account');
+$_COOKIE=$clientCookies;check(sessionUser($pdo,$clientConfig)===null,'Logged-out customer credentials remain revoked');
+issueLoginSession($pdo,$clientConfig,$clientAccount,$clientAccount['phone']);
+$pdo->exec("UPDATE api_sessions SET last_used_at='2000-01-01 00:00:00'");
+check(sessionUser($pdo,$clientConfig)['id']===2 && sessionUser($pdo,$staffConfig)['id']===1,'Each portal resumes its own expired session');
+route($pdo,$staffConfig,'/auth/logout');
+check(sessionUser($pdo,$clientConfig)['id']===2,'Owner logout leaves customer signed in');
+migratePortalSession($pdo,$staffConfig);check(sessionUser($pdo,$staffConfig)===null,'Old shared token cannot revive logged-out staff session');
+$_COOKIE=$legacyOwnerCookies;check(sessionUser($pdo,$config)===null,'Copied pre-migration remembered cookies cannot revive logged-out owner');
 ob_end_clean();
 echo "Remembered login: $checks checks passed\n";

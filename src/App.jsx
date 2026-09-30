@@ -9,6 +9,7 @@ import PushNotificationsBridge from './components/PushNotificationsBridge';
 import GlobalContactActions from './components/GlobalContactActions';
 import ContextMenuPolicy from './components/ContextMenuPolicy';
 import LegacyStaffEntry from './pages/LegacyStaffEntry';
+import { authAudience } from './lib/authAudience';
 import { safeClientDestination, clientAuthPath } from './lib/clientAuthDestination';
 
 const ERP_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
@@ -129,10 +130,10 @@ const ScrollToTop = () => {
   return null;
 };
 
-function App() {
+function AppSurface() {
+  const { pathname } = useLocation();
   return (
-    <DataProvider>
-      <BrowserRouter>
+    <DataProvider key={authAudience(pathname)}>
         <ContextMenuPolicy />
         <ScrollToTop />
         <PushNotificationsBridge />
@@ -214,9 +215,8 @@ function App() {
             </Route>
           </Routes>
         </Suspense>
-      </BrowserRouter>
     </DataProvider>
   );
 }
 
-export default App;
+export default function App() { return <BrowserRouter><AppSurface /></BrowserRouter>; }
