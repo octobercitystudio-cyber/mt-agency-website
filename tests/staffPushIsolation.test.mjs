@@ -13,10 +13,10 @@ test('staff registration, test and logout preserve the customer subscription and
   const key = new Uint8Array([4, 1, 2, 3]);
   let subscriptions = 0, removals = 0;
   const subscription = { options: { applicationServerKey: key.buffer }, toJSON: () => ({ endpoint: 'https://fcm.googleapis.com/wp/staff-device', keys: { p256dh: 'public', auth: 'auth' } }), unsubscribe: async () => { removals++; } };
-  const root = { client: true };
+  const root = { client: true, active: {} };
   const staff = { active: {}, pushManager: { getSubscription: async () => subscription, subscribe: async () => { subscriptions++; return subscription; } } };
   try {
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: 'Android', serviceWorker: { ready: Promise.resolve(root), register: async (...args) => { registrations.push(args); return staff; } } } });
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: 'Android', serviceWorker: { ready: Promise.resolve(staff), register: async (...args) => { registrations.push(args); return args[1].scope === '/' ? root : staff; } } } });
     Object.defineProperty(globalThis, 'location', { configurable: true, value: { pathname: '/erp' } });
     Object.defineProperty(globalThis, 'Notification', { configurable: true, value: { permission: 'granted' } });
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: k => store.get(k), setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) } });
@@ -25,7 +25,8 @@ test('staff registration, test and logout preserve the customer subscription and
     const config = { enabled: true, schema_ready: true, transport: 'webpush', vapid_public_key: Buffer.from(key).toString('base64url') };
     const result = await registerPushNotifications(api, config);
     assert.ok(result.token.startsWith('webpush:'));
-    assert.deepEqual(registrations[0], ['/sw.js?audience=staff', { scope: '/erp/', updateViaCache: 'none' }]);
+    assert.deepEqual(registrations[0], ['/sw.js', { scope: '/', updateViaCache: 'none' }]);
+    assert.deepEqual(registrations[1], ['/sw.js?audience=staff', { scope: '/erp/', updateViaCache: 'none' }]);
     assert.equal(calls[0].body.previous_token, 'customer-token');
     assert.equal(store.get(pushTokenStorageKey(false)), 'customer-token');
     assert.equal(store.get(pushTokenStorageKey(true)), result.token);
@@ -41,6 +42,15 @@ test('staff registration, test and logout preserve the customer subscription and
   } finally {
     for (const [key, descriptor] of Object.entries(saved)) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key]; }
   }
+});
+
+test('expired staff subscription renews on ordinary registration without touching customer registration', async () => {
+  const key = new Uint8Array([4, 1, 2, 3]); let removed = 0, created = 0;
+  const old = { expirationTime: Date.now() - 1, options: { applicationServerKey: key.buffer }, unsubscribe: async () => { removed++; } };
+  const fresh = { toJSON: () => ({ endpoint: 'https://fcm.googleapis.com/wp/new-staff', keys: { auth: 'a', p256dh: 'b' } }) };
+  const registration = { pushManager: { getSubscription: async () => old, subscribe: async options => { assert.equal(options.userVisibleOnly, true); created++; return fresh; } } };
+  const token = await subscribeStaffPush(registration, Buffer.from(key).toString('base64url'));
+  assert.equal(removed, 1); assert.equal(created, 1); assert.ok(token.includes('new-staff'));
 });
 
 for (const staff of [true, false]) test(`${staff ? 'staff' : 'customer'} worker refreshes and opens only its own audience`, async () => {
