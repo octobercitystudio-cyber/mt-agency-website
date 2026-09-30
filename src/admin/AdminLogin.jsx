@@ -23,8 +23,8 @@ const staffLoginError = error => {
 export default function AdminLogin() {
   const { loginStaff, logoutErp, isAuthReady, currentUser } = useData();
   const [staffApp] = useState(() => {
-    try { return isStaffAppEntry(window.location.search, sessionStorage.getItem(STAFF_APP_SESSION_KEY) === '1'); }
-    catch { return isStaffAppEntry(window.location.search); }
+    try { return isStaffAppEntry(window.location.search, sessionStorage.getItem(STAFF_APP_SESSION_KEY) === '1', document.referrer); }
+    catch { return isStaffAppEntry(window.location.search, false, document.referrer); }
   });
   const otherAccountOpen = staffApp && CLIENT_ROLES.includes(currentUser?.role);
   useEffect(() => { if (staffApp) { try { sessionStorage.setItem(STAFF_APP_SESSION_KEY, '1'); } catch { /* Storage is optional. */ } } }, [staffApp]);

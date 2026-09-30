@@ -8,6 +8,8 @@ test('team entry survives logout but ordinary customer entry stays unchanged',()
  assert.equal(isStaffAppEntry('?source=android-staff-app'),true);
  assert.equal(isStaffAppEntry('?source=android-staff-shortcut'),true);
  assert.equal(isStaffAppEntry('',true),true);
+ assert.equal(isStaffAppEntry('',false,'android-app://com.multitaskagency.staff'),true);
+ for(const referrer of ['android-app://com.multitaskagency.app','https://com.multitaskagency.staff','android-app://com.multitaskagency.staff.evil','invalid']) assert.equal(isStaffAppEntry('',false,referrer),false);
  for(const input of ['', '?source=android-app','?source=android-shortcut','?returnTo=/erp']) assert.equal(isStaffAppEntry(input),false);
 });
 test('team Android build is separately installable with staff-only deep links and matching site association',async()=>{
