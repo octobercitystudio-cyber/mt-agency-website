@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, BookOpen, CalendarDays } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Download, Smartphone } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -9,6 +9,7 @@ import {
   EDUCATIONAL_BOOKING_TARGET,
 } from '../data/educationalBooking';
 import { localizePublicPath } from '../lib/publicRoutes';
+import { CLIENT_APP_DOWNLOAD_URL } from '../data/clientApp';
 import './EducationalBookingSection.css';
 
 export default function EducationalBookingSection() {
@@ -32,6 +33,13 @@ export default function EducationalBookingSection() {
         <Link className="educational-booking__action" to={EDUCATIONAL_BOOKING_TARGET}><CalendarDays aria-hidden="true" /><span>{copy.action}</span><DirectionArrow aria-hidden="true" /></Link>
         <p className="educational-booking__note">{copy.note}</p>
         <Link className="educational-booking__details" to={localizePublicPath(EDUCATIONAL_BOOKING_SERVICE, locale)}>{copy.details}<DirectionArrow aria-hidden="true" /></Link>
+        <aside className="educational-booking__app" aria-labelledby="educational-booking-app-title">
+          <p className="educational-booking__app-label"><Smartphone aria-hidden="true" /><span>{copy.appLabel}</span></p>
+          <h3 id="educational-booking-app-title">{copy.appTitle}</h3>
+          <p className="educational-booking__app-description">{copy.appDescription}</p>
+          <a className="educational-booking__app-download" href={CLIENT_APP_DOWNLOAD_URL} download><Download aria-hidden="true" /><span>{copy.appAction}</span></a>
+          <p className="educational-booking__app-note">{copy.appNote}</p>
+        </aside>
       </div>
       <figure className="educational-booking__studio">
         <div className="educational-booking__stage" id="educational-studio-photo">
