@@ -89,6 +89,7 @@
   object-position: center;
   opacity: 0;
   visibility: hidden;
+  transition: opacity 900ms ease-in-out, visibility 0s linear 900ms;
   pointer-events: none;
 }
 
@@ -102,7 +103,8 @@
 .hero-slider-img.active {
   opacity: 1;
   visibility: visible;
-  /* The next image is decoded before activation; keep the switch fully opaque. */
+  /* Keep the outgoing image visible until the dissolve finishes. */
+  transition-delay: 0s, 0s;
 }
 
 .visual-overlay {
@@ -172,7 +174,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-slider-img.active {
+  .hero-slider-img {
+    transition: none;
     animation: none;
   }
 }
