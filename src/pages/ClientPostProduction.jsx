@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Check, Clock3, Clapperboard, CloudUpload, ExternalLink, Film, FolderOpen, RefreshCw, TriangleAlert, Video } from 'lucide-react';
 import { dataClient } from '../dataClient';
 import useChangeSync from '../hooks/useChangeSync';
-import { formatBookingDate, formatDateTime12, formatTime12 } from '../lib/businessFormat';
+import { formatBookingDate, formatDateTime12, formatTime12, formatEGP } from '../lib/businessFormat';
 import { UPLOAD_COMPLETED_NOTICE, postProductionDuration, postProductionMeta, postProductionSessionLabel } from '../lib/postProduction';
 import CompanyPickupSchedule from '../components/CompanyPickupSchedule';
 import './ClientPostProduction.css';
@@ -17,7 +17,7 @@ const activeDeliveryLinks = (job, effectiveNow) => (job.delivery_links || []).fi
   return Number(link.is_active) === 1 && (!Number.isFinite(availableUntil) || availableUntil > effectiveNow);
 });
 
-export default function ClientPostProduction({ highlightJobId = null }) {
+export default function ClientPostProduction({ highlightJobId = null, onPay }) {
   const [jobs, setJobs] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
   const [serverOffset, setServerOffset] = useState(0); const [clock, setClock] = useState(() => Date.now());
   const highlightedRef = useRef(false);
@@ -43,7 +43,7 @@ export default function ClientPostProduction({ highlightJobId = null }) {
     return () => window.clearInterval(timer);
   }, []);
   useChangeSync(useCallback(topics => {
-    if (topics.some(topic => ['post_production', 'notifications'].includes(topic))) loadJobs(true);
+    if (topics.some(topic => ['post_production', 'notifications', 'finance', 'client_packages'].includes(topic))) loadJobs(true);
   }, [loadJobs]));
   useEffect(() => {
     if (!highlightJobId || highlightedRef.current || loading) return;
@@ -52,7 +52,7 @@ export default function ClientPostProduction({ highlightJobId = null }) {
   }, [highlightJobId, jobs, loading]);
 
   const effectiveNow = clock + serverOffset;
-  const visibleJobs = useMemo(() => jobs.map(job => ({ ...job, active_delivery_links: activeDeliveryLinks(job, effectiveNow) })), [effectiveNow, jobs]);
+  const visibleJobs = useMemo(() => jobs.map(job => ({ ...job, active_delivery_links: job.delivery_payment_locked ? [] : activeDeliveryLinks(job, effectiveNow) })), [effectiveNow, jobs]);
 
   return <section className="client-post-production client-post-production--videos" aria-labelledby="client-videos-title">
     <header className="client-post-production__head">
@@ -85,11 +85,13 @@ export default function ClientPostProduction({ highlightJobId = null }) {
           <ol className="client-production-rail" aria-label={`تقدم الجلسة: ${meta.label}`}>{railSteps.map(([Icon, label], index) => <li key={label} className={stage >= index + 1 ? 'is-done' : ''} aria-current={stage === index + 1 ? 'step' : undefined}><i><Icon aria-hidden="true" /></i><span>{label}</span></li>)}</ol>
 
           <section className="client-delivery-area">
+            {job.delivery_payment_locked && <div className="client-payment-hold" role="status"><strong>التسليم محجوب لحين استكمال السداد</strong><p>حالة العمل: {meta.label}. يلزم سداد المتبقي على الباقة، وقدره <b>{formatEGP(job.payment_outstanding_amount)}</b>، قبل إتاحة روابط الفيديوهات أو الاستلام من مقر الشركة. تُتاح التسليمات تلقائيًا بعد تأكيد الإدارة سداد كامل المبلغ؛ إرسال إثبات التحويل وحده لا يُعد تأكيدًا للسداد.</p><button type="button" onClick={() => onPay?.(job.payment_package_id)}>ادفع الآن</button></div>}
+
             {job.status === 'upload_completed' && job.active_delivery_links.length > 0 && <p className="client-upload-completed-note"><Check aria-hidden="true" />{UPLOAD_COMPLETED_NOTICE}</p>}
             {job.active_delivery_links.length > 0 && <><h4><FolderOpen /> روابط الفيديوهات</h4><div className="client-drive-links">{job.active_delivery_links.map(link => <article key={link.id || link.url} className="client-drive-delivery"><a href={link.url} target="_blank" rel="noopener noreferrer" title={`${link.title} — ${link.url}`}><span><strong>{link.title}</strong><small>{link.link_kind === 'video' ? 'فيديو على Google Drive' : 'فولدر على Google Drive'}</small>{link.available_until && <b>متاح حتى {dateTimeLabel(link.available_until)}</b>}</span><ExternalLink aria-hidden="true" /></a><p><Clock3 aria-hidden="true" />{VIDEO_DOWNLOAD_NOTICE}</p></article>)}</div></>}
-            {!job.active_delivery_links.length && ['upload_completed', 'delivered'].includes(job.status) && <p className="client-delivery-note"><CloudUpload /> لا يوجد رابط نشط الآن. تُخفى روابط Google Drive تلقائيًا بعد مرور 48 ساعة على رفعها.</p>}
+            {!job.delivery_payment_locked && !job.active_delivery_links.length && ['upload_completed', 'delivered'].includes(job.status) && <p className="client-delivery-note"><CloudUpload /> لا يوجد رابط نشط الآن. تُخفى روابط Google Drive تلقائيًا بعد مرور 48 ساعة على رفعها.</p>}
 
-            {!job.active_delivery_links.length && !['upload_completed', 'delivered'].includes(job.status) && <p className="client-delivery-note"><Film /> الفيديوهات حاليًا في مرحلة {meta.label}. سنرسل لك إشعارًا عند تغير الحالة أو إضافة تسليم جديد.</p>}
+            {!job.delivery_payment_locked && !job.active_delivery_links.length && !['upload_completed', 'delivered'].includes(job.status) && <p className="client-delivery-note"><Film /> الفيديوهات حاليًا في مرحلة {meta.label}. سنرسل لك إشعارًا عند تغير الحالة أو إضافة تسليم جديد.</p>}
           </section>
         </article>;
       })}

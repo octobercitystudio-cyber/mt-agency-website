@@ -21,14 +21,14 @@ function EmptySection({ title, text, onAction, actionLabel }) {
   return <div className="client-simple-empty"><Package aria-hidden="true"/><strong>{title}</strong><p>{text}</p>{onAction && <button type="button" onClick={onAction}>{actionLabel}</button>}</div>;
 }
 
-export function ClientPaymentDueAlarm({ packages = [], onNavigate }) {
+export function ClientPaymentDueAlarm({ packages = [], onNavigate, onPay }) {
   const duePackages = packagePaymentDueItems(packages);
   if (!duePackages.length) return null;
   const totalRemaining = duePackages.reduce((sum, pkg) => sum + pkg.outstandingPiastres, 0);
   return <section className="client-payment-due-alarm" role="alert" aria-live="polite" aria-atomic="true" aria-labelledby="client-payment-due-title">
     <span className="client-payment-due-alarm__icon" aria-hidden="true"><AlarmClock/></span>
-    <div className="client-payment-due-alarm__content"><span>تنبيه استحقاق مالي</span><h2 id="client-payment-due-title">{PACKAGE_PAYMENT_DUE_MESSAGE}</h2><ul aria-label="الباقات المستحقة">{duePackages.map(pkg => <li key={pkg.id}><strong>{pkg.name}</strong><span>المتبقي {formatEGP(piastresToMoney(pkg.outstandingPiastres))}</span></li>)}</ul>{duePackages.length > 1 && <p>إجمالي المستحق الآن: <strong>{formatEGP(piastresToMoney(totalRemaining))}</strong></p>}</div>
-    <button type="button" onClick={() => onNavigate('finance')}><CircleDollarSign aria-hidden="true"/>الذهاب إلى المالية</button>
+    <div className="client-payment-due-alarm__content"><span>تنبيه استحقاق مالي</span><h2 id="client-payment-due-title">يرجى استكمال سداد الباقة</h2><p>{PACKAGE_PAYMENT_DUE_MESSAGE}</p><ul aria-label="الباقات المستحقة">{duePackages.map(pkg => <li key={pkg.id}><strong>{pkg.name}</strong><span>المتبقي {formatEGP(piastresToMoney(pkg.outstandingPiastres))}</span></li>)}</ul>{duePackages.length > 1 && <p>إجمالي المستحق الآن: <strong>{formatEGP(piastresToMoney(totalRemaining))}</strong></p>}</div>
+    <button type="button" onClick={() => onPay ? onPay(duePackages[0].id) : onNavigate('finance')}><CircleDollarSign aria-hidden="true"/>ادفع الآن</button>
   </section>;
 }
 
@@ -76,14 +76,14 @@ export default function ClientDashboardOverview({ hasCurrentPackage = false, cli
   const consumedPercent = quantity.purchased > 0 ? Math.min(100, quantity.consumed / quantity.purchased * 100) : 0;
   const heldPercent = quantity.purchased > 0 ? Math.min(100 - consumedPercent, quantity.held / quantity.purchased * 100) : 0;
   const availablePercent = quantity.purchased > 0 ? Math.max(0, 100 - consumedPercent - heldPercent) : 0;
-  const activeBalance = selectedPackage && effectivePackageStatus(selectedPackage) === 'active';
+  const activeBalance = selectedPackage && effectivePackageStatus(selectedPackage) === 'active' && !packagePaymentDueItems(financialPackages).length;
   const finance = buildClientFinanceSummary(financialPackages, invoices);
   const dueCount = finance.rows.filter(row => row.dueNow && row.remainingPiastres > 0).length;
   const viewBooking = booking => onViewBooking ? onViewBooking(booking.id) : onNavigate('schedule');
   return <section className="client-view glance-overview" aria-label="ملخص حساب العميل">
     <div className="glance-top-grid">
       <section className={`glance-card glance-next${activeSession ? ' glance-next--live' : ''}`} aria-labelledby="next-booking-title">
-        <header className="glance-section-head"><h2 id="next-booking-title">{activeSession ? 'جلسة التصوير جارية الآن' : 'موعد التصوير القادم'}</h2>{nextBooking && <span className={`client-status client-status--${activeSession ? 'live' : nextStatus.tone}`}>{activeSession ? 'جاري التصوير' : nextStatus.label}</span>}</header>
+        <header className="glance-section-head"><h2 id="next-booking-title">{activeSession ? 'جلسة التصوير جارية الآن' : 'موعد التصوير القادم'}</h2>{nextBooking && <span className={`client-status client-status--${activeSession ? 'live' : nextStatus.tone}`}>{activeSession ? 'جاري التصوير' : nextBooking.payment_locked ? 'معلّق لحين السداد' : nextStatus.label}</span>}</header>
         {nextBooking ? <><article className="glance-next-main" data-booking-id={nextBooking.id}>
           <div className="glance-date-block"><span>{format(new Date(`${nextBooking.date}T12:00`), 'EEEE', { locale: ar })}</span><strong>{format(new Date(`${nextBooking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${nextBooking.date}T12:00`), 'MMMM', { locale: ar })}</small></div>
           <div className="glance-next-copy"><h3>{nextBooking.service || nextPackage?.name || 'جلسة تصوير'}</h3><p className="glance-session-time"><Clock3 />{formatTime12(nextBooking.start_time)} – {formatTime12(nextBooking.end_time)}</p><p>{formatDurationMinutes(calculateDurationMinutes(nextBooking.start_time, nextBooking.end_time))} · {resourceLabel}</p>{nextPackage && <p className="glance-next-package">{nextPackage.name}</p>}</div>
@@ -102,10 +102,10 @@ export default function ClientDashboardOverview({ hasCurrentPackage = false, cli
       <div className="glance-usage-bar" role="img" aria-label={`المستخدم ${quantityLabel(selectedPackage, quantity.consumed)}، محجوز ${quantityLabel(selectedPackage, quantity.held)}، متاح ${quantityLabel(selectedPackage, quantity.available)}`}><span style={{ width: `${consumedPercent}%` }}/><span style={{ width: `${heldPercent}%` }}/><span style={{ width: `${availablePercent}%` }}/></div>
       <dl className="glance-usage-labels"><div><dt><i/>{selectedPackage.billing_unit === 'hour' ? 'تم تصويره' : 'المستخدم'}</dt><dd>{quantityLabel(selectedPackage, quantity.consumed)}</dd></div><div><dt><i/>محجوز لمواعيد</dt><dd>{quantityLabel(selectedPackage, quantity.held)}</dd></div><div><dt><i/>{activeBalance ? 'متاح للحجز' : 'رصيد غير متاح'}</dt><dd>{quantityLabel(selectedPackage, quantity.available)}</dd></div></dl>
     </section>}
-    <ClientPaymentDueAlarm packages={activePackages} onNavigate={onNavigate}/>
+
     <div className="glance-lower-grid">
       <section className="glance-agenda" aria-labelledby="glance-upcoming-title"><header className="glance-section-head"><h2 id="glance-upcoming-title">مواعيدك القادمة</h2><button type="button" className="glance-link" onClick={() => onNavigate('schedule')}>عرض الكل<ArrowLeft /></button></header>
-        <div className="glance-card glance-agenda-list">{upcomingBookings.length ? upcomingBookings.slice(0, 3).map(booking => { const status = STATUS_META[booking.status] || { label: booking.status, tone: 'neutral' }; return <article className="glance-agenda-row" key={booking.id}><div className="glance-mini-date"><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${booking.date}T12:00`), 'MMM', { locale: ar })}</small></div><div><h3>{booking.service || 'جلسة تصوير'}</h3><p>{formatTime12(booking.start_time)} – {formatTime12(booking.end_time)}</p><span className={`client-status client-status--${status.tone}`}>{status.label}</span></div><button type="button" className="glance-icon-button" aria-label={`تفاصيل ${booking.service || 'جلسة تصوير'} يوم ${formatBookingDate(booking.date)}`} onClick={() => viewBooking(booking)}><ArrowLeft /></button></article>; }) : <div className="glance-empty glance-empty--small"><CalendarDays/><p>لا توجد مواعيد قادمة حتى الآن.</p></div>}</div>
+        <div className="glance-card glance-agenda-list">{upcomingBookings.length ? upcomingBookings.slice(0, 3).map(booking => { const status = STATUS_META[booking.status] || { label: booking.status, tone: 'neutral' }; return <article className="glance-agenda-row" key={booking.id}><div className="glance-mini-date"><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${booking.date}T12:00`), 'MMM', { locale: ar })}</small></div><div><h3>{booking.service || 'جلسة تصوير'}</h3><p>{formatTime12(booking.start_time)} – {formatTime12(booking.end_time)}</p><span className={`client-status client-status--${status.tone}`}>{booking.payment_locked ? 'معلّق لحين السداد' : status.label}</span></div><button type="button" className="glance-icon-button" aria-label={`تفاصيل ${booking.service || 'جلسة تصوير'} يوم ${formatBookingDate(booking.date)}`} onClick={() => viewBooking(booking)}><ArrowLeft /></button></article>; }) : <div className="glance-empty glance-empty--small"><CalendarDays/><p>لا توجد مواعيد قادمة حتى الآن.</p></div>}</div>
       </section>
       <section className="glance-card glance-finance" aria-labelledby="glance-finance-title"><h2 id="glance-finance-title">المتبقي من المدفوعات</h2><strong className="glance-money">{formatEGP(piastresToMoney(finance.remainingPiastres))}</strong><p>إجمالي الباقات والفواتير في حسابك</p>{dueCount > 0 ? <span className="glance-finance-due">توجد مبالغ مستحقة الآن؛ راجع التفاصيل.</span> : finance.remainingPiastres === 0 && <span className="glance-finance-paid"><CheckCircle2 />لا توجد مبالغ متبقية</span>}<div className="glance-finance-summary"><span>تم سداد</span><strong>{formatEGP(piastresToMoney(finance.paidPiastres))}</strong></div><button type="button" className="glance-link" onClick={() => onNavigate('finance')}>المدفوعات وإثبات التحويل<ArrowLeft /></button></section>
     </div>

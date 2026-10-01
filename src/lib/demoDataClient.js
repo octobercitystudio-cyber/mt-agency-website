@@ -1041,7 +1041,7 @@ const demoMaterializePackageLifecycleNotifications = (database, clientId = null)
         if (item) created += 1;
       } else if (untilDue <= 0.0001) {
         const sourceEventKey = `package:${pkg.id}:payment-due:client`; desiredKeys.add(sourceEventKey);
-        const item = demoRefreshClientNotification(database, { clientId: Number(pkg.client_id), type: 'payment_due', title: 'حان موعد سداد متبقي الباقة', message: `لقد تجاوزتم حد الدفع للباقة برجاء سرعة سداد باقي المستحقات لتجنب توقف الباقة. ${pkg.name || 'الباقة'} — المتبقي ${centsToMoney(finances.outstandingCents)} ج.م بعد استهلاك ${demoPackageReminderUnitText(consumed, unit)}.`, entityType: 'client_packages', entityId: Number(pkg.id), actionTab: 'finance', severity: 'warning', sourceEventKey, payload: { package_id: Number(pkg.id) } });
+        const item = demoRefreshClientNotification(database, { clientId: Number(pkg.client_id), type: 'payment_due', title: 'حان موعد سداد متبقي الباقة', message: `عميلنا العزيز، بلغ استهلاك باقتكم حدّ السداد المتفق عليه. نرجو التكرّم بسداد المبلغ المتبقي لاستمرار الاستفادة من خدماتكم. يُعلّق حجز المواعيد الجديدة وإتاحة المواعيد القادمة لحين تأكيد الإدارة سداد كامل المتبقي. تظل حجوزاتكم محفوظة دون إلغاء، وتُتاح الخدمات تلقائيًا بعد اعتماد السداد.. ${pkg.name || 'الباقة'} — المتبقي ${centsToMoney(finances.outstandingCents)} ج.م بعد استهلاك ${demoPackageReminderUnitText(consumed, unit)}.`, entityType: 'client_packages', entityId: Number(pkg.id), actionTab: 'finance', severity: 'warning', sourceEventKey, payload: { package_id: Number(pkg.id) } });
         if (item) created += 1;
       }
     }

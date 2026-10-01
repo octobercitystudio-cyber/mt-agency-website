@@ -15,6 +15,7 @@ $pdo=new PinPDO();
 $pdo->exec("CREATE TABLE post_production_jobs(id INTEGER PRIMARY KEY,organization_id INTEGER,client_id INTEGER,status TEXT,version INTEGER,updated_by INTEGER,is_client_visible INTEGER,needs_review INTEGER);
 CREATE TABLE video_delivery_links(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,post_production_job_id INTEGER,title TEXT,link_kind TEXT,url TEXT,url_hash TEXT,sort_order INTEGER,is_active INTEGER,is_pinned INTEGER,published_at TEXT,created_by INTEGER,updated_by INTEGER,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 INSERT INTO post_production_jobs VALUES(1,1,11,'editing',1,1,1,0),(2,2,22,'upload_completed',1,1,1,0),(3,1,11,'upload_completed',1,1,0,1)");
+$pdo->exec('ALTER TABLE post_production_jobs ADD COLUMN booking_id INTEGER; CREATE TABLE bookings(id INTEGER,organization_id INTEGER,client_package_id INTEGER); CREATE TABLE client_packages(id INTEGER,organization_id INTEGER,client_id INTEGER)');
 $owner=['id'=>1,'organization_id'=>1];
 $folder=['title'=>'فولدر التصوير','link_kind'=>'folder','url'=>'https://drive.google.com/drive/folders/pinned-test','is_active'=>1,'is_pinned'=>1];
 $save=fn(int $version,array $links,int $id=1)=>savePostProductionDeliveryLinks($pdo,$owner,$id,['expected_version'=>$version,'links'=>$links]);

@@ -1,3 +1,4 @@
+import { packagePaymentDueItems } from '../lib/clientFinanceSummary';
 import ClientPendingAppointmentRequests from '../components/ClientPendingAppointmentRequests';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ClientStudioRequests from '../components/StudioBookingRequests';
@@ -13,7 +14,7 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../store/DataContext';
-import ClientDashboardOverview, { ClientPackageCards } from './ClientDashboardOverview';
+import ClientDashboardOverview, { ClientPackageCards, ClientPaymentDueAlarm } from './ClientDashboardOverview';
 import ClientFinanceView from './ClientFinanceView';
 import ClientProjectsView from './ClientProjectsView';
 import './ClientProjectsView.css';
@@ -158,6 +159,7 @@ export default function ClientDashboard() {
   const [reschedule, setReschedule] = useState(initialReschedule);
   const [cancelConfirm, setCancelConfirm] = useState(null);
   const [actionBusy, setActionBusy] = useState(null);
+  const [paymentDialogRequest, setPaymentDialogRequest] = useState(0);
   const [proofForm, setProofForm] = useState({ target: '', amount: '', payment_method: 'vodafone_cash', file: null });
   const [proofBusy, setProofBusy] = useState(false);
   const [offerDetail, setOfferDetail] = useState(null);
@@ -272,7 +274,9 @@ export default function ClientDashboard() {
   useEffect(() => { const refresh = () => setPackageClock(new Date()); const timer = window.setInterval(refresh, 30000); window.addEventListener('focus', refresh); return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); }; }, []);
   const hasCurrentPackage = packages.some(pkg => clientPackageBlocksPurchase(pkg, packageClock));
   const activePackages = useMemo(() => packages.filter(pkg => effectivePackageStatus(pkg, cairoDateKey(packageClock)) === 'active'), [packages, packageClock]);
-  const visibleBookings = useMemo(() => bookings.filter(isClientBookingVisible), [bookings]);
+  const overduePackages = useMemo(() => packagePaymentDueItems(packages), [packages]);
+  const paymentLocked = overduePackages.length > 0;
+  const visibleBookings = useMemo(() => bookings.filter(isClientBookingVisible).map(booking => ({ ...booking, payment_locked: paymentLocked && ['pending', 'confirmed', 'alternative_proposed', 'cancel_requested', 'late_cancel_requested'].includes(booking.status) && `${booking.date}T${normalizeTime(booking.end_time)}:00` >= new Date().toLocaleString('sv-SE', { timeZone: 'Africa/Cairo' }).replace(' ', 'T') })), [bookings, paymentLocked]);
   const hiddenBookingIds = useMemo(() => new Set(bookings
     .filter(booking => !isClientBookingVisible(booking))
     .map(booking => Number(booking.id))), [bookings]);
@@ -358,7 +362,8 @@ export default function ClientDashboard() {
       ? Number(suggestedOutstanding)
       : calculatedOutstanding;
     setProofForm(previous => ({ ...previous, target: `${type}:${id}`, amount: outstanding > 0 ? String(outstanding) : '' }));
-    navigateClient('finance');
+    setPaymentDialogRequest(value => value + 1);
+    navigateClient('finance', { pay: true });
   };
 
   const subscribePromotion = async promotionId => {
@@ -370,14 +375,16 @@ export default function ClientDashboard() {
     showNotice('success', 'تم إرسال طلب الاشتراك للإدارة');
   };
 
-  const bookAppointment = () => { setBookingForm(initialBooking); setBookingOpen(true); };
+  const bookAppointment = () => { if (paymentLocked) { selectPaymentTarget('package', overduePackages[0].id); return; } setBookingForm(initialBooking); setBookingOpen(true); };
   const navigateClient = (tab, payload = {}) => {
+    if (tab === 'book-studio' && paymentLocked) { selectPaymentTarget('package', overduePackages[0].id); return; }
     if (tab === 'book-studio' && hasCurrentPackage) { bookAppointment(); return; }
     const requested = tab === 'montage' ? 'videos' : tab;
     const next = CLIENT_TABS.includes(requested) ? requested : 'home';
     const params = new URLSearchParams(searchParams);
     params.delete('service');
     if (next === 'home') params.delete('tab'); else params.set('tab', next);
+    if (payload.pay) params.set('pay', '1'); else params.delete('pay');
     const jobId = Number(payload.post_production_job_id || 0);
     if (jobId > 0 && next === 'videos') params.set('job', String(jobId)); else params.delete('job');
     setSearchParams(params, { replace: false }); setMoreOpen(false);
@@ -458,9 +465,10 @@ export default function ClientDashboard() {
         <div className="glance-utility"><div className="glance-mobile-brand"><img src="/logo.webp" alt="شعار Multi Task Agency"/><strong>Multi Task<span>Agency</span></strong></div><span className="glance-today"><CalendarDays/>{new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Cairo' }).format(new Date())}</span><ClientNotifications key={clientId} clientId={clientId} onNavigate={navigateClient}/></div>
         <header className={`client-topbar ${activeTab === 'home' ? 'client-topbar--home' : ''}`}>
           <div className="client-topbar-profile"><div><div className="client-topbar-name-row"><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><span className="client-topbar-points" aria-label={`${formatClientPoints(client?.points)} نقطة`}><Sparkles aria-hidden="true"/><strong>{formatClientPoints(client?.points)}</strong><span>نقطة</span></span></div><p>كل ما يخص تصويرك، في نظرة واحدة.</p></div></div>
-          <div className="client-topbar-guide-actions">{activeTab !== 'book-studio' && <button ref={bookingTriggerRef} type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>{hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button>}{activeTab !== 'package-guide' && <button type="button" className="client-guide-trigger" onClick={() => navigateClient('package-guide')}><BookOpen/>دليل الباقات والتصوير</button>}</div>
+          <div className="client-topbar-guide-actions">{activeTab !== 'book-studio' && <button ref={bookingTriggerRef} type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>{paymentLocked ? 'الحجز معلّق لحين السداد' : hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button>}{activeTab !== 'package-guide' && <button type="button" className="client-guide-trigger" onClick={() => navigateClient('package-guide')}><BookOpen/>دليل الباقات والتصوير</button>}</div>
         </header>
 
+        <ClientPaymentDueAlarm packages={packages} onNavigate={navigateClient} onPay={id => selectPaymentTarget('package', id)}/>
         {isLocalPreview && <div className="client-notice client-notice--success" role="status">معاينة عميل محلية ببيانات تمثيلية — تُحفظ الإجراءات على هذا الجهاز لتجربة دورة العمل كاملة.</div>}
         {notice && <div className={`client-notice client-notice--${notice.type}`} role="status">{notice.message}</div>}
         {loadError && <div className="client-notice client-notice--error">تعذر تحديث بعض البيانات. <button onClick={() => fetchClientData()}>حاول مجددًا</button></div>}
@@ -481,8 +489,8 @@ export default function ClientDashboard() {
 
         {activeTab === 'schedule' && <section className="client-view client-appointments-page">
           <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div></header>
-          {upcomingBookings[0] ? <section className="client-next-appointment"><div><span>الموعد القادم</span><strong>{format(new Date(`${upcomingBookings[0].date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</strong><p>{timeLabel(upcomingBookings[0].start_time)} – {timeLabel(upcomingBookings[0].end_time)} · {formatDurationMinutes(calculateDurationMinutes(upcomingBookings[0].start_time, upcomingBookings[0].end_time))}</p></div><StatusBadge status={upcomingBookings[0].status}/></section> : <div className="client-empty client-empty--compact"><CalendarDays/><p>لا يوجد موعد قادم.</p></div>}
-          <ClientPendingAppointmentRequests onChanged={fetchClientData}/><section className="client-appointment-cards" aria-labelledby="all-client-bookings"><div className="client-section-head"><div><span>الأحدث أولًا</span><h2 id="all-client-bookings">كل مواعيدك</h2></div></div>{orderedBookings.map(booking => <BookingRow key={booking.id} booking={booking} session={sessionByBookingId.get(Number(booking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>)}{!orderedBookings.length && <div className="client-empty"><CalendarDays/><h3>لم تطلب أي حجز بعد</h3></div>}</section>
+          {upcomingBookings[0] ? <section className="client-next-appointment"><div><span>الموعد القادم</span><strong>{format(new Date(`${upcomingBookings[0].date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</strong><p>{timeLabel(upcomingBookings[0].start_time)} – {timeLabel(upcomingBookings[0].end_time)} · {formatDurationMinutes(calculateDurationMinutes(upcomingBookings[0].start_time, upcomingBookings[0].end_time))}</p></div><StatusBadge status={upcomingBookings[0].status}/>{upcomingBookings[0].payment_locked && <strong className="client-payment-hold">معلّق لحين السداد</strong>}</section> : <div className="client-empty client-empty--compact"><CalendarDays/><p>لا يوجد موعد قادم.</p></div>}
+          <ClientPendingAppointmentRequests onChanged={fetchClientData}/><section className="client-appointment-cards" aria-labelledby="all-client-bookings"><div className="client-section-head"><div><span>الأحدث أولًا</span><h2 id="all-client-bookings">كل مواعيدك</h2></div></div>{orderedBookings.map(booking => <BookingRow key={booking.id} booking={booking} onPay={() => selectPaymentTarget('package', overduePackages[0]?.id)} session={sessionByBookingId.get(Number(booking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(booking, action)} onReschedule={() => setReschedule({ ...initialReschedule, booking, date: booking.date, start_time: normalizeTime(booking.start_time), end_time: normalizeTime(booking.end_time, { endOfDay: true }) })} onCancel={() => requestCancel(booking)}/>)}{!orderedBookings.length && <div className="client-empty"><CalendarDays/><h3>لم تطلب أي حجز بعد</h3></div>}</section>
         </section>}
 
         {activeTab === 'packages' && <ClientPackageCards packages={packages} points={client?.points} />}
@@ -502,17 +510,17 @@ export default function ClientDashboard() {
           <ClientOfferTickets offers={offers} serverOffset={offerServerOffset} onView={viewClientOffer}/>
         </section>}
 
-        {activeTab === 'finance' && <ClientFinanceView activePackages={activePackages} financialPackages={packages} invoices={invoices} payments={payments} proofs={proofs} projects={projects} offers={offers} proofForm={proofForm} proofBusy={proofBusy} onProofFormChange={updates => setProofForm(previous => ({ ...previous, ...updates }))} onSubmitProof={uploadProof} onSelectTarget={selectPaymentTarget} />}
-        {activeTab === 'videos' && <ClientPostProduction highlightJobId={highlightedPostProductionJobId} />}
+        {activeTab === 'finance' && <ClientFinanceView key={paymentDialogRequest} activePackages={activePackages} financialPackages={packages} invoices={invoices} payments={payments} proofs={proofs} projects={projects} offers={offers} proofForm={proofForm} proofBusy={proofBusy} onProofFormChange={updates => setProofForm(previous => ({ ...previous, ...updates }))} onSubmitProof={uploadProof} onSelectTarget={selectPaymentTarget} initiallyOpen={searchParams.get('pay') === '1'} />}
+        {activeTab === 'videos' && <ClientPostProduction highlightJobId={highlightedPostProductionJobId} onPay={id => selectPaymentTarget('package', id)} />}
         {activeTab === 'security' && <ClientSecuritySettings />}
         {activeTab === 'package-guide' && (
-          <ClientPackageGuide onSubscribe={service => { setSearchParams({ tab: 'book-studio', service: String(service.id) }); setMoreOpen(false); }}/>
+          <ClientPackageGuide onSubscribe={service => { if(paymentLocked){ selectPaymentTarget('package', overduePackages[0].id); return; } setSearchParams({ tab: 'book-studio', service: String(service.id) }); setMoreOpen(false); }}/>
         )}
         {activeTab === 'requests' && <ClientStudioRequests/>}
-        {activeTab === 'book-studio' && <ClientStudioBooking key={searchParams.get('service') || 'default'} initialServiceId={searchParams.get('service') || ''} onBookExisting={bookAppointment} onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
+        {activeTab === 'book-studio' && !paymentLocked && <ClientStudioBooking key={searchParams.get('service') || 'default'} initialServiceId={searchParams.get('service') || ''} onBookExisting={bookAppointment} onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
       </main>
 
-      {detailBookingId && detailBooking && <BookingDetailDialog booking={detailBooking} packageName={packages.find(pkg => Number(pkg.id) === Number(detailBooking.client_package_id))?.name} onClose={() => setDetailBookingId(null)}><BookingRow booking={detailBooking} session={sessionByBookingId.get(Number(detailBooking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(detailBooking, action)} onReschedule={() => { setDetailBookingId(null); setReschedule({ ...initialReschedule, booking: detailBooking, date: detailBooking.date, start_time: normalizeTime(detailBooking.start_time), end_time: normalizeTime(detailBooking.end_time, { endOfDay: true }) }); }} onCancel={() => { setDetailBookingId(null); requestCancel(detailBooking); }}/></BookingDetailDialog>}
+      {detailBookingId && detailBooking && <BookingDetailDialog booking={detailBooking} packageName={packages.find(pkg => Number(pkg.id) === Number(detailBooking.client_package_id))?.name} onClose={() => setDetailBookingId(null)}><BookingRow booking={detailBooking} onPay={() => { setDetailBookingId(null); selectPaymentTarget('package', overduePackages[0]?.id); }} session={sessionByBookingId.get(Number(detailBooking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(detailBooking, action)} onReschedule={() => { setDetailBookingId(null); setReschedule({ ...initialReschedule, booking: detailBooking, date: detailBooking.date, start_time: normalizeTime(detailBooking.start_time), end_time: normalizeTime(detailBooking.end_time, { endOfDay: true }) }); }} onCancel={() => { setDetailBookingId(null); requestCancel(detailBooking); }}/></BookingDetailDialog>}
       {bookingOpen && <ClientBookingDialog open packages={activePackages} services={services} initialPackageId={bookingForm.client_package_id} triggerRef={bookingTriggerRef} onClose={() => setBookingOpen(false)} onSuccess={fetchClientData} showNotice={showNotice}/>}
 
       {offerDetail && <div className="client-modal client-offer-modal" onMouseDown={event => { if (event.target === event.currentTarget) closeOfferDetail(); }}><section ref={offerDialogRef} className="client-modal-card client-offer-dialog" role="dialog" aria-modal="true" aria-labelledby="client-offer-title"><button className="client-modal-close" onClick={closeOfferDetail} aria-label="إغلاق تفاصيل العرض"><X/></button>{offerDetailBusy ? <div className="client-empty"><RefreshCw className="client-spin"/><h3>جارٍ تحميل العرض</h3></div> : <ClientOfferDetails offer={offerDetail} serverOffset={offerServerOffset} busy={acceptBusy} confirm={acceptConfirm} onConfirm={() => setAcceptConfirm(true)} onCancelConfirm={() => setAcceptConfirm(false)} onAccept={acceptOffer}/>}</section></div>}
@@ -522,13 +530,13 @@ export default function ClientDashboard() {
     </div>
   );
 }
-function BookingRow({ booking, session, serverOffset, busy, onAlternativeDecision, onReschedule, onCancel }) {
+function BookingRow({ booking, onPay, session, serverOffset, busy, onAlternativeDecision, onReschedule, onCancel }) {
   const isLive = Boolean(session);
   const noticeLate = clientNoticeIsLate(booking);
-  const canChange = !isLive && ['confirmed', 'alternative_proposed'].includes(booking.status);
+  const canChange = !booking.payment_locked && !isLive && ['confirmed', 'alternative_proposed'].includes(booking.status);
   const canCancel = !isLive && ['pending', 'confirmed', 'alternative_proposed', 'cancel_requested', 'late_cancel_requested'].includes(booking.status);
   const settlement=booking.settlement;const outcome={none:'ضمن رصيد الباقة',new_package:'تمت إضافته إلى باقة جديدة',existing_package:'تم نقله إلى باقة أخرى',package_overage:'تم احتسابه كوقت إضافي',custom_invoice:'تم إصدار فاتورة منفصلة',custom_project:'تم إدراجه كخدمة مستقلة',waive:'تمت تسويته دون رسوم'}[settlement?.settlement_mode];
-  return <article className={`client-booking-row${isLive ? ' client-booking-row--live' : ''}`} data-booking-id={booking.id}><div className="client-booking-date"><span>{format(new Date(`${booking.date}T12:00`), 'EEEE', { locale: ar })}</span><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${booking.date}T12:00`), 'MMM yyyy', { locale: ar })}</small></div><div className="client-booking-info">{isLive ? <span className="client-status client-status--live">جاري التصوير</span> : <StatusBadge status={booking.status}/>}<h3>{booking.service}</h3><p><CalendarDays size={15}/>{format(new Date(`${booking.date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</p><p><Clock3 size={15}/>{timeLabel(booking.start_time)} – {timeLabel(booking.end_time)} · {formatDurationMinutes(calculateDurationMinutes(booking.start_time, booking.end_time))}</p>{session&&<ClientAppointmentLiveStatus session={session} serverOffset={serverOffset} compact />}{settlement&&<div className="client-session-settlement"><strong>الوقت الفعلي {formatDurationMinutes(settlement.actual_minutes)}</strong><span>مغطى {formatDurationMinutes(settlement.covered_minutes)}{Number(settlement.excess_minutes)>0?` · زائد ${formatDurationMinutes(settlement.excess_minutes)}`:''}</span><small>{settlement.client_note||outcome}</small>{Number(settlement.amount_due)>0&&<b>المستحق {formatEGP(settlement.amount_due)}</b>}</div>}</div>{(canChange || canCancel) && <div className="client-booking-actions">{booking.status === 'alternative_proposed' && <><button disabled={Boolean(busy)} onClick={() => onAlternativeDecision('accept')}><CheckCircle2/> قبول الموعد</button><button className="danger" disabled={Boolean(busy)} onClick={() => onAlternativeDecision('reject')}><RotateCcw/> موعد آخر</button></>}{booking.status !== 'alternative_proposed' && canChange && <button disabled={Boolean(busy) || noticeLate} onClick={onReschedule}><RotateCcw/> تغيير الموعد</button>}{canCancel && <button className="danger" disabled={Boolean(busy) || booking.status === 'confirmed' && noticeLate} onClick={onCancel}><XCircle/> {busy === `cancel-${booking.id}` ? 'جارٍ...' : ['pending', 'cancel_requested', 'late_cancel_requested'].includes(booking.status) ? 'إلغاء الطلب' : 'إلغاء'}</button>}{noticeLate && booking.status === 'confirmed' && <p className="client-notice-expired">انتهت مهلة التعديل والإلغاء: 48 ساعة فعلية قبل الموعد، باستثناء الجمعة.</p>}</div>}</article>;
+  return <article className={`client-booking-row${isLive ? ' client-booking-row--live' : ''}`} data-booking-id={booking.id}><div className="client-booking-date"><span>{format(new Date(`${booking.date}T12:00`), 'EEEE', { locale: ar })}</span><strong>{format(new Date(`${booking.date}T12:00`), 'd')}</strong><small>{format(new Date(`${booking.date}T12:00`), 'MMM yyyy', { locale: ar })}</small></div><div className="client-booking-info">{isLive ? <span className="client-status client-status--live">جاري التصوير</span> : <StatusBadge status={booking.status}/>}<h3>{booking.service}</h3>{booking.payment_locked && <div className="client-payment-hold"><strong>الموعد معلّق لحين تأكيد سداد المتبقي</strong><p>الموعد محفوظ، وتعود إتاحته تلقائيًا بعد اعتماد الإدارة للسداد.</p><button type="button" onClick={onPay}>ادفع الآن</button></div>}<p><CalendarDays size={15}/>{format(new Date(`${booking.date}T12:00`), 'EEEE، d MMMM yyyy', { locale: ar })}</p><p><Clock3 size={15}/>{timeLabel(booking.start_time)} – {timeLabel(booking.end_time)} · {formatDurationMinutes(calculateDurationMinutes(booking.start_time, booking.end_time))}</p>{session&&<ClientAppointmentLiveStatus session={session} serverOffset={serverOffset} compact />}{settlement&&<div className="client-session-settlement"><strong>الوقت الفعلي {formatDurationMinutes(settlement.actual_minutes)}</strong><span>مغطى {formatDurationMinutes(settlement.covered_minutes)}{Number(settlement.excess_minutes)>0?` · زائد ${formatDurationMinutes(settlement.excess_minutes)}`:''}</span><small>{settlement.client_note||outcome}</small>{Number(settlement.amount_due)>0&&<b>المستحق {formatEGP(settlement.amount_due)}</b>}</div>}</div>{(canChange || canCancel) && <div className="client-booking-actions">{!booking.payment_locked && booking.status === 'alternative_proposed' && <><button disabled={Boolean(busy)} onClick={() => onAlternativeDecision('accept')}><CheckCircle2/> قبول الموعد</button><button className="danger" disabled={Boolean(busy)} onClick={() => onAlternativeDecision('reject')}><RotateCcw/> موعد آخر</button></>}{booking.status !== 'alternative_proposed' && canChange && <button disabled={Boolean(busy) || noticeLate} onClick={onReschedule}><RotateCcw/> تغيير الموعد</button>}{canCancel && <button className="danger" disabled={Boolean(busy) || booking.status === 'confirmed' && noticeLate} onClick={onCancel}><XCircle/> {busy === `cancel-${booking.id}` ? 'جارٍ...' : ['pending', 'cancel_requested', 'late_cancel_requested'].includes(booking.status) ? 'إلغاء الطلب' : 'إلغاء'}</button>}{noticeLate && booking.status === 'confirmed' && <p className="client-notice-expired">انتهت مهلة التعديل والإلغاء: 48 ساعة فعلية قبل الموعد، باستثناء الجمعة.</p>}</div>}</article>;
 }
 
 function BookingDetailDialog({ booking, packageName, onClose, children }) {

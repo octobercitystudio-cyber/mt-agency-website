@@ -9,6 +9,7 @@ final class DeliveryPDO extends PDO {
  public function __construct(){parent::__construct('sqlite::memory:');$this->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);}
  public function prepare(string $sql,array $options=[]):PDOStatement|false {
   $sql=str_replace(['DATE_SUB(NOW(), INTERVAL 48 HOUR)','DATE_ADD(l.published_at,INTERVAL 48 HOUR)'],["datetime('now','-48 hours')","datetime(l.published_at,'+48 hours')"],$sql);
+  $sql=str_replace('NOW()',"datetime('now')",$sql);
   return parent::prepare($sql,$options);
  }
 }
@@ -24,6 +25,7 @@ try {
  rejected(fn()=>pickupFile($config,0,1),'invalid_pickup_job');
  $pdo=new DeliveryPDO();
  $pdo->exec("CREATE TABLE post_production_jobs(id INTEGER,organization_id INTEGER,booking_session_id INTEGER,booking_id INTEGER,client_id INTEGER,status TEXT,version INTEGER,status_changed_at TEXT,needs_review INTEGER,is_client_visible INTEGER,created_at TEXT,updated_at TEXT);
+ CREATE TABLE post_production_status_history(id INTEGER,organization_id INTEGER,post_production_job_id INTEGER,from_status TEXT,to_status TEXT,version INTEGER,changed_at TEXT);
  CREATE TABLE booking_sessions(id INTEGER,organization_id INTEGER,actual_seconds INTEGER,started_at TEXT,ended_at TEXT);
  CREATE TABLE bookings(id INTEGER,organization_id INTEGER,date TEXT,start_time TEXT,end_time TEXT,service TEXT,client_package_id INTEGER);
  CREATE TABLE clients(id INTEGER,organization_id INTEGER,name TEXT);
@@ -36,6 +38,7 @@ try {
  INSERT INTO post_production_jobs VALUES(1,1,1,7,11,'upload_completed',1,'2030-01-01',0,1,'2030-01-01','2030-01-01'),(2,1,2,8,22,'ready_for_pickup',1,'2030-01-02',0,1,'2030-01-02','2030-01-02'),(3,2,3,9,33,'uploading',1,'2030-01-03',0,1,'2030-01-03','2030-01-03');
  INSERT INTO video_delivery_links VALUES(1,1,1,'Current','folder','https://drive.google.com/drive/folders/test',0,1,datetime('now')),(2,1,1,'Expired','folder','https://drive.google.com/drive/folders/old',0,1,datetime('now','-49 hours')),(3,1,1,'Inactive','folder','https://drive.google.com/drive/folders/off',0,0,datetime('now'));");
  $pdo->exec('ALTER TABLE video_delivery_links ADD COLUMN is_pinned INTEGER DEFAULT 0; ALTER TABLE video_delivery_links ADD COLUMN published_at TEXT; UPDATE video_delivery_links SET published_at=created_at');
+ $pdo->exec('ALTER TABLE client_packages ADD COLUMN client_id INTEGER DEFAULT 11; ALTER TABLE client_packages ADD COLUMN total_price TEXT DEFAULT 0; ALTER TABLE client_packages ADD COLUMN paid_amount TEXT DEFAULT 0; ALTER TABLE client_packages ADD COLUMN overage_amount TEXT DEFAULT 0');
  $user=['organization_id'=>1,'client_id'=>11];
  $rows=postProductionRows($pdo,$config,$user,true);
  check(count($rows)===1 && $rows[0]['id']===1,'Deliveries only belong to requesting client and organization');
@@ -50,6 +53,26 @@ try {
  $pdo->exec("UPDATE video_delivery_links SET published_at=datetime('now','-49 hours') WHERE id=1");
  check(postProductionRows($pdo,$config,$user,true)[0]['delivery_links']===[],'Pinned folder cannot bypass client expiry');
  $pdo->exec("UPDATE video_delivery_links SET published_at=datetime('now') WHERE id=1");
+
+ $pdo->exec('UPDATE client_packages SET total_price=1000,paid_amount=500');
+ $locked=postProductionRows($pdo,$config,$user,true)[0];
+ check($locked['status']==='upload_completed' && $locked['delivery_payment_locked']===true,'Ready status retained behind financial hold');
+ check($locked['delivery_links']===[] && $locked['delivery_link_count']===0,'Server never returns unpaid delivery URL');
+ check($locked['payment_package_id']===100 && $locked['payment_outstanding_amount']==='500.00','Payment button targets the correct package and balance');
+ $staff=postProductionRows($pdo,$config,['organization_id'=>1],false);
+ check(count($staff[0]['delivery_links'])>0 || count($staff[1]['delivery_links'])>0,'Staff still retains internal folders');
+ $pdo->exec('UPDATE video_delivery_links SET published_at=NULL WHERE id=1');
+ publishPendingDeliveryLinks($pdo,1,1,'upload_completed');
+ check($pdo->query('SELECT published_at FROM video_delivery_links WHERE id=1')->fetchColumn()===null,'Payment hold does not start download deadline');
+ $pdo->exec('UPDATE client_packages SET paid_amount=999.99');
+ check(postProductionRows($pdo,$config,$user,true)[0]['delivery_payment_locked']===true,'Partial payment does not unlock');
+ $pdo->exec('UPDATE client_packages SET paid_amount=1000');
+ $unlocked=postProductionRows($pdo,$config,$user,true)[0];
+ check(!$unlocked['delivery_payment_locked'] && count($unlocked['delivery_links'])===1,'Confirmed full payment restores delivery automatically');
+ check(strtotime($unlocked['delivery_links'][0]['available_until'])>time()+47*3600,'Held link receives full 48 hours after access becomes available');
+ $stamp=$pdo->query('SELECT published_at FROM video_delivery_links WHERE id=1')->fetchColumn();
+ postProductionRows($pdo,$config,$user,true);
+ check($pdo->query('SELECT published_at FROM video_delivery_links WHERE id=1')->fetchColumn()===$stamp,'Reading again does not extend delivery deadline');
  check(!file_exists($root),'List endpoint is read-only');
  $file=pickupFile($config,1,1);
  check(is_dir(dirname($file)),'First write creates private nested directory');

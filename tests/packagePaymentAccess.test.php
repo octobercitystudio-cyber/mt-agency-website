@@ -1,0 +1,26 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/phpRegistrationHarness.php';
+require_once __DIR__.'/../api/package_payment_access.php';
+$package=['billing_unit'=>'hour','total_price'=>'3400.00','paid_amount'=>'1700.00','payment_due_minutes'=>600,'payment_due_quantity'=>10,'consumed_minutes'=>599,'consumed_quantity'=>10,'status'=>'active'];
+check(!packagePaymentAccess($package)['booking_payment_locked'],'Authoritative minutes prevent early hold');
+check(packagePaymentAccess($package)['delivery_payment_locked'],'Deliveries require full payment even before booking threshold');
+$package['consumed_minutes']=600;
+check(packagePaymentAccess($package)['booking_payment_locked'],'Exact threshold applies hold');
+foreach(['active','completed','expired'] as $status)check(packagePaymentAccess(array_replace($package,['status'=>$status]))['booking_payment_locked'],'Outstanding due survives '.$status);
+foreach(['cancelled','void','archived','draft'] as $status)check(!packagePaymentAccess(array_replace($package,['status'=>$status]))['booking_payment_locked'],'Excluded '.$status);
+check(!packagePaymentAccess(array_replace($package,['payment_due_minutes'=>0]))['booking_payment_locked'],'Zero threshold does not suspend bookings');
+check(packagePaymentAccess(array_replace($package,['paid_amount'=>'3399.99']))['booking_payment_locked'],'One piastre still owed');
+check(!packagePaymentAccess(array_replace($package,['paid_amount'=>'3400']))['delivery_payment_locked'],'Full payment restores delivery');
+check(packagePaymentAccess(array_replace($package,['paid_amount'=>'3400','overage_amount'=>'10']))['delivery_payment_locked'],'Overage must also be settled');
+check(packagePaymentAccess(['billing_unit'=>'reel','payment_due_quantity'=>2,'consumed_quantity'=>2,'total_price'=>100,'paid_amount'=>0])['booking_payment_locked'],'Reel thresholds work');
+$pdo->exec("INSERT INTO client_packages(id,organization_id,client_id,name,billing_unit,total_price,paid_amount,payment_due_minutes,consumed_minutes,status) VALUES(1,1,1,'Due','hour',100,50,60,60,'active'),(2,2,1,'Other org','hour',100,0,60,60,'active')");
+check(count(clientOverduePackages($pdo,1,1))===1,'Organization-scoped debt');
+requireClientPaymentAccess($pdo,1,2);
+failure('package_payment_required',fn()=>requireClientPaymentAccess($pdo,1,1));
+$pdo->exec('UPDATE client_packages SET paid_amount=99.99 WHERE id=1');
+failure('package_payment_required',fn()=>requireClientPaymentAccess($pdo,1,1));
+$pdo->exec('UPDATE client_packages SET paid_amount=100 WHERE id=1');
+requireClientPaymentAccess($pdo,1,1);
+check(!clientOverduePackages($pdo,1,1),'Full allocation releases only the correct customer');
+echo "PASS {$checks} package payment access checks\n";

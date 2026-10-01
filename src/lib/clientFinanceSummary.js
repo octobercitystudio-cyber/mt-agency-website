@@ -1,7 +1,7 @@
 const inactiveInvoiceStatuses = new Set(['cancelled', 'void']);
 const inactivePackageStatuses = new Set(['cancelled', 'void', 'archived', 'draft']);
 
-export const PACKAGE_PAYMENT_DUE_MESSAGE = 'لقد تجاوزتم حد الدفع للباقة برجاء سرعة سداد باقي المستحقات لتجنب توقف الباقة';
+export const PACKAGE_PAYMENT_DUE_MESSAGE = 'عميلنا العزيز، بلغ استهلاك باقتكم حدّ السداد المتفق عليه. نرجو التكرّم بسداد المبلغ المتبقي لاستمرار الاستفادة من خدماتكم. يُعلّق حجز المواعيد الجديدة وإتاحة المواعيد القادمة لحين تأكيد الإدارة سداد كامل المتبقي. تظل حجوزاتكم محفوظة دون إلغاء، وتُتاح الخدمات تلقائيًا بعد اعتماد السداد.';
 
 export const moneyToPiastres = value => {
   const normalized = Number(value || 0);
@@ -27,7 +27,7 @@ export const packageOutstandingPiastres = pkg => Math.max(
 
 export const isPackagePaymentDue = pkg => {
   const status = String(pkg?.status || '').toLowerCase();
-  if (status && status !== 'active') return false;
+  if (inactivePackageStatuses.has(status)) return false;
   const threshold = authoritativePackageUsage(pkg, 'payment_due');
   const consumed = authoritativePackageUsage(pkg, 'consumed');
   return threshold > 0 && consumed >= threshold && packageOutstandingPiastres(pkg) > 0;

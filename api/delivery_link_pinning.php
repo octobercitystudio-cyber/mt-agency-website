@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/package_payment_access.php';
 
 function ensureDeliveryLinkPinSchema(PDO $pdo): void {
     static $ready=false;if($ready)return;
@@ -16,6 +17,7 @@ function publishPendingDeliveryLinks(PDO $pdo,int $organizationId,int $jobId,str
     if(!in_array($status,['upload_completed','delivered'],true))return;
     $job=$pdo->prepare('SELECT is_client_visible,needs_review FROM post_production_jobs WHERE id=? AND organization_id=?');$job->execute([$jobId,$organizationId]);$row=$job->fetch();
     if(!$row || (int)$row['is_client_visible']!==1 || (int)$row['needs_review']!==0)return;
+    if(postProductionPaymentAccess($pdo,$organizationId,$jobId)['delivery_payment_locked'])return;
     // Status retries/corrections never restart an already published link's clock.
     $pdo->prepare('UPDATE video_delivery_links SET published_at=COALESCE(published_at,NOW()) WHERE organization_id=? AND post_production_job_id=? AND is_active=1')->execute([$organizationId,$jobId]);
 }
@@ -39,8 +41,9 @@ function savePostProductionDeliveryLinks(PDO $pdo,array $user,int $id,array $pay
             if((int)$old['is_pinned']===1)fail('ألغِ تثبيت الفولدر واحفظ التغيير أولًا قبل حذف رابطه أو استبداله.',409,'pinned_delivery_folder_protected');
             $pdo->prepare('DELETE FROM video_delivery_links WHERE id=? AND organization_id=?')->execute([$old['id'],$org]);
         }
+        $paymentLocked=postProductionPaymentAccess($pdo,$org,$id)['delivery_payment_locked'];
         foreach($links as $link){
-            $published=$link['is_active']===1 && (int)$job['is_client_visible']===1 && (int)$job['needs_review']===0 && in_array($job['status'],['upload_completed','delivered'],true)?cairoNow()->format('Y-m-d H:i:s'):null;
+            $published=!$paymentLocked && $link['is_active']===1 && (int)$job['is_client_visible']===1 && (int)$job['needs_review']===0 && in_array($job['status'],['upload_completed','delivered'],true)?cairoNow()->format('Y-m-d H:i:s'):null;
             if(isset($existing[$link['url_hash']])){
                 $pdo->prepare('UPDATE video_delivery_links SET title=?,link_kind=?,sort_order=?,is_active=?,is_pinned=?,published_at=COALESCE(published_at,?),updated_by=? WHERE id=? AND organization_id=?')->execute([$link['title'],$link['link_kind'],$link['sort_order'],$link['is_active'],$link['is_pinned'],$published,$user['id'],$existing[$link['url_hash']]['id'],$org]);
             }else{

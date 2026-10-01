@@ -65,3 +65,13 @@ $availability=clientBookingAvailability($pdo,$client,202,60,'2030-01-10',1)['day
 check(!array_filter($availability['slots'],fn($slot)=>$slot['start_time']==='12:00'),'Own pending interval blocks all resources');
 requireClientAvailableInterval($pdo,1,1,'2030-01-10','13:00','14:00');
 check(true,'Adjacent intervals do not overlap');
+
+// Financial restrictions are enforced by the real routes, not just disabled buttons.
+$pdo->exec("UPDATE client_packages SET total_price=1000,paid_amount=500,payment_due_minutes=60,consumed_minutes=60 WHERE id=202");
+failure('package_payment_required',fn()=>clientBookingAvailability($pdo,$client,202,60,'2030-01-26',1));
+failure('package_payment_required',fn()=>calendarRequest($pdo,$client,array_replace($payload,['client_package_id'=>202,'date'=>'2030-01-26'])));
+failure('package_payment_required',fn()=>calendarReschedule($pdo,$client,array_replace($change,['date'=>'2030-01-26'])));
+check(!$pdo->inTransaction(),'Financial rejection rolls back calendar write');
+$pdo->exec('UPDATE client_packages SET paid_amount=1000 WHERE id=202');
+check(clientBookingAvailability($pdo,$client,202,60,'2030-01-26',1)['days'][0]['available'],'Payment approval restores availability without changing booking records');
+echo "PASS {$checks} calendar checks including payment holds\n";

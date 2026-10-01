@@ -74,6 +74,8 @@ check(countRows($pdo,'client_studio_booking_requests')===$beforeRequests && !$pd
 check(submitStudioBookingRequest($pdo,$client,$payload,$proof)['id']===$id,'Idempotent replay survives active subscription');
 // Exhaustion allows the next purchase and the existing price/conflict/rejection checks to run.
 $pdo->exec('UPDATE client_packages SET consumed_minutes=purchased_minutes,consumed_quantity=purchased_quantity,held_minutes=0,held_quantity=0');
+failure('package_payment_required',fn()=>submitStudioBookingRequest($pdo,$client,array_replace($payload,['idempotency_key'=>'test-overdue-exhausted-block']),$proof));
+$pdo->exec('UPDATE client_packages SET paid_amount=total_price');
 $changed=array_replace($payload,['idempotency_key'=>'test-studio-stale-002']);failure('service_terms_changed',fn()=>submitStudioBookingRequest($pdo,$client,$changed,$proof));
 $service=registrationService($pdo,1,101);$pendingPayload=array_replace($payload,['idempotency_key'=>'test-studio-reject-003','service_terms_fingerprint'=>$service['terms_fingerprint'],'bookings'=>[array_replace($first,['date'=>'2030-01-12'])]]);
 $rejected=submitStudioBookingRequest($pdo,$client,$pendingPayload,$proof);decideStudioBookingRequest($pdo,$owner,$rejected['id'],['stage'=>'package','action'=>'reject','note'=>'الصورة غير واضحة']);decideStudioBookingRequest($pdo,$owner,$rejected['id'],['stage'=>'package','action'=>'reject']);
@@ -142,5 +144,16 @@ $dailyRequest=submitStudioBookingRequest($pdo,$client,$dailyPayload,$proof);
 check($dailyRequest['submitted']&&$dailyRequest['status']==='pending','Five-hour daily request submits without approval');
 $q=$pdo->prepare('SELECT deposit_amount,service_snapshot FROM client_studio_booking_requests WHERE id=?');$q->execute([$dailyRequest['id']]);$dailySaved=$q->fetch();
 check((float)$dailySaved['deposit_amount']===400.0&&json_decode($dailySaved['service_snapshot'],true)['validity_days']===1,'Daily request retains 400 deposit and shooting-day-only validity');
+
+// Exercise the production approval path: a proof alone never releases the hold.
+$pdo->exec("INSERT INTO clients(id,organization_id,name,status) VALUES(9000,1,'Payment access fixture','active'); INSERT INTO client_packages(id,organization_id,client_id,name,billing_unit,total_price,paid_amount,overage_amount,payment_due_minutes,consumed_minutes,status) VALUES(9000,1,9000,'Payment fixture','hour',1000,500,0,60,60,'active'); INSERT INTO payment_proofs(id,organization_id,client_id,client_package_id,amount,payment_method,status) VALUES(9000,1,9000,9000,200,'vodafone_cash','pending'),(9001,1,9000,9000,300,'vodafone_cash','pending'),(9002,1,9000,9000,500,'vodafone_cash','pending')");
+failure('package_payment_required',fn()=>requireClientPaymentAccess($pdo,1,9000));
+reviewPaymentProof($pdo,$owner,9002,['action'=>'reject']);
+failure('package_payment_required',fn()=>requireClientPaymentAccess($pdo,1,9000));
+reviewPaymentProof($pdo,$owner,9000,['action'=>'approve']);
+failure('package_payment_required',fn()=>requireClientPaymentAccess($pdo,1,9000));
+reviewPaymentProof($pdo,$owner,9001,['action'=>'approve']);
+requireClientPaymentAccess($pdo,1,9000);
+check(!clientOverduePackages($pdo,1,9000),'Actual owner approval releases hold only after complete allocated payment');
 
 echo "PASS $checks studio booking, private proof, financial approval, availability and review deadline checks\n";

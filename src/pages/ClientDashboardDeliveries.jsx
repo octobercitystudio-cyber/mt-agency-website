@@ -22,14 +22,15 @@ export default function ClientDashboardDeliveries({ onNavigate }) {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); return () => { requestRef.current += 1; }; }, [load]);
   useEffect(() => { const timer = window.setInterval(() => setClock(Date.now()), 30000); return () => window.clearInterval(timer); }, []);
-  useChangeSync(useCallback(topics => { if (topics.some(topic => ['post_production', 'notifications'].includes(topic))) load(); }, [load]));
-  const available = state.jobs.filter(job => (job.delivery_links || []).some(link => {
+  useChangeSync(useCallback(topics => { if (topics.some(topic => ['post_production', 'notifications', 'finance', 'client_packages'].includes(topic))) load(); }, [load]));
+  const held = state.jobs.filter(job => job.delivery_payment_locked && ['upload_completed', 'ready_for_pickup', 'delivered'].includes(job.status));
+  const available = state.jobs.filter(job => !job.delivery_payment_locked && (job.delivery_links || []).some(link => {
     const expires = new Date(link.available_until || '').getTime();
     return Number(link.is_active) === 1 && (!Number.isFinite(expires) || expires > clock + state.offset);
   }));
   return <section className="glance-deliveries" aria-label="آخر التسليمات">
     <span className="glance-delivery-icon"><Film aria-hidden="true" /></span>
-    <div><h2>{state.loading ? 'جارٍ تحميل التسليمات' : state.error ? 'تعذر تحديث التسليمات' : available.length ? 'تسليمات جاهزة لك' : 'لا توجد تسليمات جاهزة حاليًا'}</h2><p>{state.loading ? 'نتحقق من الفيديوهات المتاحة لحسابك.' : state.error ? 'يمكنك إعادة المحاولة أو فتح صفحة التسليمات.' : available.length ? postProductionSessionLabel(available[0]) : 'سنخبرك عند توفر فيديوهات جديدة للتحميل.'}</p></div>
+    <div><h2>{state.loading ? 'جارٍ تحميل التسليمات' : state.error ? 'تعذر تحديث التسليمات' : held.length ? 'تسليمات جاهزة — بانتظار السداد' : available.length ? 'تسليمات جاهزة لك' : 'لا توجد تسليمات جاهزة حاليًا'}</h2><p>{state.loading ? 'نتحقق من الفيديوهات المتاحة لحسابك.' : state.error ? 'يمكنك إعادة المحاولة أو فتح صفحة التسليمات.' : held.length ? 'تُتاح الفيديوهات والاستلام بعد تأكيد الإدارة سداد المتبقي على الباقة.' : available.length ? postProductionSessionLabel(available[0]) : 'سنخبرك عند توفر فيديوهات جديدة للتحميل.'}</p></div>
     {state.error ? <button type="button" className="glance-link" onClick={load}><RefreshCw /> إعادة المحاولة</button> : <button type="button" className="glance-link" onClick={() => onNavigate('videos', available.length ? { post_production_job_id: available[0].id } : {})}>{available.length ? 'عرض التسليمات' : 'كل التسليمات'}<ArrowLeft /></button>}
   </section>;
 }

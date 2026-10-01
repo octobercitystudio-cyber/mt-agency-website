@@ -36,7 +36,7 @@ test('payment alarm includes due reels and excludes near, zero, paid, and inacti
   assert.equal(isPackagePaymentDue(hourlyPackage({ consumed_minutes: 299 })), false);
   assert.equal(isPackagePaymentDue(hourlyPackage({ payment_due_minutes: 0, payment_due_quantity: 0 })), false);
   assert.equal(isPackagePaymentDue(hourlyPackage({ paid_amount: 10000 })), false);
-  for (const status of ['archived', 'draft', 'completed', 'cancelled', 'suspended']) {
+  for (const status of ['archived', 'draft', 'cancelled', 'void']) {
     assert.equal(isPackagePaymentDue(hourlyPackage({ status })), false, `status ${status} must not alarm`);
   }
 });
@@ -53,22 +53,19 @@ test('due package items identify each package and its exact remaining balance', 
   ]);
 });
 
-test('approved home keeps the next appointment first and payment alarm before the financial summary', async () => {
-  const overview = await load('src/pages/ClientDashboardOverview.jsx');
-  const appointment = overview.indexOf('glance-next-main');
-  const alarm = overview.indexOf('<ClientPaymentDueAlarm');
-  const finance = overview.indexOf('glance-finance-title');
-  assert.ok(appointment >= 0 && appointment < alarm && alarm < finance);
-  assert.match(overview, /<ClientPaymentDueAlarm packages=\{activePackages\} onNavigate=\{onNavigate\}/);
+test('payment alarm is shared across all dashboard pages', async () => {
+  const dashboard = await load('src/pages/ClientDashboard.jsx');
+  assert.match(dashboard, /<ClientPaymentDueAlarm packages=\{packages\}/);
+  assert.match(dashboard, /onPay=\{id => selectPaymentTarget\('package', id\)\}/);
 });
 test('alarm uses the exact copy, live alert semantics, finance action, and reduced motion', async () => {
   const [overview, css, api, demo] = await Promise.all([
     load('src/pages/ClientDashboardOverview.jsx'),
     load('src/pages/ClientDashboard.css'),
-    load('api/index.php'),
+    load('api/package_payment_access.php'),
     load('src/lib/demoDataClient.js'),
   ]);
-  assert.equal(PACKAGE_PAYMENT_DUE_MESSAGE, 'لقد تجاوزتم حد الدفع للباقة برجاء سرعة سداد باقي المستحقات لتجنب توقف الباقة');
+  assert.match(PACKAGE_PAYMENT_DUE_MESSAGE, /تأكيد الإدارة سداد كامل المتبقي/);
   assert.match(overview, /role="alert" aria-live="polite" aria-atomic="true"/);
   assert.match(overview, /<AlarmClock\/>/);
   assert.match(overview, /onNavigate\('finance'\)/);

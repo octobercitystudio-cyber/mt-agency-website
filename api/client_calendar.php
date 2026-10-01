@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/package_payment_access.php';
 
 function requireClientDayDuration(array $package,int $minutes): void {
     if(($package['billing_unit']??'')==='hour'&&($package['validity_mode_snapshot']??'')==='shooting_day'&&$minutes!==authoritativePackageMinutes($package,'purchased'))fail('يجب حجز ساعات يوم التصوير كاملة في جلسة واحدة متصلة.',422,'daily_full_duration_required');
@@ -80,6 +81,7 @@ function clientCalendarWindow(string $startDate,int $days,int $duration): array 
     return [$first->format('Y-m-d'),$first->modify('+'.($days-1).' days')->format('Y-m-d')];
 }
 function clientPackageCalendar(PDO $pdo,array $user,int $packageId,int $duration,string $startDate,int $days,int $bookingId=0): array {
+    requireClientPaymentAccess($pdo,(int)$user['organization_id'],(int)$user['client_id']);
     [$from,$to]=clientCalendarWindow($startDate,$days,$duration);$org=(int)$user['organization_id'];$client=(int)$user['client_id'];$booking=null;$package=null;$available=10;
     if($bookingId){$q=$pdo->prepare("SELECT * FROM bookings WHERE id=? AND organization_id=? AND client_id=? AND status IN ('confirmed','alternative_proposed')");$q->execute([$bookingId,$org,$client]);$booking=$q->fetch();if(!$booking)fail('الموعد لا يخص هذا الحساب أو لا يقبل التعديل.',404,'invalid_booking');if(clientBookingNoticeIsLate($booking,cairoNow()))fail('التعديل قبل الموعد بـ48 ساعة على الأقل دون احتساب يوم الجمعة.',422,'late_reschedule');if($packageId&&$packageId!==(int)$booking['client_package_id'])fail('الباقة لا تطابق الموعد.',422,'invalid_package');$packageId=(int)$booking['client_package_id'];}
     if($packageId){$q=$pdo->prepare("SELECT cp.* FROM client_packages cp JOIN services s ON s.id=cp.service_id AND s.organization_id=cp.organization_id AND s.is_active=1 WHERE cp.id=? AND cp.client_id=? AND cp.organization_id=? AND cp.status='active'");$q->execute([$packageId,$client,$org]);$package=$q->fetch();if(!$package)fail('الباقة غير فعالة أو لا تخص هذا الحساب.',404,'invalid_package');
@@ -95,6 +97,7 @@ function clientPackageCalendar(PDO $pdo,array $user,int $packageId,int $duration
     return ['package'=>$package?['id'=>(int)$package['id'],'name'=>$package['name'],'billing_unit'=>$package['billing_unit'],'available_quantity'=>max(0,$available),'starts_at'=>$package['starts_at'],'expires_at'=>$package['expires_at'],'minimum_booking_minutes'=>60,'booking_increment_minutes'=>30]:null,'duration_minutes'=>$duration,'server_time'=>cairoNow()->format(DATE_ATOM),'booking_policy'=>clientBookingPolicy(),'days'=>clientCalendarDays($capacity,$own,$from,$days,$duration,$package,(bool)$booking)];
 }
 function clientStudioCalendar(PDO $pdo,array $user,int $serviceId,int $duration,string $startDate,int $days): array {
+    requireClientPaymentAccess($pdo,(int)$user['organization_id'],(int)$user['client_id']);
     [$from,$to]=clientCalendarWindow($startDate,$days,$duration);$org=(int)$user['organization_id'];$service=registrationService($pdo,$org,$serviceId);if(($service['kind']??'')==='hourly'&&$duration!==60)fail('كل موعد للتصوير بالساعة مدته ساعة واحدة.',422,'hourly_session_duration');if(($service['kind']??'')!=='hourly'&&$duration>(int)round($service['total_hours']*60))fail('المدة تتجاوز ساعات الباقة.',422,'insufficient_package_balance');
     $capacity=clientCalendarCapacity($pdo,$org,$from,$to,null,0,true);$own=clientCalendarDates($pdo,$org,(int)$user['client_id'],$from,$to);
     return ['duration_minutes'=>$duration,'server_time'=>cairoNow()->format(DATE_ATOM),'booking_policy'=>clientBookingPolicy(),'days'=>clientCalendarDays($capacity,$own,$from,$days,$duration)];

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/package_payment_access.php';
 const STUDIO_TRANSFER_ACCOUNT = '01094084424';
 const STUDIO_SUBMITTED_MESSAGE = 'تم إرسال طلبك بنجاح، وبانتظار تأكيد الحجز خلال ساعة من ساعات العمل الرسمية: من 12 ظهرًا إلى 10 مساءً، والجمعة إجازة.';
 
@@ -124,6 +125,7 @@ function submitStudioBookingRequest(PDO $pdo,array $user,array $payload,array $p
         $s=$pdo->prepare("SELECT id,name FROM clients WHERE id=? AND organization_id=? AND status='active' FOR UPDATE");$s->execute([$clientId,$org]);$client=$s->fetch();if(!$client)fail('حساب العميل غير متاح للحجز.',403,'client_not_active');
         $s=$pdo->prepare('SELECT * FROM client_studio_booking_requests WHERE organization_id=? AND user_id=? AND idempotency_key=? FOR UPDATE');$s->execute([$org,$user['id'],$key]);
         if($old=$s->fetch()){if(!hash_equals($old['request_hash'],$hash))fail('مفتاح الحفظ مرتبط بطلب مختلف.',409,'idempotency_mismatch');$pdo->commit();return studioRequestResult($old)+['_proof_retained'=>false];}
+        requireClientPaymentAccess($pdo,$org,$clientId,true);
         requireClientPackagePurchase($pdo,$org,$clientId);
         $service=studioService($pdo,$org,$serviceId);if(!hash_equals($service['terms_fingerprint'],$fingerprint))fail('تم تحديث سعر الباقة أو شروطها. راجع التفاصيل الجديدة ثم وافق عليها.',409,'service_terms_changed');
         $service=studioPurchaseSelection($service,$payload['selected_hours']??$service['total_hours']);

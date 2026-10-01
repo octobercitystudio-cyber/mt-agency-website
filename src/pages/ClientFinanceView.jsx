@@ -92,10 +92,11 @@ function FinanceOverview({ summary }) {
 }
 
 export default function ClientFinanceView({
-  activePackages,
-  financialPackages = activePackages,
+
+  financialPackages = [],
   invoices,
   payments,
+  initiallyOpen = false,
   proofs,
   projects = [],
   offers = [],
@@ -105,10 +106,10 @@ export default function ClientFinanceView({
   onSubmitProof,
   onSelectTarget,
 }) {
-  const [payOpen, setPayOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(initiallyOpen);
   const [copied, setCopied] = useState(false);
   const payTriggerRef = useRef(null);
-  const packageRows = useMemo(() => activePackages.map(pkg => {
+  const packageRows = useMemo(() => financialPackages.filter(pkg => !['cancelled', 'void', 'archived', 'draft'].includes(pkg.status)).map(pkg => {
     const remaining = outstandingPackage(pkg);
     const threshold = Math.max(0, Number(pkg.payment_due_quantity || 0));
     const consumed = Math.max(0, Number(pkg.consumed_quantity || 0));
@@ -116,7 +117,7 @@ export default function ClientFinanceView({
     const total = packageTotal(pkg);
     const paidPercent = total > 0 ? Math.min(100, (Number(pkg.paid_amount || 0) / total) * 100) : 100;
     return { ...pkg, remaining, threshold, consumed, dueNow, paidPercent };
-  }), [activePackages]);
+  }), [financialPackages]);
 
   const invoiceRows = useMemo(() => invoices.map(invoice => ({ ...invoice, remaining: outstandingInvoice(invoice) })), [invoices]);
   const financialInvoices = useMemo(() => invoices.map(invoice => {

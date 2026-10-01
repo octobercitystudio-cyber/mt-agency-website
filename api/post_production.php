@@ -111,7 +111,8 @@ function postProductionRows(PDO $pdo, array $config, array $user, bool $clientOn
                    j.needs_review,j.is_client_visible,j.created_at,j.updated_at,
                    c.name AS client_name,b.date AS session_date,b.start_time,b.end_time,b.service,
                    b.client_package_id,cp.name AS package_name,bs.actual_seconds,bs.started_at,bs.ended_at,
-                   (SELECT COUNT(*) FROM video_delivery_links l WHERE l.post_production_job_id=j.id AND l.organization_id=j.organization_id AND l.is_active=1) AS delivery_link_count
+                   (SELECT COUNT(*) FROM video_delivery_links l WHERE l.post_production_job_id=j.id AND l.organization_id=j.organization_id AND l.is_active=1) AS delivery_link_count,
+                   (SELECT COUNT(*) FROM video_delivery_links l WHERE l.post_production_job_id=j.id AND l.organization_id=j.organization_id AND l.is_active=1 AND l.published_at IS NULL) AS unpublished_link_count
             FROM post_production_jobs j
             JOIN booking_sessions bs ON bs.id=j.booking_session_id AND bs.organization_id=j.organization_id
             JOIN bookings b ON b.id=j.booking_id AND b.organization_id=j.organization_id
@@ -122,6 +123,10 @@ function postProductionRows(PDO $pdo, array $config, array $user, bool $clientOn
     $stmt = $pdo->prepare($sql); $stmt->execute($params); $rows = $stmt->fetchAll();
     if (!$rows) return [];
     $ids = array_map(fn($row) => (int)$row['id'], $rows);
+    $paymentAccess=postProductionPaymentAccessMap($pdo,$organizationId,$ids);
+    foreach($rows as $row){
+        if((int)$row['unpublished_link_count']>0 && !$paymentAccess[(int)$row['id']]['delivery_payment_locked'])publishPendingDeliveryLinks($pdo,$organizationId,(int)$row['id'],(string)$row['status']);
+    }
     $marks = implode(',', array_fill(0, count($ids), '?'));
     $historyByJob = [];
     if (!$clientOnly) {
@@ -143,9 +148,11 @@ function postProductionRows(PDO $pdo, array $config, array $user, bool $clientOn
         } else {
             $row['delivery_link_count'] = count($linksByJob[$row['id']] ?? []);
         }
-        $row['delivery_links'] = $linksByJob[$row['id']] ?? [];
+        $row=array_merge($row,$paymentAccess[$row['id']]);
+        $row['delivery_links'] = $clientOnly && $row['delivery_payment_locked'] ? [] : ($linksByJob[$row['id']] ?? []);
+        if($clientOnly)$row['delivery_link_count']=count($row['delivery_links']);
         if ($clientOnly) {
-            $safe = ['id','booking_id','status','status_changed_at','session_date','start_time','end_time','service','client_package_id','package_name','actual_seconds','status_label','delivery_link_count','delivery_links'];
+            $safe = ['delivery_payment_locked','payment_package_id','payment_outstanding_amount','id','booking_id','status','status_changed_at','session_date','start_time','end_time','service','client_package_id','package_name','actual_seconds','status_label','delivery_link_count','delivery_links'];
             $row = array_intersect_key($row, array_fill_keys($safe, true));
         }
     }
@@ -253,6 +260,7 @@ function postProductionPickupJob(PDO $pdo, array $user, int $jobId, bool $client
     $stmt = $pdo->prepare('SELECT id,client_id FROM post_production_jobs WHERE '.implode(' AND ',$where).' LIMIT 1');
     $stmt->execute($params); $job = $stmt->fetch();
     if (!$job) fail('مهمة المونتاج غير موجودة أو غير متاحة.',404,'post_production_not_found');
+    if($clientAccess && postProductionPaymentAccess($pdo,(int)$user['organization_id'],$jobId)['delivery_payment_locked'])fail('إتاحة الاستلام معلّقة لحين تأكيد سداد كامل متبقي الباقة.',409,'delivery_payment_required');
     return $job;
 }
 
@@ -295,20 +303,20 @@ function handlePostProductionRoutes(PDO $pdo, array $config, ?array $sessionUser
         if(!in_array($next,POST_PRODUCTION_STATUSES,true)||$expected===false||$expected<1)fail('حالة المونتاج أو نسخة السجل غير صحيحة.',422,'invalid_post_production_update');
         $pdo->beginTransaction(); try {
             $stmt=$pdo->prepare('SELECT * FROM post_production_jobs WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$id,$user['organization_id']]);$before=$stmt->fetch();if(!$before){$pdo->rollBack();fail('جلسة المونتاج غير موجودة.',404,'post_production_not_found');}
-            $currentVersion=(int)$before['version'];
+            $currentVersion=(int)$before['version'];if($next==='delivered'&&postProductionPaymentAccess($pdo,(int)$user['organization_id'],$id)['delivery_payment_locked'])fail('لا يمكن تسليم الفيديوهات قبل تأكيد سداد كامل متبقي الباقة.',409,'delivery_payment_required');
             if($next===$before['status']&&($expected===$currentVersion||$expected===$currentVersion-1)){$pdo->commit();respond(['item'=>$before,'idempotent'=>true]);}
             if($currentVersion!==$expected){$pdo->rollBack();fail('تم تحديث هذه الجلسة من مستخدم آخر. حدّث الصفحة وحاول مرة أخرى.',409,'post_production_version_conflict');}
             if(!in_array($next,postProductionAllowedNext((string)$before['status']),true)){$pdo->rollBack();fail('لا يمكن الرجوع أو تجاوز مراحل المونتاج. اختر الخطوة التالية المتاحة.',409,'invalid_post_production_transition');}
             $version=(int)$before['version']+1;$pdo->prepare('UPDATE post_production_jobs SET status=?,version=?,status_changed_at=NOW(),updated_by=? WHERE id=? AND organization_id=?')->execute([$next,$version,$user['id'],$id,$user['organization_id']]);
             $pdo->prepare('INSERT INTO post_production_status_history (organization_id,post_production_job_id,from_status,to_status,version,changed_by) VALUES (?,?,?,?,?,?)')->execute([$user['organization_id'],$id,$before['status'],$next,$version,$user['id']]);
             $after=array_replace($before,['status'=>$next,'version'=>$version,'updated_by'=>$user['id']]);publishPendingDeliveryLinks($pdo,(int)$user['organization_id'],$id,$next);audit($pdo,$user,'post_production_status_changed','post_production_jobs',$id,$before,$after);
-            if((int)$before['is_client_visible']===1&&(int)$before['needs_review']===0&&($notification=postProductionNotification($next))){[$type,$title,$message,$tab,$severity]=$notification;appNotification($pdo,(int)$user['organization_id'],(int)$before['client_id'],'client',$type,$title,$message,'post_production_jobs',$id,'post-production:'.$id.':version:'.$version,$severity,$tab,['post_production_job_id'=>$id,'booking_id'=>(int)$before['booking_id']]);}
+            if((int)$before['is_client_visible']===1&&(int)$before['needs_review']===0&&($notification=postProductionNotification($next))){[$type,$title,$message,$tab,$severity]=$notification;if(in_array($next,['upload_completed','ready_for_pickup','delivered'],true)&&postProductionPaymentAccess($pdo,(int)$user['organization_id'],$id)['delivery_payment_locked'])$message='اكتمل تجهيز الفيديوهات. إتاحة روابط التحميل والاستلام معلّقة لحين تأكيد الإدارة سداد كامل متبقي الباقة. يرجى الانتقال إلى المدفوعات واستكمال السداد.';appNotification($pdo,(int)$user['organization_id'],(int)$before['client_id'],'client',$type,$title,$message,'post_production_jobs',$id,'post-production:'.$id.':version:'.$version,$severity,$tab,['post_production_job_id'=>$id,'booking_id'=>(int)$before['booking_id']]);}
             $pdo->commit();respond(['id'=>$id,'status'=>$next,'version'=>$version,'idempotent'=>false]);
         } catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
     }
     if (preg_match('#^/owner/post-production/(\d+)/status-correction$#',$path,$m) && $method === 'POST') {
         $user=requireUser($sessionUser);requireRole($user,['owner']);requirePostProductionSchema($pdo);$id=(int)$m[1];$payload=body();$next=trim((string)($payload['status']??''));$expected=filter_var($payload['expected_version']??null,FILTER_VALIDATE_INT);$reason=trim((string)($payload['reason']??''));if(!in_array($next,POST_PRODUCTION_STATUSES,true)||$expected===false||$expected<1||mb_strlen($reason)<5)fail('حدد الحالة الصحيحة وسببًا واضحًا لتصحيح مسار المونتاج.',422,'invalid_post_production_correction');
-        $pdo->beginTransaction();try{$stmt=$pdo->prepare('SELECT * FROM post_production_jobs WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$id,$user['organization_id']]);$before=$stmt->fetch();if(!$before){$pdo->rollBack();fail('جلسة المونتاج غير موجودة.',404,'post_production_not_found');}$currentVersion=(int)$before['version'];if($next===$before['status']&&($expected===$currentVersion||$expected===$currentVersion-1)){$pdo->commit();respond(['id'=>$id,'status'=>$next,'version'=>$currentVersion,'idempotent'=>true]);}if($currentVersion!==$expected){$pdo->rollBack();fail('تم تحديث هذه الجلسة من مستخدم آخر. حدّث الصفحة وحاول مرة أخرى.',409,'post_production_version_conflict');}$version=$currentVersion+1;$pdo->prepare('UPDATE post_production_jobs SET status=?,version=?,status_changed_at=NOW(),updated_by=? WHERE id=? AND organization_id=?')->execute([$next,$version,$user['id'],$id,$user['organization_id']]);$pdo->prepare('INSERT INTO post_production_status_history (organization_id,post_production_job_id,from_status,to_status,version,changed_by) VALUES (?,?,?,?,?,?)')->execute([$user['organization_id'],$id,$before['status'],$next,$version,$user['id']]);$after=array_replace($before,['status'=>$next,'version'=>$version,'updated_by'=>$user['id']]);publishPendingDeliveryLinks($pdo,(int)$user['organization_id'],$id,$next);audit($pdo,$user,'owner_post_production_status_correction','post_production_jobs',$id,$before,$after+['reason'=>$reason]);if((int)$before['is_client_visible']===1&&(int)$before['needs_review']===0&&($notification=postProductionNotification($next))){[$type,$title,$message,$tab,$severity]=$notification;appNotification($pdo,(int)$user['organization_id'],(int)$before['client_id'],'client',$type,$title,$message,'post_production_jobs',$id,'post-production:'.$id.':version:'.$version,$severity,$tab,['post_production_job_id'=>$id,'booking_id'=>(int)$before['booking_id']]);}$pdo->commit();respond(['id'=>$id,'status'=>$next,'version'=>$version,'idempotent'=>false]);}catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
+        $pdo->beginTransaction();try{$stmt=$pdo->prepare('SELECT * FROM post_production_jobs WHERE id=? AND organization_id=? FOR UPDATE');$stmt->execute([$id,$user['organization_id']]);$before=$stmt->fetch();if(!$before){$pdo->rollBack();fail('جلسة المونتاج غير موجودة.',404,'post_production_not_found');}$currentVersion=(int)$before['version'];if($next==='delivered'&&postProductionPaymentAccess($pdo,(int)$user['organization_id'],$id)['delivery_payment_locked'])fail('لا يمكن تسليم الفيديوهات قبل تأكيد سداد كامل متبقي الباقة.',409,'delivery_payment_required');if($next===$before['status']&&($expected===$currentVersion||$expected===$currentVersion-1)){$pdo->commit();respond(['id'=>$id,'status'=>$next,'version'=>$currentVersion,'idempotent'=>true]);}if($currentVersion!==$expected){$pdo->rollBack();fail('تم تحديث هذه الجلسة من مستخدم آخر. حدّث الصفحة وحاول مرة أخرى.',409,'post_production_version_conflict');}$version=$currentVersion+1;$pdo->prepare('UPDATE post_production_jobs SET status=?,version=?,status_changed_at=NOW(),updated_by=? WHERE id=? AND organization_id=?')->execute([$next,$version,$user['id'],$id,$user['organization_id']]);$pdo->prepare('INSERT INTO post_production_status_history (organization_id,post_production_job_id,from_status,to_status,version,changed_by) VALUES (?,?,?,?,?,?)')->execute([$user['organization_id'],$id,$before['status'],$next,$version,$user['id']]);$after=array_replace($before,['status'=>$next,'version'=>$version,'updated_by'=>$user['id']]);publishPendingDeliveryLinks($pdo,(int)$user['organization_id'],$id,$next);audit($pdo,$user,'owner_post_production_status_correction','post_production_jobs',$id,$before,$after+['reason'=>$reason]);if((int)$before['is_client_visible']===1&&(int)$before['needs_review']===0&&($notification=postProductionNotification($next))){[$type,$title,$message,$tab,$severity]=$notification;if(in_array($next,['upload_completed','ready_for_pickup','delivered'],true)&&postProductionPaymentAccess($pdo,(int)$user['organization_id'],$id)['delivery_payment_locked'])$message='اكتمل تجهيز الفيديوهات. إتاحة روابط التحميل والاستلام معلّقة لحين تأكيد الإدارة سداد كامل متبقي الباقة. يرجى الانتقال إلى المدفوعات واستكمال السداد.';appNotification($pdo,(int)$user['organization_id'],(int)$before['client_id'],'client',$type,$title,$message,'post_production_jobs',$id,'post-production:'.$id.':version:'.$version,$severity,$tab,['post_production_job_id'=>$id,'booking_id'=>(int)$before['booking_id']]);}$pdo->commit();respond(['id'=>$id,'status'=>$next,'version'=>$version,'idempotent'=>false]);}catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
     }
     if (preg_match('#^/post-production/(\d+)/delivery-links$#',$path,$m) && $method === 'PUT') {
         $user=requireUser($sessionUser);requireRole($user,['owner','admin','operations']);requirePostProductionSchema($pdo);

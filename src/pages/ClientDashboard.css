@@ -465,3 +465,10 @@
 .client-app--glance .client-package-status[data-status="active"] { color:#176343!important;background:#eaf6ef; }
 .client-app--glance .client-package-status:is([data-status="pending"],[data-status="paused"]) { color:#89500f!important;background:#fff3df; }
 .client-app--glance .client-package-status:is([data-status="expired"],[data-status="cancelled"]) { color:#a52e42!important;background:#fff0f2; }
+
+/* Payment holds remain readable alongside the original booking/delivery status. */
+.client-payment-hold { margin: 12px 0; padding: 16px; border: 1px solid #eab9ae; border-radius: 14px; background: #fff3ed; color: #7c2922; line-height: 1.85; overflow-wrap: anywhere; }
+.client-payment-hold strong { display: block; font-size: 17px; }
+.client-payment-hold p { margin: 8px 0; color: inherit; font-size: 15px; }
+.client-payment-hold button { border: 0; border-radius: 10px; background: #632dcc; color: white; padding: 11px 22px; font: inherit; font-weight: 700; cursor: pointer; min-height: 44px; }
+.client-payment-due-alarm__content p { line-height: 1.9; font-size: 16px; max-width: 80ch; }
