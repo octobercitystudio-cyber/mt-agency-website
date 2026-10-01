@@ -43,7 +43,7 @@ $pdo=new PromotionPDO();
 $pdo->exec(<<<'SQL'
 CREATE TABLE clients(id INTEGER PRIMARY KEY,organization_id INTEGER,name TEXT,phone1 TEXT);
 CREATE TABLE users(id INTEGER PRIMARY KEY,organization_id INTEGER,client_id INTEGER,role TEXT,is_active INTEGER);
-CREATE TABLE promotions(id INTEGER PRIMARY KEY,organization_id INTEGER,public_title TEXT,status TEXT,starts_at TEXT,ends_at TEXT,archived_at TEXT,badge TEXT,description TEXT,original_price TEXT,promotional_price TEXT,discount_text TEXT,cta_label TEXT,priority INTEGER,version INTEGER);
+CREATE TABLE promotions(id INTEGER PRIMARY KEY,organization_id INTEGER,public_title TEXT,status TEXT,starts_at TEXT,ends_at TEXT,archived_at TEXT,badge TEXT,description TEXT,terms TEXT,original_price TEXT,promotional_price TEXT,discount_text TEXT,cta_label TEXT,priority INTEGER,version INTEGER);
 CREATE TABLE promotion_subscriptions(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,promotion_id INTEGER,client_id INTEGER,status TEXT,created_at TEXT DEFAULT '2030-01-01',updated_at TEXT,UNIQUE(organization_id,promotion_id,client_id));
 CREATE TABLE app_notifications(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_id INTEGER,client_id INTEGER,recipient_user_id INTEGER,audience TEXT,type TEXT,title TEXT,message TEXT,entity_type TEXT,entity_id INTEGER,dedupe_key TEXT,severity TEXT,action_tab TEXT,payload_json TEXT,source_event_key TEXT,UNIQUE(organization_id,dedupe_key));
 CREATE TABLE queued_pushes(organization_id INTEGER,notification_id INTEGER);
@@ -86,6 +86,8 @@ rejected('promotion_request_decided',fn()=>promotionSubscriptionDecision($pdo,$o
 check((int)$pdo->query("SELECT count(*) FROM app_notifications WHERE type='promotion_subscription_decided'")->fetchColumn()===1,'One decision notification');
 $pdo->exec("UPDATE promotions SET status='expired',archived_at='2030-01-01' WHERE id=1");
 $feed=route($pdo,$client,'/client/promotions')['items'];
+$archived=array_values(array_filter($feed,fn($p)=>(int)$p['id']===1))[0];
+check($archived['status']==='expired' && $archived['archived_at']!==null,'Client can distinguish historical subscriptions from current gift offers');
 check(count(array_filter($feed,fn($p)=>(int)$p['id']===1 && $p['subscription_status']==='approved'))===1,'Client retains request outcome after campaign expiry');
 $second=$client;$second['client_id']=2;$second['id']=2;
 check(count(array_filter(route($pdo,$second,'/client/promotions')['items'],fn($p)=>(int)$p['id']===1))===0,'Another client cannot see archived subscribed campaign');

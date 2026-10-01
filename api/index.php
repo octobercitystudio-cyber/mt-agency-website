@@ -2108,7 +2108,7 @@ if ($path === '/readiness/package-sales' && $method === 'GET') {
 }
 
 if ($path === '/promotions/public' && $method === 'GET') {
-    $stmt=$pdo->query("SELECT id,public_title,public_title_en,badge,badge_en,description,description_en,original_price,promotional_price,discount_text,discount_text_en,starts_at,ends_at,cta_label,cta_label_en,cta_url,popup_enabled,banner_enabled,priority,version FROM promotions WHERE archived_at IS NULL AND status='active' AND starts_at<=NOW() AND ends_at>NOW() AND (popup_enabled=1 OR banner_enabled=1) ORDER BY priority DESC,ends_at ASC,id DESC LIMIT 10");
+    $stmt=$pdo->query("SELECT id,public_title,public_title_en,badge,badge_en,description,description_en,terms,original_price,promotional_price,discount_text,discount_text_en,starts_at,ends_at,cta_label,cta_label_en,cta_url,popup_enabled,banner_enabled,priority,version FROM promotions WHERE archived_at IS NULL AND status='active' AND starts_at<=NOW() AND ends_at>NOW() AND (popup_enabled=1 OR banner_enabled=1) ORDER BY priority DESC,ends_at ASC,id DESC LIMIT 10");
     respond(['items'=>array_map('publicPromotion',$stmt->fetchAll()),'server_now'=>cairoNow()->format(DATE_ATOM)]);
 }
 

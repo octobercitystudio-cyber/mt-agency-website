@@ -42,6 +42,7 @@ import ClientPostProduction from './ClientPostProduction';
 import ClientSecuritySettings from './ClientSecuritySettings';
 import ClientBookingDialog from './ClientBookingDialog';
 import { isClientBookingVisible } from '../lib/clientBookingVisibility';
+import PromotionGiftLauncher from '../components/PromotionGiftLauncher';
 
 const STATUS_META = {
   pending: { label: 'بانتظار التأكيد', tone: 'waiting' },
@@ -147,6 +148,7 @@ export default function ClientDashboard() {
   const [services, setServices] = useState([]);
   const [offers, setOffers] = useState([]);
   const [publicPromotions, setPublicPromotions] = useState([]);
+  const [promotionServerOffset, setPromotionServerOffset] = useState(0);
   const [promotionBusy, setPromotionBusy] = useState(null);
   const [offerServerOffset, setOfferServerOffset] = useState(0);
   const [invoices, setInvoices] = useState([]);
@@ -204,6 +206,7 @@ export default function ClientDashboard() {
       const adaptedOffers = adaptClientOfferList(offersResult.data || { items: preview.offers, server_now: new Date().toISOString() });
       setOffers(adaptedOffers.items); setOfferServerOffset(adaptedOffers.serverOffset);
       setPublicPromotions(promotionsResult.data?.items || preview.promotions);
+      setPromotionServerOffset(clientOfferServerOffset(promotionsResult.data?.server_now));
       setInvoices(invoicesResult.data || preview.invoices);
       setProjects(projectsResult.data?.projects || preview.projects);
       setLoadError('');
@@ -239,6 +242,7 @@ export default function ClientDashboard() {
       const adaptedOffers = adaptClientOfferList(offersResult.data);
       setOffers(adaptedOffers.items); setOfferServerOffset(adaptedOffers.serverOffset);
       setPublicPromotions(promotionsResult.data?.items || []);
+      setPromotionServerOffset(clientOfferServerOffset(promotionsResult.data?.server_now));
       setInvoices(invoicesResult.data || []);
       setProjects(projectsResult.data?.projects || []);
       setLoadError('');
@@ -256,7 +260,7 @@ export default function ClientDashboard() {
   useEffect(() => { fetchClientData(); }, [fetchClientData]);
   useChangeSync(useCallback((topics) => {
     if (topics.includes('notifications')) window.dispatchEvent(new CustomEvent('clientNotificationsRefresh'));
-    if (topics.some(topic => ['bookings', 'client_packages', 'finance', 'notifications', 'offers', 'services', 'projects'].includes(topic))) fetchClientData(true);
+    if (topics.some(topic => ['bookings', 'client_packages', 'finance', 'notifications', 'offers', 'promotions', 'services', 'projects'].includes(topic))) fetchClientData(true);
   }, [fetchClientData]), Boolean(clientId) && !isLocalPreview);
   useEffect(() => {
     if (!isLocalPreview) return undefined;
@@ -486,6 +490,7 @@ export default function ClientDashboard() {
           sessionServerOffset={sessionServerOffset}
           onNavigate={navigateClient}
         />}
+        {activeTab === 'home' && !moreOpen && !bookingOpen && !detailBookingId && !offerDetail && !reschedule.booking && !cancelConfirm && <PromotionGiftLauncher promotions={publicPromotions} serverOffset={promotionServerOffset} onAction={() => navigateClient('offers')}/>}
 
         {activeTab === 'schedule' && <section className="client-view client-appointments-page">
           <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div></header>

@@ -7,6 +7,8 @@ import { normalizeRegistrationDigits, registrationFullName } from '../lib/regist
 import { safeUiError } from '../lib/uiError';
 import RegistrationBotCheck from '../components/RegistrationBotCheck';
 import ClientAppDownload from '../components/ClientAppDownload';
+import PromotionGiftLauncher from '../components/PromotionGiftLauncher';
+import usePublicGiftPromotions from '../components/usePublicGiftPromotions';
 import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
 import './PublicRegistration.css';
 
@@ -32,6 +34,12 @@ export default function PublicRegistration() {
   const [success, setSuccess] = useState(false);
   const submissionRef = useRef(false);
   const confirmationRef = useRef(null);
+  const registrationHeadingRef = useRef(null);
+  const giftPromotions = usePublicGiftPromotions();
+  const focusRegistration = () => {
+    registrationHeadingRef.current?.focus({ preventScroll: true });
+    registrationHeadingRef.current?.scrollIntoView({ block: 'center', behavior: 'instant' });
+  };
   const patch = (key, value) => setForm(previous => ({ ...previous, [key]: value }));
   useEffect(() => {
     if (['client', 'applicant'].includes(currentUser?.role)) navigate(clientDestination, { replace: true });
@@ -72,7 +80,7 @@ export default function PublicRegistration() {
       <div className="registration-intro"><span className="registration-kicker">مساحتك في Multi Task</span><h1>حسابك جاهز لبداية جديدة.</h1><p>سجّل بياناتك مرة واحدة، ثم اختر باقتك ومواعيد تصويرك من حسابك.</p></div>
       <div className="registration-grid">
         <section className="registration-form-card" aria-labelledby="registration-title">
-          <div className="registration-section-title"><span><UserRound aria-hidden="true"/></span><div><p>تسجيل فوري</p><h2 id="registration-title">نتعرف عليك</h2></div></div>
+          <div className="registration-section-title"><span><UserRound aria-hidden="true"/></span><div><p>تسجيل فوري</p><h2 ref={registrationHeadingRef} tabIndex={-1} id="registration-title">نتعرف عليك</h2></div></div>
           {error && <div role={success ? 'status' : 'alert'} className={success ? 'registration-success' : 'registration-error'}>{success && <CheckCircle2 aria-hidden="true"/>}{error}</div>}
           {success ? <Link className="registration-primary" to={clientAuthPath('/login', clientDestination)}>تسجيل الدخول <ArrowLeft aria-hidden="true"/></Link> : <form onSubmit={submit} aria-busy={busy}>
             <p className="registration-explainer">بيانات بسيطة وحساب جاهز مباشرة. استخدم رقم واتساب للدخول إلى حسابك بعد التسجيل.</p>
@@ -97,6 +105,7 @@ export default function PublicRegistration() {
         <aside className="registration-summary"><span className="registration-summary-icon"><ShieldCheck aria-hidden="true"/></span><h2>حساب واحد،<br/>كل تفاصيل تصويرك.</h2><p>ابدأ حسابك الآن، واختر الخدمة ونسّق مواعيدك وقتما يناسبك.</p><ul><li><CheckCircle2 aria-hidden="true"/><div><strong>تسجيل فوري</strong><span>حسابك جاهز دون انتظار موافقة.</span></div></li><li><UserRound aria-hidden="true"/><div><strong>باقاتك في مكان واحد</strong><span>تابع الساعات المتاحة وتفاصيل باقتك.</span></div></li><li><CalendarDays aria-hidden="true"/><div><strong>حجز يناسب جدولك</strong><span>اختر مواعيدك وتابع حالة طلباتك بسهولة.</span></div></li></ul></aside>
       </div>
       <footer className="registration-site-footer">Multi Task Agency · مساحتك لصناعة المحتوى.</footer>
+      <PromotionGiftLauncher registration promotions={giftPromotions.items} serverOffset={giftPromotions.serverOffset} onAction={focusRegistration}/>
     </div>
   </main>;
 }
