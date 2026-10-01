@@ -11,6 +11,7 @@ import { publicLocaleFromPath, stripPublicLocale } from '../lib/publicRoutes';
 import { organizationId, siteIdentity, websiteId } from '../seo/siteIdentity';
 import '../components/GoldenTicketTheme.css';
 import '../pages/PublicPages.css';
+import '../pages/PublicLightTheme.css';
 
 const legacySections = new Set(['home', 'about', 'services', 'portfolio', 'studio', 'contact', 'educational-filming']);
 

@@ -1,0 +1,112 @@
+/* Public marketing canvases match the opaque light lettering in logo.png.
+   Keep the palette inside main so navigation, promotions and private apps retain their theme. */
+.public-site-shell {
+  --public-canvas: #dbd9d9;
+  --public-surface: #f8f6f9;
+  --public-light-ink: #261735;
+  --public-light-muted: #56495f;
+  --public-light-accent: #632a91;
+  --public-light-border: #bcb0c6;
+  background: var(--public-canvas);
+}
+
+.public-site-shell #main-content {
+  --public-text: var(--public-light-ink);
+  --public-muted: var(--public-light-muted);
+  --public-logo-gray: var(--public-light-ink);
+  --color-light-silver: var(--public-light-ink);
+  --color-silver: var(--public-light-muted);
+  --box-shadow: 0 14px 36px rgba(38, 23, 53, .08);
+  color: var(--public-light-ink);
+  background: var(--public-canvas);
+  color-scheme: light;
+}
+
+/* Main section backgrounds stay one continuous brand canvas. */
+.public-site-shell #main-content :is(.educational-booking, .public-process-section, .public-about-difference, .public-decision-guide) {
+  background: var(--public-canvas);
+  border-color: var(--public-light-border);
+}
+.public-site-shell #main-content :is(.hero-title, .section-title, .hero-title .text-gradient, .section-title .text-gradient) {
+  color: var(--public-light-ink);
+  -webkit-text-fill-color: currentColor;
+}
+.public-site-shell #main-content .about-text strong { color: var(--public-light-ink); }
+.public-site-shell #main-content :is(.hero-subtitle, .about-text, .service-desc, .contact-desc, .contact-item p) { color: var(--public-light-muted); }
+.public-site-shell #main-content :is(.glass-panel, .service-card, .portfolio-item, .portfolio-info, .contact-item, .public-deliverables, .public-contact-info, .public-contact-form, .public-contact-map-card) {
+  background: var(--public-surface);
+  border-color: var(--public-light-border);
+  box-shadow: var(--box-shadow);
+}
+.public-site-shell #main-content :is(.about-content, .service-card, .contact-form) { border-top-color: var(--public-accent); }
+.public-site-shell #main-content :is(.service-card:hover, .contact-item:hover) { background: #fff; border-color: var(--public-accent); }
+.public-site-shell #main-content .service-card:hover { box-shadow: 0 18px 38px rgba(38, 23, 53, .14); }
+.public-site-shell #main-content :is(.service-card__link, .services-all-link a, .public-preview-link, .detail-text) { color: var(--public-light-ink); }
+.public-site-shell #main-content :is(.service-card__number, .portfolio-info span, .stat-item h3) { color: var(--public-light-accent); }
+.public-site-shell #main-content .service-card:hover .service-title { color: var(--public-light-ink); }
+.public-site-shell #main-content .card-glow { background: radial-gradient(circle, rgba(99, 42, 145, .08), transparent 62%); }
+
+/* Keep the colored controls and photo overlays legible against their original backgrounds. */
+.public-site-shell #main-content :is(.btn-secondary, .filter-btn, .studio-tab-btn, .overlay-icon) { color: #fff; }
+.public-site-shell #main-content .public-ghost-button { color: var(--public-light-ink); border-color: var(--public-light-accent); }
+.public-site-shell #main-content .public-ghost-button:hover { background: rgba(99, 42, 145, .08); }
+.public-site-shell #main-content :is(a, button, input, textarea, select, summary):focus-visible { outline: 3px solid var(--public-light-accent); outline-offset: 4px; }
+.public-site-shell #main-content :is(.contact-form input, .contact-form textarea, .public-contact-form input, .public-contact-form select, .public-contact-form textarea) {
+  color: var(--public-light-ink);
+  background: #fff;
+  border-color: #91819e;
+}
+.public-site-shell #main-content :is(input, textarea)::placeholder { color: #706277; }
+.public-site-shell #main-content :is(.public-contact-map-card iframe, .public-map iframe) { filter: none; }
+
+/* Editorial pages: explicit text groups avoid changing copy over photographs. */
+.public-site-shell #main-content :is(
+  .public-editorial-hero p, .public-section-heading p, .public-service-group > h3,
+  .public-service-row p, .public-intro p, .public-deliverables li, .public-work-empty p,
+  .public-faq p, .public-about-story p, .public-about-story dd, .public-capabilities a,
+  .public-contact-form label, .public-not-found p, .public-section-loading,
+  .public-contact-info__item small, .public-local-expertise__intro p,
+  .public-local-expertise__details p, .public-decision-guide__header p,
+  .public-decision-guide__options p, .public-decision-guide__factors p,
+  .public-related-services__grid p, .public-breadcrumb, .public-service-row__number
+) { color: var(--public-light-muted); }
+.public-site-shell #main-content :is(
+  .public-breadcrumb a, .public-service-row, .public-service-row:hover, .public-text-link,
+  .public-contact-grid aside > a, .public-contact-info__item, .public-contact-info__item:hover,
+  .public-related-services__grid > a, .public-related-services__grid > a:hover, .public-seo-work-list a
+) { color: var(--public-light-ink); }
+.public-site-shell #main-content :is(
+  .public-eyebrow, .public-section-number, .public-section-heading > span,
+  .public-service-row > svg, .public-inline-cta span, .public-outcome-list svg,
+  .public-process-line span, .public-work-copy span, .public-about-story dt,
+  .public-principles span, .public-contact-grid aside > a svg, .public-contact-info__item > svg,
+  .public-contact-map-card > header svg, .public-local-expertise__details article > span,
+  .public-decision-guide__options article > span, .public-related-services__grid svg,
+  .public-related-services__grid i, .public-seo-work-list article > span
+) { color: var(--public-light-accent); }
+.public-site-shell #main-content .public-editorial-hero__mark span { -webkit-text-stroke-color: #9f8fac; }
+.public-site-shell #main-content .public-editorial-hero__media img { filter: drop-shadow(0 20px 28px rgba(38, 23, 53, .16)); }
+.public-site-shell #main-content :is(
+  .public-editorial-hero, .public-service-group, .public-service-group > div, .public-service-row,
+  .public-inline-cta, .public-outcome-list, .public-outcome-list article, .public-deliverables li,
+  .public-process-line li, .public-suitable > div:last-child, .public-suitable > div:last-child span,
+  .public-work-item, .public-work-empty, .public-faq details, .public-about-story dl,
+  .public-about-story dl > div, .public-principles article, .public-capabilities li,
+  .public-contact-grid aside > a, .public-contact-form, .public-contact-info__item,
+  .public-local-expertise__intro, .public-local-expertise__details, .public-local-expertise__details article,
+  .public-decision-guide__options, .public-decision-guide__options article, .public-decision-guide__factors,
+  .public-related-services__grid, .public-related-services__grid > a, .public-seo-work-list,
+  .public-seo-work-list article
+) { border-color: var(--public-light-border); }
+.public-site-shell #main-content .public-decision-guide__factors > div { background: var(--public-light-border); }
+.public-site-shell #main-content .public-decision-guide__factors article { background: var(--public-surface); }
+.public-site-shell #main-content .public-filter-bar button { color: var(--public-light-ink); border-color: var(--public-light-border); }
+.public-site-shell #main-content .public-filter-bar button.active { color: #fff; border-color: #9d4edd; }
+.public-site-shell #main-content .public-filter-bar button:hover:not(.active) { background: var(--public-surface); }
+
+/* Intentional campaign and media panels retain their separate visual identity. */
+.public-site-shell #main-content .public-final-cta { --public-text: #fff; }
+.public-site-shell #main-content .public-final-cta .public-ghost-button { color: #fff; border-color: #fff; }
+.public-site-shell #main-content .public-success-partner { --public-text: #fff7e7; }
+.public-site-shell #main-content .public-success-partner .public-eyebrow { color: #e1a748; }
+.public-site-shell #main-content :is(.public-final-cta, .public-success-partner) :is(a, button):focus-visible { outline-color: #fff; }
