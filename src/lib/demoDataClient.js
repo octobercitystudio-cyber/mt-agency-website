@@ -2458,9 +2458,9 @@ const demoRequest = async (path, options = {}) => {
     if (demoRole !== 'client') throw formationDemoError('عروض الموقع متاحة للعميل فقط.', 'forbidden');
     const now = Date.now();
     const items = tableRows(database, 'promotions')
-      .filter(item => item.status === 'active' && !item.archived_at && new Date(item.starts_at).getTime() <= now && new Date(item.ends_at).getTime() > now && (Number(item.popup_enabled) === 1 || Number(item.banner_enabled) === 1))
+      .filter(item => belongsToDemoOrganization(item) && ((item.status === 'active' && !item.archived_at && new Date(item.starts_at).getTime() <= now && new Date(item.ends_at).getTime() > now) || tableRows(database, 'promotion_subscriptions').some(row => Number(row.promotion_id) === Number(item.id) && Number(row.client_id) === currentDemoClientId(database))))
       .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0))
-      .map(item => ({ ...clone(item), subscribed: tableRows(database, 'promotion_subscriptions').some(row => Number(row.promotion_id) === Number(item.id) && Number(row.client_id) === currentDemoClientId(database)) ? 1 : 0 }));
+      .map(item => ({ ...clone(item), subscription_status: tableRows(database, 'promotion_subscriptions').find(row => Number(row.promotion_id) === Number(item.id) && Number(row.client_id) === currentDemoClientId(database))?.status, subscribed: tableRows(database, 'promotion_subscriptions').some(row => Number(row.promotion_id) === Number(item.id) && Number(row.client_id) === currentDemoClientId(database)) ? 1 : 0 }));
     return { items, server_now: nowIso() };
   }
   if ((match = route.match(/^\/client\/promotions\/(\d+)\/subscribe$/)) && options.method === 'POST') {
@@ -2469,12 +2469,31 @@ const demoRequest = async (path, options = {}) => {
     if (!promotion || promotion.status !== 'active' || promotion.archived_at || new Date(promotion.starts_at).getTime() > now || new Date(promotion.ends_at).getTime() <= now) throw formationDemoError('هذا العرض غير متاح حاليًا.', 'promotion_not_available');
     let row = tableRows(database, 'promotion_subscriptions').find(item => Number(item.promotion_id) === Number(promotion.id) && Number(item.client_id) === currentDemoClientId(database)); const created = !row;
     if (!row) {
-      row = addRow(database, 'promotion_subscriptions', { promotion_id: promotion.id, client_id: currentDemoClientId(database), status: 'interested' });
-      demoAudit(database, 'create', 'promotion_subscriptions', row.id, null, { client_id: currentDemoClientId(database), promotion_id: promotion.id, promotion_title: promotion.public_title, status: 'interested' });
-      tableRows(database, 'users').filter(user => user.role === 'owner' && Number(user.is_active ?? 1) === 1).forEach(owner => addRow(database, 'app_notifications', { client_id: currentDemoClientId(database), audience: 'owner', recipient_user_id: owner.id, type: 'client_promotion_interest', title: 'اشتراك في عرض الشركة', message: `${findById(database, 'clients', currentDemoClientId(database))?.name || 'عميل'} طلب الاشتراك في عرض: ${promotion.public_title}.`, entity_type: 'promotion_subscriptions', entity_id: row.id, action_tab: 'offers', payload: { promotion_id: promotion.id, subscription_id: row.id }, severity: 'success', read_at: null, dismissed_at: null }));
+      row = addRow(database, 'promotion_subscriptions', { promotion_id: promotion.id, client_id: currentDemoClientId(database), status: 'pending' });
+      demoAudit(database, 'create', 'promotion_subscriptions', row.id, null, { client_id: currentDemoClientId(database), promotion_id: promotion.id, promotion_title: promotion.public_title, status: 'pending' });
+      tableRows(database, 'users').filter(user => user.role === 'owner' && Number(user.is_active ?? 1) === 1).forEach(owner => addRow(database, 'app_notifications', { client_id: currentDemoClientId(database), audience: 'owner', recipient_user_id: owner.id, type: 'client_promotion_interest', title: 'اشتراك في عرض الشركة', message: `${findById(database, 'clients', currentDemoClientId(database))?.name || 'عميل'} طلب الاشتراك في عرض: ${promotion.public_title}.`, entity_type: 'promotion_subscriptions', entity_id: row.id, action_tab: 'requests', payload: { promotion_id: promotion.id, subscription_id: row.id }, severity: 'success', read_at: null, dismissed_at: null }));
       writeDatabase(database);
     }
-    return { id: row.id, promotion_id: promotion.id, subscribed: true, already_subscribed: !created };
+    return { id: row.id, promotion_id: promotion.id, subscribed: true, subscription_status: row.status === 'interested' ? 'pending' : row.status, already_subscribed: !created };
+  }
+
+  if (route === '/promotion-subscriptions' && (options.method || 'GET') === 'GET') {
+    if (!['owner', 'admin'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية.', 'forbidden');
+    const items = tableRows(database, 'promotion_subscriptions').filter(belongsToDemoOrganization).map(row => ({ ...clone(row), status: row.status === 'interested' ? 'pending' : row.status, promotion_title: findById(database, 'promotions', row.promotion_id)?.public_title, client_name: findById(database, 'clients', row.client_id)?.name, client_phone: findById(database, 'clients', row.client_id)?.phone1 }));
+    return { items, pending_count: items.filter(row => row.status === 'pending').length };
+  }
+  if ((match = route.match(/^\/promotion-subscriptions\/(\d+)\/decision$/)) && options.method === 'POST') {
+    if (!['owner', 'admin'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية.', 'forbidden');
+    const row = findById(database, 'promotion_subscriptions', match[1]);
+    if (!row || !belongsToDemoOrganization(row)) throw formationDemoError('الطلب غير موجود.', 'promotion_request_not_found');
+    if (!['approved', 'rejected'].includes(body.status)) throw formationDemoError('اختر قرارًا صحيحًا.', 'invalid_promotion_decision');
+    if (!['interested', 'pending'].includes(row.status)) {
+      if (row.status !== body.status) throw formationDemoError('تم اتخاذ قرار بالفعل.', 'promotion_request_decided');
+      return { id: row.id, status: row.status, already_decided: true };
+    }
+    row.status = body.status; row.updated_at = nowIso();
+    addRow(database, 'app_notifications', { client_id: row.client_id, audience: 'client', type: 'promotion_subscription_decided', title: row.status === 'approved' ? 'تمت الموافقة على طلب اشتراكك' : 'تحديث بشأن طلب الاشتراك', message: `عرض ${findById(database, 'promotions', row.promotion_id)?.public_title}`, entity_type: 'promotion_subscriptions', entity_id: row.id, action_tab: 'offers', severity: 'info', read_at: null, dismissed_at: null });
+    writeDatabase(database); return { id: row.id, status: row.status };
   }
 
   if (route === '/package-guide') {

@@ -368,11 +368,11 @@ export default function ClientDashboard() {
 
   const subscribePromotion = async promotionId => {
     setPromotionBusy(promotionId);
-    const { error } = await dataClient.request(`/client/promotions/${promotionId}/subscribe`, { method: 'POST', body: '{}' });
+    const { data: subscription, error } = await dataClient.request(`/client/promotions/${promotionId}/subscribe`, { method: 'POST', body: '{}' });
     setPromotionBusy(null);
     if (error) return showNotice('error', error.message || 'تعذر إرسال طلب الاشتراك.');
-    setPublicPromotions(previous => previous.map(item => Number(item.id) === Number(promotionId) ? { ...item, subscribed: 1 } : item));
-    showNotice('success', 'تم إرسال طلب الاشتراك للإدارة');
+    setPublicPromotions(previous => previous.map(item => Number(item.id) === Number(promotionId) ? { ...item, subscribed: 1, subscription_status: subscription?.subscription_status || 'pending' } : item));
+    showNotice('success', 'تم إرسال طلب اشتراكك بنجاح، وبانتظار موافقة الإدارة. سنبلغك فور مراجعة الطلب.');
   };
 
   const bookAppointment = () => { if (paymentLocked) { selectPaymentTarget('package', overduePackages[0].id); return; } setBookingForm(initialBooking); setBookingOpen(true); };

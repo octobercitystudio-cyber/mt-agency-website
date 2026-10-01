@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/staff_routes.php';
+require_once __DIR__.'/promotion_requests.php';
 require_once __DIR__.'/package_payment_access.php';
 require_once __DIR__.'/shooting_session_expiry.php';
 require_once __DIR__.'/owner_mfa.php';
@@ -818,6 +819,7 @@ function pushUnreadCount(PDO $pdo,array $notification,?int $subscriptionUserId=n
 function sendFirebasePush(array $config,string $token,array $notification,int $unreadCount=1): void {
     $title=mb_substr(trim((string)($notification['title']??'MT Agency')),0,180);$body=mb_substr(trim((string)($notification['message']??'لديك تحديث جديد.')),0,500);$notificationId=(string)(int)($notification['id']??0);$tab=trim((string)($notification['action_tab']??''));if($tab==='montage')$tab='videos';$clientAudience=(string)($notification['audience']??'')==='client';
     $staffRoutes=['requests'=>staffPortalPath('/requests'),'bookings'=>staffPortalPath('/bookings'),'packages'=>staffPortalPath('/packages'),'clients'=>staffPortalPath('/clients'),'finance'=>staffPortalPath('/finance'),'projects'=>staffPortalPath('/projects'),'offers'=>staffPortalPath('/offers'),'post-production'=>staffPortalPath('/post-production')];$url=$clientAudience?('/dashboard'.($tab!==''?'?tab='.rawurlencode($tab):'')):($staffRoutes[$tab]??staffPortalPath(''));$payload=is_array($notification['payload']??null)?$notification['payload']:json_decode((string)($notification['payload_json']??''),true);$jobId=is_array($payload)?filter_var($payload['post_production_job_id']??null,FILTER_VALIDATE_INT):false;if($clientAudience&&in_array($tab,['montage','videos'],true)&&$jobId!==false&&$jobId>0)$url.=($tab!==''?'&':'?').'job='.(int)$jobId;
+    if(!$clientAudience && ($notification['entity_type']??'')==='promotion_subscriptions' && $tab==='requests')$url.='?tab=promotions';
     $syncTopics=array_values(array_unique(['notifications',changeTopic((string)($notification['entity_type']??''))]));
     $message=['message'=>['token'=>$token,'notification'=>['title'=>$title,'body'=>$body],'data'=>['audience'=>$clientAudience?'client':'staff','title'=>$title,'body'=>$body,'url'=>$url,'notification_id'=>$notificationId,'unread_count'=>(string)max(1,min(999,$unreadCount)),'sync_topics'=>implode(',',$syncTopics),'is_test'=>!empty($notification['is_test'])?'1':'0'],'webpush'=>['headers'=>['Urgency'=>'high','TTL'=>'86400'],'fcm_options'=>['link'=>'https://multitaskagency.com'.$url]]]];
     if(str_starts_with($token,'webpush:')){sendStaffWebPush($config,$token,$message['message']['data']);return;}
@@ -1064,7 +1066,7 @@ function ownerClientActionTemplate(string $action, string $entityType, mixed $be
     }
     if($entityType==='reschedule_requests'&&$action==='create')return ['client_reschedule_request','طلب تغيير موعد','أرسل طلبًا لتغيير موعد حجزه.','requests','info'];
     if($entityType==='offers'&&$action==='accept')return ['client_offer_accepted','قبول عرض السعر','وافق على عرض السعر من لوحة العميل.','offers','success'];
-    if($entityType==='promotion_subscriptions'&&$action==='create')return ['client_promotion_interest','اشتراك في عرض الشركة','اختار عرضًا عامًا وطلب الاشتراك فيه من لوحة العميل.','offers','success'];
+    if($entityType==='promotion_subscriptions'&&$action==='create')return ['client_promotion_interest','اشتراك في عرض الشركة','طلب الاشتراك في عرض «'.(string)($after['promotion_title']??'عرض الشركة').'» وبانتظار موافقة الإدارة.','requests','info'];
     if($entityType==='payment_proofs'&&$action==='create')return ['client_payment_proof','إثبات تحويل جديد','رفع إثبات تحويل جديد للمراجعة.','finance','info'];
     return null;
 }
@@ -1078,7 +1080,7 @@ function notifyOwnersOfClientAction(PDO $pdo, array $user, string $action, strin
     [$type,$actionTitle,$message,$tab,$severity]=$template;$created=0;
     $payload=match($entityType){'bookings'=>['booking_id'=>$entityId],'reschedule_requests'=>['booking_id'=>(int)((is_array($after)?$after:[])['booking_id']??0)],'offers'=>['offer_id'=>$entityId],default=>[]};
     foreach($owners->fetchAll(PDO::FETCH_COLUMN) as $ownerId){
-        $ownerId=(int)$ownerId;$key='client-action:'.$sourceEventId.':'.$type.':owner:'.$ownerId;
+        $ownerId=(int)$ownerId;$key=$entityType==='promotion_subscriptions'?'promotion-request:'.$entityId.':owner:'.$ownerId:'client-action:'.$sourceEventId.':'.$type.':owner:'.$ownerId;
         if(appNotification($pdo,$organizationId,$clientId,'owner',$type,$actionTitle.' — '.$clientName,$message,$entityType,$entityId,$key,$severity,$tab,$payload,$ownerId))$created++;
     }
     return $created;
@@ -2118,15 +2120,19 @@ if ($path === '/promotions' && $method === 'GET') {
 
 if ($path === '/promotions' && $method === 'POST') {
     $user=requireUser($user);requireRole($user,['owner','admin']);$values=promotionPayload(body());
+    $pdo->beginTransaction();try {
     $columns=array_keys($values);$stmt=$pdo->prepare('INSERT INTO promotions (organization_id,'.implode(',',$columns).',created_by) VALUES (?,'.implode(',',array_fill(0,count($columns),'?')).',?)');
-    $stmt->execute(array_merge([$user['organization_id']],array_values($values),[$user['id']]));$id=(int)$pdo->lastInsertId();audit($pdo,$user,'create','promotions',$id,null,$values);respond(['id'=>$id],201);
+    $stmt->execute(array_merge([$user['organization_id']],array_values($values),[$user['id']]));$id=(int)$pdo->lastInsertId();audit($pdo,$user,'create','promotions',$id,null,$values);materializePromotionNotifications($pdo,(int)$user['organization_id']);$pdo->commit();respond(['id'=>$id],201);
+    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
 if (preg_match('#^/promotions/(\d+)$#',$path,$m) && $method === 'PATCH') {
     $user=requireUser($user);requireRole($user,['owner','admin']);$id=(int)$m[1];
     $stmt=$pdo->prepare('SELECT * FROM promotions WHERE id=? AND organization_id=? AND archived_at IS NULL');$stmt->execute([$id,$user['organization_id']]);$before=$stmt->fetch();if(!$before)fail('العرض غير موجود.',404,'promotion_not_found');
     $values=promotionPayload(body(),$before);$set=implode(',',array_map(fn($key)=>"`$key`=?",array_keys($values)));
-    $pdo->prepare("UPDATE promotions SET $set,version=version+1 WHERE id=? AND organization_id=?")->execute(array_merge(array_values($values),[$id,$user['organization_id']]));audit($pdo,$user,'update','promotions',$id,$before,$values);respond(['updated'=>true]);
+    $pdo->beginTransaction();try {
+    $pdo->prepare("UPDATE promotions SET $set,version=version+1 WHERE id=? AND organization_id=?")->execute(array_merge(array_values($values),[$id,$user['organization_id']]));audit($pdo,$user,'update','promotions',$id,$before,$values);materializePromotionNotifications($pdo,(int)$user['organization_id']);$pdo->commit();respond(['updated'=>true]);
+    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
 if (preg_match('#^/promotions/(\d+)/duplicate$#',$path,$m) && $method === 'POST') {
@@ -2223,28 +2229,11 @@ if ($path === '/auth/session' && $method === 'GET') {
     respond(['session' => ['active' => true], 'user' => $user]);
 }
 
-if ($path === '/client/promotions' && $method === 'GET') {
-    $user=requireUser($user);requireRole($user,['client']);$organizationId=(int)$user['organization_id'];$clientId=(int)$user['client_id'];
-    if(!schemaTableExists($pdo,'promotion_subscriptions'))fail('يلزم تشغيل تحديث لوحة العميل رقم 030.',503,'client_dashboard_migration_required');
-    $stmt=$pdo->prepare("SELECT p.id,p.public_title,p.badge,p.description,p.original_price,p.promotional_price,p.discount_text,p.starts_at,p.ends_at,p.cta_label,p.priority,p.version,CASE WHEN ps.id IS NULL THEN 0 ELSE 1 END AS subscribed FROM promotions p LEFT JOIN promotion_subscriptions ps ON ps.promotion_id=p.id AND ps.organization_id=p.organization_id AND ps.client_id=? WHERE p.organization_id=? AND p.archived_at IS NULL AND p.status='active' AND p.starts_at<=NOW() AND p.ends_at>NOW() AND (p.popup_enabled=1 OR p.banner_enabled=1) ORDER BY p.priority DESC,p.ends_at ASC,p.id DESC LIMIT 20");
-    $stmt->execute([$clientId,$organizationId]);respond(['items'=>$stmt->fetchAll(),'server_now'=>(new DateTimeImmutable('now',new DateTimeZone('Africa/Cairo')))->format(DATE_ATOM)]);
-}
-
-if (preg_match('#^/client/promotions/(\d+)/subscribe$#',$path,$m) && $method === 'POST') {
-    $user=requireUser($user);requireRole($user,['client']);$promotionId=(int)$m[1];$organizationId=(int)$user['organization_id'];$clientId=(int)$user['client_id'];
-    if(!schemaTableExists($pdo,'promotion_subscriptions'))fail('يلزم تشغيل تحديث لوحة العميل رقم 030.',503,'client_dashboard_migration_required');
-    $pdo->beginTransaction();try{
-        $promotionStmt=$pdo->prepare("SELECT id,public_title FROM promotions WHERE id=? AND organization_id=? AND archived_at IS NULL AND status='active' AND starts_at<=NOW() AND ends_at>NOW() FOR UPDATE");$promotionStmt->execute([$promotionId,$organizationId]);$promotion=$promotionStmt->fetch();if(!$promotion){$pdo->rollBack();fail('العرض غير متاح الآن.',404,'promotion_not_available');}
-        $insert=$pdo->prepare("INSERT IGNORE INTO promotion_subscriptions (organization_id,promotion_id,client_id,status) VALUES (?,?,?,'interested')");$insert->execute([$organizationId,$promotionId,$clientId]);$created=$insert->rowCount()===1;
-        $subscriptionStmt=$pdo->prepare('SELECT * FROM promotion_subscriptions WHERE organization_id=? AND promotion_id=? AND client_id=? LIMIT 1');$subscriptionStmt->execute([$organizationId,$promotionId,$clientId]);$subscription=$subscriptionStmt->fetch();if(!$subscription){$pdo->rollBack();fail('تعذر حفظ طلب الاشتراك.',500,'promotion_subscription_failed');}
-        if($created)audit($pdo,$user,'create','promotion_subscriptions',(int)$subscription['id'],null,['client_id'=>$clientId,'promotion_id'=>$promotionId,'promotion_title'=>$promotion['public_title'],'status'=>'interested']);
-        $pdo->commit();respond(['id'=>(int)$subscription['id'],'promotion_id'=>$promotionId,'subscribed'=>true,'already_subscribed'=>!$created],$created?201:200);
-    }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
-}
+handlePromotionRequestRoutes($pdo,$user,$path,$method);
 
 if ($path === '/cron/push-queue' && $method === 'POST') {
     $workerKey=(string)($config['push']['worker_key']??'');$provided=(string)($_SERVER['HTTP_X_WORKER_KEY']??'');if($workerKey===''||$provided===''||!hash_equals($workerKey,$provided))fail('غير مصرح بتشغيل عامل إشعارات التطبيق.',401,'invalid_worker_key');$push=pushConfiguration($config);if(!$push['enabled'])fail('إشعارات التطبيق غير مفعلة.',503,'push_not_configured');if(!schemaTableExists($pdo,'app_push_jobs')||!schemaTableExists($pdo,'app_push_subscriptions'))fail('تحديث قاعدة بيانات الإشعارات مطلوب.',503,'push_migration_required');
-    $started=0;$materialized=0;foreach($pdo->query('SELECT id FROM organizations')->fetchAll(PDO::FETCH_COLUMN) as $organizationId){$started+=activateScheduledSessions($pdo,(int)$organizationId);$materialized+=materializePackageLifecycleNotifications($pdo,(int)$organizationId);}
+    $started=0;$materialized=0;foreach($pdo->query('SELECT id FROM organizations')->fetchAll(PDO::FETCH_COLUMN) as $organizationId){$started+=activateScheduledSessions($pdo,(int)$organizationId);$materialized+=materializePackageLifecycleNotifications($pdo,(int)$organizationId);$materialized+=materializePromotionNotifications($pdo,(int)$organizationId);}
     $delivery=processPushQueue($pdo,$config);
     respond(['started_sessions'=>$started,'materialized_notifications'=>$materialized,]+$delivery);
 }
@@ -2627,7 +2616,7 @@ if ($path === '/app-notifications/device-state' && $method === 'POST') {
 
 if ($path === '/app-notifications' && $method === 'GET') {
     $user=requireUser($user);$status=(string)($_GET['status']??'all');$type=trim((string)($_GET['type']??''));$channel=trim((string)($_GET['channel']??''));$cursor=max(0,(int)($_GET['cursor']??0));$limit=max(1,min(50,(int)($_GET['limit']??20)));if(!in_array($status,['all','unread'],true))fail('مرشح الإشعارات غير صحيح.',422,'invalid_notification_filter');
-    if($user['role']==='client')materializePackageLifecycleNotifications($pdo,(int)$user['organization_id'],(int)$user['client_id']);
+    if($user['role']==='client'){materializePackageLifecycleNotifications($pdo,(int)$user['organization_id'],(int)$user['client_id']);materializePromotionNotifications($pdo,(int)$user['organization_id'],(int)$user['client_id']);}
     $where=['organization_id=?','dismissed_at IS NULL'];$params=[(int)$user['organization_id']];if($channel==='client-actions'){requireRole($user,['owner']);$where[]="audience='owner'";$where[]='recipient_user_id=?';$params[]=(int)$user['id'];}elseif($user['role']==='client'){$where[]="audience='client'";$where[]='client_id=?';$params[]=(int)$user['client_id'];}else{$where[]="(audience='staff' OR recipient_user_id=?)";$params[]=(int)$user['id'];}if($status==='unread')$where[]='read_at IS NULL';if($type!==''){$where[]='type=?';$params[]=$type;}if($cursor>0){$where[]='id<?';$params[]=$cursor;}
     $safeColumns='id,type,title,message,entity_type,entity_id,severity,action_tab,payload_json,read_at,created_at';$stmt=$pdo->prepare("SELECT $safeColumns FROM app_notifications WHERE ".implode(' AND ',$where).' ORDER BY id DESC LIMIT '.($limit+1));$stmt->execute($params);$rows=$stmt->fetchAll();$hasMore=count($rows)>$limit;if($hasMore)array_pop($rows);foreach($rows as &$row){$row['id']=(int)$row['id'];$row['entity_id']=$row['entity_id']?(int)$row['entity_id']:null;if((string)($row['action_tab']??'')==='montage')$row['action_tab']='videos';$row['payload']=$row['payload_json']?json_decode((string)$row['payload_json'],true):new stdClass();unset($row['payload_json']);}unset($row);
     $countSql='SELECT COUNT(*) FROM app_notifications WHERE organization_id=? AND dismissed_at IS NULL AND read_at IS NULL';$countParams=[(int)$user['organization_id']];if($channel==='client-actions'){$countSql.=" AND audience='owner' AND recipient_user_id=?";$countParams[]=(int)$user['id'];}elseif($user['role']==='client'){$countSql.=" AND audience='client' AND client_id=?";$countParams[]=(int)$user['client_id'];}else{$countSql.=" AND (audience='staff' OR recipient_user_id=?)";$countParams[]=(int)$user['id'];}$countStmt=$pdo->prepare($countSql);$countStmt->execute($countParams);respond(['items'=>$rows,'unread_count'=>(int)$countStmt->fetchColumn(),'next_cursor'=>$hasMore&&$rows?(int)end($rows)['id']:null]);

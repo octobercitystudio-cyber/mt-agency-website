@@ -1,7 +1,7 @@
 import { staffPath } from '../lib/staffRoutes';
 import { StudioBookingRequestCards } from '../components/StudioBookingRequests';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Banknote, CalendarClock, CalendarDays, Check, CheckCircle2, Eye, Focus, Inbox, LockKeyhole, RefreshCw, RotateCcw, Send, ShieldCheck, X, XCircle } from 'lucide-react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -44,12 +44,14 @@ const requestedDurationMinutes = item => {
 export default function ERPRequests() {
   const { currentUser } = useData();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const role = currentUser?.role;
   const canOperations = ['owner', 'admin', 'operations'].includes(role);
   const canFinance = ['owner', 'admin', 'finance'].includes(role);
+  const canPromotions = ['owner', 'admin'].includes(role);
   const isOwner = role === 'owner';
-  const [data, setData] = useState({ bookings: [], bookingBlocks: [], reschedules: [], proofs: [], clients: [], packages: [], intakes: [], intakePending: 0, studio: [], studioPending: 0 });
-  const [activeTab, setActiveTab] = useState('studio');
+  const [data, setData] = useState({ bookings: [], bookingBlocks: [], reschedules: [], proofs: [], clients: [], packages: [], intakes: [], intakePending: 0, studio: [], studioPending: 0, promotions: [], promotionPending: 0 });
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'promotions' ? 'promotions' : 'studio');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [decision, setDecision] = useState(emptyDecision);
@@ -62,6 +64,10 @@ export default function ERPRequests() {
   const calendarRef = useRef(null);
   const calendarSectionRef = useRef(null);
   const fetchSequence = useRef(0);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (searchParams.get('tab') === 'promotions') setActiveTab('promotions');
+  }, [searchParams]);
 
   const fetchRequests = useCallback(async (showLoading = true) => {
     const sequence = ++fetchSequence.current;
@@ -78,16 +84,17 @@ export default function ERPRequests() {
     ];
     queries.push(canOperations ? dataClient.request('/intake-requests') : Promise.resolve({ data: { items: [], pending_count: 0 } }));
     queries.push(dataClient.request('/studio-booking-requests'));
-    const [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult, intakeResult, studioResult] = await Promise.all(queries);
+    queries.push(canPromotions ? dataClient.request('/promotion-subscriptions') : Promise.resolve({ data: { items: [], pending_count: 0 } }));
+    const [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult, intakeResult, studioResult, promotionResult] = await Promise.all(queries);
     if (sequence !== fetchSequence.current) return null;
-    const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult, intakeResult, studioResult].find(result => result.error);
+    const failed = [bookingsResult, reschedulesResult, proofsResult, clientsResult, blocksResult, packagesResult, intakeResult, studioResult, promotionResult].find(result => result.error);
     if (failed?.error) {
       setError(safeUiError(failed.error, 'تعذر تحميل بعض الطلبات الآن. أعد المحاولة بعد قليل.'));
       setLoadedRange(null);
       setLoading(false);
       return null;
     }
-    const nextData = { studio: studioResult.data?.items || [], studioPending: Number(studioResult.data?.pending_count || 0), intakes: intakeResult.data?.items || [], intakePending: Number(intakeResult.data?.pending_count || 0), bookings: bookingsResult.data || [], bookingBlocks: blocksResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [], packages: packagesResult.data || [] };
+    const nextData = { promotions: promotionResult.data?.items || [], promotionPending: Number(promotionResult.data?.pending_count || 0), studio: studioResult.data?.items || [], studioPending: Number(studioResult.data?.pending_count || 0), intakes: intakeResult.data?.items || [], intakePending: Number(intakeResult.data?.pending_count || 0), bookings: bookingsResult.data || [], bookingBlocks: blocksResult.data || [], reschedules: reschedulesResult.data || [], proofs: proofsResult.data || [], clients: clientsResult.data || [], packages: packagesResult.data || [] };
     setData(nextData);
     const pendingKeys = new Set(buildCalendarRequestMarkers(nextData).map(marker => marker.requestKey));
     setSelectedRequestKey(previous => pendingKeys.has(previous) ? previous : null);
@@ -103,14 +110,14 @@ export default function ERPRequests() {
     } finally {
       if (sequence === fetchSequence.current) setLoading(false);
     }
-  }, [canFinance, canOperations, calendarRange]);
+  }, [canFinance, canOperations, canPromotions, calendarRange]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchRequests(true);
   }, [fetchRequests]);
 
-  useChangeSync(topics => { if (topics.some(topic => ['bookings', 'requests', 'clients', 'payments'].includes(topic))) void fetchRequests(false); });
+  useChangeSync(topics => { if (topics.some(topic => ['bookings', 'requests', 'clients', 'payments', 'offers'].includes(topic))) void fetchRequests(false); });
   useEffect(() => { const reload = () => { void fetchRequests(false); }; window.addEventListener('erpRequestsUpdated', reload); return () => window.removeEventListener('erpRequestsUpdated', reload); }, [fetchRequests]);
   const requestMarkers = useMemo(() => buildCalendarRequestMarkers(data), [data]);
   const selectedMarkers = requestMarkers.filter(marker => marker.requestKey === selectedRequestKey);
@@ -131,9 +138,10 @@ export default function ERPRequests() {
       blocks: source.bookingBlocks,
     });
   };
-  const counts = { studio: data.studioPending, intakes: data.intakePending, bookings: pendingBookings.length, reschedules: data.reschedules.length, cancellations: cancellations.length, proofs: data.proofs.length };
+  const counts = { promotions: data.promotionPending, studio: data.studioPending, intakes: data.intakePending, bookings: pendingBookings.length, reschedules: data.reschedules.length, cancellations: cancellations.length, proofs: data.proofs.length };
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
   const tabs = useMemo(() => [
+    ...(canPromotions ? [{ key: 'promotions', label: 'اشتراكات العروض', icon: Inbox }] : []),
     { key: 'studio', label: 'طلبات التصوير', icon: Inbox },
     ...(canOperations ? [
       ...(data.intakes.length ? [{ key: 'intakes', label: 'تسجيلات سابقة', icon: Inbox }] : []),
@@ -142,7 +150,18 @@ export default function ERPRequests() {
       { key: 'cancellations', label: 'طلبات الإلغاء', icon: XCircle },
     ] : []),
     ...(canFinance ? [{ key: 'proofs', label: 'إثباتات التحويل', icon: Banknote }] : []),
-  ], [canFinance, canOperations, data.intakes.length]);
+  ], [canFinance, canOperations, canPromotions, data.intakes.length]);
+
+  const decidePromotion = async (item, status) => {
+    setDecisionBusy(true); setError('');
+    try {
+      const result = await dataClient.request(`/promotion-subscriptions/${item.id}/decision`, { method: 'POST', body: JSON.stringify({ status }) });
+      if (result.error) { setError(safeUiError(result.error, 'تعذر تسجيل القرار.')); return; }
+      setNotice(status === 'approved' ? 'تمت الموافقة وإبلاغ العميل.' : 'تم رفض الطلب وإبلاغ العميل.');
+      await fetchRequests(false);
+      window.dispatchEvent(new Event('erpRequestsUpdated'));
+    } catch (requestError) { setError(safeUiError(requestError, 'تعذر تسجيل القرار. أعد المحاولة.')); } finally { setDecisionBusy(false); }
+  };
 
   const focusRequestOnCalendar = (kind, item, source = data) => {
     const markers = buildCalendarRequestMarkers(source);
@@ -343,6 +362,7 @@ export default function ERPRequests() {
 
     <main className="requests-workspace">
       {loading ? <LoadingState/> : <>
+        {activeTab === 'promotions' && canPromotions && <><p className="requests-intake-caption"><strong>{data.promotionPending} طلب اشتراك بانتظار الموافقة</strong><span>راجع العرض وبيانات العميل قبل اتخاذ القرار. يتم إبلاغ العميل بالقبول أو الرفض.</span></p><RequestGrid empty={!data.promotions.length} emptyLabel="لا توجد طلبات اشتراك في العروض.">{data.promotions.map(item => <article className="promotion-request-card" key={item.id}><header><span>طلب اشتراك في عرض</span><strong>{item.status === 'pending' ? 'بانتظار الموافقة' : item.status === 'approved' ? 'تمت الموافقة' : 'تم الرفض'}</strong></header><h3>{item.client_name}</h3><h4>{item.promotion_title}</h4><p>رقم الهاتف: <b dir="ltr">{item.client_phone}</b></p><small>{formatDateTime12(item.created_at)}</small>{item.status === 'pending' && <footer><button type="button" disabled={decisionBusy} onClick={() => decidePromotion(item, 'approved')}><Check/> الموافقة على الاشتراك</button><button type="button" disabled={decisionBusy} onClick={() => decidePromotion(item, 'rejected')}><X/> رفض الطلب</button></footer>}</article>)}</RequestGrid></>}
         {activeTab === 'studio' && <><p className="requests-intake-caption"><strong>{data.studio.filter(item => item.package_status === 'pending' || item.bookings.some(row => row.status === 'pending')).length} طلب تصوير بانتظار المراجعة</strong><span>العداد يجمع قرارات الباقات والمواعيد المعلقة؛ كل موعد له قرار مستقل.</span></p><StudioBookingRequestCards items={data.studio} role={role} onChanged={() => fetchRequests(false)} onFocusAppointment={(parent, appointment) => { const marker = requestMarkers.find(row => row.kind === 'studio' && String(row.requestId) === String(parent.id) && String(row.appointmentId) === String(appointment.id)); if (marker) focusMarker(marker); }}/></>}
         {activeTab === 'intakes' && <><p className="requests-intake-caption"><strong>{data.intakes.filter(item => ['registration', 'package', 'booking'].some(stage => item[`${stage}_status`] === 'pending')).length} عميل بانتظار المراجعة</strong><span>كل عميل في بطاقة واحدة. الأرقام في العدادات تمثل طلبات التسجيل والباقة والموعد المعلقة، وكل طلب يُحسب مرة واحدة.</span></p><IntakeRequestCards items={data.intakes} admin onChanged={() => fetchRequests(false)}/></>}
         {activeTab === 'bookings' && <RequestGrid empty={!pendingBookings.length} emptyLabel="لا توجد حجوزات جديدة بانتظار التأكيد.">{pendingBookings.map(item => { const availability = requestAvailability('booking', item); const blocked = !(availability.status === 'available' || (isOwner && availability.status === 'blocked')); return <RequestCard key={item.id} tone="amber" icon={CalendarDays} title={item.client_name} badge="بانتظار التأكيد" meta={[bookingPackageName(item), item.service, formatBookingDate(item.date), `${time(item.start_time)} – ${time(item.end_time)}`, `المدة المطلوبة: ${formatDurationMinutes(item.duration_minutes || 0)}`]} note={item.notes} requestId={`request-card-booking-${item.id}`}><button className="calendar-focus" onClick={() => focusRequestOnCalendar('booking', item)}><Focus/> عرض على التقويم</button><AvailabilityStrip availability={availability} candidate={candidateForRequest('booking', item)} clientLabel={bookingClientName}/><button className="approve" disabled={blocked || checkingId === `booking-${item.id}`} title={blocked ? 'لا يمكن التأكيد قبل اختيار موعد متاح' : ''} onClick={() => openDecision('booking', 'confirm', item)}><Check/> {checkingId === `booking-${item.id}` ? 'جارٍ التحقق...' : 'تأكيد'}</button><button className="alternative" onClick={() => navigate(staffPath('/bookings'))}><CalendarClock/> موعد بديل</button><button className="reject" onClick={() => openDecision('booking', 'reject', item)}><X/> رفض</button></RequestCard>})}</RequestGrid>}

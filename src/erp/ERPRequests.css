@@ -50,3 +50,10 @@
 @media(max-width:1050px){.requests-calendar-shell{overflow-x:auto!important;max-width:100%;overscroll-behavior-inline:contain}.requests-calendar-shell>.fc{min-width:850px}.requests-calendar-scroll-hint{display:block;margin:0;padding:0 14px 14px;font-size:13px;color:var(--erp-text-muted);line-height:1.7}}
 @media(max-width:600px){.requests-calendar-explainer,.requests-calendar-freshness{padding:12px 14px;font-size:14px}.requests-calendar-selection{margin:0 10px 12px;padding:12px}.requests-calendar-selection-slots{grid-template-columns:minmax(0,1fr)}.requests-calendar-selection-slots article{font-size:15px;padding:10px}.requests-calendar-selection h3{font-size:18px}.requests-calendar-legend{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.requests-calendar-reference .fc .requests-calendar-pending{animation:none}}
+
+.promotion-request-card{background:#fff;border:1px solid #ded5ef;border-radius:18px;padding:22px;min-width:0;overflow-wrap:anywhere}
+.promotion-request-card header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;color:#6840a2;font-size:13px}
+.promotion-request-card h3{font-size:21px;margin:18px 0 8px}.promotion-request-card h4{font-size:18px;line-height:1.7;margin:0 0 14px}
+.promotion-request-card small{color:#657087}.promotion-request-card footer{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.promotion-request-card button{display:inline-flex;align-items:center;gap:6px;border:1px solid #ded5ef;border-radius:10px;padding:10px 14px;background:#6029b9;color:white;font-weight:700}
+.promotion-request-card button+button{background:#fff3f4;color:#a4263a;border-color:#eacbd0}.promotion-request-card button:disabled{opacity:.5}.promotion-request-card svg{width:18px}

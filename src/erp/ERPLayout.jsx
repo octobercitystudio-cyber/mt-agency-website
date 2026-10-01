@@ -57,6 +57,7 @@ const ERPLayout = () => {
     if (canSeeFinanceRequests) queries.push(dataClient.from('payment_proofs').select('id').eq('status', 'pending'));
     if (canSeeOperationsRequests) queries.push(dataClient.request('/intake-requests'));
     queries.push(dataClient.request('/studio-booking-requests'));
+    if (canOpenOffers) queries.push(dataClient.request('/promotion-subscriptions'));
     const results = await Promise.all(queries);
     let total = 0;
     results.forEach((result, index) => {
@@ -65,7 +66,7 @@ const ERPLayout = () => {
       else total += Array.isArray(result.data) ? result.data.length : Number(result.data.pending_count || 0);
     });
     setRequestsCount(total);
-  }, [canOpenRequests, canSeeFinanceRequests, canSeeOperationsRequests]);
+  }, [canOpenRequests, canSeeFinanceRequests, canSeeOperationsRequests, canOpenOffers]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -80,7 +81,7 @@ const ERPLayout = () => {
     return () => window.removeEventListener('erpDemoDataReset', handleDemoDataReset);
   }, []);
   useChangeSync(useCallback((topics) => {
-    if (topics.some(topic => ['bookings', 'finance', 'notifications'].includes(topic))) refreshRequestsCount();
+    if (topics.some(topic => ['bookings', 'finance', 'notifications', 'offers'].includes(topic))) refreshRequestsCount();
   }, [refreshRequestsCount]), !currentUser?.is_local_preview);
 
   const handleLogout = async () => {
