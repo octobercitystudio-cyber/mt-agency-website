@@ -159,3 +159,6 @@
   .promotion-drawer form > footer > div { display: grid; grid-template-columns: 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .promotion-loader,.spin { animation-duration: 1.8s; } }
+
+.promotion-details-fields textarea { min-height: 180px; line-height: 1.9; }
+.promotion-preview-popup p { white-space: pre-wrap; overflow-wrap: anywhere; }

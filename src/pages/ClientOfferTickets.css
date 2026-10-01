@@ -40,3 +40,7 @@
 .client-app--glance .client-ticket-detail .client-primary,.client-app--glance .client-ticket-detail .client-primary svg { color:#fff; }
 
 .client-app--glance .client-ticket-detail__expiry { color:var(--client-text); }
+
+.client-public-promotions__details { min-width:0;padding:14px;border:1px solid var(--client-border);border-radius:12px;background:var(--client-bg); }
+.client-public-promotions__details h4 { margin:0 0 8px;font-size:15px;color:var(--client-text); }
+.client-public-promotions__details p { white-space:pre-wrap;overflow-wrap:anywhere;min-height:0; }

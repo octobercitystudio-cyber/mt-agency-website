@@ -28,3 +28,7 @@ body:has([aria-modal="true"]:not(.promotion-gift-dialog),dialog[open]) .promotio
 @media(max-width:900px){.promotion-gift-feedback{left:18px;bottom:calc(82px + env(safe-area-inset-bottom,0px))}}
 @media(max-width:480px){.promotion-gift-feedback{left:16px}.promotion-gift-farewell{font-size:12px;padding:13px 14px}}
 @media(prefers-reduced-motion:reduce){.promotion-gift-burst-box,.promotion-gift-burst i{animation:none}.promotion-gift-burst{display:none}}
+
+.promotion-gift-details { min-width:0;margin:16px 0;padding:16px;border:1px solid #e6dcf4;border-radius:14px;background:#faf7ff; }
+.promotion-gift-details h3 { margin:0 0 8px;color:#35234e;font-size:16px; }
+.promotion-gift-details .promotion-gift-description { margin:0; }

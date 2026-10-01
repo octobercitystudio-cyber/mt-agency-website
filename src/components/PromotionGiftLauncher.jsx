@@ -27,7 +27,7 @@ function GiftDialog({ promotion, count, index, onStep, onClose, onAction, return
         </header>
         <div className="promotion-gift-content">
           {count > 1 && <nav className="promotion-gift-carousel" aria-label="تصفح العروض"><button type="button" onClick={() => onStep(-1)} aria-label="العرض السابق"><ChevronRight aria-hidden="true"/></button><span aria-live="polite">عرض {index + 1} من {count}</span><button type="button" onClick={() => onStep(1)} aria-label="العرض التالي"><ChevronLeft aria-hidden="true"/></button></nav>}
-          {promotion.description && <p className="promotion-gift-description">{promotion.description}</p>}
+          {promotion.description && <section className="promotion-gift-details" aria-label="تفاصيل العرض"><h3>تفاصيل العرض</h3><p className="promotion-gift-description">{promotion.description}</p></section>}
           {(price !== null || promotion.discount_text) && <div className="promotion-gift-value">
             {price !== null && <div><span>سعر العرض</span><strong>{formatEGP(price)}</strong>{original !== null && original > price && <del aria-label={`السعر السابق ${formatEGP(original)}`}>{formatEGP(original)}</del>}</div>}
             {promotion.discount_text && <span className="promotion-gift-saving">{promotion.discount_text}</span>}

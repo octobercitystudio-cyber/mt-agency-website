@@ -62,7 +62,7 @@ export function ClientPublicPromotions({ promotions = [], busyId = null, onSubsc
       return <article key={promotion.id} data-promotion-id={promotion.id}>
         <div className="client-public-promotions__badge">{promotion.badge || promotion.discount_text || 'عرض متاح'}</div>
         <h3>{promotion.public_title}</h3>
-        <p>{promotion.description}</p>
+        {promotion.description && <section className="client-public-promotions__details" aria-label="تفاصيل العرض"><h4>تفاصيل العرض</h4><p>{promotion.description}</p></section>}
         <div className="client-public-promotions__price">{Number(promotion.original_price) > Number(promotion.promotional_price) && <del>{formatEGP(promotion.original_price)}</del>}<strong>{formatEGP(promotion.promotional_price)}</strong></div>
         <small><Clock3 aria-hidden="true"/> حتى {formatBookingDate(String(promotion.ends_at).slice(0, 10))}</small>
         <button type="button" disabled={subscribed || Number(busyId) === Number(promotion.id)} onClick={() => onSubscribe(promotion.id)}>{subscribed ? <CheckCircle2/> : <Send/>}{subscribed ? subscriptionLabel : promotion.cta_label || 'اشترك الآن'}</button>
