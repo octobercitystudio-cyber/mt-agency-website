@@ -4,10 +4,10 @@ import { useData } from '../store/DataContext';
 import './Hero.css';
 
 const HERO_SLIDES = [
-  { small: '/hero-service-1-small.webp', tiny: '/hero-service-1-tiny.webp', alt: 'تصوير منتجات احترافي' },
-  { small: '/hero-service-2-small.webp', tiny: '/hero-service-2-tiny.webp', alt: 'إنتاج فيديو سينمائي' },
-  { small: '/hero-service-3-small.webp', tiny: '/hero-service-3-tiny.webp', alt: 'تصميم هويات بصرية' },
-  { small: '/hero-service-4-small.webp', tiny: '/hero-service-4-tiny.webp', alt: 'إدارة منصات التواصل الاجتماعي' },
+  { small: '/hero-service-1-v2-small.webp', tiny: '/hero-service-1-v2-tiny.webp', alt: 'كاميرا وإضاءة للتصوير الاحترافي', altEn: 'Camera and lighting for professional photography' },
+  { small: '/hero-service-2-v2-small.webp', tiny: '/hero-service-2-v2-tiny.webp', alt: 'كاميرا وشاشة وميكروفون لإنتاج الفيديو في الاستديو', altEn: 'Camera, monitor and microphone for studio video production' },
+  { small: '/hero-service-3-v2-small.webp', tiny: '/hero-service-3-v2-tiny.webp', alt: 'لوحة رسم رقمية وأدوات التصميم الإبداعي', altEn: 'Drawing tablet and creative design tools' },
+  { small: '/hero-service-4-v2-small.webp', tiny: '/hero-service-4-v2-tiny.webp', alt: 'هاتف وبطاقات محتوى لمنصات التواصل الاجتماعي', altEn: 'Phone and content cards for social media' },
 ];
 
 const Hero = () => {
@@ -18,15 +18,17 @@ const Hero = () => {
   const heroData = siteData.hero;
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [readyImages, setReadyImages] = useState({});
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % HERO_SLIDES.length);
+      setCurrentImageIndex((prev) => {
+        const next = (prev + 1) % HERO_SLIDES.length;
+        return readyImages[next] ? next : prev;
+      });
     }, 4000); // Change image every 4 seconds
     return () => clearInterval(interval);
-  }, []);
-
-  const activeSlide = HERO_SLIDES[currentImageIndex];
+  }, [readyImages]);
 
   return (
     <section id="home" className="hero-section">
@@ -35,19 +37,25 @@ const Hero = () => {
         {/* Visual Slider (Right side in RTL, or top in mobile) */}
         <div className="hero-visual">
           <div className="visual-banner">
-            <picture key={activeSlide.small}>
-              <source media="(max-width: 520px)" srcSet={activeSlide.tiny} />
+            {HERO_SLIDES.map((slide, index) => <picture key={slide.small}>
+              <source media="(max-width: 520px)" srcSet={slide.tiny} />
               <img
-                src={activeSlide.small}
-                alt={`${activeSlide.alt} - Multi Task Agency`}
-                className="hero-slider-img active"
+                src={slide.small}
+                alt={`${isEnglish ? slide.altEn : slide.alt} - Multi Task Agency`}
+                className={`hero-slider-img${index === currentImageIndex ? ' active' : ''}`}
+                aria-hidden={index !== currentImageIndex}
                 width="800"
                 height="800"
-                fetchPriority={currentImageIndex === 0 ? 'high' : 'auto'}
-                loading={currentImageIndex === 0 ? 'eager' : 'lazy'}
+                fetchPriority={index === 0 ? 'high' : 'low'}
+                loading="eager"
                 decoding="async"
+                onLoad={async (event) => {
+                  const image = event.currentTarget;
+                  try { await image.decode(); } catch { return; }
+                  setReadyImages((current) => current[index] ? current : { ...current, [index]: true });
+                }}
               />
-            </picture>
+            </picture>)}
             <div className="visual-overlay"></div>
           </div>
         </div>

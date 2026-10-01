@@ -102,12 +102,7 @@
 .hero-slider-img.active {
   opacity: 1;
   visibility: visible;
-  animation: hero-image-reveal 550ms ease-out both;
-}
-
-@keyframes hero-image-reveal {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  /* The next image is decoded before activation; keep the switch fully opaque. */
 }
 
 .visual-overlay {
