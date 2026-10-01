@@ -1,9 +1,10 @@
 import { ArrowLeft, ArrowRight, BookOpen, CalendarDays } from 'lucide-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
   EDUCATIONAL_BOOKING_COPY,
-  EDUCATIONAL_BOOKING_IMAGE,
+  EDUCATIONAL_BOOKING_GALLERY,
   EDUCATIONAL_BOOKING_SERVICE,
   EDUCATIONAL_BOOKING_TARGET,
 } from '../data/educationalBooking';
@@ -14,7 +15,9 @@ export default function EducationalBookingSection() {
   const { i18n } = useTranslation();
   const locale = String(i18n.language).startsWith('en') ? 'en' : 'ar';
   const copy = EDUCATIONAL_BOOKING_COPY[locale];
-  const studioImage = EDUCATIONAL_BOOKING_IMAGE;
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [failedImages, setFailedImages] = useState({});
+  const studioImage = EDUCATIONAL_BOOKING_GALLERY[selectedImage];
   const DirectionArrow = locale === 'en' ? ArrowRight : ArrowLeft;
 
   return <section id="educational-filming" className="educational-booking" aria-labelledby="educational-booking-title">
@@ -31,8 +34,33 @@ export default function EducationalBookingSection() {
         <Link className="educational-booking__details" to={localizePublicPath(EDUCATIONAL_BOOKING_SERVICE, locale)}>{copy.details}<DirectionArrow aria-hidden="true" /></Link>
       </div>
       <figure className="educational-booking__studio">
-        <img src={studioImage.url} alt={locale === 'en' ? studioImage.altEn : studioImage.alt} width="1190" height="852" loading="lazy" decoding="async" />
-        <figcaption><span>{copy.imageLabel}</span><strong>{copy.imageCaption}</strong></figcaption>
+        <div className="educational-booking__stage" id="educational-studio-photo">
+          {EDUCATIONAL_BOOKING_GALLERY.map((photo, index) => <img
+            key={photo.id}
+            src={photo.url}
+            alt={locale === 'en' ? photo.altEn : photo.alt}
+            width="1600" height="900" loading="lazy" decoding="async"
+            className={index === selectedImage ? 'is-selected' : ''}
+            aria-hidden={index !== selectedImage}
+            onError={() => setFailedImages((current) => ({ ...current, [photo.id]: true }))}
+          />)}
+          {failedImages[studioImage.id] && <p className="educational-booking__image-error">{locale === 'en' ? 'This photo could not be loaded. Please select another view.' : 'تعذّر تحميل الصورة. يمكنك اختيار لقطة أخرى.'}</p>}
+          <span className="educational-booking__frame-label" aria-hidden="true">MTA · STUDIO</span>
+        </div>
+        <figcaption>
+          <div><span>{copy.imageLabel}</span><strong>{copy.imageCaption}</strong></div>
+          <span className="educational-booking__image-count" dir="ltr" aria-hidden="true">{String(selectedImage + 1).padStart(2, '0')} <span>/ 03</span></span>
+        </figcaption>
+        <div className="educational-booking__thumbnails" role="group" aria-label={locale === 'en' ? 'Choose a studio photo' : 'اختر صورة من الاستديو'}>
+          {EDUCATIONAL_BOOKING_GALLERY.map((photo, index) => <button
+            key={photo.id} type="button" aria-pressed={index === selectedImage}
+            aria-controls="educational-studio-photo" onClick={() => setSelectedImage(index)}
+          >
+            <img src={photo.thumbnail} alt="" width="320" height="180" loading="lazy" decoding="async" />
+            <span>{locale === 'en' ? photo.labelEn : photo.label}</span>
+          </button>)}
+        </div>
+        <span className="sr-only" aria-live="polite" aria-atomic="true">{locale === 'en' ? studioImage.altEn : studioImage.alt}</span>
       </figure>
     </div>
   </section>;

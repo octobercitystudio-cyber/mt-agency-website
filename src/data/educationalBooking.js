@@ -1,8 +1,32 @@
-import { STUDIO_GALLERIES } from './studioGalleries.js';
-
 export const EDUCATIONAL_BOOKING_TARGET = '/dashboard?tab=book-studio';
 export const EDUCATIONAL_BOOKING_SERVICE = '/services/studio-content-production';
-export const EDUCATIONAL_BOOKING_IMAGE = STUDIO_GALLERIES.october[0];
+export const EDUCATIONAL_BOOKING_GALLERY = [
+  {
+    id: 'camera-and-smartboard',
+    url: '/studio/educational-cinematic/camera-and-smartboard.webp',
+    thumbnail: '/studio/educational-cinematic/camera-and-smartboard-thumb.webp',
+    alt: 'كاميرا التصوير أمام الشاشة التفاعلية داخل استديو أكتوبر',
+    altEn: 'Filming camera facing the interactive smartboard inside October Studio',
+    label: 'داخل الاستديو', labelEn: 'The studio',
+  },
+  {
+    id: 'interactive-smartboard',
+    url: '/studio/educational-cinematic/interactive-smartboard.webp',
+    thumbnail: '/studio/educational-cinematic/interactive-smartboard-thumb.webp',
+    alt: 'الشاشة التفاعلية وجدران العزل الصوتي في استديو التصوير التعليمي',
+    altEn: 'Interactive smartboard and acoustic wall panels in the educational filming studio',
+    label: 'الشاشة التفاعلية', labelEn: 'Smartboard',
+  },
+  {
+    id: 'recording-detail',
+    url: '/studio/educational-cinematic/recording-detail.webp',
+    thumbnail: '/studio/educational-cinematic/recording-detail-thumb.webp',
+    alt: 'لقطة قريبة لكاميرا الاستديو وشاشة معاينة التصوير',
+    altEn: 'Close-up of the studio camera and recording preview display',
+    label: 'تفاصيل التصوير', labelEn: 'Camera detail',
+  },
+];
+export const EDUCATIONAL_BOOKING_IMAGE = EDUCATIONAL_BOOKING_GALLERY[0];
 
 export const EDUCATIONAL_BOOKING_COPY = {
   ar: {
