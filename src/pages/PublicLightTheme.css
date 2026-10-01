@@ -1,8 +1,9 @@
-/* Public marketing canvases match the opaque light lettering in logo.png.
+/* Off-white public canvases with cards in the existing header palette.
    Keep the palette inside main so navigation, promotions and private apps retain their theme. */
 .public-site-shell {
-  --public-canvas: #dbd9d9;
-  --public-surface: #f8f6f9;
+  --public-canvas: #faf8f5;
+  --public-card-background: linear-gradient(105deg, rgba(24,5,45,.98), rgba(44,10,79,.98) 58%, rgba(28,6,50,.98));
+  --public-input-ink: #261735;
   --public-light-ink: #261735;
   --public-light-muted: #56495f;
   --public-light-accent: #632a91;
@@ -33,16 +34,26 @@
 }
 .public-site-shell #main-content .about-text strong { color: var(--public-light-ink); }
 .public-site-shell #main-content :is(.hero-subtitle, .about-text, .service-desc, .contact-desc, .contact-item p) { color: var(--public-light-muted); }
-.public-site-shell #main-content :is(.glass-panel, .service-card, .portfolio-item, .portfolio-info, .contact-item, .public-deliverables, .public-contact-info, .public-contact-form, .public-contact-map-card) {
-  background: var(--public-surface);
+.public-site-shell #main-content :is(.glass-panel, .service-card, .portfolio-item, .portfolio-info, .contact-item, .public-deliverables, .public-contact-info, .public-contact-form, .public-contact-map-card, .public-decision-guide__factors article) {
+  --public-light-ink: #fff;
+  --public-light-muted: #ddd8e6;
+  --public-light-accent: #c678ff;
+  --public-light-border: rgba(198,120,255,.35);
+  --public-text: var(--public-light-ink);
+  --public-muted: var(--public-light-muted);
+  --public-logo-gray: var(--public-light-ink);
+  --color-light-silver: var(--public-light-ink);
+  --color-silver: var(--public-light-muted);
+  color: var(--public-light-ink);
+  background: var(--public-card-background);
   border-color: var(--public-light-border);
   box-shadow: var(--box-shadow);
 }
 .public-site-shell #main-content :is(.about-content, .service-card, .contact-form) { border-top-color: var(--public-accent); }
-.public-site-shell #main-content :is(.service-card:hover, .contact-item:hover) { background: #fff; border-color: var(--public-accent); }
+.public-site-shell #main-content :is(.service-card:hover, .contact-item:hover) { background: var(--public-card-background); border-color: var(--public-light-accent); }
 .public-site-shell #main-content .service-card:hover { box-shadow: 0 18px 38px rgba(38, 23, 53, .14); }
 .public-site-shell #main-content :is(.service-card__link, .services-all-link a, .public-preview-link, .detail-text) { color: var(--public-light-ink); }
-.public-site-shell #main-content :is(.service-card__number, .portfolio-info span, .stat-item h3) { color: var(--public-light-accent); }
+.public-site-shell #main-content :is(.service-card__number, .portfolio-info span, .stat-item h3, .contact-item .icon) { color: var(--public-light-accent); }
 .public-site-shell #main-content .service-card:hover .service-title { color: var(--public-light-ink); }
 .public-site-shell #main-content .card-glow { background: radial-gradient(circle, rgba(99, 42, 145, .08), transparent 62%); }
 
@@ -52,7 +63,7 @@
 .public-site-shell #main-content .public-ghost-button:hover { background: rgba(99, 42, 145, .08); }
 .public-site-shell #main-content :is(a, button, input, textarea, select, summary):focus-visible { outline: 3px solid var(--public-light-accent); outline-offset: 4px; }
 .public-site-shell #main-content :is(.contact-form input, .contact-form textarea, .public-contact-form input, .public-contact-form select, .public-contact-form textarea) {
-  color: var(--public-light-ink);
+  color: var(--public-input-ink);
   background: #fff;
   border-color: #91819e;
 }
@@ -99,10 +110,9 @@
   .public-seo-work-list article
 ) { border-color: var(--public-light-border); }
 .public-site-shell #main-content .public-decision-guide__factors > div { background: var(--public-light-border); }
-.public-site-shell #main-content .public-decision-guide__factors article { background: var(--public-surface); }
 .public-site-shell #main-content .public-filter-bar button { color: var(--public-light-ink); border-color: var(--public-light-border); }
 .public-site-shell #main-content .public-filter-bar button.active { color: #fff; border-color: #9d4edd; }
-.public-site-shell #main-content .public-filter-bar button:hover:not(.active) { background: var(--public-surface); }
+.public-site-shell #main-content .public-filter-bar button:hover:not(.active) { background: rgba(99, 42, 145, .08); }
 
 /* Intentional campaign and media panels retain their separate visual identity. */
 .public-site-shell #main-content .public-final-cta { --public-text: #fff; }
