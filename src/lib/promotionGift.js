@@ -18,3 +18,30 @@ export const promotionGiftPrice = value => {
   const price = Number(value);
   return Number.isFinite(price) && price >= 0 ? price : null;
 };
+
+const dismissedGiftSessions = new Map();
+export const promotionGiftCampaignKey = promotion => `${promotion.id}:v${promotion.version ?? 1}`;
+const giftSessionKey = clientScope => `mta:gift-dismissed:${clientScope}`;
+
+export const readDismissedGiftCampaigns = clientScope => {
+  if (clientScope == null) return [];
+  const key = giftSessionKey(clientScope);
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(key) || '[]');
+    if (Array.isArray(stored)) {
+      const values = [...new Set([...(dismissedGiftSessions.get(key) || []), ...stored.filter(value => typeof value === 'string')])];
+      dismissedGiftSessions.set(key, values);
+      return values;
+    }
+  } catch { /* In-memory session fallback when storage is unavailable. */ }
+  return dismissedGiftSessions.get(key) || [];
+};
+
+export const dismissGiftCampaigns = (clientScope, promotions) => {
+  if (clientScope == null) return [];
+  const values = [...new Set([...readDismissedGiftCampaigns(clientScope), ...promotions.map(promotionGiftCampaignKey)])];
+  const key = giftSessionKey(clientScope);
+  dismissedGiftSessions.set(key, values);
+  try { sessionStorage.setItem(key, JSON.stringify(values)); } catch { /* Keep the memory fallback. */ }
+  return values;
+};

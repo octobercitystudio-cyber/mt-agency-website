@@ -172,6 +172,7 @@ export default function ClientDashboard() {
   const offerTriggerRef = useRef(null);
   const clientDataRequestRef = useRef(0);
   const bookingTriggerRef = useRef(null);
+  const homeHeadingRef = useRef(null);
 
   const fetchClientData = useCallback(async (background = false) => {
     if (!clientId) return;
@@ -468,7 +469,7 @@ export default function ClientDashboard() {
       <main className="client-main">
         <div className="glance-utility"><div className="glance-mobile-brand"><img src="/logo.webp" alt="شعار Multi Task Agency"/><strong>Multi Task<span>Agency</span></strong></div><span className="glance-today"><CalendarDays/>{new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Cairo' }).format(new Date())}</span><ClientNotifications key={clientId} clientId={clientId} onNavigate={navigateClient}/></div>
         <header className={`client-topbar ${activeTab === 'home' ? 'client-topbar--home' : ''}`}>
-          <div className="client-topbar-profile"><div><div className="client-topbar-name-row"><h1>أهلًا، {client?.name || currentUser?.full_name}</h1><span className="client-topbar-points" aria-label={`${formatClientPoints(client?.points)} نقطة`}><Sparkles aria-hidden="true"/><strong>{formatClientPoints(client?.points)}</strong><span>نقطة</span></span></div><p>كل ما يخص تصويرك، في نظرة واحدة.</p></div></div>
+          <div className="client-topbar-profile"><div><div className="client-topbar-name-row"><h1 ref={homeHeadingRef} tabIndex={-1}>أهلًا، {client?.name || currentUser?.full_name}</h1><span className="client-topbar-points" aria-label={`${formatClientPoints(client?.points)} نقطة`}><Sparkles aria-hidden="true"/><strong>{formatClientPoints(client?.points)}</strong><span>نقطة</span></span></div><p>كل ما يخص تصويرك، في نظرة واحدة.</p></div></div>
           <div className="client-topbar-guide-actions">{activeTab !== 'book-studio' && <button ref={bookingTriggerRef} type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>{paymentLocked ? 'الحجز معلّق لحين السداد' : hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button>}{activeTab !== 'package-guide' && <button type="button" className="client-guide-trigger" onClick={() => navigateClient('package-guide')}><BookOpen/>دليل الباقات والتصوير</button>}</div>
         </header>
 
@@ -490,7 +491,7 @@ export default function ClientDashboard() {
           sessionServerOffset={sessionServerOffset}
           onNavigate={navigateClient}
         />}
-        {activeTab === 'home' && !moreOpen && !bookingOpen && !detailBookingId && !offerDetail && !reschedule.booking && !cancelConfirm && <PromotionGiftLauncher promotions={publicPromotions} serverOffset={promotionServerOffset} onAction={() => navigateClient('offers')}/>}
+        {activeTab === 'home' && !moreOpen && !bookingOpen && !detailBookingId && !offerDetail && !reschedule.booking && !cancelConfirm && <PromotionGiftLauncher key={clientId} clientScope={clientId} returnFocusRef={homeHeadingRef} promotions={publicPromotions} serverOffset={promotionServerOffset} onAction={() => navigateClient('offers')}/>}
 
         {activeTab === 'schedule' && <section className="client-view client-appointments-page">
           <header className="client-appointments-header"><div><span>مواعيد التصوير</span><h2>المواعيد والحجوزات</h2><p>الموعد القادم أولًا، ثم كل مواعيدك من الأحدث إلى الأقدم.</p></div></header>
