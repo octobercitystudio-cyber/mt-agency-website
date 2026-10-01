@@ -41,10 +41,10 @@ function DecisionGuideSection({ content, number }) {
   </div></section>;
 }
 
-function RelatedServicesSection({ items, number, isEnglish }) {
+function RelatedServicesSection({ items, number, isEnglish, title, summary }) {
   if (!items?.length) return null;
   return <section className="public-related-services container" aria-labelledby="related-services-title">
-    <div className="public-section-heading"><span>{number}</span><div><h2 id="related-services-title">{isEnglish ? 'Services that complete the website journey' : 'خدمات تكمل رحلة الموقع'}</h2><p>{isEnglish ? 'Move from identity to launch and growth through connected capabilities from one team.' : 'اربط الهوية والإطلاق والنمو بخدمات مترابطة يقدمها فريق واحد.'}</p></div></div>
+    <div className="public-section-heading"><span>{number}</span><div><h2 id="related-services-title">{title || (isEnglish ? 'Services that complete the website journey' : 'خدمات تكمل رحلة الموقع')}</h2><p>{summary || (isEnglish ? 'Move from identity to launch and growth through connected capabilities from one team.' : 'اربط الهوية والإطلاق والنمو بخدمات مترابطة يقدمها فريق واحد.')}</p></div></div>
     <div className="public-related-services__grid">{items.map(item => <Link key={item.slug} to={publicPath(`/services/${item.slug}`, isEnglish)}><span>{item.title}</span><p>{item.text}</p><DirectionArrow isEnglish={isEnglish}/></Link>)}</div>
   </section>;
 }
@@ -116,7 +116,7 @@ export function ServiceDetailPage() {
   const breadcrumbSchema = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: home, item: publicUrl('/', isEnglish) }, { '@type': 'ListItem', position: 2, name: services, item: publicUrl('/services', isEnglish) }, { '@type': 'ListItem', position: 3, name: text.title, item: publicUrl(`/services/${service.slug}`, isEnglish) }] };
   const faqSchema = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: text.faq.map(([question, answer]) => ({ '@type': 'Question', name: question, acceptedAnswer: { '@type': 'Answer', text: answer } })) };
   return <main id="main-content" className="public-page service-detail-page">
-    <SEO title={text.seoTitle} description={text.metaDescription} url={`/services/${service.slug}`} schema={[serviceSchema, breadcrumbSchema, faqSchema]} />
+    <SEO title={text.seoTitle} description={text.metaDescription} image={`${SITE_URL}${service.heroImage}`} url={`/services/${service.slug}`} schema={[serviceSchema, breadcrumbSchema, faqSchema]} />
     <nav className="public-breadcrumb container" aria-label={isEnglish ? 'Breadcrumb' : 'مسار الصفحة'}><Link to={publicPath('/', isEnglish)}>{home}</Link><CrumbArrow isEnglish={isEnglish}/><Link to={publicPath('/services', isEnglish)}>{services}</Link><CrumbArrow isEnglish={isEnglish}/><span aria-current="page">{text.navLabel}</span></nav>
     <PageHero eyebrow={text.eyebrow} title={text.title} summary={text.heroSummary} image={service.heroImage} imageAlt={text.heroAlt} actions={<>
       <Link className="public-solid-button" to={publicPath(`/contact?service=${service.slug}`, isEnglish)} state={{ service: service.slug }}>{isEnglish ? 'Start a conversation' : 'ابدأ مناقشة المشروع'}<DirectionArrow isEnglish={isEnglish}/></Link>
@@ -138,7 +138,7 @@ export function ServiceDetailPage() {
       {!work.length && <Link className="public-text-link" to={publicPath(`/contact?service=${service.slug}`, isEnglish)}>{isEnglish ? 'Discuss this service' : 'ناقش هذه الخدمة'}<DirectionArrow isEnglish={isEnglish}/></Link>}
     </section>}
     <section className="public-faq container"><div className="public-section-heading"><span>{faqSectionNumber}</span><h2>{isEnglish ? 'Useful questions before we start' : 'أسئلة مهمة قبل أن نبدأ'}</h2></div><div>{text.faq.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div></section>
-    <RelatedServicesSection items={text.relatedServices} number={relatedSectionNumber} isEnglish={isEnglish} />
+    <RelatedServicesSection title={text.relatedServicesTitle} summary={text.relatedServicesSummary} items={text.relatedServices} number={relatedSectionNumber} isEnglish={isEnglish} />
     <section className="public-final-cta"><div className="container"><span>{isEnglish ? 'Ready when you are' : 'نبدأ عندما تكون مستعدًا'}</span><h2>{isEnglish ? 'Let us shape the right scope for your next project.' : 'دعنا نبني النطاق المناسب لمشروعك القادم.'}</h2><div><Link className="public-solid-button" to={publicPath(`/contact?service=${service.slug}`, isEnglish)}>{isEnglish ? `Contact ${siteIdentity.name}` : `تواصل مع ${siteIdentity.name}`}<DirectionArrow isEnglish={isEnglish}/></Link><a className="public-ghost-button" href={`https://wa.me/${companyPhoneWhatsApp(siteData.contact?.phone)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a></div></div></section>
   </main>;
 }

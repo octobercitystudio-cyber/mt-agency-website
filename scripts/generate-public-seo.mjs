@@ -125,7 +125,7 @@ const verifiedWorkContent = (service, locale, number) => {
   if (!work.length) return '';
   const title = locale === 'en' ? 'Verified work for this service' : 'أعمال موثقة في هذه الخدمة';
   const summary = locale === 'en' ? 'Direct links to published work connected to this capability.' : 'روابط مباشرة لأعمال منشورة ومرتبطة فعليًا بهذه الخدمة.';
-  return `<section id="service-work" class="public-work-section public-seo-work container"><div class="public-section-heading"><span>${number}</span><div><h2>${title}</h2><p>${summary}</p></div></div><div class="public-seo-work-list">${work.map(item => {
+  return `<section id="service-work" class="public-work-section public-seo-work container"><div class="public-section-heading"><span>${number}</span><div><h2>${escapeHtml(title)}</h2><p>${escapeHtml(summary)}</p></div></div><div class="public-seo-work-list">${work.map(item => {
     const href = item.projectUrl || item.embedUrl;
     const itemTitle = locale === 'en' ? (item.titleEn || item.title) : item.title;
     return `<article><span>${locale === 'en' ? 'Verified project' : 'عمل موثق'}</span><h3><a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(itemTitle)}</a></h3></article>`;
@@ -134,10 +134,10 @@ const verifiedWorkContent = (service, locale, number) => {
 
 const relatedServicesContent = (copy, locale, number) => {
   if (!copy.relatedServices?.length) return '';
-  const title = locale === 'en' ? 'Services that complete the website journey' : 'خدمات تكمل رحلة الموقع';
-  const summary = locale === 'en' ? 'Move from identity to launch and growth through connected capabilities from one team.' : 'اربط الهوية والإطلاق والنمو بخدمات مترابطة يقدمها فريق واحد.';
+  const title = copy.relatedServicesTitle || (locale === 'en' ? 'Services that complete the website journey' : 'خدمات تكمل رحلة الموقع');
+  const summary = copy.relatedServicesSummary || (locale === 'en' ? 'Move from identity to launch and growth through connected capabilities from one team.' : 'اربط الهوية والإطلاق والنمو بخدمات مترابطة يقدمها فريق واحد.');
   const arrow = locale === 'en' ? '→' : '←';
-  return `<section class="public-related-services container" aria-labelledby="related-services-title"><div class="public-section-heading"><span>${number}</span><div><h2 id="related-services-title">${title}</h2><p>${summary}</p></div></div><div class="public-related-services__grid">${copy.relatedServices.map(item => `<a href="${languagePath(locale, `/services/${item.slug}/`)}"><span>${escapeHtml(item.title)}</span><p>${escapeHtml(item.text)}</p><i aria-hidden="true">${arrow}</i></a>`).join('')}</div></section>`;
+  return `<section class="public-related-services container" aria-labelledby="related-services-title"><div class="public-section-heading"><span>${number}</span><div><h2 id="related-services-title">${escapeHtml(title)}</h2><p>${escapeHtml(summary)}</p></div></div><div class="public-related-services__grid">${copy.relatedServices.map(item => `<a href="${languagePath(locale, `/services/${item.slug}/`)}"><span>${escapeHtml(item.title)}</span><p>${escapeHtml(item.text)}</p><i aria-hidden="true">${arrow}</i></a>`).join('')}</div></section>`;
 };
 
 const serviceContent = (page, locale) => {

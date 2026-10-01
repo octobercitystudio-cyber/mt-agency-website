@@ -72,50 +72,346 @@ export const publicServiceCatalog = [
     seoTitle: 'Reels Production in 6th of October and Giza', metaDescription: 'Reels and short-form video production for brands and experts in 6th of October and Giza, from ideas and hooks to publish-ready vertical edits.', keywords: ['professional reels production', 'reels editing', 'short-form video', 'social video production'],
   }),
   entry('commercial-video-production', 'advertising', 'Clapperboard', 'production', ['video'], '/service-heroes/commercial-video-production.webp', {
-    title: 'تصوير وإنتاج إعلانات تجارية في 6 أكتوبر والجيزة', navLabel: 'تصوير الإعلانات', eyebrow: 'فكرة محسوبة. تنفيذ سينمائي.',
-    heroSummary: 'إنتاج إعلان تجاري أو فيديو براند للشركات في 6 أكتوبر والجيزة، مصمم حول هدف واضح وبمعدات وفريق يتوافقون مع متطلبات المشروع.',
-    heroAlt: 'مجسم ثلاثي الأبعاد لكاميرا إعلان سينمائية ومنصة منتج وكلاكيت وإضاءة احترافية.',
-    introduction: 'نربط الفكرة بالرسالة والاستخدام النهائي، ثم نبني خطة إنتاج واقعية تشمل التحضير والتصوير والمونتاج والتسليم.',
-    outcomes: ['رسالة تجارية مفهومة وقابلة للتذكر', 'شكل بصري يعكس قيمة البراند', 'نسخ متعددة للحملة والمنصات'],
-    deliverables: ['معالجة إبداعية وسيناريو', 'خطة تصوير ومعدات وطاقم', 'تصوير المنتج أو الخدمة أو الموقع', 'مونتاج وتصحيح ألوان وصوت', 'نسخ إعلانية بالأبعاد المطلوبة'],
-    process: ['الهدف والمعالجة الإبداعية', 'الإعداد والسيناريو وخطة الإنتاج', 'التصوير', 'المونتاج والمراجعات', 'التسليم والنسخ النهائية'],
-    suitableFor: ['إطلاق المنتجات', 'حملات العلامات التجارية', 'فيديوهات الشركات', 'الإعلانات الرقمية والتلفزيونية'],
-    faq: [['كيف تحدد التكلفة؟', 'حسب المعالجة والمواقع والمعدات والطاقم والممثلين والمخرجات المطلوبة.'], ['هل يمكن تصوير المنتجات؟', 'نعم، من لقطات المنتجات داخل الاستديو إلى قصص استخدام كاملة.'], ['كم تستغرق العملية؟', 'تتحدد المدة بعد اعتماد الفكرة، وتوضح الخطة نقاط المراجعة والتسليم.']],
-    serviceType: 'تصوير وإنتاج الفيديوهات والإعلانات التجارية',
-    localExpertise: {
-      eyebrow: 'إنتاج إعلاني قريب من فريقك',
-      title: 'إعلان تجاري مبني حول الرسالة والاستخدام النهائي',
-      summary: 'نحوّل الهدف إلى معالجة إنتاجية واقعية، ثم ندير التحضير والتصوير والمونتاج والنسخ المطلوبة للحملة في مسار واحد.',
-      items: [
-        { title: 'ما نقدمه', text: 'معالجة وسيناريو وخطة تصوير وطاقم ومعدات، ثم مونتاج وتصحيح ألوان وصوت ونسخ مناسبة للحملة والمنصات.' },
-        { title: 'لمن تناسب', text: 'لإطلاق المنتجات وحملات البراند وفيديوهات الشركات والإعلانات الرقمية والتلفزيونية.' },
-        { title: 'نطاق التنفيذ', text: 'نخطط من مقرنا في مدينة 6 أكتوبر وننفذ داخل الاستديو أو في مواقع الشركات والمنتجات في الجيزة والقاهرة حسب احتياج الإعلان.' },
-      ],
+    "title": "تصوير إعلانات للشركات والمصانع في 6 أكتوبر والجيزة",
+    "navLabel": "تصوير الإعلانات",
+    "eyebrow": "إنتاج إعلاني يناسب نشاطك",
+    "heroSummary": "نصوّر إعلانات وفيديوهات تعريفية للشركات والمصانع والمتاجر والعيادات ومكاتب المحاماة، من الفكرة والسيناريو إلى التصوير والمونتاج ونسخ النشر.",
+    "heroAlt": "مجسم ثلاثي الأبعاد لكاميرا إعلان سينمائية ومنصة منتج وكلاكيت وإضاءة احترافية.",
+    "introduction": "Multi Task Agency شركة إنتاج إعلامي في مدينة 6 أكتوبر، الجيزة. نقدم تصوير الإعلانات التجارية وفيديوهات الشركات والمنتجات، داخل الاستديو أو في مقر العميل بالجيزة والقاهرة حسب نطاق المشروع. نبدأ بتحديد جمهورك والرسالة المطلوبة، ثم نرتب السيناريو والموقع والإضاءة والصوت والمونتاج ليعكس الإعلان طبيعة نشاطك وهويته.",
+    "outcomes": [
+        "شرح المنتج أو الخدمة بصورة يسهل فهمها",
+        "إظهار المكان والفريق وتفاصيل العمل الفعلية",
+        "نسخ إعلانية تناسب الموقع ومنصات التواصل والحملة"
+    ],
+    "deliverables": [
+        "فكرة إعلانية ومعالجة بصرية وسيناريو معتمد",
+        "خطة تصوير تحدد المواقع والطاقم والمعدات والمشاهد",
+        "تصوير المنتجات أو الخدمات أو مقر النشاط حسب الاتفاق",
+        "مونتاج وتصحيح ألوان ومعالجة صوت وإضافة الهوية",
+        "ترجمة أو تعليق صوتي عند تضمينهما في نطاق المشروع",
+        "نسخ أفقية أو رأسية أو مربعة بحسب منصات النشر المتفق عليها"
+    ],
+    "process": [
+        "تحديد النشاط والجمهور وهدف الإعلان",
+        "اعتماد الفكرة والسيناريو وعرض السعر",
+        "تجهيز الموقع والمنتجات وجدول التصوير",
+        "التصوير ثم المونتاج ومراجعة النسخة",
+        "تسليم الملفات بالمقاسات المتفق عليها"
+    ],
+    "suitableFor": [
+        "الشركات والعلامات التجارية",
+        "المصانع والمنشآت الصناعية",
+        "المتاجر والأنشطة التجارية",
+        "الأطباء والعيادات والمراكز الطبية",
+        "المحامين ومكاتب المحاماة",
+        "المطاعم والكافيهات"
+    ],
+    "serviceType": "تصوير الإعلانات التجارية وفيديوهات الشركات والمصانع والمنتجات",
+    "localExpertise": {
+        "eyebrow": "من 6 أكتوبر إلى موقع مشروعك",
+        "title": "شركة تصوير إعلانات في 6 أكتوبر تخدم الجيزة والقاهرة",
+        "summary": "يمكن تنفيذ الإعلان داخل الاستديو أو في مقر الشركة أو المصنع أو العيادة، حسب المشاهد المطلوبة وتجهيزات الموقع. نحدد نطاق الانتقال وتفاصيل التنفيذ ضمن عرض السعر.",
+        "items": [
+            {
+                "title": "الخدمة",
+                "text": "إنتاج فيديو إعلاني متكامل: فكرة وسيناريو وتحضير وتصوير ومونتاج وتصحيح ألوان وصوت ونسخ للنشر حسب الاتفاق."
+            },
+            {
+                "title": "الأنشطة التي نخدمها",
+                "text": "الشركات والمصانع والمتاجر والمطاعم، والأطباء والعيادات والمحامون ومقدمو الخدمات المهنية."
+            },
+            {
+                "title": "المقر ونطاق التصوير",
+                "text": "مقر Multi Task Agency في مدينة 6 أكتوبر، الجيزة، مصر. ننسق التصوير في الاستديو أو بمواقع العملاء في الجيزة والقاهرة وفق متطلبات المشروع."
+            }
+        ]
     },
-    seoTitle: 'تصوير وإنتاج إعلانات في 6 أكتوبر والجيزة', metaDescription: 'شركة تصوير وإنتاج إعلانات تجارية وفيديوهات براند في 6 أكتوبر والجيزة، من الفكرة والسيناريو إلى التصوير والمونتاج والتسليم.', keywords: ['تصوير إعلانات', 'إنتاج فيديو دعائي', 'إعلان تجاري', 'تصوير منتجات'],
-  }, {
-    title: 'Commercial Video Production in 6th of October and Giza', navLabel: 'Commercial Video', eyebrow: 'A focused idea. Cinematic execution.',
-    heroSummary: 'Commercials and brand films for businesses in 6th of October and Giza, built around a clear objective with the right crew, equipment and production scale.',
-    heroAlt: 'A 3D commercial film set with cinema camera, product pedestal, clapperboard and lights.',
-    introduction: 'We connect the idea to the message and final placement, then shape a practical production plan from pre-production through delivery.',
-    outcomes: ['A memorable commercial message', 'Visual direction that reflects brand value', 'Multiple campaign and platform versions'],
-    deliverables: ['Creative treatment and script', 'Crew, equipment and shoot plan', 'Product, service or location filming', 'Edit, color and sound finishing', 'Campaign-ready aspect ratios'],
-    process: ['Objective and creative treatment', 'Script and pre-production', 'Filming', 'Editing and review', 'Final masters and cut-downs'],
-    suitableFor: ['Product launches', 'Brand campaigns', 'Corporate films', 'Digital and broadcast advertising'],
-    faq: [['How is the budget calculated?', 'It reflects the treatment, locations, equipment, crew, talent and required outputs.'], ['Can you film products?', 'Yes—from controlled studio product shots to complete use-case stories.'], ['How long does production take?', 'The schedule is confirmed after the idea, with clear review and delivery milestones.']],
-    serviceType: 'Commercial and brand video production',
-    localExpertise: {
-      eyebrow: 'Commercial production close to your team',
-      title: 'A commercial built around the message and final placement',
-      summary: 'We turn the objective into a practical treatment, then manage pre-production, filming, editing and campaign versions through one accountable workflow.',
-      items: [
-        { title: 'What we provide', text: 'Treatment, script, shoot plan, crew and equipment followed by editing, color, sound finishing and campaign-ready formats.' },
-        { title: 'Who it is for', text: 'Product launches, brand campaigns, corporate films and digital or broadcast advertising.' },
-        { title: 'Where we work', text: 'We plan from 6th of October City and film in our studio or at company and product locations across Giza and Cairo as the commercial requires.' },
-      ],
+    "decisionGuide": {
+        "title": "ما نوع الفيديو المناسب لنشاطك؟",
+        "summary": "نختار شكل الإعلان بناءً على ما يحتاج عميلك إلى معرفته، ثم نحدد المشاهد والمخرجات المناسبة بدل استخدام قالب واحد لكل الأنشطة.",
+        "options": [
+            {
+                "title": "تصوير إعلانات وفيديو تعريفي للشركات",
+                "text": "عرض خدمات الشركة وفريقها ومقرها وطريقة العمل، لاستخدام الفيديو في الموقع والعروض التعريفية وحملات إطلاق الخدمات."
+            },
+            {
+                "title": "تصوير المصانع وخطوط الإنتاج",
+                "text": "فيديو تعريفي للمصنع يوضح مراحل التصنيع والمعدات والمنتجات. ننسق المشاهد مع فريق المصنع ومواعيد التشغيل وتعليمات الدخول والتصوير."
+            },
+            {
+                "title": "تصوير المنتجات والمتاجر والأنشطة التجارية",
+                "text": "لقطات توضح تفاصيل المنتج وطريقة استخدامه، أو جولة في المتجر وتجربة الخدمة، مع نسخ مناسبة للمتجر الإلكتروني والإعلانات الرقمية."
+            },
+            {
+                "title": "تصوير إعلانات للأطباء والعيادات",
+                "text": "فيديو تعريفي بالطبيب والعيادة، وشرح مبسط للخدمات والمعلومات التي يقدمها الطبيب. يعتمد العميل المحتوى قبل النشر، وتُراعى خصوصية الأشخاص الظاهرين في التصوير."
+            },
+            {
+                "title": "تصوير محتوى للمحامين ومكاتب المحاماة",
+                "text": "تقديم المحامي وفريق المكتب ومجالات العمل، وتصوير محتوى تعريفي وتوعوي يشرح الخدمات بلغة واضحة، دون عرض معلومات سرية تخص العملاء."
+            },
+            {
+                "title": "تصوير إعلانات المطاعم والكافيهات",
+                "text": "إبراز الأطباق والمشروبات والمكان وتجربة الزيارة، مع مشاهد تناسب الإعلانات والريلز والعروض الموسمية."
+            }
+        ],
+        "factorsTitle": "ما الذي يحدد تكلفة تصوير الإعلان؟",
+        "factors": [
+            {
+                "title": "الفكرة والسيناريو",
+                "text": "عدد المشاهد، مدة الفيديو، واحتياج المشروع إلى كتابة أو تعليق صوتي أو ظهور أشخاص أمام الكاميرا."
+            },
+            {
+                "title": "المواقع وأيام التصوير",
+                "text": "التصوير داخل الاستديو أو خارجه، وعدد المواقع وأيام العمل وترتيبات الانتقال والتجهيز."
+            },
+            {
+                "title": "الفريق والمعدات",
+                "text": "عدد الكاميرات ومتطلبات الإضاءة والصوت والطاقم بما يناسب جودة التنفيذ المتفق عليها."
+            },
+            {
+                "title": "المونتاج ونسخ التسليم",
+                "text": "الجرافيك والترجمة ومعالجة الصوت والألوان وعدد المقاسات والنسخ وجولات المراجعة."
+            }
+        ]
     },
-    seoTitle: 'Commercial Video Production in 6th of October and Giza', metaDescription: 'Commercial, product and brand video production in 6th of October and Giza, from creative treatment and filming to final campaign delivery.', keywords: ['commercial video production', 'brand film', 'product filming', 'video advertising'],
-  }),
+    "faq": [
+        [
+            "هل تصورون إعلانات للشركات والمصانع في 6 أكتوبر؟",
+            "نعم. تقدم Multi Task Agency تصوير الإعلانات التجارية والفيديوهات التعريفية للشركات والمصانع من مقرها في مدينة 6 أكتوبر، مع تنفيذ التصوير في الاستديو أو موقع العميل في الجيزة والقاهرة حسب الاتفاق."
+        ],
+        [
+            "هل يمكن تصوير الإعلان داخل المصنع أو مقر الشركة؟",
+            "نعم، حسب متطلبات المشروع وإتاحة الموقع. نحدد المشاهد والمساحات المطلوبة، وننسق مواعيد التصوير وتجهيزات الإضاءة والصوت مع مسؤول الموقع قبل التنفيذ."
+        ],
+        [
+            "هل الخدمة مناسبة للأطباء والمحامين والأنشطة التجارية؟",
+            "نعم. نخصص الفكرة والسيناريو لطبيعة العيادة أو مكتب المحاماة أو المتجر أو النشاط، مع اعتماد المعلومات من العميل قبل التنفيذ والنشر ومراعاة خصوصية من يظهرون في الفيديو."
+        ],
+        [
+            "ما الفرق بين الإعلان التجاري والفيديو التعريفي للشركة؟",
+            "الإعلان التجاري يركز على منتج أو خدمة ورسالة محددة لحملة، بينما يشرح الفيديو التعريفي هوية الشركة وفريقها وقدراتها وطريقة عملها. يمكن إنتاج النوعين ونسخ قصيرة منهما ضمن نطاق متفق عليه."
+        ],
+        [
+            "كم تكلفة تصوير إعلان أو فيديو تعريفي لمصنع؟",
+            "لا يوجد سعر موحد لكل المشروعات. تُحسب التكلفة وفق الفكرة وعدد المواقع وأيام التصوير والطاقم والمعدات والمونتاج والنسخ المطلوبة. أرسل وصف النشاط والهدف ومكان التصوير للحصول على عرض سعر واضح قبل البدء."
+        ],
+        [
+            "هل تشمل الخدمة كتابة السيناريو والمونتاج؟",
+            "يمكن أن يشمل المشروع الفكرة والسيناريو والتحضير والتصوير والمونتاج وتصحيح الألوان والصوت. نوضح في عرض السعر ما إذا كانت الترجمة والتعليق الصوتي والجرافيك ضمن التسليمات."
+        ],
+        [
+            "هل أحصل على نسخ مناسبة للسوشيال ميديا والموقع؟",
+            "نعم، نحدد مسبقًا المقاسات والمدد المطلوبة للموقع وInstagram وFacebook وTikTok وYouTube، ونسلم النسخ المتفق عليها. إدارة الحملات وميزانية نشر الإعلان تُناقشان بشكل مستقل."
+        ],
+        [
+            "كم يستغرق التنفيذ وكيف أطلب عرض سعر؟",
+            "تتحدد المدة بعد اعتماد الفكرة وتوفر الموقع والمنتجات والمواد المطلوبة. تواصل عبر نموذج الخدمة أو واتساب، وأرسل نوع النشاط والهدف ومكان التصوير وعدد الفيديوهات ومنصات النشر؛ ثم نحدد النطاق والجدول والمراجعات والتسليم."
+        ]
+    ],
+    "relatedServicesTitle": "خدمات تكمل إعلانك",
+    "relatedServicesSummary": "اربط الفيديو بنسخ قصيرة وهوية واضحة وخطة نشر مناسبة لنشاطك.",
+    "relatedServices": [
+        {
+            "slug": "reels-production",
+            "title": "تصوير ومونتاج الريلز",
+            "text": "محتوى قصير ومتجدد للمنتجات والخدمات ومنصات التواصل."
+        },
+        {
+            "slug": "creative-design-branding",
+            "title": "التصميم والهوية البصرية",
+            "text": "هوية ورسائل بصرية متسقة مع شكل الإعلان والبراند."
+        },
+        {
+            "slug": "social-media-management",
+            "title": "إدارة السوشيال ميديا",
+            "text": "تنظيم نشر المحتوى ومتابعة حضور النشاط على المنصات."
+        }
+    ],
+    "seoTitle": "تصوير إعلانات للشركات والمصانع في 6 أكتوبر والجيزة",
+    "metaDescription": "تصوير إعلانات للشركات والمصانع والمنتجات والعيادات ومكاتب المحاماة في 6 أكتوبر والجيزة والقاهرة. Multi Task Agency: سيناريو وتصوير ومونتاج. اطلب عرض سعر.",
+    "keywords": [
+        "تصوير إعلانات للشركات",
+        "تصوير إعلانات للمصانع",
+        "تصوير فيديو تعريفي للشركات",
+        "تصوير مصانع وخطوط إنتاج",
+        "تصوير منتجات احترافي",
+        "تصوير إعلانات للأطباء والعيادات",
+        "تصوير محتوى للمحامين",
+        "شركة تصوير إعلانات في 6 أكتوبر",
+        "إنتاج فيديو إعلاني في الجيزة",
+        "تصوير إعلانات تجارية في القاهرة"
+    ]
+}, {
+    "title": "Commercial Video Production for Companies and Factories in Giza",
+    "navLabel": "Commercial Video",
+    "eyebrow": "Production shaped around your business",
+    "heroSummary": "Commercials and corporate films for companies, factories, retailers, clinics and law firms, from concept and script to filming, editing and platform-ready exports.",
+    "heroAlt": "A 3D commercial film set with cinema camera, product pedestal, clapperboard and lights.",
+    "introduction": "Multi Task Agency is a media production company based in 6th of October City, Giza, Egypt. We produce commercial videos, corporate profiles and product films in our studio or at client locations in Giza and Cairo, according to the project scope. We define the audience and message before planning the script, location, lighting, sound and edit around your business identity.",
+    "outcomes": [
+        "Make products and services easier to understand",
+        "Show the actual workplace, team and process",
+        "Deliver versions suited to websites, social platforms and campaigns"
+    ],
+    "deliverables": [
+        "Approved concept, visual treatment and script",
+        "Shoot plan covering locations, crew, equipment and scenes",
+        "Product, service or business-location filming by scope",
+        "Editing, color correction, sound finishing and brand elements",
+        "Captions or voice-over when included in the scope",
+        "Agreed landscape, vertical or square delivery formats"
+    ],
+    "process": [
+        "Define the business, audience and campaign objective",
+        "Approve the concept, script and quotation",
+        "Prepare the location, products and shoot schedule",
+        "Film, edit and review the draft",
+        "Deliver the agreed file formats"
+    ],
+    "suitableFor": [
+        "Companies and brands",
+        "Factories and industrial businesses",
+        "Retailers and commercial businesses",
+        "Doctors, clinics and medical centers",
+        "Lawyers and law firms",
+        "Restaurants and cafes"
+    ],
+    "serviceType": "Commercial, corporate, industrial and product video production",
+    "localExpertise": {
+        "eyebrow": "From 6th of October to your location",
+        "title": "A Giza video production company serving 6th of October and Cairo",
+        "summary": "We can film in the studio, an office, a factory or a clinic, depending on the required scenes and location setup. Travel and production arrangements are defined in the quotation.",
+        "items": [
+            {
+                "title": "The service",
+                "text": "Concept, script, preparation, filming, editing, color and sound finishing, with publish-ready versions according to the agreed scope."
+            },
+            {
+                "title": "Who we work with",
+                "text": "Companies, manufacturers, retailers and restaurants, as well as doctors, clinics, lawyers and professional service providers."
+            },
+            {
+                "title": "Location and filming area",
+                "text": "Multi Task Agency is based in 6th of October City, Giza, Egypt. Studio shoots and client-location filming in Giza and Cairo are arranged according to project needs."
+            }
+        ]
+    },
+    "decisionGuide": {
+        "title": "Which video format fits your business?",
+        "summary": "We choose the format around what your customer needs to understand, then plan the scenes and deliverables for that purpose.",
+        "options": [
+            {
+                "title": "Commercials and corporate profile videos",
+                "text": "Introduce company services, people, premises and working methods for a website, business presentation or service launch campaign."
+            },
+            {
+                "title": "Factory and production-line filming",
+                "text": "An industrial profile showing manufacturing stages, equipment and products. We coordinate scenes with the factory team, operating schedule and site access requirements."
+            },
+            {
+                "title": "Product, retail and commercial videos",
+                "text": "Show product details and use cases, or the store and service experience, with versions suited to an online shop and digital advertising."
+            },
+            {
+                "title": "Video production for doctors and clinics",
+                "text": "Introduce the doctor and clinic and explain services using information supplied and approved by the client. The privacy of people appearing in the video is respected."
+            },
+            {
+                "title": "Content for lawyers and law firms",
+                "text": "Introduce the lawyer, team and practice areas, with clear service explanations and educational content that does not disclose confidential client information."
+            },
+            {
+                "title": "Restaurant and cafe commercials",
+                "text": "Show dishes, drinks, interiors and the visitor experience through scenes for advertising, Reels and seasonal offers."
+            }
+        ],
+        "factorsTitle": "What determines the video production cost?",
+        "factors": [
+            {
+                "title": "Concept and script",
+                "text": "Scene count, running time, writing, voice-over and any on-camera participants required by the concept."
+            },
+            {
+                "title": "Locations and shoot days",
+                "text": "Studio or location filming, the number of sites and working days, travel and preparation."
+            },
+            {
+                "title": "Crew and equipment",
+                "text": "Camera count, lighting, sound and the crew needed for the agreed production approach."
+            },
+            {
+                "title": "Editing and deliverables",
+                "text": "Graphics, captions, sound and color work, output formats, versions and review rounds."
+            }
+        ]
+    },
+    "faq": [
+        [
+            "Do you film companies and factories in 6th of October?",
+            "Yes. Multi Task Agency provides commercials and corporate and factory profile videos from its base in 6th of October City. Filming takes place in the studio or at client locations in Giza and Cairo by agreement."
+        ],
+        [
+            "Can you film inside our factory or office?",
+            "Yes, subject to project needs and location availability. We define the scenes and spaces and coordinate the schedule, lighting and sound setup with the site contact before production."
+        ],
+        [
+            "Is the service suitable for doctors, lawyers and retailers?",
+            "Yes. We adapt the concept and script to the clinic, law firm, store or other business. The client approves the information before production and publication, and the privacy of people appearing on camera is respected."
+        ],
+        [
+            "What is the difference between a commercial and a corporate profile?",
+            "A commercial focuses on a product, service and campaign message. A corporate profile explains the company identity, team, capabilities and working methods. Both formats and shorter versions can be included in an agreed scope."
+        ],
+        [
+            "How much does a commercial or factory profile video cost?",
+            "There is no single price for every project. Cost depends on the concept, locations, filming days, crew, equipment, editing and deliverables. Send your business description, objective and filming location for a clear quotation before work begins."
+        ],
+        [
+            "Are scriptwriting and editing included?",
+            "The scope can cover the concept, script, preparation, filming, editing, color and sound finishing. The quotation specifies whether captions, voice-over and graphics are included."
+        ],
+        [
+            "Can you deliver versions for social media and our website?",
+            "Yes. We agree the formats and lengths for your website, Instagram, Facebook, TikTok and YouTube before production. Campaign management and advertising spend are discussed separately."
+        ],
+        [
+            "How long does production take and how do I request a quote?",
+            "Timing is agreed after the concept is approved and locations, products and materials are available. Use the service contact form or WhatsApp to send your business type, goal, location, video count and publishing platforms. We then define the scope, schedule, reviews and delivery."
+        ]
+    ],
+    "relatedServicesTitle": "Services that support your commercial",
+    "relatedServicesSummary": "Connect your video to short-form content, consistent branding and a suitable publishing plan.",
+    "relatedServices": [
+        {
+            "slug": "reels-production",
+            "title": "Reels production",
+            "text": "Regular short-form product and service content for social platforms."
+        },
+        {
+            "slug": "creative-design-branding",
+            "title": "Creative design and branding",
+            "text": "A consistent visual identity and message across the commercial and brand."
+        },
+        {
+            "slug": "social-media-management",
+            "title": "Social media management",
+            "text": "Organized publishing and support for your business presence on social platforms."
+        }
+    ],
+    "seoTitle": "Corporate & Factory Video Production in Giza",
+    "metaDescription": "Multi Task Agency films commercial, corporate, factory and product videos for businesses, clinics and law firms in 6th of October, Giza and Cairo. Request a quote.",
+    "keywords": [
+        "commercial video production Giza",
+        "corporate video production Egypt",
+        "factory video production",
+        "industrial video production",
+        "product filming Cairo",
+        "clinic video production",
+        "law firm video production",
+        "video production company 6th of October"
+    ]
+}),
   entry('podcast-production', 'podcast', 'Mic2', 'production', ['podcast'], '/service-heroes/podcast-production.webp', {
     title: 'إنتاج وتصوير البودكاست', navLabel: 'تصوير البودكاست', eyebrow: 'صوت وصورة يليقان بالحوار',
     heroSummary: 'تسجيل بودكاست مرئي بصوت نظيف وكادرات متعددة، مع خيارات المونتاج الكامل واستخراج المقاطع القصيرة.',

@@ -4,7 +4,7 @@ import { useData } from '../store/DataContext';
 import { localizePublicPath } from '../lib/publicRoutes';
 import { SITE_URL, siteIdentity } from '../seo/siteIdentity';
 
-const SEO = ({ title, description, url = '', section = 'home', schema, noIndex = false }) => {
+const SEO = ({ title, description, url = '', section = 'home', schema, image, noIndex = false }) => {
   const { i18n } = useTranslation();
   const { siteData } = useData();
   const isEn = String(i18n.language).startsWith('en');
@@ -22,7 +22,7 @@ const SEO = ({ title, description, url = '', section = 'home', schema, noIndex =
   const arabicUrl = `${SITE_URL}${localizePublicPath(path, 'ar')}`;
   const englishUrl = `${SITE_URL}${localizePublicPath(path, 'en')}`;
   const defaultUrl = path === '/' ? `${SITE_URL}/` : arabicUrl;
-  const socialImage = globalSeo.defaultImage || `${SITE_URL}/logo.webp`;
+  const socialImage = image || globalSeo.defaultImage || `${SITE_URL}/logo.webp`;
   const schemas = (Array.isArray(schema) ? schema : schema ? [schema] : []).filter(Boolean);
 
   return (
