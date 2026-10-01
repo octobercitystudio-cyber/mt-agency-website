@@ -42,7 +42,7 @@ test('client availability demo is private, role scoped, bounded, and protects pe
   assert.equal(pending.data.status, 'pending');
   const afterPending = await demoClient.request(path, { method: 'GET' });
   const ownDay = afterPending.data.days.find(day => day.date === chosenDay.date);
-  assert.equal(ownDay.has_client_booking, true); assert.equal(ownDay.unavailable_reason, 'already_booked'); assert.deepEqual(ownDay.slots, []);
+  assert.equal(ownDay.has_client_booking, true); assert.equal(ownDay.available, true); assert.ok(ownDay.slots.length > 0); assert.ok(!ownDay.slots.some(slot => slot.start_time < chosen.end_time && slot.end_time > chosen.start_time));
   assert.ok(ownDay.busy_intervals.some(interval => interval.start_time <= chosen.start_time && interval.end_time >= chosen.end_time), 'pending appointment also blocks shared capacity without disclosing its owner');
 
   const wrongPackage = await demoClient.request('/client/booking-availability?client_package_id=203&duration_minutes=60&days=7');
@@ -153,7 +153,7 @@ test('production calendar routes require a client and use the shared calendar in
   const route = api.slice(api.indexOf("if ($path === '/client/booking-availability'"), api.indexOf("if ($path === '/bookings/request'"));
   assert.match(route, /requireRole\(\$user,\['client'\]\)/);
   assert.match(route, /booking_id/); assert.doesNotMatch(route, /(?:INSERT|UPDATE|DELETE)\s+/i);
-  assert.match(calendarApi, /busy_intervals/); assert.match(calendarApi, /requireClientSingleDate/);
+  assert.match(calendarApi, /busy_intervals/); assert.match(calendarApi, /requireClientAvailableInterval/);
   assert.match(dialog, /<ClientAvailabilityCalendar/); assert.match(wizard, /<ClientAvailabilityCalendar/);
   assert.match(dashboard, /<ClientBookingDialog/); assert.match(dialog, /\/reschedule-requests/);
   assert.match(dialog, /event\.key !== 'Tab'/); assert.match(dialog, /node\.setAttribute\('inert', ''\)/);

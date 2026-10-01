@@ -62,9 +62,9 @@ function studioService(PDO $pdo,int $org,int $id,bool $includeRetired=false): ar
 function studioPurchaseSelection(array $service,mixed $hours): array {
     if(($service['kind']??'')!=='hourly')return $service;
     $value=filter_var($hours,FILTER_VALIDATE_INT);
-    if($value===false||$value<1||$value>300)fail('اختر عدد ساعات صحيحًا من 1 إلى 300 ساعة.',422,'invalid_studio_hours');
-    $price=(int)round(packageMoneyCents($service['price'])*$value/(float)$service['total_hours']);
-    return array_replace($service,['total_hours'=>$value,'price'=>packageMoney($price),'deposit_amount'=>packageMoney((int)ceil($price/2)),'payment_due_hours'=>0,'payment_due_text'=>'يُسدد باقي تكلفة كل يوم تصوير بالتنسيق مع الإدارة.','hourly_day_allocation'=>true]);
+    if($value===false||$value<1||$value>30)fail('اختر عدد ساعات صحيحًا من 1 إلى 30 ساعة.',422,'invalid_studio_hours');
+    $price=30000*$value;
+    return array_replace($service,['total_hours'=>$value,'price'=>packageMoney($price),'deposit_amount'=>packageMoney((int)ceil($price/2)),'payment_due_hours'=>0,'payment_due_text'=>'يُسدد باقي تكلفة كل موعد تصوير بالتنسيق مع الإدارة.','hourly_day_allocation'=>true]);
 }
 function studioDayShares(array $service,array $dates): array {
     $total=array_sum(array_column($dates,'duration_minutes'));$price=packageMoneyCents($service['price']);$paid=packageMoneyCents($service['deposit_amount']);$minutes=0;$previousPrice=0;$previousPaid=0;$result=[];
@@ -87,7 +87,11 @@ function normalizedStudioDates(mixed $rows,array $service): array {
     $first=$dates[0]['date'];$last=packageValidityEnd($first,(int)$service['validity_days'],$service['package_validity_mode']);
     foreach($dates as $i=>$date){
         if(($service['kind']??'')!=='hourly'&&$date['date']>$last)fail('كل المواعيد يجب أن تقع داخل صلاحية الباقة بدءًا من أول موعد.',422,'booking_outside_package_validity');
-        if($i>0&&$date['date']===$dates[$i-1]['date'])fail('يمكن حجز جلسة واحدة متصلة فقط لكل يوم.',422,'client_day_already_booked');
+        if(($service['kind']??'')==='hourly'&&$date['duration_minutes']!==60)fail('كل موعد للتصوير بالساعة مدته ساعة واحدة.',422,'hourly_session_duration');
+        if($i>0&&$date['date']===$dates[$i-1]['date']){
+            if(($service['kind']??'')==='daily'||(($service['kind']??'')!=='hourly'&&$service['package_validity_mode']==='shooting_day'))fail('الباقة اليومية جلسة واحدة متصلة بكامل الساعات.',422,'client_day_already_booked');
+            if($date['start_time']<$dates[$i-1]['end_time'])fail('المواعيد المختارة متداخلة. اختر ساعات منفصلة.',422,'client_booking_overlap');
+        }
     }
     if((($service['kind']??'')==='hourly'||($service['kind']??'')==='daily'||$service['package_validity_mode']==='shooting_day')&&$total!==(int)round($service['total_hours']*60))fail('يجب توزيع كل الساعات المختارة، واليومية تكون جلسة واحدة بكامل الساعات.',422,'studio_hours_not_fully_scheduled');
     return $dates;
@@ -125,7 +129,7 @@ function submitStudioBookingRequest(PDO $pdo,array $user,array $payload,array $p
         $service=studioPurchaseSelection($service,$payload['selected_hours']??$service['total_hours']);
         $service['booking_terms']=$terms;
         $dates=normalizedStudioDates($payload['bookings']??null,$service);
-        foreach($dates as $date){requireClientSingleDate($pdo,$org,$clientId,$date['date']);registrationBooking($pdo,$org,$service,$date);validateBookingSchedule($pdo,$org,$date['resource_id'],$date['date'],$date['start_time'],$date['end_time'],60,30,null,null,true);}
+        foreach($dates as $date){requireClientAvailableInterval($pdo,$org,$clientId,$date['date'],$date['start_time'],$date['end_time']);registrationBooking($pdo,$org,$service,$date);validateBookingSchedule($pdo,$org,$date['resource_id'],$date['date'],$date['start_time'],$date['end_time'],60,30,null,null,true);}
         $due=studioReviewDeadline()->format('Y-m-d H:i:s');
         $s=$pdo->prepare('INSERT INTO client_studio_booking_requests (organization_id,client_id,user_id,service_id,service_snapshot,deposit_amount,payment_method,transfer_account,proof_path,proof_mime,proof_original_name,proof_hash,idempotency_key,request_hash,terms_version,terms_accepted_at,review_due_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?)');
         $s->execute([$org,$clientId,$user['id'],$serviceId,json_encode($service,JSON_UNESCAPED_UNICODE),$service['deposit_amount'],'vodafone_cash',STUDIO_TRANSFER_ACCOUNT,$proof['path'],$proof['mime'],$proof['original_name'],$proof['hash'],$key,$hash,$terms['version'],$due]);$id=(int)$pdo->lastInsertId();
@@ -136,15 +140,15 @@ function submitStudioBookingRequest(PDO $pdo,array $user,array $payload,array $p
     }catch(Throwable $error){if($pdo->inTransaction())$pdo->rollBack();throw $error;}
 }
 
-/** One receipt funds separate day balances; total price/payment remain unchanged. */
+/** One receipt funds separate appointment balances; total price/payment remain unchanged. */
 function allocateHourlyStudioDays(PDO $pdo,array $actor,array &$request,array $snapshot,int $firstPackageId,int $paymentId,int $proofId): void {
     $org=(int)$actor['organization_id'];$clientId=(int)$request['client_id'];
-    $q=$pdo->prepare('SELECT id,date,duration_minutes FROM client_studio_booking_dates WHERE request_id=? AND organization_id=? ORDER BY date,start_time,id');$q->execute([$request['id'],$org]);$dates=$q->fetchAll();
+    $q=$pdo->prepare('SELECT id,date,start_time,duration_minutes FROM client_studio_booking_dates WHERE request_id=? AND organization_id=? ORDER BY date,start_time,id');$q->execute([$request['id'],$org]);$dates=$q->fetchAll();
     if(!$dates||array_sum(array_column($dates,'duration_minutes'))!==(int)round($snapshot['total_hours']*60))fail('ساعات طلب التصوير غير مكتملة.',409,'studio_hours_not_fully_scheduled');
     $shares=studioDayShares($snapshot,$dates);$map=[];
     $pdo->prepare('DELETE FROM payment_allocations WHERE payment_id=? AND organization_id=?')->execute([$paymentId,$org]);
     foreach($shares as $index=>$share){
-        $id=$firstPackageId;$minutes=(int)$share['duration_minutes'];$quantity=$minutes/60;$name=$snapshot['name'].' · '.$share['date'];
+        $id=$firstPackageId;$minutes=(int)$share['duration_minutes'];$quantity=$minutes/60;$name=$snapshot['name'].' · '.$share['date'].' · '.substr($share['start_time'],0,5);
         if($index>0){
             $pdo->prepare("INSERT INTO client_packages (organization_id,client_id,service_id,name,notes,billing_unit,purchased_quantity,purchased_minutes,held_quantity,held_minutes,consumed_quantity,consumed_minutes,payment_due_quantity,payment_due_minutes,deposit_percent_snapshot,overage_price_snapshot,total_price,paid_amount,starts_at,expires_at,validity_mode_snapshot,validity_days_snapshot,status) VALUES (?,?,?,?,?,'hour',?,?,0,0,0,0,0,0,50,?,?,?,?,?,'shooting_day',1,'active')")->execute([$org,$clientId,$request['service_id'],$name,'طلب تصوير بالساعة #'.$request['id'],$quantity,$minutes,$snapshot['overage_price']??'0.00',$share['price'],$share['paid'],$share['date'],$share['date']]);$id=(int)$pdo->lastInsertId();
         }else{
@@ -180,7 +184,7 @@ function approveStudioPackage(PDO $pdo,array $actor,array &$request,array $paylo
 
 function approveStudioDate(PDO $pdo,array $actor,array $request,array $booking,array $approval=[]): int {
     $org=(int)$actor['organization_id'];$clientId=(int)$request['client_id'];
-    lockClientCalendar($pdo,$org,$clientId);requireClientSingleDate($pdo,$org,$clientId,(string)$booking['date'],0,(int)$booking['id']);
+    lockClientCalendar($pdo,$org,$clientId);requireClientAvailableInterval($pdo,$org,$clientId,(string)$booking['date'],$booking['start_time'],$booking['end_time'],0,(int)$booking['id']);
     $s=$pdo->prepare("SELECT id FROM client_studio_booking_dates WHERE request_id=? AND organization_id=? AND status='pending' AND id<? LIMIT 1");$s->execute([$request['id'],$org,$booking['id']]);if($s->fetch())fail('راجع المواعيد بالترتيب، بدءًا من أقرب موعد لتحديد بداية صلاحية الباقة.',409,'earlier_booking_pending');
     $booking['start_time']=normalizeBusinessTime($booking['start_time']);$booking['end_time']=normalizeBusinessTime($booking['end_time'],true);
     requireClientBookingWindow($booking['date'],$booking['start_time'],$booking['end_time'],false);$minutes=validateClientBookingTimeGrid($booking['start_time'],$booking['end_time'],$booking['duration_minutes']);$quantity=$minutes/60;

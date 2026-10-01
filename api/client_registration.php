@@ -78,6 +78,7 @@ function registrationServiceSnapshot(array $service,bool $includeRetired=false):
     $kind=$daily?'daily':(in_array($category,['تصوير بالساعة','تصوير ساعة','بالساعة','hourly','hour'],true)?'hourly':'monthly');
     $priceCents=max(0,packageMoneyCents($service['price']??0));$percent=50.0;$due=max(0,(float)($service['payment_due_hours']??0));$hours=(float)$service['total_hours'];
     if ($due>$hours || $priceCents<=0) return null;
+    if($kind==='hourly'){$priceCents=30000;$hours=1;$due=0;}
     $snapshot=['id'=>(int)$service['id'],'name'=>(string)$service['name'],'kind'=>$kind,'billing_unit'=>'hour','price'=>packageMoney($priceCents),'total_hours'=>$hours,'validity_days'=>$daily?1:max(1,(int)$service['validity_days']),'package_validity_mode'=>$daily?'shooting_day':'rolling','deposit_percent'=>$percent,'deposit_amount'=>packageMoney((int)ceil($priceCents/2)),'payment_due_hours'=>$due,'payment_due_text'=>$due>0?'يستحق باقي المبلغ عند استهلاك '.arabicDurationMinutes((int)round($due*60)).' من الباقة.':'يُحدد موعد سداد الباقي مع الإدارة عند اعتماد الطلب.','minimum_booking_minutes'=>60,'booking_increment_minutes'=>30,'overage_price'=>packageMoney(max(0,packageMoneyCents($service['overage_price']??0)))];
     $snapshot['terms_fingerprint']=hash('sha256',json_encode($snapshot,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
     return $snapshot;

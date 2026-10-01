@@ -15,7 +15,7 @@ $sql=preg_replace('/\b(?:BIGINT|SMALLINT) UNSIGNED\b/','INTEGER',$sql);$sql=preg
 $pdo->exec('CREATE UNIQUE INDEX studio_retry ON client_studio_booking_requests(organization_id,user_id,idempotency_key)');
 $signup=['altcha'=>verifiedBotProof($pdo),'first_name'=>'عميل','second_name'=>'حجز','last_name'=>'التصوير','phone'=>'01012345678','job'=>'مهندس','password'=>'TestPass123','password_confirmation'=>'TestPass123'];registrationComplete($pdo,[],$signup);$client=$pdo->query('SELECT * FROM users')->fetch();$owner=['id'=>900,'organization_id'=>1,'role'=>'owner'];
 $service=registrationService($pdo,1,101);
-$first=['date'=>'2030-01-09','start_time'=>'13:00','end_time'=>'15:00','duration_minutes'=>120,'resource_id'=>1];$second=array_replace($first,['date'=>'2030-01-10','start_time'=>'16:00','end_time'=>'17:00','duration_minutes'=>60]);
+$first=['date'=>'2030-01-09','start_time'=>'13:00','end_time'=>'15:00','duration_minutes'=>120,'resource_id'=>1];$second=array_replace($first,['date'=>'2030-01-09','start_time'=>'16:00','end_time'=>'17:00','duration_minutes'=>60]);
 $payload=['service_id'=>101,'service_terms_fingerprint'=>$service['terms_fingerprint'],'bookings'=>[$second,$first],'terms_accepted'=>true,'terms_version'=>studioBookingTerms()['version'],'idempotency_key'=>'test-studio-request-001'];
 $proof=['path'=>'uploads/payment-proofs/'.str_repeat('a',36).'.png','mime'=>'image/png','original_name'=>'transfer.png','hash'=>str_repeat('b',64)];
 $request=submitStudioBookingRequest($pdo,$client,$payload,$proof);$id=$request['id'];
@@ -82,11 +82,11 @@ $rejectedRow=studioBookingRequestList($pdo,$client)['items'][0];check($rejectedR
 check(studioBookingRequestList($pdo,$client)['pending_count']===0,'Rejected request no longer counted pending');
 failure('client_booking_friday_closed',fn()=>normalizedStudioDates([array_replace($first,['date'=>'2030-01-11'])],$service));
 failure('client_booking_outside_hours',fn()=>normalizedStudioDates([array_replace($first,['start_time'=>'11:00'])],$service));
-failure('client_day_already_booked',fn()=>normalizedStudioDates([$first,array_replace($first,['start_time'=>'14:00','end_time'=>'16:00'])],$service));
+failure('client_booking_overlap',fn()=>normalizedStudioDates([$first,array_replace($first,['start_time'=>'14:00','end_time'=>'16:00'])],$service));
 failure('insufficient_package_balance',fn()=>normalizedStudioDates([$first,$second],array_replace($service,['total_hours'=>2])));
 failure('booking_outside_package_validity',fn()=>normalizedStudioDates([$first,array_replace($second,['date'=>'2030-04-10'])],$service));
-failure('booking_outside_package_validity',fn()=>normalizedStudioDates([$first,$second],array_replace($service,['validity_days'=>1,'package_validity_mode'=>'shooting_day'])));
-failure('client_day_already_booked',fn()=>normalizedStudioDates([$first,array_replace($first,['start_time'=>'15:00','end_time'=>'17:00'])],$service));
+failure('booking_outside_package_validity',fn()=>normalizedStudioDates([$first,array_replace($second,['date'=>'2030-01-10'])],array_replace($service,['validity_days'=>1,'package_validity_mode'=>'shooting_day'])));
+check(count(normalizedStudioDates([$first,array_replace($first,['start_time'=>'15:00','end_time'=>'17:00'])],$service))===2,'Adjacent monthly sessions allowed');
 $before=countRows($pdo,'client_studio_booking_requests');
 failure('client_booking_friday_closed',fn()=>submitStudioBookingRequest($pdo,$client,array_replace($pendingPayload,['idempotency_key'=>'test-studio-friday-004','bookings'=>[array_replace($first,['date'=>'2030-01-11'])]]),$proof));
 check(countRows($pdo,'client_studio_booking_requests')===$before && !$pdo->inTransaction(),'Invalid dates leave no partially saved request');

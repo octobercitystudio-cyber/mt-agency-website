@@ -13,20 +13,23 @@ function lockClientCalendar(PDO $pdo,int $org,int $client): void {
 
 function clientCalendarDates(PDO $pdo,int $org,int $client,string $from,string $to,int $excludeBooking=0,int $excludeStudioDate=0): array {
     $days=[];
-    $q=$pdo->prepare("SELECT date FROM bookings WHERE organization_id=? AND client_id=? AND date BETWEEN ? AND ? AND id<>? AND status IN ('pending','confirmed','in_progress','completed','alternative_proposed','cancel_requested','late_cancel_requested')");
-    $q->execute([$org,$client,$from,$to,$excludeBooking]);foreach($q->fetchAll() as $row)$days[$row['date']]=true;
+    $q=$pdo->prepare("SELECT date,start_time,end_time FROM bookings WHERE organization_id=? AND client_id=? AND date BETWEEN ? AND ? AND id<>? AND status IN ('pending','confirmed','in_progress','completed','alternative_proposed','cancel_requested','late_cancel_requested')");
+    $q->execute([$org,$client,$from,$to,$excludeBooking]);foreach($q->fetchAll() as $row)$days[$row['date']][]=$row;
     if(schemaTableExists($pdo,'reschedule_requests')){
-        $q=$pdo->prepare("SELECT r.proposed_date AS date FROM reschedule_requests r JOIN bookings b ON b.id=r.booking_id AND b.organization_id=r.organization_id WHERE r.organization_id=? AND r.client_id=? AND r.proposed_date BETWEEN ? AND ? AND r.booking_id<>? AND r.status='pending' AND b.status IN ('confirmed','alternative_proposed')");
-        $q->execute([$org,$client,$from,$to,$excludeBooking]);foreach($q->fetchAll() as $row)$days[$row['date']]=true;
+        $q=$pdo->prepare("SELECT r.proposed_date AS date,r.proposed_start_time AS start_time,r.proposed_end_time AS end_time FROM reschedule_requests r JOIN bookings b ON b.id=r.booking_id AND b.organization_id=r.organization_id WHERE r.organization_id=? AND r.client_id=? AND r.proposed_date BETWEEN ? AND ? AND r.booking_id<>? AND r.status='pending' AND b.status IN ('confirmed','alternative_proposed')");
+        $q->execute([$org,$client,$from,$to,$excludeBooking]);foreach($q->fetchAll() as $row)$days[$row['date']][]=$row;
     }
     if(schemaTableExists($pdo,'client_studio_booking_dates')&&schemaTableExists($pdo,'client_studio_booking_requests')){
-        $q=$pdo->prepare("SELECT d.date FROM client_studio_booking_dates d JOIN client_studio_booking_requests r ON r.id=d.request_id AND r.organization_id=d.organization_id WHERE r.organization_id=? AND r.client_id=? AND d.date BETWEEN ? AND ? AND d.id<>? AND d.status='pending' AND r.package_status<>'rejected'");
-        $q->execute([$org,$client,$from,$to,$excludeStudioDate]);foreach($q->fetchAll() as $row)$days[$row['date']]=true;
+        $q=$pdo->prepare("SELECT d.date,d.start_time,d.end_time FROM client_studio_booking_dates d JOIN client_studio_booking_requests r ON r.id=d.request_id AND r.organization_id=d.organization_id WHERE r.organization_id=? AND r.client_id=? AND d.date BETWEEN ? AND ? AND d.id<>? AND d.status='pending' AND r.package_status<>'rejected'");
+        $q->execute([$org,$client,$from,$to,$excludeStudioDate]);foreach($q->fetchAll() as $row)$days[$row['date']][]=$row;
     }
     return $days;
 }
-function requireClientSingleDate(PDO $pdo,int $org,int $client,string $date,int $excludeBooking=0,int $excludeStudioDate=0): void {
-    if(isset(clientCalendarDates($pdo,$org,$client,$date,$date,$excludeBooking,$excludeStudioDate)[$date]))fail('لديك موعد أو طلب قيد المراجعة في هذا اليوم. يمكنك طلب تعديل الموعد ليكون فترة واحدة متصلة.',409,'client_day_already_booked');
+/** Reject overlapping customer appointments across resources, including pending requests. */
+function requireClientAvailableInterval(PDO $pdo,int $org,int $client,string $date,string $start,string $end,int $excludeBooking=0,int $excludeStudioDate=0): void {
+    foreach(clientCalendarDates($pdo,$org,$client,$date,$date,$excludeBooking,$excludeStudioDate)[$date]??[] as $row){
+        if(businessTimeMinutes($start)<businessTimeMinutes($row['end_time'],true)&&businessTimeMinutes($end,true)>businessTimeMinutes($row['start_time']))fail('لديك موعد أو طلب قيد المراجعة يتداخل مع هذه الفترة. اختر ساعات أخرى.',409,'client_booking_overlap');
+    }
 }
 function clientPendingPackageQuantity(PDO $pdo,int $org,int $client,int $packageId,int $excludeBooking=0): float {
     $q=$pdo->prepare("SELECT COALESCE(SUM(requested_quantity),0) FROM bookings WHERE organization_id=? AND client_id=? AND client_package_id=? AND id<>? AND status IN ('pending','alternative_proposed')");
@@ -54,6 +57,7 @@ function clientCalendarCapacity(PDO $pdo,int $org,string $from,string $to,?int $
     return ['resources'=>$resources,'occupied'=>$occupied];
 }
 function clientCalendarDays(array $capacity,array $ownDates,string $from,int $days,int $duration,?array $package=null,bool $reschedule=false): array {
+    foreach($ownDates as $date=>$appointments)foreach($appointments as $appointment)foreach($capacity['resources'] as $resource)for($minute=(int)(floor(businessTimeMinutes($appointment['start_time'])/15)*15);$minute<businessTimeMinutes($appointment['end_time'],true);$minute+=15)$capacity['occupied'][$date][$resource][$minute]=true;
     $now=cairoNow();$first=new DateTimeImmutable($from,new DateTimeZone('Africa/Cairo'));$result=[];$fmt=fn($m)=>sprintf('%02d:%02d',intdiv($m,60),$m%60);
     for($i=0;$i<$days;$i++){
         $day=$first->modify('+'.$i.' days');$date=$day->format('Y-m-d');$slots=[];$busy=[];$reason=null;$run=null;
@@ -61,7 +65,7 @@ function clientCalendarDays(array $capacity,array $ownDates,string $from,int $da
             if($full&&$run===null)$run=$m;if(!$full&&$run!==null){$busy[]=['start_time'=>$fmt($run),'end_time'=>$fmt($m)];$run=null;}}
         if($run!==null)$busy[]=['start_time'=>$fmt($run),'end_time'=>'22:00'];
         $starts=substr((string)($package['starts_at']??''),0,10);$expires=substr((string)($package['expires_at']??''),0,10);
-        if($date<clientBookingEarliestDate($now))$reason='past';elseif($day->format('w')==='5')$reason='friday';elseif($starts!==''&&($date<$starts||$date>$expires||(($package['validity_mode_snapshot']??'rolling')==='shooting_day'&&$date!==$starts)))$reason='outside_validity';elseif(isset($ownDates[$date]))$reason='already_booked';
+        if($date<clientBookingEarliestDate($now))$reason='past';elseif($day->format('w')==='5')$reason='friday';elseif($starts!==''&&($date<$starts||$date>$expires||(($package['validity_mode_snapshot']??'rolling')==='shooting_day'&&$date!==$starts)))$reason='outside_validity';
         if(!$reason)for($m=720;$m+$duration<=1320;$m+=60){$start=$fmt($m);$end=$fmt($m+$duration);if($date.' '.$start<=$now->format('Y-m-d H:i'))continue;if($reschedule&&clientBookingNoticeIsLate(['date'=>$date,'start_time'=>$start],$now))continue;
             foreach($capacity['resources'] as $resource){$free=true;for($part=$m;$part<$m+$duration;$part+=15)if(!empty($capacity['occupied'][$date][$resource][$part])){$free=false;break;}if($free){$slots[]=['start_time'=>$start,'end_time'=>$end,'resource_id'=>$resource];break;}}}
         if(!$reason&&!$slots)$reason=$reschedule&&clientBookingNoticeIsLate(['date'=>$date,'start_time'=>'21:00'],$now)?'notice':'full';
@@ -91,7 +95,7 @@ function clientPackageCalendar(PDO $pdo,array $user,int $packageId,int $duration
     return ['package'=>$package?['id'=>(int)$package['id'],'name'=>$package['name'],'billing_unit'=>$package['billing_unit'],'available_quantity'=>max(0,$available),'starts_at'=>$package['starts_at'],'expires_at'=>$package['expires_at'],'minimum_booking_minutes'=>60,'booking_increment_minutes'=>30]:null,'duration_minutes'=>$duration,'server_time'=>cairoNow()->format(DATE_ATOM),'booking_policy'=>clientBookingPolicy(),'days'=>clientCalendarDays($capacity,$own,$from,$days,$duration,$package,(bool)$booking)];
 }
 function clientStudioCalendar(PDO $pdo,array $user,int $serviceId,int $duration,string $startDate,int $days): array {
-    [$from,$to]=clientCalendarWindow($startDate,$days,$duration);$org=(int)$user['organization_id'];$service=registrationService($pdo,$org,$serviceId);if(($service['kind']??'')!=='hourly'&&$duration>(int)round($service['total_hours']*60))fail('المدة تتجاوز ساعات الباقة.',422,'insufficient_package_balance');
+    [$from,$to]=clientCalendarWindow($startDate,$days,$duration);$org=(int)$user['organization_id'];$service=registrationService($pdo,$org,$serviceId);if(($service['kind']??'')==='hourly'&&$duration!==60)fail('كل موعد للتصوير بالساعة مدته ساعة واحدة.',422,'hourly_session_duration');if(($service['kind']??'')!=='hourly'&&$duration>(int)round($service['total_hours']*60))fail('المدة تتجاوز ساعات الباقة.',422,'insufficient_package_balance');
     $capacity=clientCalendarCapacity($pdo,$org,$from,$to,null,0,true);$own=clientCalendarDates($pdo,$org,(int)$user['client_id'],$from,$to);
     return ['duration_minutes'=>$duration,'server_time'=>cairoNow()->format(DATE_ATOM),'booking_policy'=>clientBookingPolicy(),'days'=>clientCalendarDays($capacity,$own,$from,$days,$duration)];
 }

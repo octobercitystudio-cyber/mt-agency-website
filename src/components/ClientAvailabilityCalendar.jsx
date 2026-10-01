@@ -34,6 +34,6 @@ export default function ClientAvailabilityCalendar({ monthWindow, data, loading,
         <h5>اختر فترة تصوير متصلة</h5>{availableSlots.length ? <div className="cac-slots">{availableSlots.map(slot => { const chosen = selectedSlot && compact(selectedSlot.start_time) === compact(slot.start_time) && compact(selectedSlot.end_time) === compact(slot.end_time); return <button type="button" key={`${slot.start_time}-${slot.end_time}`} aria-pressed={Boolean(chosen)} disabled={disabled} className={chosen ? 'is-selected' : ''} onClick={() => onSlotChange(slot)}><strong>{formatTime12(slot.start_time)}</strong><span>إلى</span><strong>{formatTime12(slot.end_time)}</strong></button>; })}</div> : <p className="cac-state" role="status">{unavailableMessage}</p>}
       </div> : !loading && <div className="cac-prompt"><CalendarDays/><p>{disabled ? 'اختر الباقة ومدة لا تقل عن ساعة لعرض الإتاحة.' : 'اختر يومًا لعرض الفترات المحجوزة ومواعيد التصوير المتاحة.'}</p></div>}
     </>}
-    <p className="cac-policy">جلسة واحدة متصلة في اليوم، بحد أدنى ساعة. كل المواعيد بانتظار موافقة الإدارة.</p>
+    <p className="cac-policy">اختر المواعيد المتاحة حسب نظام باقتك، دون تداخل وبحد أدنى ساعة للموعد. كل المواعيد بانتظار موافقة الإدارة.</p>
   </section>;
 }
