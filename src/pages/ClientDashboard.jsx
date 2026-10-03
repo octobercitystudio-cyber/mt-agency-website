@@ -1,3 +1,4 @@
+import { emitClientAction } from '../lib/clientAnalytics';
 import { packagePaymentDueItems } from '../lib/clientFinanceSummary';
 import ClientPendingAppointmentRequests from '../components/ClientPendingAppointmentRequests';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -367,6 +368,7 @@ export default function ClientDashboard() {
       ? Number(suggestedOutstanding)
       : calculatedOutstanding;
     setProofForm(previous => ({ ...previous, target: `${type}:${id}`, amount: outstanding > 0 ? String(outstanding) : '' }));
+    emitClientAction('payment_open');
     setPaymentDialogRequest(value => value + 1);
     navigateClient('finance', { pay: true });
   };
@@ -380,7 +382,7 @@ export default function ClientDashboard() {
     showNotice('success', 'تم إرسال طلب اشتراكك بنجاح، وبانتظار موافقة الإدارة. سنبلغك فور مراجعة الطلب.');
   };
 
-  const bookAppointment = () => { if (paymentLocked) { selectPaymentTarget('package', overduePackages[0].id); return; } setBookingForm(initialBooking); setBookingOpen(true); };
+  const bookAppointment = () => { if (paymentLocked) { selectPaymentTarget('package', overduePackages[0].id); return; } emitClientAction('booking_open'); setBookingForm(initialBooking); setBookingOpen(true); };
   const navigateClient = (tab, payload = {}) => {
     if (tab === 'book-studio' && paymentLocked) { selectPaymentTarget('package', overduePackages[0].id); return; }
     if (tab === 'book-studio' && hasCurrentPackage) { bookAppointment(); return; }
@@ -406,6 +408,7 @@ export default function ClientDashboard() {
       showNotice('error', error.message || 'تعذر تحميل تفاصيل العرض.');
       return;
     }
+    emitClientAction('offer_view');
     setOfferDetail(normalizeClientOffer(data.item));
     setOfferServerOffset(clientOfferServerOffset(data.server_now));
   };
@@ -444,6 +447,7 @@ export default function ClientDashboard() {
   };
 
   const handleLogout = async () => {
+    emitClientAction('logout');
     await logout();
     navigate('/login', { replace: true });
   };

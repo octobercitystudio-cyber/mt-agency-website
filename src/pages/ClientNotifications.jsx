@@ -1,3 +1,4 @@
+import { emitClientAction } from '../lib/clientAnalytics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, BellRing, CalendarClock, CheckCheck, CircleDollarSign, FileText, FolderKanban, History, Package, RefreshCw, X } from 'lucide-react';
 import { dataClient } from '../dataClient';
@@ -88,6 +89,7 @@ export default function ClientNotifications({ clientId, onNavigate }) {
   const groups = useMemo(() => ['اليوم', 'أمس', 'الأقدم'].map(label => ({ label, items: visibleItems.filter(item => dateBucket(item.created_at) === label) })).filter(group => group.items.length), [visibleItems]);
   const updateItems = next => { setItems(current => { const value = typeof next === 'function' ? next(current) : next; try { localStorage.setItem(cacheKey(clientId), JSON.stringify(value)); } catch { /* cache is best effort */ } return value; }); };
   const openNotifications = async () => {
+    emitClientAction('notifications_open');
     const requestId = openRequestRef.current + 1; openRequestRef.current = requestId;
     const openedBeforeInitialLoad = !initialLoadedRef.current; const captured = captureNotificationOpen(items, unreadCount);
     updateItems(captured.optimisticItems); setUnreadCount(captured.optimisticUnreadCount); setOpen(true); setError('');

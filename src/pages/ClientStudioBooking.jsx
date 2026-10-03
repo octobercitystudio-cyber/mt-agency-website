@@ -1,3 +1,4 @@
+import { emitClientAction } from '../lib/clientAnalytics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Copy, ImagePlus, Package, Plus, Trash2 } from 'lucide-react';
 import useChangeSync from '../hooks/useChangeSync';
@@ -87,7 +88,7 @@ export default function ClientStudioBooking({ onClose, onRequests, onBookExistin
     }, 150);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [serviceId, step, duration, monthWindow.startDate, monthWindow.days, revision]);
-  const chooseService = value => { const chosen = services.find(item => String(item.id) === value); setSelectedHours(Math.max(1, Number(chosen?.total_hours || 1))); setServiceId(value); setBookings([]); setDate(''); setSlotKey(''); setAvailabilityMonth(''); setAvailability({ data: null, loading: false, error: '' }); setConsent(false); setError(''); setDuration(chosen?.kind === 'daily' || chosen?.package_validity_mode === 'shooting_day' ? Number(chosen.total_hours) * 60 : 60); };
+  const chooseService = value => { const chosen = services.find(item => String(item.id) === value); if (chosen) emitClientAction('package_selected'); setSelectedHours(Math.max(1, Number(chosen?.total_hours || 1))); setServiceId(value); setBookings([]); setDate(''); setSlotKey(''); setAvailabilityMonth(''); setAvailability({ data: null, loading: false, error: '' }); setConsent(false); setError(''); setDuration(chosen?.kind === 'daily' || chosen?.package_validity_mode === 'shooting_day' ? Number(chosen.total_hours) * 60 : 60); };
   const slotId = slot => `${slot.resource_id}-${slot.start_time}-${slot.end_time}`;
   const addAppointment = async () => {
     if (appointmentBusyRef.current || availability.loading) return;
@@ -98,9 +99,9 @@ export default function ClientStudioBooking({ onClose, onRequests, onBookExistin
     appointmentBusyRef.current = true; setSlotBusy(true); setError(''); const result = await dataClient.request(`/client/studio-availability?service_id=${serviceId}&start_date=${date}&days=1&duration_minutes=${duration}`); appointmentBusyRef.current = false; setSlotBusy(false);
     if (result.error) { setError(safeUiError(result.error, 'تعذر التحقق من الموعد. حاول مجددًا.')); return; }
     const checkedDay = result.data?.days?.[0]; if (!checkedDay?.available || !checkedDay.slots?.some(s => slotId(s) === slotKey)) { setSlotKey(''); setRevision(value => value + 1); setError('هذا الموعد لم يعد متاحًا. اختر موعدًا آخر.'); return; }
-    setBookings(next); if (!daily) { const remaining = Math.round(Number(service.total_hours) * 60) - studioSelectedMinutes(next); if (remaining >= 60) setDuration(current => Math.min(current, remaining)); } setSlotKey(''); setConsent(false);
+    emitClientAction('appointment_added'); setBookings(next); if (!daily) { const remaining = Math.round(Number(service.total_hours) * 60) - studioSelectedMinutes(next); if (remaining >= 60) setDuration(current => Math.min(current, remaining)); } setSlotKey(''); setConsent(false);
   };
-  const nextStep = () => { const validation = step === 0 ? (!service ? 'اختر باقة تصوير.' : '') : validateStudioBookings(service, bookings); if (validation) { setError(validation); return; } setError(''); setStep(step + 1); };
+  const nextStep = () => { const validation = step === 0 ? (!service ? 'اختر باقة تصوير.' : '') : validateStudioBookings(service, bookings); if (validation) { setError(validation); return; } setError(''); emitClientAction(step === 0 ? 'appointments_step' : 'checkout'); setStep(step + 1); };
   const changeProof = file => { const validation = validateStudioProof(file); if (validation) { setError(validation); return; } setProof(file); setError(''); };
   const submit = async () => {
     const validation = validateStudioBookings(service, bookings) || validateStudioProof(proof) || (!consent ? 'اقرأ سياسة الحجز والتصوير كاملة ووافق على جميع شروطها لإرسال الطلب.' : ''); if (validation) { setError(validation); return; }

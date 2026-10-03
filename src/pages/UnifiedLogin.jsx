@@ -1,3 +1,4 @@
+import { emitClientAction } from '../lib/clientAnalytics';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowDownLeft, Eye, EyeOff, LoaderCircle, X } from 'lucide-react';
@@ -64,6 +65,7 @@ export default function UnifiedLogin() {
     setLoading(true); setError(''); setFieldError('');
     try {
       const user = await loginErp(phone, password);
+      if (user?.role === 'client') emitClientAction('login');
       setPassword(''); routeUser(user);
     } catch (loginError) {
       setError(loginErrorMessage(loginError));

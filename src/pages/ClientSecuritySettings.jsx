@@ -1,3 +1,4 @@
+import { emitClientAction } from '../lib/clientAnalytics';
 import { useMemo, useState } from 'react';
 import { Check, Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react';
 import { dataClient } from '../dataClient';
@@ -22,6 +23,7 @@ export default function ClientSecuritySettings() {
     const { error } = await dataClient.auth.updateUser({ password: form.password, currentPassword: form.current_password, confirmPassword: form.confirm_password });
     setForm(emptyForm()); setVisible(false);
     if (error) return setState({ busy: false, error: error.message || 'تعذر تغيير كلمة المرور.', success: '' });
+    emitClientAction('password_changed');
     setState({ busy: false, error: '', success: 'تم تغيير كلمة المرور وتأمين جلستك الحالية. تم إنهاء الجلسات الأخرى.' });
   };
 

@@ -1,3 +1,4 @@
+import { CLIENT_ACTIONS, CLIENT_SCREENS } from './clientAnalytics.js';
 export const META_PIXEL_ID = '5160222017450381';
 export const META_PIXEL_SCRIPT = 'https://connect.facebook.net/en_US/fbevents.js';
 
@@ -12,6 +13,7 @@ export function isPixelPage(pathname, role) {
 export function createMetaPixelTracker(win, doc) {
   let initialized = false;
   let lastPage = null;
+  let lastScreen = null;
   function initialize() {
     if (initialized) return;
     if (!win.fbq) {
@@ -46,6 +48,30 @@ export function createMetaPixelTracker(win, doc) {
       initialize();
       win.fbq('track', 'PageView');
       lastPage = pathname;
+    },
+    screen(pathname, role, screen) {
+      if (pathname !== '/dashboard' || role !== 'client') { lastScreen = null; return; }
+      const safeScreen = CLIENT_SCREENS.includes(screen) ? screen : 'home';
+      if (lastScreen === safeScreen) return;
+      initialize();
+      win.fbq('trackCustom', 'ClientScreenViewed', { screen: safeScreen });
+      lastScreen = safeScreen;
+    },
+    action(pathname, role, action) {
+      if (!Object.hasOwn(CLIENT_ACTIONS, action)) return;
+      const auth = ['/login', '/register'].includes(pathname) && (!role || role === 'client');
+      const dashboard = pathname === '/dashboard' && role === 'client';
+      const authActions = ['registration', 'login', 'login_attempt', 'registration_attempt', 'gift_open', 'gift_close', 'gift_details', 'support'];
+      if (!dashboard && !(auth && authActions.includes(action))) return;
+      initialize();
+      win.fbq(...CLIENT_ACTIONS[action]);
+    },
+    interaction(pathname, role, screen, control) {
+      if (!['button', 'link', 'select', 'checkbox', 'file', 'submit'].includes(control)) return;
+      if (!(pathname === '/dashboard' && role === 'client') && !(['/login', '/register'].includes(pathname) && (!role || role === 'client'))) return;
+      const safeScreen = pathname === '/dashboard' ? (CLIENT_SCREENS.includes(screen) ? screen : 'home') : pathname.slice(1);
+      initialize();
+      win.fbq('trackCustom', 'ClientInteraction', { screen: safeScreen, control });
     },
     download(pathname, role) {
       if (!isPixelPage(pathname, role)) return;
