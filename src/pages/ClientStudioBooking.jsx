@@ -65,6 +65,7 @@ export default function ClientStudioBooking({ onClose, onRequests, onBookExistin
         initialServiceApplied.current = true;
         const selected = catalog.find(item => String(item.id) === String(initialServiceId));
         if (selected) {
+          emitClientAction('package_selected');
           setServiceId(String(selected.id));
           setSelectedHours(Math.max(1, Number(selected.total_hours || 1)));
           setDuration(selected.kind === 'daily' || selected.package_validity_mode === 'shooting_day' ? Number(selected.total_hours) * 60 : 60);

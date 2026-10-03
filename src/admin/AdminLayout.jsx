@@ -1,6 +1,6 @@
 import { staffPath, STAFF_LOGIN_PATH } from '../lib/staffRoutes';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag, Search } from 'lucide-react';
+import { LayoutDashboard, Settings, Image, Grid, LogOut, Home, Type, Tag, Search, ChartNoAxesCombined } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import useExternalScripts from '../hooks/useExternalScripts';
 import './AdminLayout.css';
@@ -26,6 +26,10 @@ const AdminLayout = () => {
         </div>
         
         <nav className="sidebar-nav">
+          <NavLink to={staffPath('/site/analytics')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+            <ChartNoAxesCombined size={20} />
+            الإحصائيات والرؤى
+          </NavLink>
           <NavLink to={staffPath('/site/hero')} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <Type size={20} />
             الرئيسية (Hero)

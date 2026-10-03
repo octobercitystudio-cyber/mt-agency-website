@@ -47,6 +47,7 @@ const AdminContact = lazy(() => import('./admin/AdminContact'));
 const AdminOffers = lazy(() => import('./admin/AdminOffers'));
 const AdminSettings = lazy(() => import('./admin/AdminSettings'));
 const AdminSEO = lazy(() => import('./admin/AdminSEO'));
+const AdminAnalytics = lazy(() => import('./admin/AdminAnalytics'));
 
 // Lazy Load ERP Components
 const ERPClients = lazy(() => import('./erp/ERPClients'));
@@ -213,6 +214,7 @@ function AppSurface() {
               <Route path="offers" element={<AdminOffers />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="seo" element={<AdminSEO />} />
+              <Route path="analytics" element={<AdminAnalytics />} />
               <Route path="*" element={<div style={{padding: '2rem'}}>قريباً سيتم إضافة هذه الصفحة...</div>} />
             </Route>
           </Routes>

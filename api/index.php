@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/staff_routes.php';
+require_once __DIR__.'/site_analytics.php';
 require_once __DIR__.'/promotion_requests.php';
 require_once __DIR__.'/package_payment_access.php';
 require_once __DIR__.'/shooting_session_expiry.php';
@@ -1964,6 +1965,7 @@ $config['_auth_audience'] = $audience;
 $loginAudience = ['/auth/staff/login'=>'staff', '/auth/login'=>'client'][$path] ?? null;
 if ($audience !== '' && $loginAudience !== null && $loginAudience !== $audience) fail('استخدم صفحة الدخول الخاصة بحسابك.', 403, 'auth_audience_mismatch');
 if ($method === 'GET' && in_array($path, ['/auth/session'], true)) migratePortalSession($pdo, $config);
+handlePublicAnalytics($pdo,$config,$path,$method);
 requireCsrf($config, $path, $method);
 $user = sessionUser($pdo, $config);
 
@@ -2379,6 +2381,7 @@ require_once __DIR__ . '/session_settlement.php';
 require_once __DIR__ . '/legacy_import.php';
 
 if($user&&in_array($user['role'],['owner','admin','operations','finance'],true)&&$method==='POST'&&preg_match('#^/(client-packages|payments|payment-proofs|studio-booking-requests|offers|booking-blocks)(/|$)#',$path))requirePackageLoyaltySchema($pdo);
+handleAnalyticsReport($pdo,$user,$path,$method);
 handlePackageLoyaltyRoutes($pdo,$user,$path,$method);
 handleRegistrationRoutes($pdo, $config, $user, $path, $method);
 handleStudioBookingRoutes($pdo, $config, $user, $path, $method);

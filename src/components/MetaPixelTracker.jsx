@@ -1,3 +1,4 @@
+import { createSiteAnalytics } from '../lib/siteAnalytics';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useData } from '../store/DataContext';
@@ -6,6 +7,7 @@ import { createMetaPixelTracker } from '../lib/metaPixel';
 import { CLIENT_ANALYTICS_EVENT } from '../lib/clientAnalytics';
 
 let tracker;
+let siteAnalytics;
 export default function MetaPixelTracker() {
   const { pathname, search } = useLocation();
   const { currentUser } = useData();
@@ -13,7 +15,8 @@ export default function MetaPixelTracker() {
   const screen = new URLSearchParams(search).get('tab') || 'home';
   useEffect(() => {
     if (!import.meta.env.PROD) return;
-    tracker ||= createMetaPixelTracker(window, document);
+    siteAnalytics ||= createSiteAnalytics(window, document);
+    tracker ||= createMetaPixelTracker(window, document, siteAnalytics.record);
     // Blocked analytics must not break login, navigation or booking.
     const safely = callback => { try { callback(); } catch { /* Optional analytics. */ } };
     safely(() => { tracker.page(pathname, role); tracker.screen(pathname, role, screen); });

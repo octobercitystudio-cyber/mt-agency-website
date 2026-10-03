@@ -10,7 +10,7 @@ export function isPixelPage(pathname, role) {
 }
 
 // No advanced matching or form-field collection. Track only explicitly selected events.
-export function createMetaPixelTracker(win, doc) {
+export function createMetaPixelTracker(win, doc, record = () => {}) {
   let initialized = false;
   let lastPage = null;
   let lastScreen = null;
@@ -41,42 +41,42 @@ export function createMetaPixelTracker(win, doc) {
     }
     initialized = true;
   }
+  function send(pathname, command, event, metadata) {
+    // Our dashboard receives the event independently of Meta's network availability.
+    try { record(event, pathname, metadata); } catch { /* Optional first-party analytics. */ }
+    try { initialize(); if (metadata) win.fbq(command, event, metadata); else win.fbq(command, event); } catch { /* Blocking Meta never blocks the app. */ }
+  }
   return {
     page(pathname, role) {
       if (!isPixelPage(pathname, role)) { lastPage = null; return; }
       if (pathname === lastPage) return;
-      initialize();
-      win.fbq('track', 'PageView');
+      send(pathname, 'track', 'PageView');
       lastPage = pathname;
     },
     screen(pathname, role, screen) {
       if (pathname !== '/dashboard' || role !== 'client') { lastScreen = null; return; }
       const safeScreen = CLIENT_SCREENS.includes(screen) ? screen : 'home';
       if (lastScreen === safeScreen) return;
-      initialize();
-      win.fbq('trackCustom', 'ClientScreenViewed', { screen: safeScreen });
+      send(pathname, 'trackCustom', 'ClientScreenViewed', { screen: safeScreen });
       lastScreen = safeScreen;
     },
     action(pathname, role, action) {
       if (!Object.hasOwn(CLIENT_ACTIONS, action)) return;
       const auth = ['/login', '/register'].includes(pathname) && (!role || role === 'client');
       const dashboard = pathname === '/dashboard' && role === 'client';
-      const authActions = ['registration', 'login', 'login_attempt', 'registration_attempt', 'gift_open', 'gift_close', 'gift_details', 'support'];
+      const authActions = ['registration', 'login', 'login_attempt', 'registration_attempt', 'login_failed', 'registration_failed', 'gift_open', 'gift_close', 'gift_details', 'support'];
       if (!dashboard && !(auth && authActions.includes(action))) return;
-      initialize();
-      win.fbq(...CLIENT_ACTIONS[action]);
+      send(pathname, ...CLIENT_ACTIONS[action]);
     },
     interaction(pathname, role, screen, control) {
       if (!['button', 'link', 'select', 'checkbox', 'file', 'submit'].includes(control)) return;
       if (!(pathname === '/dashboard' && role === 'client') && !(['/login', '/register'].includes(pathname) && (!role || role === 'client'))) return;
       const safeScreen = pathname === '/dashboard' ? (CLIENT_SCREENS.includes(screen) ? screen : 'home') : pathname.slice(1);
-      initialize();
-      win.fbq('trackCustom', 'ClientInteraction', { screen: safeScreen, control });
+      send(pathname, 'trackCustom', 'ClientInteraction', { screen: safeScreen, control });
     },
     download(pathname, role) {
       if (!isPixelPage(pathname, role)) return;
-      initialize();
-      win.fbq('trackCustom', 'AndroidAppDownload', { app_name: 'MTA', platform: 'Android' });
+      send(pathname, 'trackCustom', 'AndroidAppDownload', { app_name: 'MTA', platform: 'Android' });
     },
   };
 }

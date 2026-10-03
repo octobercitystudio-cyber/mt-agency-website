@@ -1,4 +1,4 @@
-import { emitClientAction, createClientRequestRecorder } from './lib/clientAnalytics';
+import { emitClientAction, createClientRequestRecorder, successfulClientAction } from './lib/clientAnalytics';
 import { requestWithBookingConfirmation } from './lib/bookingConfirmation';
 import { hostingerClient } from './lib/hostingerClient';
 import { demoClient, isDemoModeActive } from './lib/demoDataClient';
@@ -14,7 +14,10 @@ export const dataClient = new Proxy({}, {
     if (property === 'request') return async (path, options) => {
       const result = await requestWithBookingConfirmation(value.bind(client), path, options);
       if (!isDemoModeActive()) {
-        try { recordClientRequest(path, options, result); } catch { /* Tracking cannot interrupt a request. */ }
+        try {
+          if (result?.error && successfulClientAction(path, options, { data: {} })) emitClientAction(path === '/registration/complete' ? 'registration_failed' : 'action_failed');
+          recordClientRequest(path, options, result);
+        } catch { /* Tracking cannot interrupt a request. */ }
       }
       return result;
     };

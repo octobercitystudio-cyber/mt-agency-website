@@ -68,6 +68,7 @@ export default function UnifiedLogin() {
       if (user?.role === 'client') emitClientAction('login');
       setPassword(''); routeUser(user);
     } catch (loginError) {
+      emitClientAction('login_failed');
       setError(loginErrorMessage(loginError));
     } finally { setLoading(false); }
   };

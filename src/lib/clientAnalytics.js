@@ -2,6 +2,9 @@
 export const CLIENT_ANALYTICS_EVENT = 'mta:client-analytics';
 export const CLIENT_SCREENS = ['home', 'schedule', 'packages', 'finance', 'offers', 'videos', 'security', 'requests', 'projects', 'history', 'book-studio', 'package-guide'];
 export const CLIENT_ACTIONS = {
+  login_failed: ['trackCustom', 'ClientLoginFailed'],
+  registration_failed: ['trackCustom', 'RegistrationFailed'],
+  action_failed: ['trackCustom', 'ClientActionFailed'],
   registration: ['track', 'CompleteRegistration'], login: ['trackCustom', 'ClientLogin'],
   package_request: ['trackCustom', 'PackageBookingRequestSubmitted'],
   booking_request: ['trackCustom', 'AppointmentRequested'],
