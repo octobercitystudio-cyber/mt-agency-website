@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { META_PIXEL_ID } from '../src/lib/metaPixel.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AL_MAJD_SOCIAL_PARTNER } from '../src/data/alMajdSocialPartner.js';
@@ -243,6 +244,7 @@ const renderDocument = (page, locale, { rootAlias = false, noIndex = false } = {
   let html = removeExistingSeo(template)
     .replace(/<html\s+[^>]*>/i, `<html lang="${locale}" dir="${locale === 'en' ? 'ltr' : 'rtl'}" data-public-prerender="true">`)
     .replace('</head>', `    ${head}\n  </head>`)
+    .replace('<body>', `<body><noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=${META_PIXEL_ID}&amp;ev=PageView&amp;noscript=1"></noscript>`)
     .replace('<div id="root"></div>', `<div id="root">${visiblePage(page, locale)}</div>`);
   if (rootAlias) html = html.replace(`<link rel="canonical" href="${canonical}">`, `<link rel="canonical" href="${arabicUrl}">`);
   return html.replace(/\r\n/g, '\n').replace(/[ \t]+$/gm, '');

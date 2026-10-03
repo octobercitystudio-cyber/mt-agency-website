@@ -8,6 +8,7 @@ import PublicLayout from './layouts/PublicLayout';
 import PushNotificationsBridge from './components/PushNotificationsBridge';
 import GlobalContactActions from './components/GlobalContactActions';
 import ContextMenuPolicy from './components/ContextMenuPolicy';
+import MetaPixelTracker from './components/MetaPixelTracker';
 import LegacyStaffEntry from './pages/LegacyStaffEntry';
 import { authAudience } from './lib/authAudience';
 import { safeClientDestination, clientAuthPath } from './lib/clientAuthDestination';
@@ -135,6 +136,7 @@ function AppSurface() {
   return (
     <DataProvider key={authAudience(pathname)}>
         <ContextMenuPolicy />
+        <MetaPixelTracker />
         <ScrollToTop />
         <PushNotificationsBridge />
         <GlobalContactActions />
