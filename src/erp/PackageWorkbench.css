@@ -178,3 +178,15 @@
 .pw-actions button,.pw-secondary-actions button,.pw-client-tools button,.pw-refresh{min-height:44px;font-size:max(.75rem,12px)}
 .pw-secondary-actions button{white-space:normal}
 @media(max-width:540px){.pw-detail-header{flex-wrap:wrap}.pw-client-finance{max-width:none;flex-shrink:1}.pw-detail-header h2{font-size:1.2rem}.pw-client-identity strong{font-size:.875rem}.pw-client-bottom{max-width:125px;text-align:left}.pw-client-due{line-height:1.65}.pw-client-identity small,.pw-client-bottom>span:last-child{font-size:.6875rem}.pw-client-top{gap:7px}.pw-client-tools button{padding:6px 9px}.pw-package-tabs strong{font-size:.875rem}.pw-package-tabs button{min-height:73px}.pw-priority-note{font-size:.75rem}.pw-package-heading h3,.pw-finance h3,.pw-schedule h3{font-size:.875rem}.pw-balances dt{font-size:.6875rem;min-height:36px}.pw-balances dd{font-size:.9375rem}.pw-booking-date{font-size:.8125rem!important}.pw-booking-time{gap:4px 8px}.pw-finance dd{font-size:.875rem}.pw-main-actions,.pw-secondary-actions{display:grid;grid-template-columns:1fr 1fr}.pw-secondary-actions button:last-child{grid-column:1/-1}.pw-package-footer{font-size:.7rem}.pw-refresh{justify-self:start}.pw-schedule>header{flex-wrap:wrap}.pw-schedule-empty strong{font-size:.8125rem}.pw-booking-duration{max-width:90px}.pw-booking-package{max-width:95px}.pw-booking-package>span{font-size:.6875rem}.pw-schedule tr{gap:7px}.pw-booking-status .pw-status{font-size:.6875rem}.sold-packages-workbench .packages-summary span{font-size:.6875rem}.sold-packages-workbench .erp-page-hero__actions button[data-variant=primary]{min-height:44px;font-size:.75rem}}
+
+/* Payment threshold uses the same rule as the client payment hold. */
+.package-workbench .pw-payment-due-badge{display:inline-block;width:fit-content;margin-top:6px;padding:3px 8px;border:1px solid #fecaca;border-radius:5px;background:#fff1f2;color:#a1122b;font-size:12px;font-weight:800;line-height:1.7;white-space:normal}
+.package-workbench .pw-payment-status.is-payment-due{background:#fff1f2;color:#a1122b;border-color:#fecaca;font-weight:800}
+.pw-payment-due-notice{display:flex;align-items:flex-start;gap:12px;padding:15px;margin:14px 0;border:1px solid #fecaca;border-inline-start:4px solid #be123c;border-radius:6px;background:#fff1f2;color:#92132b}
+.pw-payment-due-notice>svg{width:23px;height:23px;flex-shrink:0;margin-top:3px}
+.pw-payment-due-notice>div{flex:1;min-width:0}
+.pw-payment-due-notice strong{font-size:16px;line-height:1.8;overflow-wrap:anywhere}
+.pw-payment-due-notice p{font-size:13px;line-height:1.9;margin:4px 0 0;color:#833044}
+.pw-payment-due-notice button{min-height:44px;padding:8px 14px;border:1px solid #a1122b;border-radius:5px;background:#a1122b;color:#fff;font-size:13px;font-weight:750;flex-shrink:0}
+.pw-payment-due-notice button:hover{background:#831027}
+@media(max-width:540px){.pw-payment-due-notice{flex-wrap:wrap;gap:9px;padding:12px}.pw-payment-due-notice button{width:100%}.pw-payment-due-notice strong{font-size:15px}}
