@@ -49,7 +49,7 @@ test('production settlement creates one job safely and the API enforces versione
   assert.match(module, /j\.organization_id=\?/);
   assert.match(module, /j\.client_id=\?/);
   assert.doesNotMatch(module.slice(module.indexOf("if ($clientOnly)"), module.indexOf("function validateDriveDeliveryLinks")), /\$row\['history'\] = \$clientOnly/);
-  assert.match(module, /\['drive\.google\.com','docs\.google\.com'\]/);
+  assert.match(module, /FILTER_VALIDATE_URL/);
   assert.match(await load('api/delivery_link_pinning.php'), /DELETE FROM video_delivery_links.*INSERT INTO video_delivery_links/s);
   assert.match(module, /l\.published_at > DATE_SUB\(NOW\(\), INTERVAL 48 HOUR\)/);
   assert.match(module, /DATE_ADD\(l\.published_at,INTERVAL 48 HOUR\) AS available_until/);
@@ -91,7 +91,7 @@ test('demo matches owner and client post-production contracts end to end', async
   assert.equal(afterTransition.app_notifications.filter(row => row.source_event_key === 'post-production:1902:version:2').length, 1);
 
   const originalLinks = afterTransition.video_delivery_links.filter(row => Number(row.post_production_job_id) === 1901);
-  const badLinks = await demoClient.request('/post-production/1901/delivery-links', { method: 'PUT', body: JSON.stringify({ expected_version: 4, links: [{ title: 'صحيح', link_kind: 'folder', url: 'https://drive.google.com/drive/folders/new' }, { title: 'خطر', link_kind: 'video', url: 'https://example.com/file' }] }) });
+  const badLinks = await demoClient.request('/post-production/1901/delivery-links', { method: 'PUT', body: JSON.stringify({ expected_version: 4, links: [{ title: 'صحيح', link_kind: 'folder', url: 'https://drive.google.com/drive/folders/new' }, { title: 'خطر', link_kind: 'video', url: 'javascript:alert(1)' }] }) });
   assert.equal(badLinks.error.code, 'untrusted_delivery_link');
   assert.deepEqual(JSON.parse(storage.get('mt_agency_erp_demo_v12')).video_delivery_links.filter(row => Number(row.post_production_job_id) === 1901), originalLinks);
   const goodLinksPayload = [{ title: 'نسخة العميل', link_kind: 'folder', url: 'https://drive.google.com/drive/folders/client-ready', is_active: 1 }];

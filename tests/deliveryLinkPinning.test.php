@@ -41,4 +41,15 @@ $pdo->exec("UPDATE post_production_jobs SET status='upload_completed' WHERE id=1
 $save(1,[$folder],3);publishPendingDeliveryLinks($pdo,1,3,'upload_completed');check($pdo->query('SELECT published_at FROM video_delivery_links WHERE post_production_job_id=3')->fetchColumn()===null,'Unreviewed legacy job stays private');
 $folder['is_pinned']=0;$save(3,[$folder]);check((int)$read()['is_pinned']===0,'Explicit unpin saved');
 $save(4,[]);check($read()===false,'Unpinned folder can be removed');
+foreach(['https://drive.google.com/drive/folders/abc?usp=sharing','https://www.dropbox.com/scl/fo/example?rlkey=a%2Bb&dl=0','https://1drv.ms/f/s!abc','https://mega.nz/folder/abc#SecretKey','https://files.example.com:8443/video.mp4?signature=a%2Fb#part','http://files.example.com/video.mp4'] as $url){
+ $link=validateDriveDeliveryLinks([['title'=>'تسليم','link_kind'=>'folder','url'=>$url]])[0];
+ check($link['url']===$url,'Any web provider retains full sharing URL: '.$url);
+}
+foreach(['javascript:alert(1)','data:text/html,test','file:///tmp/file','ftp://files.example.com/a','//example.com/a','https://user:password@example.com/a',"https://example.com/a\\b","https://example.com/a\nX",'https://example.com/'.str_repeat('a',2048)] as $url){
+ rejected(fn()=>validateDriveDeliveryLinks([['title'=>'تسليم','url'=>$url]]),'untrusted_delivery_link');
+}
+$mega=['title'=>'فولدر','url'=>'https://mega.nz/folder/test#key'];
+rejected(fn()=>validateDriveDeliveryLinks([$mega,$mega]),'duplicate_delivery_link');
+check(count(validateDriveDeliveryLinks([$mega,array_replace($mega,['url'=>'https://mega.nz/folder/test#another-key'])]))===2,'Distinct fragment keys are preserved');
+
 echo "$checks pinning lifecycle checks passed\n";

@@ -10,7 +10,8 @@ function packagePaymentAccess(array $package): array {
     $quantity=fn($prefix)=>$hour && isset($package[$prefix.'_minutes']) ? (int)$package[$prefix.'_minutes'] : (float)($package[$prefix.'_quantity']??0)*($hour?60:1);
     $threshold=$quantity('payment_due');
     $billable=!in_array($package['status']??'active',['cancelled','void','archived','draft'],true);
-    return ['outstanding_amount'=>number_format($remaining/100,2,'.',''),'booking_payment_locked'=>$billable && $remaining>0 && $threshold>0 && $quantity('consumed')+0.00001>=$threshold,'delivery_payment_locked'=>$billable && $remaining>0];
+    $paymentDue=$billable && $remaining>0 && $threshold>0 && $quantity('consumed')+0.00001>=$threshold;
+    return ['outstanding_amount'=>number_format($remaining/100,2,'.',''),'booking_payment_locked'=>$paymentDue,'delivery_payment_locked'=>$paymentDue];
 }
 
 function clientOverduePackages(PDO $pdo,int $org,int $client,bool $lock=false): array {

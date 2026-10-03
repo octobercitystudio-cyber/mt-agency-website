@@ -9,9 +9,25 @@ final class DeliveryPDO extends PDO {
  public function __construct(){parent::__construct('sqlite::memory:');$this->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$this->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE,PDO::FETCH_ASSOC);}
  public function prepare(string $sql,array $options=[]):PDOStatement|false {
   $sql=str_replace(['DATE_SUB(NOW(), INTERVAL 48 HOUR)','DATE_ADD(l.published_at,INTERVAL 48 HOUR)'],["datetime('now','-48 hours')","datetime(l.published_at,'+48 hours')"],$sql);
+  $sql=str_replace(' FOR UPDATE','',$sql);
   $sql=str_replace('NOW()',"datetime('now')",$sql);
   return parent::prepare($sql,$options);
  }
+}
+final class DeliveryResponse extends RuntimeException { public function __construct(public array $payload){parent::__construct('response');} }
+function respond(array $data):never {throw new DeliveryResponse($data);}
+function body():array {return $GLOBALS['deliveryPayload'];}
+function requireUser(?array $user):array {return $user??throw new RuntimeException('unauthenticated');}
+function requireRole(array $user,array $roles):void {if(!in_array($user['role'],$roles,true))fail('Forbidden',403,'forbidden');}
+function schemaTableExists(PDO $pdo,string $table):bool {$q=$pdo->prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?");$q->execute([$table]);return (bool)$q->fetchColumn();}
+function schemaColumnExists(PDO $pdo,string $table,string $column):bool {return in_array($column,array_column($pdo->query('PRAGMA table_info('.$table.')')->fetchAll(),'name'),true);}
+function audit(...$args):void {}
+function appNotification(...$args):void {$GLOBALS['deliveryNotices'][]=$args;}
+function deliveryRoute(PDO $pdo,array $payload,string $path,string $method='PATCH'):array {
+ $GLOBALS['deliveryPayload']=$payload;
+ try {handlePostProductionRoutes($pdo,[],['id'=>1,'organization_id'=>1,'role'=>'owner'],$path,$method);}
+ catch(DeliveryResponse $response){return $response->payload;}
+ throw new RuntimeException('Route did not respond');
 }
 $root=sys_get_temp_dir().'/mta-deliveries-'.bin2hex(random_bytes(8));
 $config=['app'=>['private_runtime_dir'=>$root.'/private/pickup']];
@@ -54,13 +70,22 @@ try {
  check(postProductionRows($pdo,$config,$user,true)[0]['delivery_links']===[],'Pinned folder cannot bypass client expiry');
  $pdo->exec("UPDATE video_delivery_links SET published_at=datetime('now') WHERE id=1");
 
- $pdo->exec('UPDATE client_packages SET total_price=1000,paid_amount=500');
+ $pdo->exec('ALTER TABLE client_packages ADD COLUMN payment_due_minutes INTEGER DEFAULT 60; ALTER TABLE client_packages ADD COLUMN consumed_minutes INTEGER DEFAULT 59; UPDATE client_packages SET total_price=1000,paid_amount=500');
+ check(count(postProductionRows($pdo,$config,$user,true)[0]['delivery_links'])===1,'Outstanding balance before threshold does not hide links');
+ $pdo->exec('UPDATE client_packages SET consumed_minutes=60');
  $locked=postProductionRows($pdo,$config,$user,true)[0];
  check($locked['status']==='upload_completed' && $locked['delivery_payment_locked']===true,'Ready status retained behind financial hold');
  check($locked['delivery_links']===[] && $locked['delivery_link_count']===0,'Server never returns unpaid delivery URL');
  check($locked['payment_package_id']===100 && $locked['payment_outstanding_amount']==='500.00','Payment button targets the correct package and balance');
  $staff=postProductionRows($pdo,$config,['organization_id'=>1],false);
  check(count($staff[0]['delivery_links'])>0 || count($staff[1]['delivery_links'])>0,'Staff still retains internal folders');
+ $pdo->exec('ALTER TABLE post_production_jobs ADD COLUMN updated_by INTEGER; ALTER TABLE post_production_status_history ADD COLUMN changed_by INTEGER');
+ $changed=deliveryRoute($pdo,['status'=>'delivered','expected_version'=>1],'/post-production/1/status');
+ check($pdo->query('SELECT status FROM post_production_jobs WHERE id=1')->fetchColumn()==='delivered','Owner can mark delivered while payment is due');
+ check(postProductionRows($pdo,$config,$user,true)[0]['delivery_links']===[],'Delivered status cannot bypass threshold hold');
+ $corrected=deliveryRoute($pdo,['status'=>'upload_completed','expected_version'=>2,'reason'=>'تصحيح حالة التسليم'], '/owner/post-production/1/status-correction','POST');
+ check($pdo->query('SELECT status FROM post_production_jobs WHERE id=1')->fetchColumn()==='upload_completed','Owner may correct a held delivery status');
+ check(count($GLOBALS['deliveryNotices'])===1 && str_contains($GLOBALS['deliveryNotices'][0][6],'سداد'),'Upload notification explains the payment hold');
  $pdo->exec('UPDATE video_delivery_links SET published_at=NULL WHERE id=1');
  publishPendingDeliveryLinks($pdo,1,1,'upload_completed');
  check($pdo->query('SELECT published_at FROM video_delivery_links WHERE id=1')->fetchColumn()===null,'Payment hold does not start download deadline');

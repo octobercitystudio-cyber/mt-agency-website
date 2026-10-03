@@ -992,11 +992,11 @@ const demoValidateDriveLinks = raw => {
   if (!Array.isArray(raw) || raw.length > 30) throw formationDemoError('قائمة روابط الفيديو غير صحيحة.', 'invalid_delivery_links');
   const seen = new Set();
   return raw.map((item, index) => {
-    let parsed; try { parsed = new URL(String(item?.url || '')); } catch { throw formationDemoError('يسمح فقط بروابط HTTPS من Google Drive.', 'untrusted_delivery_link'); }
-    const title = String(item?.title || '').trim().slice(0, 160); const kind = String(item?.link_kind || 'folder'); const host = parsed.hostname.toLowerCase();
+    let parsed; try { parsed = new URL(String(item?.url || '')); } catch { throw formationDemoError('أدخل رابط ويب صحيحًا يبدأ بـ https:// أو http:// بدون بيانات دخول.', 'untrusted_delivery_link'); }
+    const title = String(item?.title || '').trim().slice(0, 160); const kind = String(item?.link_kind || 'folder');
     if (!title || !['folder', 'video'].includes(kind)) throw formationDemoError('اكتب اسم الرابط وحدد نوعه.', 'invalid_delivery_link');
-    if (parsed.protocol !== 'https:' || !['drive.google.com', 'docs.google.com'].includes(host) || parsed.username || parsed.password) throw formationDemoError('يسمح فقط بروابط HTTPS من Google Drive.', 'untrusted_delivery_link');
-    parsed.hash = ''; const canonical = parsed.toString(); if (seen.has(canonical)) throw formationDemoError('لا يمكن تكرار الرابط نفسه.', 'duplicate_delivery_link'); seen.add(canonical);
+    if (!['https:', 'http:'].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password || String(item.url).length > 2048 || Array.from(String(item.url).trim()).some(char => char.charCodeAt(0) <= 32 || [92, 127].includes(char.charCodeAt(0)))) throw formationDemoError('أدخل رابط ويب صحيحًا يبدأ بـ https:// أو http:// بدون بيانات دخول.', 'untrusted_delivery_link');
+    const canonical = parsed.toString(); if (seen.has(canonical)) throw formationDemoError('لا يمكن تكرار الرابط نفسه.', 'duplicate_delivery_link'); seen.add(canonical);
     const pin = item?.is_pinned ?? 0;
     if (![0, 1, false, true].includes(pin) || pin && kind !== 'folder') throw formationDemoError('التثبيت متاح لفولدر التسليم فقط.', 'invalid_delivery_pin');
     return { title, link_kind: kind, url: canonical, url_hash: canonical, sort_order: index, is_active: item?.is_active === false || Number(item?.is_active) === 0 ? 0 : 1, is_pinned: Number(Boolean(pin)) };
