@@ -17,6 +17,7 @@ export default function EducationalBookingSection() {
   const locale = String(i18n.language).startsWith('en') ? 'en' : 'ar';
   const copy = EDUCATIONAL_BOOKING_COPY[locale];
   const [selectedImage, setSelectedImage] = useState(0);
+  const [requestedImages, setRequestedImages] = useState([0]);
   const [failedImages, setFailedImages] = useState({});
   const studioImage = EDUCATIONAL_BOOKING_GALLERY[selectedImage];
   const DirectionArrow = locale === 'en' ? ArrowRight : ArrowLeft;
@@ -43,7 +44,7 @@ export default function EducationalBookingSection() {
       </div>
       <figure className="educational-booking__studio">
         <div className="educational-booking__stage" id="educational-studio-photo">
-          {EDUCATIONAL_BOOKING_GALLERY.map((photo, index) => <img
+          {EDUCATIONAL_BOOKING_GALLERY.map((photo, index) => requestedImages.includes(index) && <img
             key={photo.id}
             src={photo.url}
             alt={locale === 'en' ? photo.altEn : photo.alt}
@@ -62,7 +63,7 @@ export default function EducationalBookingSection() {
         <div className="educational-booking__thumbnails" role="group" aria-label={locale === 'en' ? 'Choose a studio photo' : 'اختر صورة من الاستديو'}>
           {EDUCATIONAL_BOOKING_GALLERY.map((photo, index) => <button
             key={photo.id} type="button" aria-pressed={index === selectedImage}
-            aria-controls="educational-studio-photo" onClick={() => setSelectedImage(index)}
+            aria-controls="educational-studio-photo" onClick={() => { setRequestedImages(current => current.includes(index) ? current : [...current, index]); setSelectedImage(index); }}
           >
             <img src={photo.thumbnail} alt="" width="320" height="180" loading="lazy" decoding="async" />
             <span>{locale === 'en' ? photo.labelEn : photo.label}</span>
