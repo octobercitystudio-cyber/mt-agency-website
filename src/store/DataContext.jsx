@@ -280,8 +280,7 @@ export const DataProvider = ({ children }) => {
           demoClient.activateDemoMode(restoredPreview.role);
         }
       }
-      await loadData();
-      await initializeAuthentication();
+      await Promise.all([loadData(), initializeAuthentication()]);
     };
 
     if (isPublicSurface()) {
@@ -289,8 +288,7 @@ export const DataProvider = ({ children }) => {
       // It also exposes the small session API, so public pages never download
       // the ERP/demo data layer simply to decide which header link to show.
       getPublicDataClient().then(async publicClient => {
-        await loadData(publicClient);
-        await initializeAuthentication(publicClient);
+        await Promise.all([loadData(publicClient), initializeAuthentication(publicClient)]);
       });
     } else {
       initializeRemoteState();
@@ -510,7 +508,10 @@ export const DataProvider = ({ children }) => {
     return await dataClient.auth.signOut();
   };
 
-  if ((!isDataLoaded || !isAuthReady) && !isPublicSurface()) {
+  // Entry forms can render while the server restores the session. Protected
+  // dashboards still wait for authentication and cannot flash private content.
+  const isAccountEntry = /^\/(?:login|register|reset-password)\/?$/.test(window.location.pathname);
+  if ((!isDataLoaded || !isAuthReady) && !isPublicSurface() && !isAccountEntry) {
     return (
       <div
         className="data-loading"

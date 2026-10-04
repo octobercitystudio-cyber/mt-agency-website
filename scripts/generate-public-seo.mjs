@@ -14,6 +14,20 @@ const projectRoot = path.resolve(scriptDirectory, '..');
 const distDirectory = path.join(projectRoot, 'dist');
 const templatePath = path.join(distDirectory, 'index.html');
 const template = await fs.readFile(templatePath, 'utf8');
+const manifest = JSON.parse(await fs.readFile(path.join(distDirectory, '.vite/manifest.json'), 'utf8'));
+const routeStyles = (...entries) => {
+  const files = new Set();
+  const visited = new Set();
+  const visit = key => {
+    if (visited.has(key)) return;
+    visited.add(key);
+    const chunk = manifest[key];
+    for (const css of chunk?.css || []) files.add(css);
+    for (const dependency of chunk?.imports || []) visit(dependency);
+  };
+  entries.forEach(visit);
+  return [...files].map(file => `<link rel="stylesheet" href="/${file}">`).join('');
+};
 const buildDate = new Date().toISOString().slice(0, 10);
 
 const escapeHtml = value => String(value ?? '')
@@ -243,9 +257,10 @@ const renderDocument = (page, locale, { rootAlias = false, noIndex = false } = {
 
   let html = removeExistingSeo(template)
     .replace(/<html\s+[^>]*>/i, `<html lang="${locale}" dir="${locale === 'en' ? 'ltr' : 'rtl'}" data-public-prerender="true">`)
-    .replace('</head>', `    ${head}\n  </head>`)
+    .replace('</head>', `    ${head}\n    ${routeStyles('src/layouts/PublicLayout.jsx', page.path === '/' ? 'src/pages/HomePage.jsx' : 'src/pages/PublicPages.jsx')}\n  </head>`)
     .replace('<body>', `<body><noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=${META_PIXEL_ID}&amp;ev=PageView&amp;noscript=1"></noscript>`)
     .replace('<div id="root"></div>', `<div id="root">${visiblePage(page, locale)}</div>`);
+  if (page.path === '/') html = html.replace('</head>', '<link rel="preload" as="image" href="/hero-service-1-v2-tiny.webp" media="(max-width: 520px)" fetchpriority="high"><link rel="preload" as="image" href="/hero-service-1-v2-small.webp" media="(min-width: 521px)" fetchpriority="high"></head>');
   if (rootAlias) html = html.replace(`<link rel="canonical" href="${canonical}">`, `<link rel="canonical" href="${arabicUrl}">`);
   return html.replace(/\r\n/g, '\n').replace(/[ \t]+$/gm, '');
 };

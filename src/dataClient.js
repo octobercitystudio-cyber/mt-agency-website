@@ -1,7 +1,10 @@
 import { emitClientAction, createClientRequestRecorder, successfulClientAction } from './lib/clientAnalytics';
 import { requestWithBookingConfirmation } from './lib/bookingConfirmation';
 import { hostingerClient } from './lib/hostingerClient';
-import { demoClient, isDemoModeActive } from './lib/demoDataClient';
+// Preview data is development-only; customers never download the demo database.
+const { demoClient, isDemoModeActive } = import.meta.env.DEV
+  ? await import('./lib/demoDataClient')
+  : { demoClient: null, isDemoModeActive: () => false };
 
 const recordClientRequest = createClientRequestRecorder(emitClientAction);
 

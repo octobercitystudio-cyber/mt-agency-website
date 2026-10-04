@@ -2,16 +2,21 @@ import { staffPath, STAFF_LOGIN_PATH } from './lib/staffRoutes';
 import { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import HomePage from './pages/HomePage';
 import { DataProvider, useData } from './store/DataContext';
-import PublicLayout from './layouts/PublicLayout';
-import PushNotificationsBridge from './components/PushNotificationsBridge';
 import GlobalContactActions from './components/GlobalContactActions';
 import ContextMenuPolicy from './components/ContextMenuPolicy';
 import MetaPixelTracker from './components/MetaPixelTracker';
 import LegacyStaffEntry from './pages/LegacyStaffEntry';
 import { authAudience } from './lib/authAudience';
 import { safeClientDestination, clientAuthPath } from './lib/clientAuthDestination';
+
+const HomePage = lazy(() => import('./pages/HomePage'));
+const PublicLayout = lazy(() => import('./layouts/PublicLayout'));
+const PushNotificationsBridge = lazy(() => import('./components/PushNotificationsBridge'));
+const AuthenticatedPushBridge = () => {
+  const { currentUser } = useData();
+  return currentUser ? <Suspense fallback={null}><PushNotificationsBridge /></Suspense> : null;
+};
 
 const ERP_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
 
@@ -139,9 +144,9 @@ function AppSurface() {
         <ContextMenuPolicy />
         <MetaPixelTracker />
         <ScrollToTop />
-        <PushNotificationsBridge />
+        <AuthenticatedPushBridge />
         <GlobalContactActions />
-        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0a0a0a', color: '#7a28cb' }}>جاري التحميل...</div>}>
+        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#faf8f5', color: '#5b21b6' }}>جاري التحميل...</div>}>
           <Routes>
             <Route element={<PublicLayout />}>
               <Route index element={<HomePage />} />

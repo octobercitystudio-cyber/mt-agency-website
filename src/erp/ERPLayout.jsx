@@ -9,7 +9,6 @@ import { dataClient } from '../dataClient';
 import ERPSessionTimer from './ERPSessionTimer';
 import useExternalScripts from '../hooks/useExternalScripts';
 import useChangeSync from '../hooks/useChangeSync';
-import { resetDemoDatabase } from '../lib/demoDataClient';
 import OwnerNotifications from './OwnerNotifications';
 import './ERPLayout.css';
 import './ERPEnterpriseTheme.css';
@@ -95,6 +94,8 @@ const ERPLayout = () => {
 
     setDemoResetState('loading');
     try {
+      if (!import.meta.env.DEV) return;
+      const { resetDemoDatabase } = await import('../lib/demoDataClient');
       await resetDemoDatabase();
       setDemoResetState('success');
       window.dispatchEvent(new CustomEvent('erpDemoDataReset', { detail: { topics: ['demo-data'] } }));

@@ -19,6 +19,9 @@ const Hero = () => {
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [readyImages, setReadyImages] = useState({});
+  // Keep only the first photo on the initial connection. Once decoded, prepare
+  // the following slide; already loaded slides stay mounted for smooth dissolves.
+  const loadedSlideCount = Math.min(HERO_SLIDES.length, currentImageIndex + (readyImages[currentImageIndex] ? 2 : 1));
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -37,7 +40,7 @@ const Hero = () => {
         {/* Visual Slider (Right side in RTL, or top in mobile) */}
         <div className="hero-visual">
           <div className="visual-banner">
-            {HERO_SLIDES.map((slide, index) => <picture key={slide.small}>
+            {HERO_SLIDES.slice(0, Math.max(loadedSlideCount, ...Object.keys(readyImages).map(index => Number(index) + 1))).map((slide, index) => <picture key={slide.small}>
               <source media="(max-width: 520px)" srcSet={slide.tiny} />
               <img
                 src={slide.small}

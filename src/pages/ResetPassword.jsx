@@ -2,10 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { dataClient } from '../dataClient';
-import { activateDemoMode } from '../lib/demoDataClient';
 import { CLIENT_PASSWORD_HINT, CLIENT_PASSWORD_MAX_LENGTH, CLIENT_PASSWORD_MIN_LENGTH, isValidClientPassword } from '../lib/clientPasswordPolicy';
 import { acquireResetFragment, clearResetFragment, completeResetAttempt, scheduleResetFragmentRelease } from '../lib/resetPasswordFlow';
 import './ResetPassword.css';
+
+const activateDemoMode = import.meta.env.DEV
+  ? (await import('../lib/demoDataClient')).activateDemoMode
+  : () => {};
 
 const invalidMessage = 'هذا الرابط غير صالح للاستخدام. اطلب رابطًا جديدًا من إدارة الشركة.';
 

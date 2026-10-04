@@ -35,6 +35,7 @@ export function createMetaPixelTracker(win, doc, record = () => {}) {
     if (!doc.querySelector('script[data-mta-meta-pixel]')) {
       const script = doc.createElement('script');
       script.async = true;
+      script.fetchPriority = 'low';
       script.src = META_PIXEL_SCRIPT;
       script.dataset.mtaMetaPixel = 'true';
       doc.head.appendChild(script);
