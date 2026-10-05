@@ -8,6 +8,6 @@ export default function ClientAppDownload() {
       <span className="client-app-download-icon" aria-hidden="true"><Download /></span>
       <span>تحميل تطبيق <bdi>MTA</bdi> للأندرويد</span>
     </a>
-    <p className="client-app-download-hint">لحجز الباقات ومواعيد التصوير ومتابعة حسابك.</p>
+    <p className="client-app-download-hint">كل تفاصيل الباقات والأسعار متاحة داخل تطبيق MTA. حمّل التطبيق لحجز باقتك ومواعيد تصويرك ومتابعة حسابك.</p>
   </div>;
 }

@@ -16,6 +16,7 @@ import { ar } from 'date-fns/locale';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import ClientDashboardOverview, { ClientPackageCards, ClientPaymentDueAlarm } from './ClientDashboardOverview';
+import ClientSupport from '../components/ClientSupport';
 import ClientFinanceView from './ClientFinanceView';
 import ClientProjectsView from './ClientProjectsView';
 import './ClientProjectsView.css';
@@ -528,6 +529,7 @@ export default function ClientDashboard() {
         )}
         {activeTab === 'requests' && <ClientStudioRequests/>}
         {activeTab === 'book-studio' && !paymentLocked && <ClientStudioBooking key={searchParams.get('service') || 'default'} initialServiceId={searchParams.get('service') || ''} onBookExisting={bookAppointment} onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
+        <ClientSupport />
       </main>
 
       {detailBookingId && detailBooking && <BookingDetailDialog booking={detailBooking} packageName={packages.find(pkg => Number(pkg.id) === Number(detailBooking.client_package_id))?.name} onClose={() => setDetailBookingId(null)}><BookingRow booking={detailBooking} onPay={() => { setDetailBookingId(null); selectPaymentTarget('package', overduePackages[0]?.id); }} session={sessionByBookingId.get(Number(detailBooking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(detailBooking, action)} onReschedule={() => { setDetailBookingId(null); setReschedule({ ...initialReschedule, booking: detailBooking, date: detailBooking.date, start_time: normalizeTime(detailBooking.start_time), end_time: normalizeTime(detailBooking.end_time, { endOfDay: true }) }); }} onCancel={() => { setDetailBookingId(null); requestCancel(detailBooking); }}/></BookingDetailDialog>}

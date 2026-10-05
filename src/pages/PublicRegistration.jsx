@@ -7,6 +7,7 @@ import { normalizeRegistrationDigits, registrationFullName } from '../lib/regist
 import { safeUiError } from '../lib/uiError';
 import RegistrationBotCheck from '../components/RegistrationBotCheck';
 import ClientAppDownload from '../components/ClientAppDownload';
+import ClientSupport from '../components/ClientSupport';
 import PromotionGiftLauncher from '../components/PromotionGiftLauncher';
 import usePublicGiftPromotions from '../components/usePublicGiftPromotions';
 import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
@@ -104,6 +105,7 @@ export default function PublicRegistration() {
         </section>
         <aside className="registration-summary"><span className="registration-summary-icon"><ShieldCheck aria-hidden="true"/></span><h2>حساب واحد،<br/>كل تفاصيل تصويرك.</h2><p>ابدأ حسابك الآن، واختر الخدمة ونسّق مواعيدك وقتما يناسبك.</p><ul><li><CheckCircle2 aria-hidden="true"/><div><strong>تسجيل فوري</strong><span>حسابك جاهز دون انتظار موافقة.</span></div></li><li><UserRound aria-hidden="true"/><div><strong>باقاتك في مكان واحد</strong><span>تابع الساعات المتاحة وتفاصيل باقتك.</span></div></li><li><CalendarDays aria-hidden="true"/><div><strong>حجز يناسب جدولك</strong><span>اختر مواعيدك وتابع حالة طلباتك بسهولة.</span></div></li></ul></aside>
       </div>
+      <ClientSupport />
       <footer className="registration-site-footer">Multi Task Agency · مساحتك لصناعة المحتوى.</footer>
       <PromotionGiftLauncher registration promotions={giftPromotions.items} serverOffset={giftPromotions.serverOffset} onAction={focusRegistration}/>
     </div>
