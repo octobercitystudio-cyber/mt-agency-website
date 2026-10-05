@@ -7,9 +7,10 @@ import { normalizeLoginPhone } from '../lib/phoneLogin';
 import { companyPhoneTel, companyPhoneWhatsApp } from '../lib/companyContact';
 import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
 import ClientAppDownload from '../components/ClientAppDownload';
+import ClientSupport from '../components/ClientSupport';
 import './UnifiedLogin.css';
 
-const SUPPORT_PHONE = '01114466646';
+const SUPPORT_PHONE = '01094084424';
 
 const loginErrorMessage = loginError => {
   if (loginError?.code === 'validation_error') return 'أدخل رقم الموبايل الأساسي المسجّل بالحساب وكلمة المرور.';
@@ -111,6 +112,7 @@ export default function UnifiedLogin() {
         <div className="unified-login-feedback" aria-live="polite">{error && <p id="login-error" role="alert">{error}</p>}</div>
       </form>
       <div className="unified-registration"><span>عميل جديد؟</span><Link className="unified-text-button" to={clientAuthPath('/register', clientDestination)}>إنشاء حساب <ArrowDownLeft aria-hidden="true" /></Link></div>
+      <ClientSupport />
     </section>
     <footer className="unified-login-footer"><Link to="/">العودة للموقع الرئيسي <ArrowRight aria-hidden="true" /></Link></footer>
     {import.meta.env.DEV && <details className="unified-login-preview"><summary>خيارات المعاينة المحلية</summary><div><button type="button" disabled={busy} onClick={handleLocalPreview}>دخول تجريبي كعميل</button></div></details>}
