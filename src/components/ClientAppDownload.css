@@ -5,18 +5,20 @@
 .client-app-download .client-app-download-link {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   width: 100%;
-  min-height: 64px;
-  padding: 12px 14px;
-  border: 1px solid #d9cce9;
+  min-height: 60px;
+  padding: 14px 18px;
+  border: 1px solid transparent;
   border-radius: 10px;
-  background: #f7f3fc;
-  color: #5e3994;
-  font: 700 16px/1.7 'Tajawal', 'Segoe UI', sans-serif;
+  background: var(--login-primary, var(--reg-purple, #6d3cba));
+  box-shadow: 0 5px 14px #5e399425;
+  color: #fff;
+  font: 800 17px/1.7 'Tajawal', 'Segoe UI', sans-serif;
   text-decoration: none;
-  text-align: start;
-  transition: background .18s, border-color .18s;
+  text-align: center;
+  transition: background .18s, box-shadow .18s;
 }
 
 .client-app-download-link > span:last-child {
@@ -30,18 +32,19 @@
   flex: 0 0 36px;
   height: 36px;
   border-radius: 8px;
-  background: #ebe2f6;
+  background: #ffffff1f;
+  color: #fff;
 }
 
 .client-app-download-icon svg {
   width: 21px;
   height: 21px;
-  stroke-width: 1.8;
+  stroke-width: 2.2;
 }
 
 .client-app-download .client-app-download-link:hover {
-  background: #eee5f8;
-  border-color: #a98cc9;
+  background: var(--login-primary-dark, #57299d);
+  box-shadow: 0 6px 18px #5e399435;
 }
 
 .client-app-download .client-app-download-link:focus-visible {
@@ -50,9 +53,20 @@
 }
 
 .client-app-download .client-app-download-link:active {
-  background: #e5d8f3;
+  background: #4c248a;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .client-app-download .client-app-download-link { transition: none; }
+}
+
+.client-app-download-hint {
+  margin: 9px 0 0;
+  color: #646174;
+  font: 500 14px/1.8 'Tajawal', 'Segoe UI', sans-serif;
+  text-align: center;
+}
+
+@media (max-width: 380px) {
+  .client-app-download .client-app-download-link { gap: 8px; padding-inline: 10px; font-size: 16px; }
 }
