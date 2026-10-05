@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 function rememberedLoginDays(array $config): int {
+    if (($config['_auth_audience'] ?? '') === 'client') return max(1,min(365,(int)($config['app']['client_remember_device_days']??365)));
     return max(1,min(90,(int)($config['app']['remember_device_days']??90)));
 }
 
@@ -80,8 +81,12 @@ function resumeRememberedLogin(PDO $pdo,array $config): string {
     $hash=hash('sha256',$secrets[0]);$agent=requestUserAgentHash();
     $pdo->beginTransaction();
     try{
+        // Client device credentials remain valid across browser/app updates.
+        // Both high-entropy HttpOnly secrets are required; staff retain exact UA binding.
+        $clientAudience=($config['_auth_audience']??'')==='client';
+        $agentCondition=$clientAudience ? "(d.user_agent_hash=? OR u.role IN ('client','applicant'))" : 'd.user_agent_hash=?';
         $query=$pdo->prepare('SELECT d.*,u.role AS account_role FROM remembered_login_devices d JOIN users u ON u.id=d.user_id
-            WHERE d.token_hash=? AND d.device_hash=? AND d.user_agent_hash=? AND d.expires_at>NOW()
+            WHERE d.token_hash=? AND d.device_hash=? AND '.$agentCondition.' AND d.expires_at>NOW()
             AND d.credential_version=u.credential_version AND u.is_active=1 FOR UPDATE');
         $query->execute([$hash,hash('sha256',$secrets[1]),$agent]);$device=$query->fetch();
         if(!$device){$pdo->commit();return '';}
@@ -103,8 +108,8 @@ function resumeRememberedLogin(PDO $pdo,array $config): string {
             // Concurrent resume requests derive the same token instead of creating competing sessions.
             $raw=hash_hmac('sha256','mta-session:'.$hash.':'.$generation,$secrets[0].$secrets[1]);
         }
-        $pdo->prepare('UPDATE remembered_login_devices SET generation=?,session_token_hash=?,expires_at=?,last_used_at=NOW() WHERE token_hash=?')
-            ->execute([$generation,hash('sha256',$raw),rememberedDeviceExpiry($config),$hash]);
+        $pdo->prepare('UPDATE remembered_login_devices SET generation=?,session_token_hash=?,expires_at=?,user_agent_hash=?,last_used_at=NOW() WHERE token_hash=?')
+            ->execute([$generation,hash('sha256',$raw),rememberedDeviceExpiry($config),$agent,$hash]);
         $pdo->commit();
         setSessionCookie($config,$raw,max(1,min(7,(int)($config['app']['session_days']??7))));
         $_COOKIE[sessionCookieName($config)]=$raw;

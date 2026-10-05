@@ -176,6 +176,8 @@ export const DataProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(restoredPreview);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(Boolean(restoredPreview));
+  const [authRestoreError, setAuthRestoreError] = useState(false);
+  const [authRetry, setAuthRetry] = useState(0);
   const authRevisionRef = useRef(0);
 
   const applySession = useCallback((session) => {
@@ -246,18 +248,23 @@ export const DataProvider = ({ children }) => {
       // Authentication is decided by the server role, never by localStorage.
       if (!restoredPreview) {
         const restoreRevision = authRevisionRef.current;
+        setAuthRestoreError(false);
         dataClient.auth.getSession()
-          .then(({ data: { session } }) => {
+          .then(({ data: { session }, error }) => {
             // A login may finish while this initial request is still in flight.
             // Never let that older response clear the newly authenticated user.
-            if (authRevisionRef.current === restoreRevision) {
+            if (!disposed && authRevisionRef.current === restoreRevision) {
+              if (error) { setAuthRestoreError(true); return; }
               applySession(session);
+              setIsAuthReady(true);
             }
           })
-          .finally(() => setIsAuthReady(true));
+          .catch(() => { if (!disposed && authRevisionRef.current === restoreRevision) setAuthRestoreError(true); });
       }
 
       const authListener = dataClient.auth.onAuthStateChange((_event, session) => {
+        authRevisionRef.current += 1;
+        setAuthRestoreError(false);
         applySession(session);
         setIsAuthReady(true);
       });
@@ -298,7 +305,14 @@ export const DataProvider = ({ children }) => {
       disposed = true;
       subscription?.unsubscribe();
     };
-  }, [applySession, restoredPreview]);
+  }, [applySession, restoredPreview, authRetry]);
+
+  useEffect(() => {
+    if (!authRestoreError) return undefined;
+    const retry = () => setAuthRetry(value => value + 1);
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, [authRestoreError]);
 
   useEffect(() => {
     localStorage.setItem('mt_agency_data_v5', JSON.stringify(siteData));
@@ -511,6 +525,7 @@ export const DataProvider = ({ children }) => {
   // Entry forms can render while the server restores the session. Protected
   // dashboards still wait for authentication and cannot flash private content.
   const isAccountEntry = /^\/(?:login|register|reset-password)\/?$/.test(window.location.pathname);
+  const authRetryNotice = authRestoreError && !isAuthReady ? <div className="auth-restore-notice" role="alert" dir="rtl"><p>تعذّر استعادة تسجيل الدخول بسبب مشكلة في الاتصال. تحقق من الإنترنت ثم أعد المحاولة.</p><button type="button" onClick={() => setAuthRetry(value => value + 1)}>إعادة الاتصال</button></div> : null;
   if ((!isDataLoaded || !isAuthReady) && !isPublicSurface() && !isAccountEntry) {
     return (
       <div
@@ -525,7 +540,7 @@ export const DataProvider = ({ children }) => {
           alt=""
           aria-hidden="true"
         />
-        <span className="data-loading__status-copy">جاري تحميل البيانات...</span>
+        {authRetryNotice || <span className="data-loading__status-copy">جاري تحميل البيانات...</span>}
       </div>
     );
   }
@@ -547,6 +562,7 @@ export const DataProvider = ({ children }) => {
       refreshSession,
       logoutErp
     }}>
+      {authRetryNotice}
       {children}
     </DataContext.Provider>
   );

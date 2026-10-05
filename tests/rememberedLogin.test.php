@@ -164,5 +164,39 @@ route($pdo,$staffConfig,'/auth/logout');
 check(sessionUser($pdo,$clientConfig)['id']===2,'Owner logout leaves customer signed in');
 migratePortalSession($pdo,$staffConfig);check(sessionUser($pdo,$staffConfig)===null,'Old shared token cannot revive logged-out staff session');
 $_COOKIE=$legacyOwnerCookies;check(sessionUser($pdo,$config)===null,'Copied pre-migration remembered cookies cannot revive logged-out owner');
+// Customer persistence tolerates a browser upgrade, never missing/revoked secrets.
+check(rememberedLoginDays($clientConfig)===365,'Customer devices persist for a rolling year');
+check(rememberedLoginDays($staffConfig)===90,'Staff lifetime unchanged');
+[$pdo,$account]=fixture();
+issueLoginSession($pdo,$clientConfig,$account,$account['phone']);
+$initialSecrets=rememberedDeviceSecrets($clientConfig);
+$_SERVER['HTTP_USER_AGENT']='MTA-Test-Phone/2';
+check(sessionUser($pdo,$clientConfig)['id']===1,'Customer session survives browser upgrade');
+check(rememberedDeviceSecrets($clientConfig)===$initialSecrets,'Browser upgrade keeps the same remembered device');
+check($pdo->query('SELECT COUNT(*) FROM remembered_login_devices')->fetchColumn()===1,'Browser update does not enroll duplicate devices');
+check($pdo->query('SELECT user_agent_hash FROM remembered_login_devices')->fetchColumn()===requestUserAgentHash(),'Resumed device records current browser');
+$pdo->exec("UPDATE remembered_login_devices SET expires_at='".date('Y-m-d H:i:s',time()+86400)."'");
+route($pdo,$clientConfig,'/auth/session');
+check(strtotime($pdo->query('SELECT expires_at FROM remembered_login_devices')->fetchColumn())>time()+360*86400,'Opening account renews client persistence');
+unset($_COOKIE[sessionCookieName($clientConfig)]);
+check(sessionUser($pdo,$clientConfig)['id']===1,'Reopening client with only persistent cookies restores account');
+$snapshot=$_COOKIE;
+route($pdo,$clientConfig,'/auth/logout');$_COOKIE=$snapshot;
+check(sessionUser($pdo,$clientConfig)===null,'Logout still revokes client after browser upgrade');
+foreach(['wrong_device','password_changed','disabled'] as $case){
+    [$pdo,$account]=fixture();issueLoginSession($pdo,$clientConfig,$account,$account['phone']);
+    unset($_COOKIE[sessionCookieName($clientConfig)]);$_SERVER['HTTP_USER_AGENT'].='-updated';
+    if($case==='wrong_device')$_COOKIE[rememberedCookieName($clientConfig,'device')]=str_repeat('b',64);
+    if($case==='password_changed')$pdo->exec('UPDATE users SET credential_version=credential_version+1');
+    if($case==='disabled')$pdo->exec('UPDATE users SET is_active=0');
+    check(sessionUser($pdo,$clientConfig)===null,'Client upgrade still rejects '.$case);
+}
+[$pdo,$account]=fixture('owner');issueLoginSession($pdo,$staffConfig,$account,$account['phone']);
+$_SERVER['HTTP_USER_AGENT'].='-updated';
+check(sessionUser($pdo,$staffConfig)===null,'Staff still requires matching browser');
+// Even copied staff credentials must not be accepted through the client relaxation.
+[$pdo,$account]=fixture('owner');issueLoginSession($pdo,$staffConfig,$account,$account['phone']);
+$secrets=rememberedDeviceSecrets($staffConfig);setRememberedDeviceCookies($clientConfig,...$secrets);
+check(sessionUser($pdo,$clientConfig)===null,'Client persistence cannot restore a staff account');
 ob_end_clean();
 echo "Remembered login: $checks checks passed\n";
