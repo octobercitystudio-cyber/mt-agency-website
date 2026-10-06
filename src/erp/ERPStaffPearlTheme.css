@@ -1,0 +1,276 @@
+/* Staff-only Pearl material. Keep layouts, booking colors and financial semantics
+   in their owning components. Body portals opt in explicitly; no body mutation. */
+.erp-layout.erp-layout--pearl,
+.staff-pearl-portal {
+  --erp-bg: #eff6fb;
+  --erp-surface: rgba(255,255,255,.84);
+  --erp-surface-muted: #edf6fd;
+  --erp-surface-raised: #ffffff;
+  --erp-text-main: #19344e;
+  --erp-text-default: #28465e;
+  --erp-text-muted: #506b81;
+  --erp-text-subtle: #60798e;
+  --erp-border: #cbdfee;
+  --erp-border-strong: #aacbe3;
+  --erp-primary: #2676c9;
+  --erp-primary-hover: #1f65ad;
+  --erp-primary-soft: #e9f3fc;
+  --erp-primary-gradient: #2676c9;
+  --erp-sidebar-bg: rgba(255,255,255,.78);
+  --erp-sidebar-hover: #e6f1fc;
+  --erp-sidebar-text-inactive: #506b81;
+  --erp-radius-xs: 8px;
+  --erp-radius-sm: 11px;
+  --erp-radius-md: 18px;
+  --erp-radius-lg: 24px;
+  --erp-control-height: 44px;
+  --erp-shadow: 0 12px 28px -16px #315d8045, inset 0 1px 0 #fff, inset 0 0 0 3px #ffffff60;
+  --erp-shadow-raised: 0 24px 70px #123b6930;
+  color: var(--erp-text-main);
+  color-scheme: light;
+}
+
+.erp-layout.erp-layout--pearl {
+  background: radial-gradient(ellipse at 8% 0%,#fff,transparent 38%),linear-gradient(130deg,#edf6fc,#f5f8fa 52%,#e8f3fb);
+}
+.erp-layout--pearl .erp-main { background: transparent; transition: none; }
+.erp-layout--pearl .erp-sidebar {
+  background: var(--erp-sidebar-bg);
+  border-color: var(--erp-border);
+  box-shadow: -8px 0 28px #315d8009, inset 1px 0 #fff;
+  backdrop-filter: none;
+  transition: transform 140ms ease;
+}
+.erp-layout--pearl :is(.erp-nav-group + .erp-nav-group,.erp-sidebar-actions) { border-color: var(--erp-border); }
+.erp-layout--pearl .erp-nav-group-label { color: #506b81; font-size: 12px; }
+.erp-layout--pearl .erp-nav-group-label::after { background: #dce9f2; }
+.erp-layout--pearl .erp-nav-link {
+  border-radius: 12px;
+  transform: none;
+  color: #395a74;
+  transition: opacity 140ms;
+}
+.erp-layout--pearl .erp-nav-link svg { color: #607d95; transform: none; transition: none; }
+.erp-layout--pearl .erp-nav-link:is(:hover,.active) {
+  color: #1c5d9e !important;
+  background: #e6f1fc;
+  box-shadow: inset 0 0 0 1px #c4dcf2;
+  transform: none;
+}
+.erp-layout--pearl .erp-nav-link:is(:hover,.active) svg { color: #2676c9 !important; }
+.erp-layout--pearl :is(.erp-mobile-header,.erp-bottom-nav) {
+  background: #f8fcff;
+  border-color: var(--erp-border);
+  box-shadow: 0 5px 24px #315d8015, inset 0 1px #fff;
+  backdrop-filter: none;
+}
+.erp-layout--pearl .erp-bottom-nav-item { color: #506b81; }
+.erp-layout--pearl .erp-bottom-nav-item.active { background: #e6f1fc; color: #1c5d9e; }
+.erp-layout--pearl .erp-bottom-nav-item.active svg { color: #2676c9; }
+.erp-layout--pearl .erp-mobile-toggle-btn { background: #fff; border: 1px solid #cbdfee; border-radius: 12px; min-width: 44px; min-height: 44px; }
+
+/* Modules that declare their own palette need a local token bridge. */
+.erp-layout.erp-layout--pearl .erp-main :is(.sold-packages,.offers-command,.projects-command) {
+  --erp-bg: #eff6fb;
+  --erp-surface: rgba(255,255,255,.84);
+  --erp-border: #cbdfee;
+  --erp-text-main: #19344e;
+  --erp-text-muted: #506b81;
+  --erp-primary: #2676c9;
+  --offer-bg: #eff6fb;
+  --offer-surface: rgba(255,255,255,.84);
+  --offer-surface2: #edf6fd;
+  --offer-border: #cbdfee;
+  --offer-text: #19344e;
+  --offer-muted: #506b81;
+  --offer-violet: #2676c9;
+  --pc-bg: #eff6fb;
+  --pc-panel: rgba(255,255,255,.84);
+  --pc-panel2: #edf6fd;
+  --pc-line: #cbdfee;
+  --pc-text: #19344e;
+  --pc-muted: #506b81;
+  --pc-violet: #2676c9;
+  --pc-cyan: #2476a6;
+}
+.erp-layout--pearl .ops-dashboard {
+  --ops-ink: #19344e;
+  --ops-canvas: #eff6fb;
+  --ops-panel: rgba(255,255,255,.84);
+  --ops-border: #cbdfee;
+  --ops-violet: #2676c9;
+  color: #19344e;
+}
+.erp-layout--pearl .attendance-page {
+  --at-ink: #19344e;
+  --at-violet: #2676c9;
+  --at-border: #cbdfee;
+  --at-canvas: #eff6fb;
+  --at-panel: rgba(255,255,255,.84);
+  color: #19344e;
+}
+.erp-layout--pearl .finance-clear-page { --fc-navy:#19344e; --fc-ink:#28465e; --fc-muted:#506b81; --fc-line:#cbdfee; --fc-blue:#2676c9; }
+.erp-layout--pearl .sold-packages.sold-packages-workbench { --pw-ink:#19344e; --pw-muted:#506b81; --pw-blue:#2676c9; --pw-line:#cbdfee; }
+
+/* Pearl route identity, shared by every staff tool. */
+.erp-layout.erp-layout--pearl .erp-main .erp-page-hero,
+.erp-layout.erp-layout--pearl .erp-main .sold-packages-workbench .erp-page-hero,
+.erp-layout.erp-layout--pearl .erp-main .finance-clear-page .erp-page-hero,
+.erp-layout.erp-layout--pearl .erp-main :is(.ops-commandbar,.attendance-head) {
+  background: linear-gradient(115deg,#ffffffd9,#eaf4fcdb) !important;
+  border: 1px solid var(--erp-border) !important;
+  border-radius: 24px !important;
+  color: var(--erp-text-main);
+  box-shadow: var(--erp-shadow) !important;
+}
+.erp-layout.erp-layout--pearl .erp-main .erp-page-hero::after { background: #a6ccef; width: 4px; }
+.erp-layout.erp-layout--pearl .erp-main :is(.erp-page-hero__identity h1,.ops-commandbar__identity h1,.attendance-head h1) { color: #19344e !important; }
+.erp-layout.erp-layout--pearl .erp-main :is(.erp-page-hero__identity p,.ops-commandbar__identity p,.attendance-head p) { color: #506b81 !important; }
+.erp-layout.erp-layout--pearl .erp-main :is(.erp-page-hero__eyebrow,.erp-page-hero__eyebrow svg,.ops-eyebrow,.ops-kicker,.attendance-eyebrow) { color: #2676c9 !important; }
+.erp-layout.erp-layout--pearl .erp-main .finance-clear-page .erp-page-hero__eyebrow { color: #2676c9 !important; }
+.erp-layout.erp-layout--pearl .erp-main .sold-packages-workbench .erp-page-hero__eyebrow { color: #2676c9 !important; }
+.erp-layout.erp-layout--pearl .erp-main :is(.erp-page-hero__details,.ops-attendance-chip) { border-color: #cbdfee; color: #19344e; }
+.erp-layout.erp-layout--pearl .erp-main :is(.erp-page-hero__details,.ops-attendance-chip) :is(span,label) { color: #506b81 !important; }
+.erp-layout.erp-layout--pearl .erp-main .erp-page-hero__details :is(strong,b,svg) { color:#19344e !important; }
+.erp-layout.erp-layout--pearl .erp-main .erp-page-hero__actions > :is(button,a),
+.erp-layout.erp-layout--pearl .erp-main :is(.erp-page-hero__action,.ops-action,.ops-attendance-chip button,.attendance-checkout),
+.erp-layout.erp-layout--pearl .erp-main .erp-page-hero__details button {
+  background: #ffffffb8 !important;
+  color: #1f65ad !important;
+  border-color: #bdd6e9 !important;
+  border-radius: 12px !important;
+  box-shadow: inset 0 1px #fff !important;
+}
+.erp-layout.erp-layout--pearl .erp-main .erp-page-hero__actions > [data-variant="primary"],
+.erp-layout.erp-layout--pearl .erp-main .sold-packages-workbench .erp-page-hero__actions > [data-variant="primary"],
+.erp-layout.erp-layout--pearl .erp-main :is(.erp-page-hero__action[data-variant="primary"],.ops-action--primary) {
+  background: #2676c9 !important;
+  color: #fff !important;
+  border-color: #2676c9 !important;
+  box-shadow: 0 7px 14px #2676c925 !important;
+}
+.erp-layout.erp-layout--pearl .erp-main .erp-page-hero__actions > [data-variant="primary"]:hover { background: #1f65ad !important; }
+.erp-layout.erp-layout--pearl .erp-main .erp-page-hero__details :is(input,select) { color: #19344e !important; background: #fff !important; border-color: #bdd6e9 !important; }
+
+/* Raised, translucent surfaces; no per-card blur or expensive effects. */
+.erp-layout.erp-layout--pearl .erp-main :is(
+  .ops-panel,.ops-health,.requests-summary,.requests-calendar-reference,
+  .packages-summary,.packages-table-wrap,.package-mobile-card,.packages-empty,
+  .projects-metrics article,.projects-toolbar,.project-card,.calendar-main,.calendar-focus,
+  .offer-panel,.offer-shell,.invoice-grid article,.offers-metrics,
+  .attendance-strip,.attendance-workspace,.fc-overview,.fc-ledger,
+  .pw-clients,.pw-detail,.post-production-toolbar,.post-production-state,
+  .formation-ledger-panel,.formation-founder-card,.social-timeline,.social-ledger,
+  .package-guide-editor-section,
+  .card,.erp-card,.setting-section,.mobile-client-card,.erp-clients-details
+) {
+  background: var(--erp-surface) !important;
+  border-color: var(--erp-border) !important;
+  border-radius: var(--erp-radius-lg) !important;
+  box-shadow: var(--erp-shadow) !important;
+}
+.erp-layout.erp-layout--pearl .erp-main :is(.request-card,.requests-empty) { border-radius: 18px; box-shadow: var(--erp-shadow); }
+.erp-layout.erp-layout--pearl .erp-main :is(.ops-health,.ops-health strong) { color: #19344e; }
+.erp-layout.erp-layout--pearl .erp-main :is(.ops-health span,.ops-health small,.ops-queue__list small,.attendance-strip span,.attendance-strip small) { color: #506b81; }
+.erp-layout.erp-layout--pearl .erp-main :is(.ops-health > div,.ops-health > .ops-health__cell,.ops-queue__list > a,.delivery-list > a,.attendance-mini-list > div) { border-color: #d6e5f0; }
+.erp-layout.erp-layout--pearl .erp-main .ops-health__cell--interactive:hover { background: #edf6fd; }
+.erp-layout.erp-layout--pearl .erp-main :is(.ops-health__cell--interactive em,.ops-panel__heading a,.ops-panel__footer,.delivery-list time) { color: #1f65ad; }
+.erp-layout.erp-layout--pearl .erp-main :is(.ops-count,.ops-preview-label) { color:#1f65ad; background:#e9f3fc; }
+.erp-layout.erp-layout--pearl .erp-main .ops-health .negative { color: #b0273e; }
+.erp-layout.erp-layout--pearl .erp-main .package-balance-bar { background: #dfedf8 !important; }
+.erp-layout.erp-layout--pearl .erp-main .project-progress i { background: #dfedf8 !important; }
+.erp-layout--pearl :is(.post-production-kpis,.post-production-record,.social-kpis,.formation-kpis) { border-radius:18px; overflow:hidden; box-shadow:var(--erp-shadow); }
+.erp-layout--pearl :is(.tasks-columns,.tasks-footnote) { background:#edf6fd; border-color:#cbdfee; color:#506b81; }
+.erp-layout--pearl .tasks-list > li + li { border-color:#d6e5f0; }
+.erp-layout--pearl :is(.tasks-heading > a,.tasks-row__icon,.tasks-message > a,.tasks-message > button) { background:#eaf4fc; color:#1f65ad; border-color:#cbdfee; }
+.erp-layout--pearl .tasks-row:hover { background:#edf6fd; }
+.erp-layout--pearl .package-guide-editor { --guide-bg:#eff6fb; --guide-panel:#f8fcff; color:#19344e; }
+.erp-layout--pearl :is(.package-guide-editor-row,.package-guide-editor-list,.package-guide-notice:not(.package-guide-notice--error):not(.package-guide-notice--success)) { background:#edf6fd; border-color:#cbdfee; color:#28465e; }
+.erp-layout--pearl :is(.package-guide-editor-header > div > span,.package-guide-secondary,.package-guide-preview-label) { color:#1f65ad; }
+.erp-layout--pearl .package-guide-secondary { border-color:#bdd6e9; background:#f8fcff; }
+.erp-layout--pearl .package-guide-primary { background:#2676c9; border-color:#2676c9; }
+.erp-layout--pearl .package-guide-editor-footer { background:#f8fcff; border-color:#cbdfee; }
+
+/* Structural finance material only: keep income, expense and wallet identities. */
+.erp-layout.erp-layout--pearl .erp-main .fc-metric.profit { background: #eaf4fc; color:#19344e; }
+.erp-layout.erp-layout--pearl .erp-main .fc-metric.profit :is(.fc-money,.fc-metric-label) { color:#19344e; }
+.erp-layout.erp-layout--pearl .erp-main .fc-metric.profit > small { color:#506b81; }
+.erp-layout--pearl .fc-wallet { border-radius:18px; box-shadow:inset 0 1px #fff,0 8px 22px -17px #315d8045; }
+.erp-layout.erp-layout--pearl .erp-main .finance-clear-page .erp-page-hero__actions .fc-add-income { background:#087346 !important; border-color:#087346 !important; color:#fff !important; }
+.erp-layout.erp-layout--pearl .erp-main .finance-clear-page .erp-page-hero__actions .fc-add-expense { background:#b0273e !important; border-color:#b0273e !important; color:#fff !important; }
+
+/* Modal components remain in their existing stacking/focus/scroll containers. */
+.erp-layout.erp-layout--pearl :is(.erp-modal-overlay,.packages-modal,.requests-modal,.attendance-overlay,.project-overlay,.offer-modal,.receivables-backdrop) {
+  background: #14345266;
+  backdrop-filter: none;
+}
+.erp-layout.erp-layout--pearl .erp-main :is(
+  .modal-content,.erp-modal-content,.erp-modal,.packages-dialog,.requests-dialog,.project-dialog,
+  .offer-dialog,.attendance-drawer,.policy-modal,.correction-modal,.receivables-dialog,
+  .fc-record-dialog,.fc-receivables-dialog,.package-payment-dialog,.package-upgrade-dialog,
+  .package-whatsapp-dialog,.owner-package-center,.owner-action-dialog
+) { background:#f8fcff !important; color:#19344e; border-color:#bfd7e9 !important; box-shadow:var(--erp-shadow-raised) !important; }
+.erp-layout.erp-layout--pearl .erp-main :is(.attendance-drawer,.policy-modal,.correction-modal) > header { background:#eaf4fc; color:#19344e; border-bottom:1px solid #cbdfee; }
+.erp-layout.erp-layout--pearl .erp-main :is(.attendance-drawer,.policy-modal,.correction-modal) > header :is(h2,h3,button) { color:#19344e !important; }
+.erp-layout.erp-layout--pearl .erp-main :is(.attendance-drawer,.policy-modal,.correction-modal) > header :is(p,span) { color:#506b81 !important; }
+.erp-layout--pearl :is(input,select,textarea) { color-scheme:light; }
+.erp-layout.erp-layout--pearl .erp-main :is(input,select,textarea):focus { border-color:#2676c9 !important; box-shadow:0 0 0 3px #2676c919 !important; }
+.erp-layout.erp-layout--pearl :is(button,a,input,select,textarea,summary):focus-visible,
+.staff-pearl-portal :is(button,a,input,select,textarea):focus-visible { outline:3px solid #225da6 !important; outline-offset:3px; }
+.erp-layout--pearl .btn-outline-primary { border-color:#bdd6e9 !important; }
+.erp-layout--pearl .nav-tabs .nav-link.active { border-color:#bdd6e9 !important; }
+.erp-layout--pearl :is(.owner-notifications__bell,.owner-notifications__sound) { color:#1f65ad; border-color:#cbdfee; background:#ffffffd9; }
+.erp-layout--pearl .offcanvas-header.bg-dark { background:#eaf4fc !important; color:#19344e !important; border-color:#cbdfee !important; }
+.erp-layout--pearl .offcanvas-header :is(h5,button) { color:#19344e !important; }
+.erp-layout--pearl .offcanvas-header .text-white-50 { color:#506b81 !important; font-size:13px; }
+.erp-layout--pearl .offcanvas button { min-height:44px; }
+.erp-layout--pearl .offcanvas :is(.dismiss-alert,.btn-close,.offcanvas-header button) { min-width:44px; min-height:44px; }
+.erp-layout--pearl .offcanvas-header { padding:18px !important; gap:8px; }
+.erp-layout--pearl .offcanvas-header > .d-flex { flex:none; }
+.erp-layout--pearl .offcanvas .operational-alert h6 { padding-inline-end:32px; }
+.erp-layout--pearl .offcanvas-header .btn-close-white { filter:none; }
+.erp-layout.erp-layout--pearl .erp-main .erp-client-modal-content :is(h2,label) { color:#19344e !important; }
+.erp-layout.erp-layout--pearl .erp-main .erp-client-modal-content :is(input:not([type="checkbox"]),select,textarea) { background:#fff !important; color:#19344e !important; border-color:#bdd6e9 !important; }
+.erp-layout.erp-layout--pearl .erp-main .erp-client-modal-content .erp-client-modal-close { color:#19344e; }
+.erp-layout.erp-layout--pearl .erp-main .erp-client-modal-content .erp-client-modal-submit { background:#2676c9 !important; color:#fff !important; }
+
+/* Explicit opt-in for the two staff notification portals outside the shell. */
+.staff-pearl-portal { font-family:'Tajawal',sans-serif; font-size:14px; line-height:1.55; }
+.staff-pearl-portal :is(button,input,select,textarea) { font-family:inherit; font-size:14px; }
+.staff-pearl-portal.owner-notifications__backdrop { background:#14345266; backdrop-filter:none; }
+.staff-pearl-portal .owner-notifications__panel,
+.staff-pearl-portal.owner-notifications__toast { background:#f8fcff; border-color:#bfd7e9; color:#19344e; box-shadow:0 24px 70px #123b6930; }
+.staff-pearl-portal .owner-notifications__panel > header { background:#edf6fd; border-color:#cbdfee; }
+.staff-pearl-portal :is(h2,h3,strong) { color:#19344e; }
+.staff-pearl-portal :is(p,small) { color:#506b81; }
+.staff-pearl-portal button { min-height:44px; }
+.staff-pearl-portal.owner-notifications__toast > button { color:#19344e; }
+.staff-pearl-portal .owner-notifications__item strong { font-size:14px; }
+.staff-pearl-portal .owner-notifications__item small { font-size:13px; }
+.staff-pearl-portal .owner-notifications__item time { font-size:12px; color:#506b81; }
+.staff-pearl-portal :is(.owner-notifications__tabs,.owner-notifications__actions) { border-color:#cbdfee; }
+
+/* Fast interaction polish only; calendar drag/resize geometry remains untouched. */
+.erp-layout--pearl :is(.btn,.erp-nav-link,.erp-bottom-nav-item,.erp-page-hero__action,.erp-page-hero__actions > button,.erp-page-hero__actions > a,.erp-mobile-toggle-btn,.hover-elevate),
+.staff-pearl-portal button { transition:transform 140ms,opacity 140ms !important; }
+.erp-layout--pearl .erp-demo-banner__pulse { animation:none; box-shadow:none; }
+@media (max-width:992px) {
+  .erp-layout--pearl .erp-sidebar { background:#f8fcff; }
+  .erp-layout--pearl :is(.erp-nav-link,.erp-bottom-nav-item) { min-height:44px; }
+  .erp-layout.erp-layout--pearl .erp-main :is(button,.btn,select,input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])) { min-height:44px; }
+  .erp-layout--pearl .erp-bottom-nav-item { min-width:58px; }
+  .erp-layout--pearl .row-actions button { min-width:44px; }
+  .erp-layout--pearl :is(.client-crm-select-all,.client-crm-item__select) { min-width:44px; min-height:44px; }
+}
+@media (max-width:900px) {
+  .erp-layout--pearl .client-crm-item { grid-template-columns:44px minmax(0,1fr) auto; }
+}
+@media (max-width:680px) {
+  .erp-layout--pearl .client-crm-item { grid-template-columns:44px minmax(0,1fr); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .erp-layout--pearl *, .staff-pearl-portal * { transition:none !important; animation:none !important; scroll-behavior:auto !important; }
+}
+@media print {
+  .erp-layout.erp-layout--pearl { background:#fff; }
+}

@@ -12,6 +12,7 @@ import useChangeSync from '../hooks/useChangeSync';
 import OwnerNotifications from './OwnerNotifications';
 import './ERPLayout.css';
 import './ERPEnterpriseTheme.css';
+import './ERPStaffPearlTheme.css';
 
 const operationalAlertRoutes = {
   packages: staffPath('/packages'),
@@ -106,13 +107,13 @@ const ERPLayout = () => {
   };
 
   return (
-    <div className="erp-layout">
+    <div className="erp-layout erp-layout--pearl">
       {/* Mobile Header */}
       <div className="erp-mobile-header">
         <h4 style={{fontWeight: 'bold', margin: 0, color: 'var(--erp-text-main)'}}>Multi Task <span style={{color: 'var(--erp-primary)'}}>Agency</span></h4>
         <div style={{display: 'flex', gap: '8px'}}>
 
-          <button className="erp-mobile-toggle-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <button className="erp-mobile-toggle-btn" aria-label="قائمة التنقل" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(!sidebarOpen)}>
             <Menu size={20} color="var(--erp-text-main)" />
           </button>
         </div>

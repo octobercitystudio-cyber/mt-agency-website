@@ -98,7 +98,7 @@ export default function OwnerNotifications({ userId, onNavigate }) {
     </button>
     <OwnerLiveAlerts alerts={alerts} onOpen={openItem}/>
     <span className="owner-notifications__sr" aria-live="polite">{announcement}</span>
-    {open && createPortal(<div className="owner-notifications__backdrop" onMouseDown={event => event.target === event.currentTarget && close()}>
+    {open && createPortal(<div className="owner-notifications__backdrop staff-pearl-portal" onMouseDown={event => event.target === event.currentTarget && close()}>
       <section ref={dialogRef} id="owner-notification-center" className="owner-notifications__panel" role="dialog" aria-modal="true" aria-labelledby="owner-notifications-title">
         <header><div><span>مركز إجراءات العميل</span><h2 id="owner-notifications-title">الإشعارات الواردة</h2></div><button data-dialog-initial type="button" onClick={close} aria-label="إغلاق الإشعارات"><X/></button></header>
         <div className="owner-notifications__toolbar"><div role="tablist" aria-label="تصفية الإشعارات"><button type="button" role="tab" aria-selected={filter === 'unread'} onClick={() => setFilter('unread')}>غير المقروء</button><button type="button" role="tab" aria-selected={filter === 'all'} onClick={() => setFilter('all')}>الكل</button></div><button type="button" onClick={readAll} disabled={!unreadCount}><CheckCheck/> قراءة الكل</button></div>
