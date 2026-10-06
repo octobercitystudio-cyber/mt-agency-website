@@ -63,7 +63,7 @@ test('zero finance summary is stable and never produces NaN', () => {
 
 test('finance opens payment proof in a focused sheet while charts remain first at rest', async () => {
   const source = await readFile(new URL('../src/pages/ClientFinanceView.jsx', import.meta.url), 'utf8');
-  const proof = source.indexOf('className="client-payment-modal"');
+  const proof = source.search(/className="client-payment-modal(?:\s[^"]*)?"/);
   const overview = source.indexOf('<FinanceOverview');
   const packageDetails = source.indexOf('id="package-finance-title"');
 

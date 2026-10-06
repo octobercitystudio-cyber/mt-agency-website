@@ -45,6 +45,7 @@ import ClientSecuritySettings from './ClientSecuritySettings';
 import ClientBookingDialog from './ClientBookingDialog';
 import { isClientBookingVisible } from '../lib/clientBookingVisibility';
 import PromotionGiftLauncher from '../components/PromotionGiftLauncher';
+import './ClientPearlTheme.css';
 
 const STATUS_META = {
   pending: { label: 'بانتظار التأكيد', tone: 'waiting' },
@@ -458,7 +459,7 @@ export default function ClientDashboard() {
   if (loadError && !client) return <div className="client-state client-state--glance client-state--error" dir="rtl" role="alert"><XCircle /><h2>تعذر تحميل لوحة الحساب</h2><p>{loadError}</p><button onClick={() => fetchClientData()}>إعادة المحاولة</button></div>;
 
   return (
-    <div className={`client-app client-app--glance client-app--calm client-app--calm-${activeTab}${activeTab === 'home' ? ' client-app--calm-home' : ''}`} dir="rtl">
+    <div className={`client-app client-app--pearl client-app--glance client-app--calm client-app--calm-${activeTab}${activeTab === 'home' ? ' client-app--calm-home' : ''}`} dir="rtl">
       <aside className="client-sidebar">
         <div className="client-brand"><img src="/logo.webp" alt="شعار Multi Task Agency" /><div><strong>Multi Task</strong><span>Agency</span></div></div>
         <div className="glance-sidebar-client"><span className="glance-avatar" aria-hidden="true">{String(client?.name || currentUser?.full_name || 'ع').trim().charAt(0)}</span><div><strong>{client?.name || currentUser?.full_name}</strong><small>مساحتك الإبداعية</small></div></div>
@@ -529,7 +530,7 @@ export default function ClientDashboard() {
         )}
         {activeTab === 'requests' && <ClientStudioRequests/>}
         {activeTab === 'book-studio' && !paymentLocked && <ClientStudioBooking key={searchParams.get('service') || 'default'} initialServiceId={searchParams.get('service') || ''} onBookExisting={bookAppointment} onClose={() => navigateClient('home')} onRequests={() => navigateClient('requests')}/>}
-        <ClientSupport />
+        <ClientSupport compact />
       </main>
 
       {detailBookingId && detailBooking && <BookingDetailDialog booking={detailBooking} packageName={packages.find(pkg => Number(pkg.id) === Number(detailBooking.client_package_id))?.name} onClose={() => setDetailBookingId(null)}><BookingRow booking={detailBooking} onPay={() => { setDetailBookingId(null); selectPaymentTarget('package', overduePackages[0]?.id); }} session={sessionByBookingId.get(Number(detailBooking.id))} serverOffset={sessionServerOffset} busy={actionBusy} onAlternativeDecision={action => decideAlternative(detailBooking, action)} onReschedule={() => { setDetailBookingId(null); setReschedule({ ...initialReschedule, booking: detailBooking, date: detailBooking.date, start_time: normalizeTime(detailBooking.start_time), end_time: normalizeTime(detailBooking.end_time, { endOfDay: true }) }); }} onCancel={() => { setDetailBookingId(null); requestCancel(detailBooking); }}/></BookingDetailDialog>}
