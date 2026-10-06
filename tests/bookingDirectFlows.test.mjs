@@ -20,15 +20,13 @@ test('an unlinked active session previews all minutes as unassigned and links th
   const done=await demoClient.request('/bookings/991/session/complete',{method:'POST',body:JSON.stringify({actual_minutes:75,idempotency_key:'assign-direct-001',expected_session_version:preview.data.session_version,preview_hash:preview.data.preview_hash,settlement:{mode:'existing_package',target_package_id:992,target_package_version:1}})});assert.equal(done.error,null);db=database();assert.equal(db.bookings.find(row=>row.id===991).client_package_id,992);assert.equal(db.client_packages.find(row=>row.id===992).consumed_minutes,75);assert.equal(db.package_usage_ledger.filter(row=>Number(row.booking_id)===991&&row.movement_type==='consume').length,1);assert.equal(done.data.whatsapp_summary.package_id,992);
 });
 
-test('positive unlinked sessions reject every completion path that does not assign an eligible existing hour package',async()=>{
+test('unlinked sessions reject unsupported waiver, project and package overage modes',async()=>{
   let db=database();const source=db.bookings.find(row=>row.id===301);db.bookings.push({...source,id:993,client_package_id:null,service_id:null,service:'جلسة مباشرة غير مسندة',status:'in_progress',requested_quantity:2});db.booking_sessions.push({id:993,booking_id:993,client_id:1,status:'active',billing_unit:'hour',settlement_version:1,started_at:`${source.date} 12:00:00`,booking_held_quantity:0});db.client_packages.push({id:994,client_id:1,service_id:101,name:'باقة الإسناد الوحيدة',billing_unit:'hour',purchased_quantity:4,purchased_minutes:240,held_quantity:0,held_minutes:0,consumed_quantity:0,consumed_minutes:0,status:'active',starts_at:null,expires_at:null,validity_days_snapshot:90,validity_mode_snapshot:'rolling',version:1,total_price:0,paid_amount:0});writeDatabase(db);
   const preview=await demoClient.request('/bookings/993/session/settlement-preview',{method:'POST',body:JSON.stringify({actual_minutes:60})});assert.equal(preview.error,null);
   const forbidden=[
     {mode:'waive',internal_reason:'استثناء غير مسموح'},
-    {mode:'custom_invoice',description:'فاتورة بديلة',amount:'100'},
     {mode:'custom_project',name:'مشروع بديل',description:'خدمة بديلة',amount:'100'},
     {mode:'package_overage',hourly_rate:'100'},
-    {mode:'new_package',service_id:101,name:'باقة جديدة',purchased_minutes:60,validity_days:30,total_price:'0',initial_paid:'0',payment_method:'cash'},
   ];
   for(const [index,settlement] of forbidden.entries()){
     const result=await demoClient.request('/bookings/993/session/complete',{method:'POST',body:JSON.stringify({actual_minutes:60,idempotency_key:`reject-unassigned-${index}`,expected_session_version:preview.data.session_version,preview_hash:preview.data.preview_hash,settlement})});
@@ -37,7 +35,34 @@ test('positive unlinked sessions reject every completion path that does not assi
   db=database();assert.equal(db.bookings.find(row=>row.id===993).client_package_id,null);assert.equal(db.bookings.find(row=>row.id===993).status,'in_progress');assert.equal(db.session_settlements.some(row=>Number(row.booking_id)===993),false);assert.equal(db.package_usage_ledger.some(row=>Number(row.booking_id)===993),false);
 });
 
-test('production and stop-dialog contracts enforce package-only allocation for positive unlinked sessions',async()=>{
+test('unlinked sessions can finish with a new package or an individual invoice exactly once', async t => {
+  for (const mode of ['new_package', 'custom_invoice']) await t.test(mode, async () => {
+    resetDemoDatabase();
+    const db = database(); const source = db.bookings.find(row => row.id === 301);
+    db.bookings.push({ ...source, id: 995, client_package_id: null, service_id: null, service: 'جلسة مباشرة', status: 'in_progress' });
+    db.booking_sessions.push({ id: 995, booking_id: 995, client_id: 1, status: 'active', billing_unit: 'hour', settlement_version: 1, started_at: `${source.date} 12:00:00`, booking_held_quantity: 0 });
+    writeDatabase(db);
+    const preview = await demoClient.request('/bookings/995/session/settlement-preview', { method: 'POST', body: JSON.stringify({ actual_minutes: 165 }) });
+    assert.equal(preview.error, null);
+    const settlement = mode === 'new_package' ? { mode, service_id: 101, name: 'باقة الجلسة المباشرة', purchased_minutes: 240, validity_days: 30, total_price: '1000.00', initial_paid: '0.00', payment_method: 'cash' } : { mode, description: 'جلسة فردية', hourly_rate: '100.00', amount: '' };
+    const body = { actual_minutes: 165, idempotency_key: `direct-supported-${mode}`, expected_session_version: preview.data.session_version, preview_hash: preview.data.preview_hash, settlement };
+    const result = await demoClient.request('/bookings/995/session/complete', { method: 'POST', body: JSON.stringify(body) });
+    assert.equal(result.error, null);
+    const after = database(); assert.equal(after.bookings.find(row => row.id === 995).status, 'completed');
+    if (mode === 'new_package') {
+      const pkg = after.client_packages.find(row => row.id === result.data.target_package_id);
+      assert.equal(pkg.consumed_minutes, 165); assert.equal(pkg.purchased_minutes - pkg.consumed_minutes, 75);
+      assert.equal(after.bookings.find(row => row.id === 995).client_package_id, pkg.id);
+    } else {
+      assert.equal(Number(after.invoices.find(row => row.id === result.data.invoice_id).total), 275);
+      assert.equal(after.package_usage_ledger.some(row => Number(row.booking_id) === 995), false);
+    }
+    const replay = await demoClient.request('/bookings/995/session/complete', { method: 'POST', body: JSON.stringify(body) });
+    assert.equal(replay.error, null); assert.equal(database().session_settlements.filter(row => Number(row.booking_id) === 995).length, 1);
+  });
+});
+
+test('production and stop dialog allow existing package, new package and individual invoice settlement',async()=>{
   const [php,api,dialog,calendar,actions,view]=await Promise.all([
     readFile(new URL('../api/session_settlement.php',import.meta.url),'utf8'),
     readFile(new URL('../api/index.php',import.meta.url),'utf8'),
@@ -46,11 +71,9 @@ test('production and stop-dialog contracts enforce package-only allocation for p
     readFile(new URL('../src/erp/ERPBookingDayActionsDialog.jsx',import.meta.url),'utf8'),
     readFile(new URL('../src/erp/ERPBookingWideView.jsx',import.meta.url),'utf8'),
   ]);
-  assert.match(php,/\$requiresPackageAssignment&&\$mode!==['"]existing_package['"]/);assert.match(php,/unassigned_package_required/);
+  assert.ok(php.includes("$requiresPackageAssignment&&!in_array($mode,['existing_package','new_package','custom_invoice'],true)"));
   const directRoute=api.slice(api.indexOf("if ($path==='/studio-sessions/start-direct'"),api.indexOf("if (preg_match('#^/bookings/(\\d+)/session/settlement-preview$#'"));const hashExpression=directRoute.slice(directRoute.indexOf('$requestHash='),directRoute.indexOf(";$requestKey='direct-session:"));assert.match(hashExpression,/client_id.*resource_id.*date.*end_time.*title.*note/);assert.doesNotMatch(hashExpression,/start_time/);
-  const branchStart=dialog.indexOf(': isUnassigned ? <>',dialog.indexOf('isOperations ?'));
-  const branchEnd=dialog.indexOf(': <>',branchStart+1);const packageOnlyBranch=dialog.slice(branchStart,branchEnd);
-  assert.ok(branchStart>0&&branchEnd>branchStart);assert.match(packageOnlyBranch,/data-unassigned-package-only/);assert.match(packageOnlyBranch,/preview\.eligible_packages\.map/);assert.doesNotMatch(packageOnlyBranch,/new_package|package_overage|custom_invoice|custom_project|waive|SettlementChoice/);assert.match(dialog,/وقت غير مسند/);
+  assert.doesNotMatch(dialog, /data-unassigned-package-only/); assert.match(dialog, /وقت فردي بتكلفة مخصصة/); assert.match(dialog, /value="new_package"/); assert.match(dialog, /وقت غير مسند/);
   assert.match(calendar,/<ERPBookingWideView/);assert.match(view,/className="bookings-wide-mobile-dates"/);assert.match(view,/data\.block_note/);assert.doesNotMatch(view,/-webkit-line-clamp/);
   assert.match(actions,/وابدأ المؤقت الآن بدون باقة/);assert.doesNotMatch(actions,/المؤق الآن/);assert.match(actions,/aria-label="إغلاق"/);
 });

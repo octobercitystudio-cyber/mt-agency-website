@@ -96,6 +96,18 @@ test('new package consumes only excess and records income only for initial paid 
   const incomes = db.finance.filter(row => row.source_type === 'payment' && row.source_id === result.data.payment_id); assert.equal(incomes.length, 1); assert.equal(Number(incomes[0].amount), 200.1);
 });
 
+test('individual hourly cost bills only excess after exhausting the original package', async () => {
+  const preview = await startAndPreview(300);
+  const result = await complete(preview, 'individual-hourly-excess-001', { mode: 'custom_invoice', description: 'وقت تصوير فردي زائد', hourly_rate: '750.50', amount: '' });
+  assert.equal(result.error, null);
+  assert.equal(result.data.covered_minutes, 270);
+  assert.equal(result.data.excess_minutes, 30);
+  const db = database();
+  const source = db.client_packages.find(row => row.id === 201);
+  assert.equal(source.consumed_minutes, source.purchased_minutes);
+  assert.equal(Number(db.invoices.find(row => row.id === result.data.invoice_id).total), 375.25);
+});
+
 test('settlement money inputs reject exponent, excess precision, whitespace and overflow without mutation', async () => {
   const cases = [
     { mode: 'new_package', service_id: 101, name: 'رقم JSON مرفوض', purchased_minutes: 60, validity_days: 30, total_price: 1000, initial_paid: '0.00' },
