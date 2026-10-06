@@ -35,7 +35,7 @@ test('client summaries include pending renewal dues and authoritative minutes wi
   const credit = { ...current, id: 46, consumed_minutes: 1200, held_minutes: 0, paid_amount: '5000.00' };
   const summary = clientPackageWorkspaceSummary([current, next, anotherClient, reel, expired, suspended, credit], '7', todayKey);
   assert.equal(summary.totalCount, 6);
-  assert.equal(summary.activeCount, 4);
+  assert.equal(summary.activeCount, 3);
   assert.equal(summary.activeOutstandingCents, 250025);
   assert.equal(summary.availableHours, 21.75);
   assert.equal(summary.availableReels, 5);

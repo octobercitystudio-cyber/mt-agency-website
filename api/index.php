@@ -2347,6 +2347,16 @@ function authoritativePackageMinutes(array $package, string $name): int {
         : max(0,(int)round((float)($package[$quantityKey]??0)*60));
 }
 
+function effectiveSoldPackageStatus(array $package, string $today): string {
+    $status=(string)($package['status']??'');
+    if($status!=='active')return $status;
+    if(!empty($package['expires_at']) && substr((string)$package['expires_at'],0,10)<$today)return 'expired';
+    $hourly=($package['billing_unit']??'')==='hour';
+    $purchased=$hourly?authoritativePackageMinutes($package,'purchased'):max(0,(float)($package['purchased_quantity']??0));
+    $consumed=$hourly?authoritativePackageMinutes($package,'consumed'):max(0,(float)($package['consumed_quantity']??0));
+    return $purchased>0 && $consumed>=$purchased ? 'completed' : 'active';
+}
+
 function mutateLockedPackageQuantities(PDO $pdo, array $package, float $purchasedDelta=0, float $heldDelta=0, float $consumedDelta=0, bool $incrementVersion=false): array {
     $id=(int)$package['id'];$unit=(string)($package['billing_unit']??'');$versionSql=$incrementVersion?',version=version+1':'';
     if($unit==='hour'){
@@ -3151,7 +3161,7 @@ if (preg_match('#^/client-packages/(\d+)/details$#',$path,$m)&&$method==='GET') 
     $auditStmt->execute([$organizationId,$packageId,$packageId,$packageId]);$auditTimeline=$auditStmt->fetchAll();
 
     $totalCents=max(0,packageMoneyCents($package['total_price']));$overageCents=max(0,packageMoneyCents($package['overage_amount']));$paidCents=max(0,packageMoneyCents($package['paid_amount']));$outstandingCents=max(0,$totalCents+$overageCents-$paidCents);$creditCents=max(0,$paidCents-$totalCents-$overageCents);$legacyReconciliation=max(0,$paidCents-$directCents);
-    $purchased=max(0,(float)$package['purchased_quantity']);$consumed=$authoritativeConsumed;$held=max(0,(float)$package['held_quantity']);$remaining=max(0,$purchased-$consumed);$available=max(0,$remaining-$held);$calendarDays=!empty($package['expires_at'])?remainingPackageCalendarDays($package['expires_at'],$today):null;$effectiveStatus=$package['status']==='active'&&!empty($package['expires_at'])&&substr((string)$package['expires_at'],0,10)<$today?'expired':$package['status'];
+    $purchased=max(0,(float)$package['purchased_quantity']);$consumed=$authoritativeConsumed;$held=max(0,(float)$package['held_quantity']);$remaining=max(0,$purchased-$consumed);$available=max(0,$remaining-$held);$calendarDays=!empty($package['expires_at'])?remainingPackageCalendarDays($package['expires_at'],$today):null;$effectiveStatus=effectiveSoldPackageStatus($package,$today);
     respond([
       'package'=>['id'=>(int)$package['id'],'name'=>$package['name'],'notes'=>$package['notes'],'billing_unit'=>$package['billing_unit'],'status'=>$package['status'],'effective_status'=>$effectiveStatus,'version'=>(int)($package['version']??1),'validity_mode_snapshot'=>$package['validity_mode_snapshot']??'rolling','validity_days_snapshot'=>(int)($package['validity_days_snapshot']??1),'payment_due_quantity'=>(float)$package['payment_due_quantity'],'payment_due_minutes'=>$package['billing_unit']==='hour'?authoritativePackageMinutes($package,'payment_due'):null,'deposit_percent_snapshot'=>(float)$package['deposit_percent_snapshot'],'overage_price_snapshot'=>packageMoney(packageMoneyCents($package['overage_price_snapshot'])),'source_invoice_id'=>$package['source_invoice_id']?(int)$package['source_invoice_id']:null,'invoice_number'=>$package['invoice_number'],'client'=>['id'=>(int)$package['client_id'],'name'=>$package['client_name'],'phone'=>$package['client_phone']],'service'=>['id'=>(int)$package['service_id'],'name'=>$package['service_name']]],
       'financial'=>['total_price'=>packageMoney($totalCents),'paid_amount'=>packageMoney($paidCents),'overage_amount'=>packageMoney($overageCents),'outstanding'=>packageMoney($outstandingCents),'customer_credit'=>packageMoney($creditCents),'payment_progress_percent'=>$totalCents+$overageCents>0?min(100,round(($paidCents/($totalCents+$overageCents))*100,1)):100,'exact_allocated_total'=>packageMoney($directCents),'legacy_reconciliation_amount'=>packageMoney($legacyReconciliation),'has_legacy_reconciliation'=>$legacyReconciliation>0,'invoice_package_count'=>$invoicePackageCount],

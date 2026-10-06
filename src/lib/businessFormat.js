@@ -91,8 +91,9 @@ export const splitDurationMinutes = value => {
 };
 
 export const packageDurationMinutes = (pkg, kind) => {
-  const minuteValue = Number(pkg?.[`${kind}_minutes`]);
-  if (Number.isSafeInteger(minuteValue) && minuteValue >= 0) return minuteValue;
+  const rawMinutes = pkg?.[`${kind}_minutes`];
+  const minuteValue = Number(rawMinutes);
+  if (rawMinutes != null && rawMinutes !== '' && Number.isSafeInteger(minuteValue) && minuteValue >= 0) return minuteValue;
   return durationHoursToMinutes(pkg?.[`${kind}_quantity`]);
 };
 
@@ -176,9 +177,14 @@ export const remainingCalendarDays = (expiresAt, todayKey = cairoDateKey()) => {
   return Math.floor((expiry.getTime() - today.getTime()) / 86400000) + 1;
 };
 
-export const effectivePackageStatus = (pkg, todayKey = cairoDateKey()) => (
-  pkg?.status === 'active' && pkg?.expires_at && String(pkg.expires_at).slice(0, 10) < todayKey ? 'expired' : pkg?.status
-);
+export const effectivePackageStatus = (pkg, todayKey = cairoDateKey()) => {
+  if (pkg?.status !== 'active') return pkg?.status;
+  if (pkg.expires_at && String(pkg.expires_at).slice(0, 10) < todayKey) return 'expired';
+  const { purchased, consumed } = packageQuantitySummary(pkg);
+  // Held hours belong to future sessions and do not mean a package is used up.
+  if (purchased > 0 && consumed >= purchased) return 'completed';
+  return 'active';
+};
 
 export const formatDurationMinutes = (totalMinutes, { compact = false } = {}) => {
   const { hours, minutes } = splitDurationMinutes(totalMinutes);

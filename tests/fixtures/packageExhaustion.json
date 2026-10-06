@@ -1,0 +1,16 @@
+[
+  {"name":"fully consumed hours", "package":{"billing_unit":"hour","purchased_minutes":600,"consumed_minutes":600},"expected":"completed"},
+  {"name":"overconsumed legacy balance", "package":{"billing_unit":"hour","purchased_quantity":10,"consumed_quantity":12},"expected":"completed"},
+  {"name":"one minute left", "package":{"billing_unit":"hour","purchased_minutes":600,"consumed_minutes":599},"expected":"active"},
+  {"name":"all remaining hours held", "package":{"billing_unit":"hour","purchased_minutes":600,"consumed_minutes":540,"held_minutes":60},"expected":"active"},
+  {"name":"all hours held and none consumed", "package":{"billing_unit":"hour","purchased_minutes":600,"consumed_minutes":0,"held_minutes":600},"expected":"active"},
+  {"name":"authoritative minutes override old quantities", "package":{"billing_unit":"hour","purchased_minutes":600,"consumed_minutes":600,"purchased_quantity":99,"consumed_quantity":0},"expected":"completed"},
+  {"name":"null minutes fall back to legacy quantities", "package":{"billing_unit":"hour","purchased_minutes":null,"consumed_minutes":null,"purchased_quantity":10,"consumed_quantity":10},"expected":"completed"},
+  {"name":"real zero minutes override old quantity", "package":{"billing_unit":"hour","purchased_minutes":600,"consumed_minutes":0,"consumed_quantity":10},"expected":"active"},
+  {"name":"exhausted reels", "package":{"billing_unit":"reel","purchased_quantity":8,"consumed_quantity":8},"expected":"completed"},
+  {"name":"renewal not yet activated", "package":{"billing_unit":"hour","purchased_minutes":600,"consumed_minutes":0,"expires_at":null},"expected":"active"},
+  {"name":"zero package is not falsely completed", "package":{"billing_unit":"hour","purchased_minutes":0,"consumed_minutes":0},"expected":"active"},
+  {"name":"expired date keeps precedence", "package":{"billing_unit":"hour","purchased_minutes":600,"consumed_minutes":600,"expires_at":"2026-10-05"},"expected":"expired"},
+  {"name":"explicit suspension preserved", "package":{"status":"suspended","purchased_quantity":8,"consumed_quantity":8},"expected":"suspended"},
+  {"name":"explicit cancellation preserved", "package":{"status":"cancelled","purchased_quantity":8,"consumed_quantity":8},"expected":"cancelled"}
+]
