@@ -1,13 +1,14 @@
 import { dataClient } from '../dataClient';
 import { dispatchStudioSessionUpdates } from './studioSessionEvents';
 
-export async function completeStudioSession(session, { actualMinutes, actualReels = 0, reason = '', settlement = null, idempotencyKey = '', previewHash = '', expectedSessionVersion = null }) {
+export async function completeStudioSession(session, { actualMinutes, actualReels = 0, reason = '', settlement = null, idempotencyKey = '', previewHash = '', expectedSessionVersion = null, excludeFromPostProduction = false }) {
   if (!session?.booking_id) throw new Error('جلسة التصوير غير مرتبطة بحجز صالح.');
   const { data, error } = await dataClient.request(`/bookings/${session.booking_id}/session/complete`, {
     method: 'POST',
     body: JSON.stringify({
       actual_minutes: actualMinutes,
       actual_reels: actualReels,
+      exclude_from_post_production: excludeFromPostProduction,
       reason: reason.trim(),
       settlement,
       idempotency_key: idempotencyKey,

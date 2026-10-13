@@ -44,7 +44,21 @@ foreach([['status'=>'cancelled','actual_seconds'=>0],['status'=>'completed','act
 }
 check(countRows($pdo,'post_production_status_history')===0,'Rejected jobs create no status history');
 $completed=['id'=>2,'status'=>'completed','actual_seconds'=>60];
+check(createPostProductionJobForCompletedSession($pdo,$owner,['id'=>2,'client_id'=>10],$completed+['exclude_from_post_production'=>1])===null,'Charged positive duration can explicitly skip editing');
+check(sessionPostProductionExcluded([])===false,'Editing stays enabled by default');
+failure('invalid_post_production_choice',fn()=>sessionPostProductionExcluded(['exclude_from_post_production'=>'false']));
 $jobId=createPostProductionJobForCompletedSession($pdo,$owner,['id'=>2,'client_id'=>10],$completed);
 check($jobId>0,'A real one-minute session still creates an editing job');
 check(createPostProductionJobForCompletedSession($pdo,$owner,['id'=>2,'client_id'=>10],$completed)===$jobId && countRows($pdo,'post_production_jobs')===1,'Real completion remains idempotent');
+$pdo->exec("INSERT INTO booking_sessions(id,organization_id,booking_id,status,actual_seconds,billable_quantity) VALUES(2,1,2,'completed',10800,3)");
+$payload=['exclude_from_post_production'=>true,'expected_version'=>1,'reason'=>'العميل لم يحضر الجلسة'];
+failure('forbidden',fn()=>setExistingSessionEditingExclusion($pdo,array_replace($owner,['role'=>'operations']),$jobId,$payload));
+failure('post_production_not_found',fn()=>setExistingSessionEditingExclusion($pdo,array_replace($owner,['organization_id'=>2]),$jobId,$payload));
+failure('post_production_version_conflict',fn()=>setExistingSessionEditingExclusion($pdo,$owner,$jobId,array_replace($payload,['expected_version'=>9])));
+check(setExistingSessionEditingExclusion($pdo,$owner,$jobId,$payload)['excluded'],'Owner may exclude an already charged no-show');
+$saved=$pdo->query('SELECT * FROM booking_sessions WHERE id=2')->fetch();
+check((int)$saved['actual_seconds']===10800 && (float)$saved['billable_quantity']===3.0 && $saved['status']==='completed','Excluding editing does not change recorded duration or billed quantity');
+check(setExistingSessionEditingExclusion($pdo,$owner,$jobId,$payload)['idempotent'],'Exclusion retry is idempotent');
+check(!setExistingSessionEditingExclusion($pdo,$owner,$jobId,array_replace($payload,['exclude_from_post_production'=>false,'expected_version'=>2]))['excluded'],'Owner can restore editing without deleting data');
+check($pdo->query('SELECT * FROM client_packages WHERE id=1')->fetch()===$pkg,'Existing exclusion and restoration never change package balances');
 echo "$checks zero-duration production checks passed\n";

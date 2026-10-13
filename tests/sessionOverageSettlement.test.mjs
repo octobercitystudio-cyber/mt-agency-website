@@ -26,6 +26,25 @@ const completeBooking = (bookingId, preview, key, settlement, extra = {}) => dem
 test.beforeEach(() => { storage.clear(); activateDemoMode('owner'); resetDemoDatabase(); });
 test.afterEach(() => deactivateDemoMode());
 
+test('explicit no-editing completion charges time and remains idempotent without creating deliveries', async () => {
+  const preview = await startAndPreview(180);
+  const before = database();
+  const finish = excluded => demoClient.request('/bookings/301/session/complete', { method: 'POST', body: JSON.stringify({ actual_minutes: preview.actual_minutes, idempotency_key: 'no-editing-session', exclude_from_post_production: excluded }) });
+  const result = await finish(true);
+  assert.equal(result.error, null);
+  assert.equal(result.data.status, 'completed');
+  assert.equal(result.data.exclude_from_post_production, true);
+  assert.equal(result.data.post_production_job_id, null);
+  const after = database();
+  assert.equal(after.post_production_jobs.length, before.post_production_jobs.length);
+  assert.equal(after.booking_sessions.find(s => s.booking_id === 301).actual_seconds, 10800);
+  assert.equal(after.client_packages.find(p => p.id === 201).consumed_minutes, before.client_packages.find(p => p.id === 201).consumed_minutes + 180);
+  const retry = await finish(true);
+  assert.equal(retry.data.idempotent_replay, true);
+  assert.equal((await finish(false)).error.code, 'idempotency_payload_mismatch');
+  assert.deepEqual(database(), after);
+});
+
 test('preview uses current hold plus free original balance but never future holds', async () => {
   const preview = await startAndPreview(300);
   assert.equal(preview.held_for_booking_minutes, 120);

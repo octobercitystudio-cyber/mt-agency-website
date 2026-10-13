@@ -115,6 +115,12 @@ try {
  file_put_contents($file,'invalid');
  rejected(fn()=>readPickupAvailability($config,1,1),'pickup_runtime_invalid');
  $pdo->exec('UPDATE booking_sessions SET actual_seconds=0 WHERE id=1');
+ $pdo->exec('UPDATE booking_sessions SET exclude_from_post_production=1 WHERE id=2');
+ check(postProductionRows($pdo,$config,['organization_id'=>1,'client_id'=>22],true)===[],'Excluded positive-duration session is hidden from client deliveries');
+ $_GET=['status'=>'all','include_excluded'=>'1'];
+ check(postProductionRows($pdo,$config,['organization_id'=>1,'role'=>'operations'],false)===[],'Operations cannot bypass exclusion using owner query');
+ check(array_column(postProductionRows($pdo,$config,['organization_id'=>1,'role'=>'owner'],false),'id')===[2],'Owner can explicitly retrieve excluded jobs for restoration');
+ $pdo->exec('UPDATE booking_sessions SET exclude_from_post_production=0 WHERE id=2');
  check(postProductionRows($pdo,$config,$user,true)===[],'Explicit zero-duration legacy job is hidden from client deliveries');
  $_GET=['status'=>'all'];
  $staffRows=postProductionRows($pdo,$config,['organization_id'=>1],false);

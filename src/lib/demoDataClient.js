@@ -978,7 +978,7 @@ const demoPostProductionNotification = status => ({
   ready_for_pickup: ['ready_for_pickup', 'الفيديوهات جاهزة للاستلام من الشركة', 'راجع جدول الاستلام الأسبوعي أعلى صفحة تسليمات الفيديوهات.', 'videos', 'success'],
 })[status] || null;
 const demoEnsurePostProductionJob = (database, booking, session) => {
-  if (session.status !== 'completed' || !(Number(session.actual_seconds) > 0)) return null;
+  if (session.exclude_from_post_production || session.status !== 'completed' || !(Number(session.actual_seconds) > 0)) return null;
   const existing = tableRows(database, 'post_production_jobs').find(row => Number(row.booking_session_id) === Number(session.id) || Number(row.booking_id) === Number(booking.id));
   if (existing) return existing;
   const job = addRow(database, 'post_production_jobs', { booking_session_id: Number(session.id), booking_id: Number(booking.id), client_id: Number(booking.client_id), status: 'editing_in_progress', version: 1, status_changed_at: nowText(), needs_review: 0, is_client_visible: 1, created_by: Number(demoUserId || 1), updated_by: Number(demoUserId || 1) });
@@ -1009,10 +1009,10 @@ const demoCompanyPickupSchedule = database => {
   const stored = JSON.parse(row.value);
   return { revision: stored.revision, ...validateCompanyPickupSchedule(stored), updated_at: stored.updated_at ?? null };
 };
-const demoPostProductionRows = (database, clientOnly = false) => tableRows(database, 'post_production_jobs')
+const demoPostProductionRows = (database, clientOnly = false, includeExcluded = false) => tableRows(database, 'post_production_jobs')
   .filter(job => {
     const session = tableRows(database, 'booking_sessions').find(row => Number(row.id) === Number(job.booking_session_id));
-    return session && (session.actual_seconds == null || Number(session.actual_seconds) > 0);
+    return session && (session.actual_seconds == null || Number(session.actual_seconds) > 0) && ((!clientOnly && includeExcluded && demoRole === 'owner') || !Number(session.exclude_from_post_production));
   })
   .filter(job => !clientOnly || Number(job.client_id) === currentDemoClientId(database) && Number(job.is_client_visible) === 1 && Number(job.needs_review) === 0)
   .map(job => {
@@ -1021,7 +1021,7 @@ const demoPostProductionRows = (database, clientOnly = false) => tableRows(datab
     const links = tableRows(database, 'video_delivery_links').filter(row => { const publishedAt = new Date(row.published_at || 0).getTime(); return Number(row.post_production_job_id) === Number(job.id) && (!clientOnly || ['upload_completed', 'delivered'].includes(job.status) && Number(row.is_active) === 1 && Boolean(row.published_at) && Number.isFinite(publishedAt) && publishedAt + 48 * 60 * 60 * 1000 > Date.now()); }).sort((a, b) => Number(a.sort_order) - Number(b.sort_order)).map(link => ({ ...clone(link), available_until: link.published_at ? new Date(new Date(link.published_at).getTime() + 48 * 60 * 60 * 1000).toISOString() : null }));
     const publicFields = { id: Number(job.id), booking_id: Number(job.booking_id), status: job.status, status_changed_at: job.status_changed_at, session_date: booking.date, start_time: booking.start_time, end_time: booking.end_time, service: booking.service, client_package_id: booking.client_package_id || null, package_name: pkg?.name || null, actual_seconds: Number(session.actual_seconds || booking.actual_seconds || 0), status_label: demoPostProductionLabel(job.status), delivery_link_count: links.filter(link => Number(link.is_active) === 1).length, delivery_links: clone(links) };
     const result = clientOnly ? publicFields : { ...clone(job), ...publicFields, client_name: client.name || booking.client_name || '' };
-    if (!clientOnly) { result.valid_next_statuses = demoPostProductionNext(job.status); result.history = clone(history); }
+    if (!clientOnly) { result.exclude_from_post_production = Number(session.exclude_from_post_production || 0); result.valid_next_statuses = demoPostProductionNext(job.status); result.history = clone(history); }
     return result;
   }).sort((a, b) => `${b.session_date || ''}${b.start_time || ''}`.localeCompare(`${a.session_date || ''}${a.start_time || ''}`));
 
@@ -1512,10 +1512,12 @@ const expireDemoShootingPackageAfterSession = (database, pkg, booking, ended) =>
 };
 
 const demoSettleAndComplete = (database, bookingId, body) => {
+  if (body.exclude_from_post_production !== undefined && typeof body.exclude_from_post_production !== 'boolean') throw formationDemoError('اختيار المونتاج غير صحيح.', 'invalid_post_production_choice');
+  const excludePostProduction = body.exclude_from_post_production === true;
   if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لإيقاف جلسة التصوير.', 'forbidden');
   const actual = Number(body.actual_minutes); if (!Number.isSafeInteger(actual) || actual < 0) throw formationDemoError('حدد مدة تصوير صحيحة بالدقائق.', 'invalid_actual_duration');
   const key = String(body.idempotency_key || '').trim();
-  const requestHash = demoSettlementHash({ booking_id: Number(bookingId), actual_minutes: actual, actual_reels: Number(body.actual_reels || 0), reason: String(body.reason || '').trim(), expected_session_version: Number(body.expected_session_version || 0), preview_hash: String(body.preview_hash || ''), settlement: body.settlement || null });
+  const requestHash = demoSettlementHash({ ...(excludePostProduction ? { exclude_from_post_production: true } : {}), booking_id: Number(bookingId), actual_minutes: actual, actual_reels: Number(body.actual_reels || 0), reason: String(body.reason || '').trim(), expected_session_version: Number(body.expected_session_version || 0), preview_hash: String(body.preview_hash || ''), settlement: body.settlement || null });
   const priorKey = tableRows(database, 'session_settlements').find(row => row.idempotency_key === key && key);
   if (priorKey) { if (priorKey.request_hash !== requestHash) throw formationDemoError('تم استخدام مفتاح الاعتماد نفسه ببيانات مختلفة.', 'idempotency_payload_mismatch'); return clone({ ...priorKey.response, idempotent_replay: true }); }
   const booking = findById(database, 'bookings', bookingId); if (!booking) throw formationDemoError('الحجز غير موجود.', 'booking_not_found');
@@ -1570,10 +1572,10 @@ const demoSettleAndComplete = (database, bookingId, body) => {
   if (targetPackage && ['new_package', 'existing_package'].includes(mode)) { const purchasedMinutes = demoPackageMinutes(targetPackage, 'purchased'); const heldMinutes = demoPackageMinutes(targetPackage, 'held'); const consumedMinutes = demoPackageMinutes(targetPackage, 'consumed') + excess; if (consumedMinutes + heldMinutes > purchasedMinutes) throw formationDemoError('رصيد الباقة المستهدفة لم يعد كافيًا.', 'settlement_balance_changed'); Object.assign(targetPackage, { purchased_minutes: purchasedMinutes, consumed_minutes: consumedMinutes, held_minutes: heldMinutes, purchased_quantity: demoSettlementHours(purchasedMinutes), consumed_quantity: demoSettlementHours(consumedMinutes), held_quantity: demoSettlementHours(heldMinutes), version: Number(targetPackage.version || 1) + 1 }); addRow(working, 'package_usage_ledger', { client_package_id: targetPackage.id, booking_id: workBooking.id, movement_type: 'consume', quantity: demoSettlementHours(excess), quantity_minutes: excess, reason: 'تسوية وقت تصوير زائد', event_key: `settlement:${header.id}:target`, created_by: 1 }); if (!original) Object.assign(workBooking, { client_package_id: targetPackage.id, service_id: serviceId, service: targetPackage.name }); }
   if (preview.requires_package_assignment && mode !== 'custom_invoice' && !workBooking.client_package_id) throw formationDemoError('لا يمكن إكمال جلسة بوقت غير مسند إلى باقة.', 'unassigned_package_required');
   const ended = nowText();
-  Object.assign(workBooking, { status: 'completed', timer_ended_at: ended, actual_seconds: actual * 60, actual_hours: demoSettlementHours(actual), actual_reels: reels, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), overage_quantity: demoSettlementHours(excess), overage_amount: mode === 'package_overage' ? centsToMoney(dueCents) : 0 }); Object.assign(session, { status: 'completed', ended_at: ended, actual_seconds: actual * 60, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), adjustment_reason: String(body.reason || '').trim(), settlement_version: Number(session.settlement_version || 1) + 1 });
+  Object.assign(workBooking, { status: 'completed', timer_ended_at: ended, actual_seconds: actual * 60, actual_hours: demoSettlementHours(actual), actual_reels: reels, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), overage_quantity: demoSettlementHours(excess), overage_amount: mode === 'package_overage' ? centsToMoney(dueCents) : 0 }); Object.assign(session, { exclude_from_post_production: excludePostProduction, status: 'completed', ended_at: ended, actual_seconds: actual * 60, billable_quantity: unit === 'reel' ? reels : demoSettlementHours(billableMinutes), adjustment_reason: String(body.reason || '').trim(), settlement_version: Number(session.settlement_version || 1) + 1 });
   for (const pkg of new Set([original, targetPackage])) expireDemoShootingPackageAfterSession(working, pkg, workBooking, ended);
   const postProductionJob = demoEnsurePostProductionJob(working, workBooking, session);
-  const response = { booking_id: workBooking.id, session_id: session.id, settlement_id: header.id, post_production_job_id: postProductionJob.id, status: 'completed', actual_minutes: actual, complimentary_seconds: Math.max(0, Number(sourceSession.complimentary_seconds || 0)), covered_minutes: covered, excess_minutes: excess, billable_minutes: billableMinutes, waived_minutes: waived, settlement_mode: mode, target_package_id: targetPackage?.id || null, invoice_id: invoice?.id || null, project_id: project?.id || null, payment_id: payment?.id || null, amount_due: centsToMoney(dueCents), amount_paid: centsToMoney(paidCents), billing_unit: unit, whatsapp_summary: demoSessionPackageWhatsAppSummary(working, workBooking, targetPackage || original, actual, reels) }; demoAudit(working, 'session_settle_and_complete', 'booking_sessions', session.id, sourceSession, { ...response, client_id: workBooking.client_id }); header.response = clone(response); writeDatabase(working); return clone(response);
+  const response = { booking_id: workBooking.id, session_id: session.id, settlement_id: header.id, post_production_job_id: postProductionJob?.id ?? null, exclude_from_post_production: excludePostProduction, status: 'completed', actual_minutes: actual, complimentary_seconds: Math.max(0, Number(sourceSession.complimentary_seconds || 0)), covered_minutes: covered, excess_minutes: excess, billable_minutes: billableMinutes, waived_minutes: waived, settlement_mode: mode, target_package_id: targetPackage?.id || null, invoice_id: invoice?.id || null, project_id: project?.id || null, payment_id: payment?.id || null, amount_due: centsToMoney(dueCents), amount_paid: centsToMoney(paidCents), billing_unit: unit, whatsapp_summary: demoSessionPackageWhatsAppSummary(working, workBooking, targetPackage || original, actual, reels) }; demoAudit(working, 'session_settle_and_complete', 'booking_sessions', session.id, sourceSession, { ...response, client_id: workBooking.client_id }); header.response = clone(response); writeDatabase(working); return clone(response);
 };
 
 const deleteDemoBooking = (database, bookingId) => {
@@ -2543,12 +2545,25 @@ const demoRequest = async (path, options = {}) => {
     addRow(working, 'change_events', { organization_id: demoOrganizationId, client_id: null, topic: 'post_production', entity_type: 'pickup_schedule', entity_id: demoOrganizationId, action: 'pickup_schedule_updated' });
     writeDatabase(working); return { ...next, idempotent: false };
   }
+  if ((match = route.match(/^\/owner\/post-production\/(\d+)\/editing-exclusion$/)) && options.method === 'POST') {
+    requireDemoOwner();
+    if (typeof body.exclude_from_post_production !== 'boolean' || String(body.reason || '').trim().length < 5) throw formationDemoError('حدد الاختيار وسبب التعديل بوضوح.', 'invalid_editing_exclusion');
+    const working = clone(database); const job = findById(working, 'post_production_jobs', match[1]);
+    if (!job) throw formationDemoError('جلسة المونتاج غير موجودة.', 'post_production_not_found');
+    const session = tableRows(working, 'booking_sessions').find(s => Number(s.id) === Number(job.booking_session_id));
+    if (!session) throw formationDemoError('جلسة التصوير غير موجودة.', 'session_not_found');
+    if (Boolean(Number(session.exclude_from_post_production)) === body.exclude_from_post_production) return { id: job.id, excluded: body.exclude_from_post_production, idempotent: true };
+    if (Number(job.version) !== Number(body.expected_version)) throw formationDemoError('تغيّرت الجلسة. حدّث الصفحة.', 'post_production_version_conflict');
+    const before = clone(session); session.exclude_from_post_production = Number(body.exclude_from_post_production); job.version = Number(job.version) + 1;
+    demoAudit(working, 'session_editing_exclusion', 'booking_sessions', session.id, before, { ...session, reason: body.reason }); writeDatabase(working);
+    return { id: job.id, excluded: body.exclude_from_post_production, idempotent: false };
+  }
   if (route === '/post-production' && (options.method || 'GET') === 'GET') {
     if (!['owner', 'admin', 'operations'].includes(demoRole)) throw formationDemoError('ليس لديك صلاحية لعرض المونتاج.', 'forbidden');
     const requested = url.searchParams.get('status') || 'editing_in_progress,editing_completed,uploading,upload_completed,ready_for_pickup'; const allowed = requested === 'all' ? null : requested.split(',').filter(status => DEMO_POST_PRODUCTION_STATUSES.includes(status));
     if (requested !== 'all' && !allowed.length) throw formationDemoError('فلتر حالة المونتاج غير صحيح.', 'invalid_post_production_status_filter');
     const clientFilter = Number(url.searchParams.get('client_id') || 0); const search = String(url.searchParams.get('search') || '').trim().toLocaleLowerCase('ar');
-    const items = demoPostProductionRows(database, false).filter(item => (!allowed || allowed.includes(item.status)) && (!clientFilter || Number(item.client_id) === clientFilter) && (!search || `${item.client_name} ${item.service} ${item.package_name || ''} ${item.booking_id}`.toLocaleLowerCase('ar').includes(search)));
+    const items = demoPostProductionRows(database, false, url.searchParams.get('include_excluded') === '1').filter(item => (!allowed || allowed.includes(item.status)) && (!clientFilter || Number(item.client_id) === clientFilter) && (!search || `${item.client_name} ${item.service} ${item.package_name || ''} ${item.booking_id}`.toLocaleLowerCase('ar').includes(search)));
     return { items, statuses: clone(DEMO_POST_PRODUCTION_STATUSES), server_now: nowIso() };
   }
   if (route === '/client/post-production' && (options.method || 'GET') === 'GET') {

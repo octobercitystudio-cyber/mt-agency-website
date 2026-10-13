@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/pickup_schedule.php';
 require_once __DIR__.'/delivery_link_pinning.php';
+require_once __DIR__.'/session_post_production.php';
 
 const POST_PRODUCTION_STATUSES = [
     'editing_in_progress', 'editing_completed', 'uploading',
@@ -19,6 +20,7 @@ function requirePostProductionSchema(PDO $pdo): void {
         fail('يلزم تشغيل تحديث قاعدة البيانات رقم 031 لتفعيل المونتاج والتسليم.', 503, 'post_production_migration_required');
     }
     ensureDeliveryLinkPinSchema($pdo);
+    ensureSessionPostProductionSchema($pdo);
 }
 
 /**
@@ -28,7 +30,7 @@ function requirePostProductionSchema(PDO $pdo): void {
  */
 function createPostProductionJobForCompletedSession(PDO $pdo, array $user, array $booking, array $session): ?int {
     // An elapsed timer is not evidence of filming: use the approved duration.
-    if (($session['status'] ?? '') !== 'completed' || (int)($session['actual_seconds'] ?? 0) <= 0) return null;
+    if (!empty($session['exclude_from_post_production']) || ($session['status'] ?? '') !== 'completed' || (int)($session['actual_seconds'] ?? 0) <= 0) return null;
     if (!postProductionSchemaReady($pdo)) return null;
     $stmt = $pdo->prepare(
         "INSERT IGNORE INTO post_production_jobs
@@ -87,10 +89,12 @@ function postProductionNotification(string $status): ?array {
 }
 
 function postProductionRows(PDO $pdo, array $config, array $user, bool $clientOnly): array {
+    ensureSessionPostProductionSchema($pdo);
     $organizationId = (int)$user['organization_id'];
     // Keep unknown legacy durations reviewable, but never expose an explicit zero.
     $where = ['j.organization_id=?', '(bs.actual_seconds IS NULL OR bs.actual_seconds>0)'];
     $params = [$organizationId];
+    if ($clientOnly || ($user['role']??'')!=='owner' || ($_GET['include_excluded']??'')!=='1') $where[]='bs.exclude_from_post_production=0';
     if ($clientOnly) {
         $where[] = 'j.client_id=?'; $params[] = (int)$user['client_id'];
         $where[] = 'j.is_client_visible=1'; $where[] = 'j.needs_review=0';
@@ -113,7 +117,7 @@ function postProductionRows(PDO $pdo, array $config, array $user, bool $clientOn
     $sql = "SELECT j.id,j.booking_session_id,j.booking_id,j.client_id,j.status,j.version,j.status_changed_at,
                    j.needs_review,j.is_client_visible,j.created_at,j.updated_at,
                    c.name AS client_name,b.date AS session_date,b.start_time,b.end_time,b.service,
-                   b.client_package_id,cp.name AS package_name,bs.actual_seconds,bs.started_at,bs.ended_at,
+                   b.client_package_id,cp.name AS package_name,bs.actual_seconds,bs.started_at,bs.ended_at,bs.exclude_from_post_production,
                    (SELECT COUNT(*) FROM video_delivery_links l WHERE l.post_production_job_id=j.id AND l.organization_id=j.organization_id AND l.is_active=1) AS delivery_link_count,
                    (SELECT COUNT(*) FROM video_delivery_links l WHERE l.post_production_job_id=j.id AND l.organization_id=j.organization_id AND l.is_active=1 AND l.published_at IS NULL) AS unpublished_link_count
             FROM post_production_jobs j
@@ -256,9 +260,11 @@ function readPickupAvailability(array $config, int $organizationId, int $jobId, 
 }
 
 function postProductionPickupJob(PDO $pdo, array $user, int $jobId, bool $clientAccess): array {
+    ensureSessionPostProductionSchema($pdo);
     $where = ['id=?','organization_id=?'];
     $params = [$jobId,(int)$user['organization_id']];
     if ($clientAccess) {
+        $where[]='EXISTS (SELECT 1 FROM booking_sessions bs WHERE bs.id=post_production_jobs.booking_session_id AND bs.organization_id=post_production_jobs.organization_id AND bs.exclude_from_post_production=0)';
         $where[] = 'client_id=?'; $params[] = (int)$user['client_id'];
         $where[] = 'is_client_visible=1'; $where[] = 'needs_review=0';
     }
@@ -293,6 +299,10 @@ function validatePickupPayload(array $payload): array {
 }
 
 function handlePostProductionRoutes(PDO $pdo, array $config, ?array $sessionUser, string $path, string $method): bool {
+    if (preg_match('#^/owner/post-production/(\d+)/editing-exclusion$#',$path,$m) && $method==='POST') {
+        $user=requireUser($sessionUser);requireRole($user,['owner']);requirePostProductionSchema($pdo);
+        respond(setExistingSessionEditingExclusion($pdo,$user,(int)$m[1],body()));
+    }
     if (handleCompanyPickupScheduleRoutes($pdo,$sessionUser,$path,$method)) return true;
     if ($path === '/post-production' && $method === 'GET') {
         $user=requireUser($sessionUser); requireRole($user,['owner','admin','operations']); requirePostProductionSchema($pdo);

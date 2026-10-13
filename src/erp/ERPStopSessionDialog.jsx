@@ -75,6 +75,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
   const [minutes, setMinutes] = useState(() => String(initialElapsed % 60));
   const [actualReels, setActualReels] = useState('');
   const [reason, setReason] = useState('');
+  const [excludeFromPostProduction, setExcludeFromPostProduction] = useState(false);
   const [liveElapsedMinutes, setLiveElapsedMinutes] = useState(initialElapsed);
   const [preview, setPreview] = useState(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -189,6 +190,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
       setBusy(true); setError('');
       const result = await completeStudioSession(session, {
         actualMinutes: totalMinutes, actualReels: cancelling ? 0 : Number(actualReels || 0), reason, settlement,
+        excludeFromPostProduction: !cancelling && excludeFromPostProduction,
         idempotencyKey: cancelling ? '' : idempotencyKey, previewHash: cancelling ? '' : preview?.preview_hash || '',
         expectedSessionVersion: cancelling ? null : preview?.session_version || session.settlement_version || session.session_version || 1,
       });
@@ -246,6 +248,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
         </header>
         <div className="session-stop-body">
           <dl className="session-stop-context"><div><dt>العميل</dt><dd>{session.client_name || '—'}</dd></div><div><dt>الباقة / الخدمة</dt><dd>{summary?.package_name || session.package_name || session.service || '—'}</dd></div><div><dt>الوقت المصور</dt><dd>{durationLabel(completion.actual_minutes || 0)}</dd></div></dl>
+          {completion.exclude_from_post_production && <div className="session-stop-warning"><AlertTriangle /><p>تم احتساب الوقت على الباقة دون إضافة هذه الجلسة للمونتاج أو التسليمات.</p></div>}
           {summary ? <section className="session-whatsapp-summary">
             <div className="session-whatsapp-summary__heading"><span><MessageCircle /></span><div><h3>رسالة واتساب جاهزة</h3><p>تحتوي على الساعات بعد الجلسة والحالة المالية والصلاحية والنقاط.</p></div></div>
             <pre>{formatPackageWhatsAppMessage(summary)}</pre>
@@ -265,6 +268,7 @@ function StopSessionDialogContent({ session, role = 'owner', serverOffset, retur
       </header>
 
       <div className="session-stop-body">
+        {!isZeroCancellation && <label className="session-stop-editing-choice"><input type="checkbox" checked={excludeFromPostProduction} disabled={busy} onChange={event => setExcludeFromPostProduction(event.target.checked)} /><span><strong>بدون مونتاج لهذه الجلسة</strong><small>علّم هذا الاختيار إذا لم يتم تصوير محتوى، مثل عدم حضور العميل. سيُحتسب الوقت على الباقة كالمعتاد، دون إضافة الجلسة للمونتاج أو التسليمات.</small></span></label>}
         <dl className="session-stop-context"><div><dt>العميل</dt><dd>{session.client_name || '—'}</dd></div><div><dt>الباقة / الخدمة</dt><dd>{session.package_name || session.service || '—'}</dd></div><div><dt>الموعد</dt><dd>{session.date ? formatBookingDate(session.date) : '—'}{session.start_time ? ` · ${formatTime12(session.start_time)}` : ''}</dd></div></dl>
 
         {step === 1 && <>
