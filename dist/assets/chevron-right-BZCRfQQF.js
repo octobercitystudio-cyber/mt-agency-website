@@ -1,1 +1,0 @@
-import{y as e}from"./index-8dx-IF4c.js";var t=e(`chevron-right`,[[`path`,{d:`m9 18 6-6-6-6`,key:`mthhwq`}]]);export{t};
