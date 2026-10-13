@@ -244,7 +244,7 @@ function studioBookingRequestList(PDO $pdo,array $actor): array {
     foreach($s->fetchAll() as $row){
         $item=array_intersect_key($row,array_flip($public));foreach(['id','client_id','service_id','client_package_id','payment_id','payment_proof_id'] as $key)$item[$key]=$item[$key]===null?null:(int)$item[$key];
         $item['service_snapshot']=json_decode($row['service_snapshot'],true);$item['review_due_at']=(new DateTimeImmutable($row['review_due_at'],new DateTimeZone('Africa/Cairo')))->format(DATE_ATOM);
-        $item['proof_url']=$actor['role']==='operations'?null:'/api/studio-booking-requests/'.$row['id'].'/proof';
+        $item['proof_url']=$actor['role']==='operations'?null:'/api/studio-booking-requests/'.$row['id'].'/proof?audience='.($actor['role']==='client'?'client':'staff');
         $childQuery->execute([$row['id'],$org]);$item['bookings']=$childQuery->fetchAll();
         if($row['package_status']==='pending')$pending++;
         foreach($item['bookings'] as &$booking){foreach(['id','duration_minutes','resource_id','booking_id'] as $key)$booking[$key]=$booking[$key]===null?null:(int)$booking[$key];$booking['start_time']=substr($booking['start_time'],0,5);$booking['end_time']=substr($booking['end_time'],0,5);if($booking['status']==='pending')$pending++;}unset($booking);

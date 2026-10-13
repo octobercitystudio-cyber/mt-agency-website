@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+// Browser image elements and new tabs cannot send the portal audience header.
+// Only these read-only, individually authorized proof routes accept its query form.
+function isPrivateProofPreview(string $method, string $path): bool {
+    return $method === 'GET' && preg_match('#^/(?:payment-proofs/\d+/file|studio-booking-requests/\d+/proof)$#D', $path) === 1;
+}
+
 // Client password sign-in uses the registered primary mobile. Staff have a separate portal.
 function loginMobile(mixed $value): string {
     if (!is_string($value) || strlen($value) > 100) return '';

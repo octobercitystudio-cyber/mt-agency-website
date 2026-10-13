@@ -1961,7 +1961,7 @@ $pdo = db($config);
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = routePath();
 // File previews open in a new browser tab and cannot attach custom headers.
-$filePreview = $method === 'GET' && preg_match('#^/payment-proofs/\d+/file$#', $path);
+$filePreview = isPrivateProofPreview($method, $path);
 $audience = (string)($_SERVER['HTTP_X_MTA_AUDIENCE'] ?? ($filePreview ? ($_GET['audience'] ?? '') : ''));
 if ($audience !== '' && !in_array($audience, ['staff', 'client'], true)) fail('مساحة الدخول غير صحيحة.', 400, 'invalid_auth_audience');
 $config['_auth_audience'] = $audience;

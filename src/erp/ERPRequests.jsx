@@ -117,7 +117,7 @@ export default function ERPRequests() {
     fetchRequests(true);
   }, [fetchRequests]);
 
-  useChangeSync(topics => { if (topics.some(topic => ['bookings', 'requests', 'clients', 'payments', 'offers'].includes(topic))) void fetchRequests(false); });
+  useChangeSync(topics => { if (topics.some(topic => ['bookings', 'requests', 'clients', 'payments', 'finance', 'offers'].includes(topic))) void fetchRequests(false); });
   useEffect(() => { const reload = () => { void fetchRequests(false); }; window.addEventListener('erpRequestsUpdated', reload); return () => window.removeEventListener('erpRequestsUpdated', reload); }, [fetchRequests]);
   const requestMarkers = useMemo(() => buildCalendarRequestMarkers(data), [data]);
   const selectedMarkers = requestMarkers.filter(marker => marker.requestKey === selectedRequestKey);

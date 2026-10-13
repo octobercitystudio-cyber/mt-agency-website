@@ -32,11 +32,17 @@ foreach(['','2026-09-23','future-policy'] as $invalidVersion)failure('terms_acce
 check(countRows($pdo,'client_studio_booking_requests')===1 && !$pdo->inTransaction(),'Rejected consent creates no request or pending transaction');
 failure('forbidden',fn()=>submitStudioBookingRequest($pdo,$owner,$payload,$proof));
 $items=studioBookingRequestList($pdo,$client);check($items['pending_count']===3 && count($items['items'][0]['bookings'])===2,'One client group contains package and two separate dates');
-$row=$items['items'][0];check(!isset($row['proof_path'],$row['proof_hash'],$row['request_hash']) && $row['proof_url']==='/api/studio-booking-requests/'.$id.'/proof','Public DTO exposes scoped proof URL without private file metadata');
+$row=$items['items'][0];check(!isset($row['proof_path'],$row['proof_hash'],$row['request_hash']) && $row['proof_url']==='/api/studio-booking-requests/'.$id.'/proof?audience=client','Client DTO exposes scoped proof URL without private file metadata');
+check(studioBookingRequestList($pdo,$owner)['items'][0]['proof_url']==='/api/studio-booking-requests/'.$id.'/proof?audience=staff','Owner proof preview uses staff session independently of client session');
 check(studioBookingRequestList($pdo,array_replace($client,['client_id'=>777]))['items']===[],'Other client cannot read request');
 check(studioBookingRequestList($pdo,array_replace($owner,['organization_id'=>2]))['items']===[],'Other organization cannot read request');
 check(studioBookingRequestList($pdo,array_replace($owner,['role'=>'operations']))['items'][0]['proof_url']===null,'Operations role cannot access payment image');
 check(studioRequestProof($pdo,$client,$id)['proof_mime']==='image/png','Client can read own proof metadata');
+foreach(['/payment-proofs/12/file','/studio-booking-requests/12/proof'] as $previewPath){
+ check(isPrivateProofPreview('GET',$previewPath),'Private proof image may select the matching portal session');
+ check(!isPrivateProofPreview('POST',$previewPath),'Query audience never enables mutation requests');
+}
+foreach(['/auth/session','/studio-booking-requests','/studio-booking-requests/12/decision','/payment-proofs/12/file/extra',"/studio-booking-requests/12/proof\n"] as $otherPath)check(!isPrivateProofPreview('GET',$otherPath),'Query audience stays limited to exact proof preview routes');
 failure('studio_proof_not_found',fn()=>studioRequestProof($pdo,array_replace($client,['client_id'=>999]),$id));
 failure('studio_proof_not_found',fn()=>studioRequestProof($pdo,array_replace($owner,['organization_id'=>2]),$id));
 failure('forbidden',fn()=>studioRequestProof($pdo,array_replace($owner,['role'=>'operations']),$id));
