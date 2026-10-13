@@ -1,4 +1,4 @@
-import { calculateDurationMinutes, formatBookingStatus, formatClientPoints, formatDurationMinutes, formatEGP, formatPackageQuantity, formatTime12 } from './businessFormat.js';
+import { cairoDateKey, remainingCalendarDays, calculateDurationMinutes, formatBookingStatus, formatClientPoints, formatDurationMinutes, formatEGP, formatPackageQuantity, formatTime12 } from './businessFormat.js';
 
 const APPOINTMENTS_EMPTY_MESSAGE = 'لا توجد مواعيد تصوير قادمة مرتبطة بهذه الباقة.';
 const APPOINTMENTS_POLICY_NOTE = 'حرصًا منا على تنظيم جدول التصوير وتقديم أفضل مستوى من الخدمة، نرجو التكرم بإبلاغنا بأي طلب لتأجيل الموعد أو إلغائه قبل الموعد المحدد بمدة لا تقل عن *48 ساعة*. شاكرين تفهمكم وحسن تعاونكم.';
@@ -9,6 +9,37 @@ const appointmentDateFormatters = {
 };
 
 export { APPOINTMENTS_EMPTY_MESSAGE };
+
+export function buildPackageReminderWhatsApp(details, client = {}) {
+  const { package: pkg, quantities: q, validity } = details;
+  const expiry = validity.expires_at?.slice(0, 10);
+  const today = validity.today || cairoDateKey();
+  if (!expiry || !appointmentDate(expiry)) throw new Error('صلاحية الباقة لم تبدأ بعد أو تاريخ انتهائها غير محدد. لا يمكن تجهيز تذكير بانتهائها الآن.');
+  if (expiry < today || pkg.effective_status === 'expired' || pkg.status === 'expired') throw new Error('انتهت صلاحية هذه الباقة بالفعل. لا يمكن تذكير العميل بحجز مواعيد منها.');
+  if (['suspended', 'cancelled', 'archived'].includes(pkg.effective_status || pkg.status)) throw new Error('هذه الباقة غير نشطة حاليًا. راجع حالتها قبل تذكير العميل بالحجز.');
+  const hourly = pkg.billing_unit === 'hour';
+  const remainingMinutes = q.purchased_minutes != null && q.used_minutes != null ? Math.max(0, q.purchased_minutes - q.used_minutes) : Math.round(Number(q.remaining) * 60);
+  if ((hourly ? remainingMinutes : Number(q.remaining)) <= 0 || (pkg.effective_status || pkg.status) === 'completed') throw new Error('تم استهلاك رصيد هذه الباقة بالكامل. لا يوجد رصيد متبقٍ للتذكير.');
+  const quantity = (value, minutes) => hourly ? formatDurationMinutes(minutes ?? Math.round(Number(value) * 60)) : formatPackageQuantity(value, pkg.billing_unit);
+  const days = remainingCalendarDays(expiry, today);
+  const balanceWord = hourly ? 'ساعات متبقية' : 'رصيد متبقٍ';
+  return [
+    `السلام عليكم أستاذ/ة *${client.name || pkg.client?.name || 'عميلنا الكريم'}*، نتمنى تكون بخير 🌷`, '',
+    expiry === today ? '⏳ *تنتهي صلاحية باقتك اليوم — متبقي يوم واحد شامل اليوم.*' : `⏳ *متبقي ${days} يوم على انتهاء صلاحية باقتك.*`, '',
+    'بنذكّرك باستغلال رصيد التصوير المتبقي وحجز مواعيدك قبل انتهاء الصلاحية.', '',
+    '📦 *تفاصيل باقتك:*',
+    `• اسم الباقة: *${pkg.name}*`,
+    `• إجمالي رصيد التصوير: *${quantity(q.purchased, q.purchased_minutes)}*`,
+    `• المستخدم: *${quantity(q.used, q.used_minutes)}*`,
+    `• المتبقي لك: *${quantity(q.remaining, remainingMinutes)}*`,
+    ...(Number(q.upcoming_held) > 0 ? [`• محجوز في مواعيد قادمة: *${quantity(q.upcoming_held, q.held_minutes)}*`, `• المتاح لحجز جديد: *${quantity(q.available, q.available_minutes)}*`] : []),
+    `• تاريخ انتهاء الصلاحية: *${appointmentDateFormatters.date.format(appointmentDate(expiry))}*`, '',
+    '📲 *افتح التطبيق، وادخل على قسم حجز مواعيد التصوير، واختَر مواعيد تتيح لك إتمام التصوير قبل انتهاء صلاحية الباقة.*', '',
+    '📅 *احرص على الحجز بدري لضمان توافر موعد مناسب ليك، لأن المواعيد بتتأكد حسب المتاح وأسبقية الحجز.*', '',
+    `⚠️ *بعد انتهاء صلاحية الباقة، لا يمكن استخدام أي ${balanceWord} بها؛ لذلك احجز مواعيدك واستغل رصيدك قبل تاريخ الانتهاء.*`, '',
+    '*فريق Multi Task Agency*',
+  ].join('\n');
+}
 
 export function whatsappPhone(value) {
   let phone = String(value || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/[\s()+.-]/g, '');

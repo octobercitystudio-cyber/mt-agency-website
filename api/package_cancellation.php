@@ -102,7 +102,7 @@ function cancelPackageAndRefund(PDO $pdo,array $user,int $id,array $payload): ar
         if ($quote['blocked_reasons']) fail(implode(' ',$quote['blocked_reasons']),409,'package_cancellation_blocked');
         if (!hash_equals($quote['quote_hash'],(string)($payload['quote_hash']??''))) fail('تغيرت بيانات الباقة أو مواعيدها. حدّث حساب الاسترداد ثم راجعه قبل التأكيد.',409,'stale_cancellation_quote');
         $raw=(string)($payload['refund_amount']??'');
-        if (!preg_match('/^\d+(?:\.\d{1,2})?$/',$raw)) fail('أدخل مبلغ استرداد صحيحًا بحد أقصى منزلتين عشريتين.',422,'invalid_refund');
+        if (strlen($raw)>13 || !preg_match('/^\d+(?:\.\d{1,2})?$/',$raw)) fail('أدخل مبلغ استرداد صحيحًا بحد أقصى منزلتين عشريتين.',422,'invalid_refund');
         $refund=packageMoneyCents($raw);
         if ($refund<0 || $refund>$quote['paid_cents']) fail('الاسترداد لا يمكن أن يتجاوز المبلغ المسدّد.',422,'refund_exceeds_paid');
         $reason=trim((string)($payload['reason']??''));$override=trim((string)($payload['override_reason']??''));

@@ -362,6 +362,7 @@ export default function ERPPackages() {
       onPay: event => openPackagePayment(pkg, event),
       onStart: event => openSessionStart(pkg, person, event),
       onShare: () => { setWhatsappMode('summary'); setWhatsappPackage(pkg); },
+      onRemind: () => { setWhatsappMode('reminder'); setWhatsappPackage(pkg); },
       onShareAppointments: () => { setWhatsappMode('appointments'); setWhatsappPackage(pkg); },
       onDetails: event => openDetailsDialog(pkg, event),
       onOwner: event => openPackageDialog('details', pkg, event),
