@@ -77,7 +77,7 @@ SELECT bs.organization_id, bs.id, bs.booking_id, bs.client_id, 'editing_in_progr
        1, COALESCE(bs.ended_at, bs.updated_at), 1, 0, bs.ended_by, bs.ended_by
 FROM booking_sessions bs
 JOIN bookings b ON b.id = bs.booking_id AND b.organization_id = bs.organization_id
-WHERE bs.status = 'completed';
+WHERE bs.status = 'completed' AND (bs.actual_seconds IS NULL OR bs.actual_seconds > 0);
 
 INSERT IGNORE INTO post_production_status_history (
   organization_id, post_production_job_id, from_status, to_status, version, changed_by, changed_at

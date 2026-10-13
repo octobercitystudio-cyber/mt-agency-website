@@ -114,6 +114,13 @@ try {
  check(!file_exists($file),'Expired file removed under lock');
  file_put_contents($file,'invalid');
  rejected(fn()=>readPickupAvailability($config,1,1),'pickup_runtime_invalid');
+ $pdo->exec('UPDATE booking_sessions SET actual_seconds=0 WHERE id=1');
+ check(postProductionRows($pdo,$config,$user,true)===[],'Explicit zero-duration legacy job is hidden from client deliveries');
+ $_GET=['status'=>'all'];
+ $staffRows=postProductionRows($pdo,$config,['organization_id'=>1],false);
+ check(array_column($staffRows,'id')===[2],'Zero-duration job is hidden from all staff editing statuses');
+ $pdo->exec('UPDATE booking_sessions SET actual_seconds=NULL WHERE id=1');
+ check(count(postProductionRows($pdo,$config,$user,true))===1,'Unknown historical duration is not mistaken for explicit zero');
  echo $count." delivery checks passed\n";
 } finally {
  // Only remove the exact files and directories this test created.

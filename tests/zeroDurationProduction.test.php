@@ -1,0 +1,50 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/phpRegistrationHarness.php';
+require __DIR__.'/../api/post_production.php';
+loadFunctions(__DIR__.'/../api/index.php',['releaseBookingSlots','bookingHeldQuantity','settleCancelledBooking']);
+loadFunctions(__DIR__.'/../api/session_settlement.php',['cancelZeroDurationBookingSession','settleAndCompleteBookingSession']);
+$pdo->exec(<<<'SQL'
+ALTER TABLE bookings ADD COLUMN timer_ended_at TEXT;
+ALTER TABLE bookings ADD COLUMN actual_seconds INTEGER;
+ALTER TABLE bookings ADD COLUMN actual_hours REAL;
+ALTER TABLE bookings ADD COLUMN actual_reels INTEGER;
+ALTER TABLE bookings ADD COLUMN billable_quantity REAL;
+ALTER TABLE bookings ADD COLUMN overage_quantity REAL;
+ALTER TABLE bookings ADD COLUMN overage_amount REAL;
+ALTER TABLE bookings ADD COLUMN session_version INTEGER DEFAULT 1;
+CREATE TABLE booking_sessions(id INTEGER PRIMARY KEY,organization_id INTEGER,booking_id INTEGER,status TEXT,started_at TEXT,ended_at TEXT,actual_seconds INTEGER,billable_quantity REAL,ended_by INTEGER,adjustment_reason TEXT,settlement_version INTEGER DEFAULT 1);
+CREATE TABLE session_settlements(id INTEGER PRIMARY KEY,organization_id INTEGER,booking_session_id INTEGER);
+CREATE TABLE post_production_jobs(id INTEGER PRIMARY KEY,organization_id INTEGER,booking_session_id INTEGER,booking_id INTEGER,client_id INTEGER,status TEXT,version INTEGER,status_changed_at TEXT,needs_review INTEGER,is_client_visible INTEGER,created_by INTEGER,updated_by INTEGER,UNIQUE(organization_id,booking_session_id));
+CREATE TABLE post_production_status_history(id INTEGER PRIMARY KEY,organization_id INTEGER,post_production_job_id INTEGER,from_status TEXT,to_status TEXT,version INTEGER,changed_by INTEGER);
+CREATE TABLE video_delivery_links(id INTEGER PRIMARY KEY);
+INSERT INTO client_packages(id,organization_id,client_id,name,billing_unit,purchased_quantity,purchased_minutes,held_quantity,held_minutes,consumed_quantity,consumed_minutes,status,starts_at,expires_at) VALUES(1,1,10,'Daily','hour',5,300,5,300,0,0,'active','2030-01-01','2030-01-01');
+INSERT INTO bookings(id,organization_id,client_id,client_package_id,status) VALUES(1,1,10,1,'in_progress');
+INSERT INTO booking_sessions(id,organization_id,booking_id,status,started_at) VALUES(1,1,1,'active','2030-01-01 08:00:00');
+INSERT INTO package_usage_ledger(client_package_id,booking_id,movement_type,quantity,quantity_minutes,event_key) VALUES(1,1,'hold',5,300,'initial-hold');
+INSERT INTO booking_slots(organization_id,booking_id,resource_id,slot_date,slot_start) VALUES(1,1,1,'2030-01-01','12:00');
+SQL);
+$owner=['id'=>1,'organization_id'=>1,'role'=>'owner'];
+failure('booking_not_found',fn()=>settleAndCompleteBookingSession($pdo,['id'=>2,'organization_id'=>2],1,['actual_minutes'=>0]));
+check(countRows($pdo,'booking_slots')===1,'Cross-organization attempt cannot release slots');
+$result=settleAndCompleteBookingSession($pdo,$owner,1,['actual_minutes'=>0]);
+check($result['cancelled'] && $result['post_production_job_id']===null,'Explicit zero cancels rather than completing');
+$session=$pdo->query('SELECT * FROM booking_sessions WHERE id=1')->fetch();
+check($session['status']==='cancelled' && (int)$session['actual_seconds']===0,'Elapsed two-hour timer does not override manually approved zero');
+check(countRows($pdo,'post_production_jobs')===0 && countRows($pdo,'session_settlements')===0,'No editing job or billed settlement');
+check(countRows($pdo,'booking_slots')===0,'Calendar occupancy is released');
+$pkg=$pdo->query('SELECT * FROM client_packages WHERE id=1')->fetch();
+check((int)$pkg['held_minutes']===0 && (int)$pkg['consumed_minutes']===0,'All held minutes released without consumption');
+check($pkg['status']==='active' && $pkg['expires_at']==='2030-01-01','Zero does not trigger session-end expiry');
+$repeat=settleAndCompleteBookingSession($pdo,$owner,1,['actual_minutes'=>0]);
+check($repeat['idempotent_replay'] && countRows($pdo,'package_usage_ledger')===2,'Retry does not duplicate released balance');
+$booking=['id'=>1,'client_id'=>10];
+foreach([['status'=>'cancelled','actual_seconds'=>0],['status'=>'completed','actual_seconds'=>0],['status'=>'active','actual_seconds'=>3600]] as $invalid){
+ check(createPostProductionJobForCompletedSession($pdo,$owner,$booking,$invalid+['id'=>1])===null,'Editing creation rejects non-filmed or unapproved session');
+}
+check(countRows($pdo,'post_production_status_history')===0,'Rejected jobs create no status history');
+$completed=['id'=>2,'status'=>'completed','actual_seconds'=>60];
+$jobId=createPostProductionJobForCompletedSession($pdo,$owner,['id'=>2,'client_id'=>10],$completed);
+check($jobId>0,'A real one-minute session still creates an editing job');
+check(createPostProductionJobForCompletedSession($pdo,$owner,['id'=>2,'client_id'=>10],$completed)===$jobId && countRows($pdo,'post_production_jobs')===1,'Real completion remains idempotent');
+echo "$checks zero-duration production checks passed\n";

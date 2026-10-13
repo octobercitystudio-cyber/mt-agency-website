@@ -27,6 +27,8 @@ function requirePostProductionSchema(PDO $pdo): void {
  * the new feature remains unavailable until its tables exist.
  */
 function createPostProductionJobForCompletedSession(PDO $pdo, array $user, array $booking, array $session): ?int {
+    // An elapsed timer is not evidence of filming: use the approved duration.
+    if (($session['status'] ?? '') !== 'completed' || (int)($session['actual_seconds'] ?? 0) <= 0) return null;
     if (!postProductionSchemaReady($pdo)) return null;
     $stmt = $pdo->prepare(
         "INSERT IGNORE INTO post_production_jobs
@@ -86,7 +88,8 @@ function postProductionNotification(string $status): ?array {
 
 function postProductionRows(PDO $pdo, array $config, array $user, bool $clientOnly): array {
     $organizationId = (int)$user['organization_id'];
-    $where = ['j.organization_id=?'];
+    // Keep unknown legacy durations reviewable, but never expose an explicit zero.
+    $where = ['j.organization_id=?', '(bs.actual_seconds IS NULL OR bs.actual_seconds>0)'];
     $params = [$organizationId];
     if ($clientOnly) {
         $where[] = 'j.client_id=?'; $params[] = (int)$user['client_id'];

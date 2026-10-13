@@ -978,6 +978,7 @@ const demoPostProductionNotification = status => ({
   ready_for_pickup: ['ready_for_pickup', 'الفيديوهات جاهزة للاستلام من الشركة', 'راجع جدول الاستلام الأسبوعي أعلى صفحة تسليمات الفيديوهات.', 'videos', 'success'],
 })[status] || null;
 const demoEnsurePostProductionJob = (database, booking, session) => {
+  if (session.status !== 'completed' || !(Number(session.actual_seconds) > 0)) return null;
   const existing = tableRows(database, 'post_production_jobs').find(row => Number(row.booking_session_id) === Number(session.id) || Number(row.booking_id) === Number(booking.id));
   if (existing) return existing;
   const job = addRow(database, 'post_production_jobs', { booking_session_id: Number(session.id), booking_id: Number(booking.id), client_id: Number(booking.client_id), status: 'editing_in_progress', version: 1, status_changed_at: nowText(), needs_review: 0, is_client_visible: 1, created_by: Number(demoUserId || 1), updated_by: Number(demoUserId || 1) });
@@ -1009,6 +1010,10 @@ const demoCompanyPickupSchedule = database => {
   return { revision: stored.revision, ...validateCompanyPickupSchedule(stored), updated_at: stored.updated_at ?? null };
 };
 const demoPostProductionRows = (database, clientOnly = false) => tableRows(database, 'post_production_jobs')
+  .filter(job => {
+    const session = tableRows(database, 'booking_sessions').find(row => Number(row.id) === Number(job.booking_session_id));
+    return session && (session.actual_seconds == null || Number(session.actual_seconds) > 0);
+  })
   .filter(job => !clientOnly || Number(job.client_id) === currentDemoClientId(database) && Number(job.is_client_visible) === 1 && Number(job.needs_review) === 0)
   .map(job => {
     const booking = findById(database, 'bookings', job.booking_id) || {}; const session = tableRows(database, 'booking_sessions').find(row => Number(row.id) === Number(job.booking_session_id)) || {}; const client = findById(database, 'clients', job.client_id) || {}; const pkg = booking.client_package_id ? findById(database, 'client_packages', booking.client_package_id) : null;
