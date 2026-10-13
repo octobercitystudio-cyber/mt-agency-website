@@ -9,7 +9,7 @@ function fail(string $message,int $status=400,string $code='error',array $detail
 function respond(array $data,int $status=200): never {throw new ApiResponse($data);}
 function body():array{return $GLOBALS['routePayload']??[];}
 function cairoNow():DateTimeImmutable{return new DateTimeImmutable($GLOBALS['testCairoNow']??'2030-01-01 10:00:00',new DateTimeZone('Africa/Cairo'));}
-function audit(...$args):void{}
+function audit(...$args):void{if(isset($GLOBALS['testAuditHook']))($GLOBALS['testAuditHook'])(...$args);}
 function recordChangeEvent(...$args):int{return 1;}
 function appNotification(...$args):bool{return true;}
 function nextClientColor(...$args):string{return '#692ee8';}

@@ -27,6 +27,7 @@ import ERPAddBookingModal from './ERPAddBookingModal';
 import { packageBookingAvailability } from './packageBookingSelection';
 import OwnerPackageControl from './OwnerPackageControl';
 import PackagePaymentModal from './PackagePaymentModal';
+import PackageCancellationModal from './PackageCancellationModal';
 import PackageWhatsAppDialog from './PackageWhatsAppDialog';
 import ClientCombobox from '../components/ClientCombobox';
 import { organizeClientPackageGroups } from './packageContinuity';
@@ -78,6 +79,7 @@ export default function ERPPackages() {
   const [sessionStart, setSessionStart] = useState({ open: false, pkg: null, person: null, bookings: [] });
   const [bookingPackage, setBookingPackage] = useState({ open: false, pkg: null });
   const [paymentPackage, setPaymentPackage] = useState({ open: false, pkg: null });
+  const [cancellationPackage, setCancellationPackage] = useState(null);
   const [details, setDetails] = useState({ open: false, pkg: null, data: null, loading: false, error: '', tab: 'payments' });
   const detailsDialogRef = useRef(null);
   const dialogTriggerRef = useRef(null);
@@ -363,6 +365,7 @@ export default function ERPPackages() {
       onShareAppointments: () => { setWhatsappMode('appointments'); setWhatsappPackage(pkg); },
       onDetails: event => openDetailsDialog(pkg, event),
       onOwner: event => openPackageDialog('details', pkg, event),
+      onCancel: () => setCancellationPackage(pkg),
     };
   };
 
@@ -380,6 +383,7 @@ export default function ERPPackages() {
     {details.open && <PackageDetailsDialog dialogRef={detailsDialogRef} details={details} onClose={closeDetailsDialog} onRetry={() => fetchDetails(details.pkg.id)} onTab={tab => setDetails(current => ({ ...current, tab }))}/>}
     <ERPAddBookingModal isOpen={bookingPackage.open} initialClientId={bookingPackage.pkg?.client_id} initialPackageId={bookingPackage.pkg?.id} returnFocusRef={bookingTriggerRef} onClose={() => setBookingPackage({ open: false, pkg: null })} onSuccess={handlePackageBookingCreated}/>
     <PackagePaymentModal isOpen={paymentPackage.open} pkg={paymentPackage.pkg} person={client(paymentPackage.pkg?.client_id)} returnFocusRef={paymentTriggerRef} onClose={() => setPaymentPackage({ open: false, pkg: null })} onSuccess={handlePackagePaymentCreated}/>
+    {cancellationPackage && <PackageCancellationModal pkg={cancellationPackage} onClose={() => setCancellationPackage(null)} onChanged={fetchData}/>}
     <ERPStartSessionDialog open={sessionStart.open} bookings={sessionStart.bookings} clientName={sessionStart.person?.name} contextName={sessionStart.pkg?.name} returnFocusRef={sessionTriggerRef} onClose={() => setSessionStart({ open: false, pkg: null, person: null, bookings: [] })} onStarted={handleSessionStarted} onCreateBooking={() => navigate(staffPath(`/bookings?client_id=${sessionStart.pkg?.client_id || ''}&package_id=${sessionStart.pkg?.id || ''}`))}/>
   </div>;
 }

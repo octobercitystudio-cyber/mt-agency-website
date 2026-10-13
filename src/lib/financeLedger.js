@@ -3,6 +3,7 @@ import { normalizeClientSearchText } from './clientSearch.js';
 import { normalizeFinanceEntryKind } from './financeMetrics.js';
 
 const CATEGORY_LABELS = {
+  package_refund: 'استرداد إلغاء باقة',
   client_revenue: 'إيراد عميل', client_payment: 'دفعة عميل', other_income: 'إيراد آخر', package_payment: 'دفعة باقة', payment_correction: 'تصحيح دفعة',
   rent: 'إيجار', equipment: 'معدات وصيانة', utilities: 'مرافق واتصالات', marketing: 'تسويق وإعلانات',
   transport: 'انتقالات', general_expense: 'مصروف عام', reminder_expense: 'سداد تذكير', wallet_adjustment: 'تسوية خزينة',

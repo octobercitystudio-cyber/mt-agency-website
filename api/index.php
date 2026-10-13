@@ -8,6 +8,7 @@ require_once __DIR__.'/shooting_session_expiry.php';
 require_once __DIR__.'/owner_mfa.php';
 require_once __DIR__.'/owner_activity_notifications.php';
 require_once __DIR__.'/package_loyalty.php';
+require_once __DIR__.'/package_cancellation.php';
 require_once __DIR__.'/booking_conflicts.php';
 require_once __DIR__.'/push_delivery.php';
 require_once __DIR__.'/staff_webpush.php';
@@ -521,6 +522,7 @@ function recordChangeEvent(PDO $pdo, int $organizationId, ?int $clientId, string
 }
 
 function audit(PDO $pdo, array $user, string $action, string $entityType, ?int $entityId, mixed $before, mixed $after): int {
+    if (!($entityType==='invoices' && $action==='package_cancellation_settlement')) guardPackageCancellationAudit($pdo,$user,$entityType,$entityId);
     $stmt = $pdo->prepare('INSERT INTO audit_logs (organization_id, user_id, action, entity_type, entity_id, before_data, after_data, ip_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
         $user['organization_id'], $user['id'], $action, $entityType, $entityId,
@@ -1431,6 +1433,7 @@ function ownerAdjustment(PDO $pdo,array $user,string $entityType,int $entityId,s
 }
 
 function financeReversal(PDO $pdo,array $user,array $entry,string $reason): int {
+    if (($entry['source_type']??'')==='package_cancellation') fail('لا يمكن إلغاء مصروف الاسترداد منفردًا بعد تسوية الباقة.',409,'cancellation_settlement_locked');
     if(!empty($entry['voided_at']))fail('تم إلغاء هذه الحركة سابقًا.',409,'already_voided');
     $check=$pdo->prepare('SELECT id FROM finance WHERE organization_id=? AND reversed_entry_id=? LIMIT 1 FOR UPDATE');$check->execute([$user['organization_id'],$entry['id']]);
     if($check->fetch())fail('تم إنشاء قيد عكسي لهذه الحركة سابقًا.',409,'duplicate_reversal');
@@ -2393,6 +2396,7 @@ require_once __DIR__ . '/legacy_import.php';
 if($user&&in_array($user['role'],['owner','admin','operations','finance'],true)&&$method==='POST'&&preg_match('#^/(client-packages|payments|payment-proofs|studio-booking-requests|offers|booking-blocks)(/|$)#',$path))requirePackageLoyaltySchema($pdo);
 handleAnalyticsReport($pdo,$user,$path,$method);
 handlePackageLoyaltyRoutes($pdo,$user,$path,$method);
+handlePackageCancellationRoutes($pdo,$user,$path,$method);
 handleRegistrationRoutes($pdo, $config, $user, $path, $method);
 handleStudioBookingRoutes($pdo, $config, $user, $path, $method);
 handleClientRequestWithdrawalRoutes($pdo, $user, $path, $method);
