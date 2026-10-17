@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BriefcaseBusiness, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { normalizeLoginPhone } from '../lib/phoneLogin';
+import { loginServiceError } from '../lib/loginError';
 import { isStaffAppEntry, STAFF_APP_SESSION_KEY } from '../lib/staffAppEntry';
 import './AdminLogin.css';
 
@@ -17,7 +18,7 @@ const staffLoginError = error => {
   if (error?.code === 'invalid_credentials') return 'بيانات الدخول غير صحيحة. راجع البيانات وحاول مرة أخرى.';
   if (error?.code === 'account_disabled') return 'دخول هذا الحساب موقوف. تواصل مع مسؤول النظام لإعادة تفعيله.';
   if (error?.code === 'login_temporarily_blocked' || error?.status === 429) return 'توقفت محاولات الدخول مؤقتًا للحماية. انتظر قليلًا ثم حاول مرة أخرى.';
-  return 'تعذر تسجيل الدخول الآن. تحقق من الاتصال وحاول مرة أخرى.';
+  return loginServiceError(error);
 };
 
 export default function AdminLogin() {

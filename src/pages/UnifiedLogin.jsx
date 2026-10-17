@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ArrowDownLeft, Eye, EyeOff, LoaderCircle, X } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { normalizeLoginPhone } from '../lib/phoneLogin';
+import { loginServiceError } from '../lib/loginError';
 import { companyPhoneTel, companyPhoneWhatsApp } from '../lib/companyContact';
 import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
 import ClientAppDownload from '../components/ClientAppDownload';
@@ -18,7 +19,7 @@ const loginErrorMessage = loginError => {
   if (loginError?.code === 'account_disabled') return 'دخول هذا الحساب موقوف. تواصل مع إدارة الشركة لإعادة تفعيله.';
   if (loginError?.code === 'login_temporarily_blocked' || loginError?.status === 429) return 'توقفت محاولات الدخول مؤقتًا للحماية. انتظر قليلًا ثم حاول مرة أخرى.';
   if (loginError?.code === 'password_change_required') return 'سجّل الدخول لتحديث كلمة المرور وإكمال الدخول إلى حسابك.';
-  if (loginError?.status >= 500 || !loginError?.code || loginError?.code === 'api_error') return 'تعذر الاتصال بخدمة تسجيل الدخول. تحقق من الإنترنت ثم حاول مرة أخرى.';
+  if (loginError?.status >= 500 || !loginError?.code || ['api_error', 'invalid_response'].includes(loginError?.code)) return loginServiceError(loginError);
   return loginError?.message || 'تعذر تسجيل الدخول الآن. حاول مرة أخرى.';
 };
 

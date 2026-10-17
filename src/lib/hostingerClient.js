@@ -46,10 +46,17 @@ const apiRequest = async (path, options = {}) => {
     });
 
     const payload = await response.json().catch(() => null);
-    if (!response.ok || payload?.error) {
-      const error = toError(payload);
-      error.status = response.status;
-      error.requestId = payload?.error?.request_id || response.headers?.get?.('X-Request-Id') || '';
+    const validPayload = payload && typeof payload === 'object' && !Array.isArray(payload)
+      && Object.hasOwn(payload, 'data');
+    if (!response.ok || payload?.error || !validPayload) {
+      const requestId = payload?.error?.request_id || response.headers?.get?.('X-Request-Id') || '';
+      const error = toError({ error: {
+        code: response.ok ? 'invalid_response' : 'server_error',
+        message: 'تعذر تحميل البيانات من الخادم. حاول مرة أخرى بعد قليل.',
+        ...payload?.error,
+        request_id: requestId,
+      } });
+      error.status = response.ok ? 502 : response.status;
       throw error;
     }
     return payload?.data;
@@ -143,6 +150,19 @@ const notifyAuth = (event, session) => {
 const CLIENT_LOGIN_ROLES = ['client', 'applicant'];
 const STAFF_LOGIN_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
 
+const passwordLoginRequest = async (path, options) => {
+  try {
+    return await apiRequest(path, options);
+  } catch (error) {
+    // Only an explicit CSRF rejection is safe to resubmit: the server rejected
+    // it before checking credentials or creating a session. Never retry an
+    // ambiguous network/server failure or incorrect credentials.
+    if (error.code !== 'csrf_failed' || error.status !== 403) throw error;
+    await apiRequest('/auth/session');
+    return apiRequest(path, options);
+  }
+};
+
 const completeSignIn = (data, allowedRoles = CLIENT_LOGIN_ROLES) => {
   if (!data?.session || !data?.user?.id || !data.user.role) {
     throw Object.assign(new Error('تعذر تأكيد جلسة الدخول. حاول مرة أخرى.'), { code: 'api_error' });
@@ -159,7 +179,7 @@ const completeSignIn = (data, allowedRoles = CLIENT_LOGIN_ROLES) => {
 const auth = {
   async signInWithPassword({ phone, password, identifier }) {
     try {
-      const data = await apiRequest('/auth/login', {
+      const data = await passwordLoginRequest('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ identifier: requireLoginPhone(phone || identifier), password }),
       });
@@ -173,7 +193,7 @@ const auth = {
     try {
       const value = typeof identifier === 'string' ? identifier.trim() : '';
       const normalized = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value.toLowerCase() : requireLoginPhone(value);
-      const data = await apiRequest('/auth/staff/login', {
+      const data = await passwordLoginRequest('/auth/staff/login', {
         method: 'POST',
         body: JSON.stringify({ identifier: normalized, password, code }),
       });

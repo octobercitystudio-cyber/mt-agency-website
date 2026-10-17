@@ -1,0 +1,1 @@
+function e(e){let t=Number(e?.status)>=500||e?.code===`invalid_response`?`خدمة تسجيل الدخول غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل.`:`تعذر الاتصال بخدمة تسجيل الدخول. تحقق من الاتصال وحاول مرة أخرى.`,n=String(e?.requestId||``).trim();return/^[a-zA-Z0-9_-]{1,80}$/.test(n)?`${t} رقم المتابعة: ${n}`:t}export{e as t};
