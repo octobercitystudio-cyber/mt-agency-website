@@ -9,17 +9,17 @@ export default function ActivatedPackageAppInvite({ clientId }) {
   const [dismissed, setDismissed] = useState(() => {
     try { return sessionStorage.getItem(dismissalKey) === '1'; } catch { return false; }
   });
-  if (dismissed || analyticsPlatform(window, document) !== 'web') return null;
+  if (analyticsPlatform(window, document) !== 'web') return null;
   const continueOnWebsite = () => {
     try { sessionStorage.setItem(dismissalKey, '1'); } catch { /* Dismissal still works without storage. */ }
     setDismissed(true);
   };
   return <aside className="activated-package-app-invite" aria-label="تطبيق MTA لباقتك المفعّلة">
     <Smartphone className="activated-package-app-invite-icon" aria-hidden="true"/>
-    <p>باقتك اتفعّلت! حمّل تطبيق MTA لمتابعة مواعيدك ورصيد ساعاتك بسهولة</p>
+    <p>{dismissed ? 'تطبيق MTA لمتابعة باقتك ومواعيدك' : 'باقتك اتفعّلت! حمّل تطبيق MTA لمتابعة مواعيدك ورصيد ساعاتك بسهولة'}</p>
     <div className="activated-package-app-invite-actions">
-      <a href={CLIENT_APP_DOWNLOAD_URL} download><Download aria-hidden="true"/>تحميل التطبيق للأندرويد</a>
-      <button type="button" onClick={continueOnWebsite}>كمّل من الموقع</button>
+      <a href={CLIENT_APP_DOWNLOAD_URL} download><Download aria-hidden="true"/>حمّل تطبيق MTA للأندرويد</a>
+      {!dismissed && <button type="button" onClick={continueOnWebsite}>كمّل من الموقع</button>}
     </div>
   </aside>;
 }
