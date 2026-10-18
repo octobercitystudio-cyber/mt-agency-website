@@ -7,7 +7,6 @@ import { normalizeLoginPhone } from '../lib/phoneLogin';
 import { loginServiceError } from '../lib/loginError';
 import { companyPhoneTel, companyPhoneWhatsApp } from '../lib/companyContact';
 import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
-import ClientAppDownload from '../components/ClientAppDownload';
 import ClientSupport from '../components/ClientSupport';
 import './UnifiedLogin.css';
 
@@ -30,7 +29,7 @@ export default function UnifiedLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldError, setFieldError] = useState('');
-  const { loginErp, isAuthReady, currentUser } = useData();
+  const { loginErp, isAuthReady, currentUser, authRetryNotice } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const clientDestination = safeClientDestination(location.search, window.location.origin);
@@ -84,12 +83,13 @@ export default function UnifiedLogin() {
   };
 
   return <main className="unified-login-container" dir="rtl">
+    <div className="unified-login-content">
+    {authRetryNotice && <div className="auth-entry-recovery">{authRetryNotice}</div>}
     <section className="unified-login-box" aria-labelledby="unified-login-title">
       <div className="unified-login-brand"><img src="/logo.webp" width="82" height="78" alt="Multi Task Agency" /><p dir="ltr">Multi Task Agency</p></div>
-      <ClientAppDownload />
       <header className="unified-login-heading">
         <span className="unified-quiet-rule" aria-hidden="true" />
-        <h1 id="unified-login-title">مساحتك، بخطوة واحدة.</h1>
+        <h1 id="unified-login-title">تسجيل الدخول</h1>
         <p>سجّل الدخول لمتابعة باقاتك ومواعيدك</p>
       </header>
       <form className="unified-login-form" onSubmit={handleLogin} noValidate aria-busy={busy}>
@@ -113,10 +113,11 @@ export default function UnifiedLogin() {
         <div className="unified-login-feedback" aria-live="polite">{error && <p id="login-error" role="alert">{error}</p>}</div>
       </form>
       <div className="unified-registration"><span>عميل جديد؟</span><Link className="unified-text-button" to={clientAuthPath('/register', clientDestination)}>إنشاء حساب <ArrowDownLeft aria-hidden="true" /></Link></div>
-      <ClientSupport />
     </section>
     <footer className="unified-login-footer"><Link to="/">العودة للموقع الرئيسي <ArrowRight aria-hidden="true" /></Link></footer>
     {import.meta.env.DEV && <details className="unified-login-preview"><summary>خيارات المعاينة المحلية</summary><div><button type="button" disabled={busy} onClick={handleLocalPreview}>دخول تجريبي كعميل</button></div></details>}
+    </div>
+    <ClientSupport auth />
     <dialog ref={supportDialog} className="unified-support-dialog" aria-labelledby="login-support-title" aria-describedby="login-support-description">
       <button type="button" className="unified-dialog-close" aria-label="إغلاق النافذة" onClick={() => supportDialog.current.close()}><X aria-hidden="true" /></button>
       <p className="unified-dialog-eyebrow">نساعدك ترجع لحسابك</p><h2 id="login-support-title">استعادة كلمة المرور</h2>

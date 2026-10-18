@@ -36,3 +36,20 @@
 @media (max-width: 480px) {
   .mta-client-support { padding: 18px; gap: 16px; }
 }
+
+.auth-support-dock{flex:0 0 auto;width:100%;position:relative;z-index:40;display:flex;align-items:center;justify-content:center;gap:22px;padding:12px 20px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid #ded5e8;background:#f6f3fa;box-shadow:0 -5px 18px #35204408;font-family:'Tajawal','Segoe UI',sans-serif;color:#554364}
+.auth-support-dock p{margin:0;font-size:14px;line-height:1.7;font-weight:600}
+.auth-support-links{display:flex;gap:12px;min-width:0}
+.auth-support-dock .auth-support-links a{display:flex;align-items:center;justify-content:center;gap:9px;min-height:48px;padding:9px 14px;border:1px solid #d7c9e8;border-radius:12px;box-shadow:0 4px 10px #3520440b;background:#fff;color:#57299d;text-decoration:none;font-size:14px;line-height:1.6;font-weight:700}
+.auth-support-dock .auth-support-links a:hover{background:#eee7f8}
+.auth-support-dock .auth-support-links a:focus-visible{outline:3px solid #895ac3;outline-offset:3px}
+.auth-support-dock .auth-support-links .auth-support-whatsapp{color:#166642;border-color:#b7d6c6}
+.auth-support-dock .auth-support-links .auth-support-whatsapp:hover{background:#e8f5ee}
+.auth-support-links svg{width:22px;height:22px;flex-shrink:0;stroke-width:1.8}
+.auth-entry-recovery{flex-shrink:0;width:100%;max-width:740px;margin:18px auto 0}
+.unified-login-content .auth-entry-recovery{max-width:460px;margin:0 auto 20px}
+.auth-entry-recovery .auth-restore-notice{position:static;transform:none;width:100%;margin:0;padding:14px 18px;box-shadow:none;font-size:14px;text-align:right}
+.auth-entry-recovery .auth-restore-notice p{margin-bottom:8px}
+.auth-entry-recovery .auth-restore-notice button{min-height:44px}
+@media(max-width:680px){.auth-support-dock{flex-direction:column;gap:6px;padding:8px 14px calc(10px + env(safe-area-inset-bottom,0px))}.auth-support-dock p{font-size:13px}.auth-support-links{width:100%;max-width:430px;gap:8px}.auth-support-dock .auth-support-links a{flex:1;min-width:0;padding:9px 7px;font-size:13px;gap:6px}.auth-support-links svg{width:20px;height:20px}}
+@media(max-height:450px){.auth-support-dock{gap:5px;padding-top:6px;padding-bottom:6px}.auth-support-dock p{display:none}.auth-support-dock .auth-support-links a{min-height:44px;padding-block:6px}}

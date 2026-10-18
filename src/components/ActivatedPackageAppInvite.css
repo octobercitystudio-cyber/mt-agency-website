@@ -1,0 +1,12 @@
+.client-app .activated-package-app-invite{display:flex;align-items:center;gap:16px;margin:0 0 24px;padding:18px 20px;border:1px solid #c9dbef;border-radius:16px;background:#f2f8ff;color:#24445f}
+.activated-package-app-invite-icon{width:28px;height:28px;flex-shrink:0;color:#2676bd}
+.client-app .activated-package-app-invite p{flex:1;min-width:0;margin:0;font-size:16px;line-height:1.85;font-weight:700}
+.activated-package-app-invite-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.client-app .activated-package-app-invite-actions a,.client-app .activated-package-app-invite-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:10px 14px;border:1px solid #2778be;border-radius:10px;background:#2778be;color:#fff;font:700 14px/1.7 'Tajawal','Segoe UI',sans-serif;text-decoration:none;cursor:pointer}
+.client-app .activated-package-app-invite-actions button{color:#245e90;background:#fff;border-color:#c4d7e9}
+.client-app .activated-package-app-invite-actions a:hover{background:#1a619f}
+.client-app .activated-package-app-invite-actions button:hover{background:#e7f2ff}
+.activated-package-app-invite-actions svg{width:18px;height:18px;flex-shrink:0}
+.client-app .activated-package-app-invite-actions :focus-visible{outline:3px solid #2778be;outline-offset:3px}
+@media(max-width:1100px){.client-app .activated-package-app-invite{flex-wrap:wrap}.activated-package-app-invite-actions{width:100%;padding-inline-start:44px}}
+@media(max-width:540px){.client-app .activated-package-app-invite{gap:12px;padding:16px}.client-app .activated-package-app-invite p{font-size:15px}.activated-package-app-invite-actions{padding-inline-start:0;gap:8px}.client-app .activated-package-app-invite-actions a,.client-app .activated-package-app-invite-actions button{flex:1;padding-inline:9px;font-size:13px}}

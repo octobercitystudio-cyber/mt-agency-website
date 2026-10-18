@@ -525,6 +525,7 @@ export const DataProvider = ({ children }) => {
   // Entry forms can render while the server restores the session. Protected
   // dashboards still wait for authentication and cannot flash private content.
   const isAccountEntry = /^\/(?:login|register|reset-password)\/?$/.test(window.location.pathname);
+  const hasInlineAuthNotice = /^\/(?:login|register)\/?$/.test(window.location.pathname);
   const authRetryNotice = authRestoreError && !isAuthReady ? <div className="auth-restore-notice" role="alert" dir="rtl"><p>تعذّر استعادة تسجيل الدخول بسبب مشكلة في الاتصال. تحقق من الإنترنت ثم أعد المحاولة.</p><button type="button" onClick={() => setAuthRetry(value => value + 1)}>إعادة الاتصال</button></div> : null;
   if ((!isDataLoaded || !isAuthReady) && !isPublicSurface() && !isAccountEntry) {
     return (
@@ -553,6 +554,7 @@ export const DataProvider = ({ children }) => {
       isAdminAuth, 
       isClientAuth,
       isAuthReady,
+      authRetryNotice,
       currentUser,
       login, 
       logout,
@@ -562,7 +564,7 @@ export const DataProvider = ({ children }) => {
       refreshSession,
       logoutErp
     }}>
-      {authRetryNotice}
+      {!hasInlineAuthNotice && authRetryNotice}
       {children}
     </DataContext.Provider>
   );

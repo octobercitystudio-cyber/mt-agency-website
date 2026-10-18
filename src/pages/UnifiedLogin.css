@@ -15,3 +15,9 @@
 @media(max-width:375px){.unified-login-container{padding-left:22px;padding-right:22px}.unified-login-heading{margin:22px 0 24px}.unified-login-brand p{font-size:25px}.unified-login-heading h1{font-size:25px}.unified-login-container .unified-forgot{font-size:12px}}
 @media(max-width:340px){.unified-login-container{padding-left:18px;padding-right:18px}.unified-login-brand p{font-size:24px}.unified-login-heading h1{font-size:24px}}
 @media(prefers-reduced-motion:reduce){.unified-login-container *,.unified-login-container *:before,.unified-login-container *:after{animation:none!important;transition:none!important}}
+
+.unified-login-container{padding:0;height:var(--auth-viewport-height,100dvh);min-height:0;overflow:hidden}
+.unified-login-content{display:flex;flex-direction:column;align-items:center;width:100%;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:30px 24px 20px;scroll-padding-block:24px}
+.unified-login-content input{scroll-margin-block:24px}
+@media(max-width:540px){.unified-login-container{padding:0}.unified-login-content{padding:24px 24px 16px}}
+@media(max-width:375px){.unified-login-content{padding-inline:20px}}

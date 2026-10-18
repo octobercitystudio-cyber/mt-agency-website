@@ -17,6 +17,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../store/DataContext';
 import ClientDashboardOverview, { ClientPackageCards, ClientPaymentDueAlarm } from './ClientDashboardOverview';
 import ClientSupport from '../components/ClientSupport';
+import ActivatedPackageAppInvite from '../components/ActivatedPackageAppInvite';
 import ClientFinanceView from './ClientFinanceView';
 import ClientProjectsView from './ClientProjectsView';
 import './ClientProjectsView.css';
@@ -479,6 +480,7 @@ export default function ClientDashboard() {
           <div className="client-topbar-guide-actions">{activeTab !== 'book-studio' && <button ref={bookingTriggerRef} type="button" className="glance-primary" onClick={() => navigateClient('book-studio')}><Plus/>{paymentLocked ? 'الحجز معلّق لحين السداد' : hasCurrentPackage ? 'حجز موعد تصوير جديد' : 'حجز باقة جديدة'}</button>}{activeTab !== 'package-guide' && <button type="button" className="client-guide-trigger" onClick={() => navigateClient('package-guide')}><BookOpen/>دليل الباقات والتصوير</button>}</div>
         </header>
 
+        {activeTab === 'home' && !loading && !loadError && currentUser?.role === 'client' && activePackages.length > 0 && <ActivatedPackageAppInvite key={clientId} clientId={clientId}/>}
         <ClientPaymentDueAlarm packages={packages} onNavigate={navigateClient} onPay={id => selectPaymentTarget('package', id)}/>
         {isLocalPreview && <div className="client-notice client-notice--success" role="status">معاينة عميل محلية ببيانات تمثيلية — تُحفظ الإجراءات على هذا الجهاز لتجربة دورة العمل كاملة.</div>}
         {notice && <div className={`client-notice client-notice--${notice.type}`} role="status">{notice.message}</div>}
