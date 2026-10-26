@@ -1,15 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { useData } from '../store/DataContext';
 import { Link } from 'react-router-dom';
 import { localizePublicPath } from '../lib/publicRoutes';
 import './About.css';
 
 const About = () => {
   const { t, i18n } = useTranslation();
-  const { siteData } = useData();
   const isEnglish = i18n.language === 'en';
-  
-  const aboutData = siteData.about;
 
   return (
     <section id="about" className="about-section">
@@ -17,27 +13,10 @@ const About = () => {
         <div className="about-content glass-panel">
           <h2 className="section-title">{t('about.title1')} <span className="text-gradient">{t('about.title2')}</span></h2>
           
-          <div className="about-text">
-            <p>{isEnglish ? aboutData.p1En : aboutData.p1}</p>
-            <p>{isEnglish ? aboutData.p2En : aboutData.p2}</p>
-            <p>{isEnglish ? aboutData.p3En : aboutData.p3}</p>
-          </div>
-          
-          <div className="about-stats">
-            <div className="stat-item">
-              <h3>{aboutData.yearsOfExperience}</h3>
-              <span>{t('about.stats.years')}</span>
-            </div>
-            <div className="stat-item">
-              <h3>{aboutData.successfulProjects}</h3>
-              <span>{t('about.stats.projects')}</span>
-            </div>
-            <div className="stat-item">
-              <h3>{aboutData.expertsCount}</h3>
-              <span>{t('about.stats.experts')}</span>
-            </div>
-          </div>
-          <Link className="public-preview-link" to={localizePublicPath('/about', isEnglish ? 'en' : 'ar')}>{isEnglish ? 'Read our full story' : 'اقرأ قصتنا كاملة'}</Link>
+          <div className="about-text"><p>{isEnglish
+            ? 'We produce video and content, manage social channels, design brands and develop websites and software. Every project has an agreed scope and deliverables.'
+            : 'ننتج الفيديو والمحتوى، وندير منصات التواصل، ونصمم الهويات البصرية والمواقع والبرمجيات. لكل مشروع نطاق ومخرجات متفق عليها.'}</p></div>
+          <Link className="public-preview-link" to={localizePublicPath('/about', isEnglish ? 'en' : 'ar')}>{isEnglish ? 'About us' : 'اعرف المزيد'}</Link>
         </div>
       </div>
     </section>

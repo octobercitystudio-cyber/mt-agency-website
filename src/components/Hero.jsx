@@ -15,7 +15,15 @@ const Hero = () => {
   const { siteData } = useData();
   const isEnglish = i18n.language === 'en';
   
-  const heroData = siteData.hero;
+  const heroData = siteData.hero || {};
+  // Replace the former generic headline, including copies saved in site settings.
+  // An intentionally edited headline in the admin panel still takes precedence.
+  const legacyHeadline = (isEnglish ? heroData.title1En : heroData.title1) === (isEnglish ? 'We Craft Your Vision,' : 'نصنع رؤيتك،');
+  const title1 = legacyHeadline ? (isEnglish ? 'Content production,' : 'تصوير وإنتاج محتوى،') : (isEnglish ? heroData.title1En : heroData.title1);
+  const title2 = legacyHeadline ? (isEnglish ? 'marketing and digital development.' : 'وتسويق وتطوير رقمي.') : (isEnglish ? heroData.title2En : heroData.title2);
+  const subtitle = legacyHeadline ? (isEnglish
+    ? 'Studios, video, social media, design, websites and software in 6th of October City.'
+    : 'استديوهات وفيديو وإدارة منصات وتصميم ومواقع وبرمجيات في 6 أكتوبر.') : (isEnglish ? heroData.subtitleEn : heroData.subtitle);
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [readyImages, setReadyImages] = useState({});
@@ -66,11 +74,11 @@ const Hero = () => {
         {/* Text Content (Left side in RTL, or bottom in mobile) */}
         <div className="hero-content">
           <h1 className="hero-title">
-            {isEnglish ? heroData.title1En : heroData.title1}{' '}
-            <span className="text-gradient">{isEnglish ? heroData.title2En : heroData.title2}</span>
+            {title1}{' '}
+            <span className="text-gradient">{title2}</span>
           </h1>
           <p className="hero-subtitle">
-            {isEnglish ? heroData.subtitleEn : heroData.subtitle}
+            {subtitle}
           </p>
           <div className="hero-actions">
             <a href="#portfolio" className="btn-primary">{t('hero.discover')}</a>

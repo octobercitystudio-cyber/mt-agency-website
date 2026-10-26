@@ -12,8 +12,8 @@ test('public catalog has ten stable unique service slugs and complete bilingual 
   assert.equal(publicServiceCatalog.length, 10);
   assert.equal(new Set(publicServiceSlugs).size, 10);
   assert.equal(publicServiceSlugs.includes('custom'), false);
-  const requiredText = ['title', 'navLabel', 'eyebrow', 'heroSummary', 'heroAlt', 'introduction', 'seoTitle', 'metaDescription'];
-  const requiredLists = ['outcomes', 'deliverables', 'process', 'suitableFor', 'faq', 'keywords'];
+  const requiredText = ['title', 'navLabel', 'eyebrow', 'heroSummary', 'cardSummary', 'heroAlt', 'seoTitle', 'metaDescription'];
+  const requiredLists = ['deliverables', 'suitableFor', 'faq', 'keywords'];
   const heroImages = [];
   for (const service of publicServiceCatalog) {
     assert.match(service.slug, /^[a-z0-9]+(?:-[a-z0-9]+)*$/);
@@ -23,7 +23,10 @@ test('public catalog has ten stable unique service slugs and complete bilingual 
     await access(new URL(`public${service.heroImage}`, root));
     for (const locale of ['ar', 'en']) {
       for (const field of requiredText) assert.ok(service[locale][field]?.trim(), `${service.slug}.${locale}.${field}`);
-      for (const field of requiredLists) assert.ok(Array.isArray(service[locale][field]) && service[locale][field].length >= (field === 'faq' ? 3 : 1), `${service.slug}.${locale}.${field}`);
+      for (const field of requiredLists) assert.ok(Array.isArray(service[locale][field]) && service[locale][field].length >= (field === 'faq' ? 2 : 1), `${service.slug}.${locale}.${field}`);
+      assert.ok(service[locale].heroSummary.length <= 220, `${service.slug}.${locale} summary is concise`);
+      assert.ok(service[locale].deliverables.length <= 4, `${service.slug}.${locale} deliverables are focused`);
+      assert.ok(service[locale].faq.length <= 4, `${service.slug}.${locale} questions are focused`);
       for (const faq of service[locale].faq) assert.equal(faq.length, 2);
     }
     assert.equal(getPublicService(service.slug), service);
@@ -31,14 +34,12 @@ test('public catalog has ten stable unique service slugs and complete bilingual 
   assert.equal(new Set(heroImages).size, publicServiceCatalog.length, 'each service must have a unique hero image');
 });
 
-test('priority commercial services expose equivalent local expertise and Al Majd has durable static artwork', async () => {
+test('priority commercial services keep local search context and Al Majd proof', async () => {
   for (const slug of ['commercial-video-production', 'reels-production', 'social-media-management']) {
     const service = getPublicService(slug);
     for (const locale of ['ar', 'en']) {
-      assert.ok(service[locale].title.match(/6|أكتوبر|October|Giza|الجيزة/), `${slug}.${locale} local H1`);
+      assert.ok(service[locale].seoTitle.match(/6|أكتوبر|October|Giza|الجيزة/), `${slug}.${locale} local SEO title`);
       assert.ok(service[locale].serviceType?.trim(), `${slug}.${locale}.serviceType`);
-      assert.ok(service[locale].localExpertise?.title?.trim(), `${slug}.${locale}.localExpertise.title`);
-      assert.equal(service[locale].localExpertise.items.length, 3);
     }
   }
 
@@ -52,25 +53,16 @@ test('priority commercial services expose equivalent local expertise and Al Majd
   }
 });
 
-test('web design service exposes bilingual local intent, a practical buying guide and contextual internal links', () => {
+test('web design service keeps bilingual local intent and a practical buying guide', () => {
   const service = getPublicService('web-design-development');
   for (const locale of ['ar', 'en']) {
     const copy = service[locale];
-    assert.match(copy.title, /6|أكتوبر|October/);
+    assert.match(copy.seoTitle, /6|أكتوبر|October/);
     assert.ok(copy.serviceType?.trim());
-    assert.ok(copy.localExpertise?.title?.trim());
-    assert.equal(copy.localExpertise.items.length, 3);
     assert.ok(copy.decisionGuide?.title?.trim());
     assert.equal(copy.decisionGuide.options.length, 3);
-    assert.equal(copy.decisionGuide.factors.length, 4);
-    assert.equal(copy.relatedServices.length, 3);
-    assert.equal(copy.faq.length, 6);
+    assert.equal(copy.faq.length, 4);
   }
-  assert.deepEqual(service.ar.relatedServices.map(item => item.slug), [
-    'creative-design-branding',
-    'social-media-management',
-    'software-development',
-  ]);
 });
 
 test('portfolio linkage honors explicit assignments and keeps legacy fallbacks service-specific', () => {
@@ -130,7 +122,7 @@ test('social media management excludes reels while the dedicated reels service k
   assert.deepEqual(reels.portfolioCategories, ['reels']);
   for (const locale of ['ar', 'en']) {
     const copy = social[locale];
-    const visibleCopy = [copy.heroSummary, ...copy.deliverables, copy.localExpertise.summary, ...copy.localExpertise.items.map(item => item.text), copy.metaDescription].join(' ');
+    const visibleCopy = [copy.heroSummary, ...copy.deliverables, copy.metaDescription].join(' ');
     assert.doesNotMatch(visibleCopy, /ريل|reels?/i, `${locale} social media copy must not claim reels production`);
   }
 });
@@ -139,10 +131,10 @@ test('social media success-partner proof replaces the empty portfolio state and 
   const pages = await load('src/pages/PublicPages.jsx');
   const css = await load('src/pages/PublicPages.css');
   assert.match(pages, /id="al-majd-work" className="public-success-partner"/);
-  assert.match(pages, /const showWorkSection = work\.length > 0 \|\| !hasSuccessPartner;/);
+  assert.match(pages, /work\.length > 0 && <section id="service-work"/);
   assert.match(pages, /const workTarget = hasSuccessPartner \? '#al-majd-work' : '#service-work';/);
   assert.match(pages, /href=\{workTarget\}/);
-  assert.match(pages, /\{showWorkSection && <section id="service-work"/);
+  assert.match(pages, /\{\(work\.length > 0 \|\| hasSuccessPartner\) && <a className="public-ghost-button" href=\{workTarget\}/);
   assert.match(css, /\.public-success-partner\{[^}]*scroll-margin-top:104px/);
 });
 
@@ -177,9 +169,9 @@ test('services navigation supports desktop keyboard controls and a mobile accord
   assert.match(css, /@media\(max-width:769px\).*\.services-mega-menu\{position:static/s); assert.match(css, /\.services-mega-menu\.open\{max-height:1050px/); assert.match(css, /min-height:44px/); assert.match(css, /max-width:94vw/);
 });
 
-test('standalone About and Contact expose verified data and service-preselected safe inquiries', async () => {
+test('standalone About and Contact keep concise copy and service-preselected safe inquiries', async () => {
   const pages = await load('src/pages/PublicPages.jsx');
-  assert.match(pages, /export function AboutPage/); assert.match(pages, /about\.yearsOfExperience/); assert.match(pages, /about\.successfulProjects/); assert.match(pages, /about\.expertsCount/); assert.match(pages, /siteData\.about/);
+  assert.match(pages, /export function AboutPage/); assert.match(pages, /يبدأ كل مشروع بنطاق ومخرجات متفق عليها/);
   assert.match(pages, /export function ContactPage/); assert.match(pages, /new URLSearchParams\(location\.search\)\.get\('service'\)/); assert.match(pages, /location\.state\?\.service/); assert.match(pages, /value=\{service\}/); assert.match(pages, /encodeURIComponent\(receivingEmail\)/); assert.match(pages, /info@multitaskagency\.com/); assert.match(pages, /siteData\.formSettings\?\.receivingEmail/);
 });
 

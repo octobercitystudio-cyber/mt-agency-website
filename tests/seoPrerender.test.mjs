@@ -51,16 +51,27 @@ test('service prerenders expose the same visible FAQ and Service schema in both 
       assert.match(html, /"@type":"Service"/);
       assert.match(html, /"@type":"FAQPage"/);
       assert.match(html, /"@type":"BreadcrumbList"/);
+      assert.doesNotMatch(html, /حل واضح مبني حول النتيجة|A focused solution built around the result|class="public-local-expertise container"|class="public-related-services container"/);
       for (const [question] of service[locale].faq) assert.ok(html.includes(question.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')));
     }
   }
 });
 
-test('priority service prerenders expose local proof and the complete Al Majd partner gallery', async () => {
+test('services index goes directly to the ten service choices in both languages', async () => {
+  for (const locale of ['ar', 'en']) {
+    const html = await load(`dist/${locale}/services/index.html`);
+    assert.doesNotMatch(html, /id="educational-filming"/);
+    for (const service of publicServiceCatalog) {
+      assert.match(html, new RegExp(`/${locale}/services/${service.slug}/`));
+      assert.ok(html.includes(service[locale].cardSummary));
+    }
+  }
+});
+
+test('priority service prerenders keep real work and the complete Al Majd partner gallery', async () => {
   for (const locale of ['ar', 'en']) {
     for (const slug of ['commercial-video-production', 'reels-production', 'social-media-management']) {
       const html = await load(`dist/${locale}/services/${slug}/index.html`);
-      assert.match(html, /class="public-local-expertise container"/);
       assert.match(html, /"serviceType":"[^"]+"/);
       if (slug !== 'social-media-management') assert.match(html, /class="public-seo-work-list"/);
     }
@@ -78,16 +89,12 @@ test('priority service prerenders expose local proof and the complete Al Majd pa
   }
 });
 
-test('web design prerender includes the visible decision guide, local expertise and related service links', async () => {
+test('web design prerender includes the buying guide without repeated marketing sections', async () => {
   for (const locale of ['ar', 'en']) {
     const html = await load(`dist/${locale}/services/web-design-development/index.html`);
-    assert.match(html, /class="public-local-expertise container"/);
     assert.match(html, /class="public-decision-guide"/);
-    assert.match(html, /class="public-related-services container"/);
+    assert.doesNotMatch(html, /class="public-local-expertise container"|class="public-related-services container"/);
     assert.match(html, /"serviceType":"[^"]+"/);
-    for (const slug of ['creative-design-branding', 'social-media-management', 'software-development']) {
-      assert.match(html, new RegExp(`/${locale}/services/${slug}/`));
-    }
   }
 });
 

@@ -45,9 +45,9 @@ const restoreLocalPreviewSession = () => {
 // Default data (matches current static state)
 const defaultData = {
   hero: {
-    title1: "نصنع رؤيتك،", title1En: "We Craft Your Vision,",
-    title2: "ونقود التأثير.", title2En: "We Drive Impact.",
-    subtitle: "خلف كل محتوى عظيم، 15 عاماً من الخبرة.", subtitleEn: "Behind every great content, 15 years of experience."
+    title1: "تصوير وإنتاج محتوى،", title1En: "Content production,",
+    title2: "وتسويق وتطوير رقمي.", title2En: "marketing and digital development.",
+    subtitle: "استديوهات وفيديو وإدارة منصات وتصميم ومواقع وبرمجيات في 6 أكتوبر.", subtitleEn: "Studios, video, social media, design, websites and software in 6th of October City."
   },
   about: {
     yearsOfExperience: "15",

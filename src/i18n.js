@@ -19,9 +19,9 @@ const resources = {
         lang: "عربي"
       },
       hero: {
-        title1: "We Craft Your Vision,",
-        title2: "We Drive Impact.",
-        subtitle: "Behind every great content, 15 years of experience.",
+        title1: "Content production,",
+        title2: "marketing and digital development.",
+        subtitle: "Studios, video, social media, design, websites and software in 6th of October City.",
         discover: "Discover Our Work",
         contact: "Start Your Project",
         fallbackLogoTitle: "MT"
@@ -97,9 +97,9 @@ const resources = {
         ]
       },
       studio: {
-        title1: "Professional",
+        title1: "Filming",
         title2: "Studios",
-        description: "Our studios are equipped with the latest cameras, lighting, and audio gear to ensure your content is produced at the highest professional standard.",
+        description: "Explore our studios and choose a setup for your session.",
         features: {
           f1: "4K Cinema Cameras",
           f2: "Professional Audio Engineering",
@@ -115,7 +115,7 @@ const resources = {
       contact: {
         title1: "Contact",
         title2: "Us",
-        description: "We are here to turn your ideas into reality. Let's talk about your next project.",
+        description: "Send us your project details or call us.",
         addressTitle: "Address: 6th of October City, Giza, Egypt",
         phoneTitle: "Phone: 01114466646 (+20)",
         form: {
@@ -141,9 +141,9 @@ const resources = {
         lang: "EN"
       },
       hero: {
-        title1: "نصنع رؤيتك،",
-        title2: "ونقود التأثير.",
-        subtitle: "خلف كل محتوى عظيم، 15 عاماً من الخبرة.",
+        title1: "تصوير وإنتاج محتوى،",
+        title2: "وتسويق وتطوير رقمي.",
+        subtitle: "استديوهات وفيديو وإدارة منصات وتصميم ومواقع وبرمجيات في 6 أكتوبر.",
         discover: "اكتشف أعمالنا",
         contact: "ابدأ مشروعك",
         fallbackLogoTitle: "MT"
@@ -219,9 +219,9 @@ const resources = {
         ]
       },
       studio: {
-        title1: "استوديوهات",
-        title2: "احترافية",
-        description: "نمتلك استوديوهات مجهزة بأحدث كاميرات التصوير، معدات الإضاءة، وهندسة الصوت لضمان خروج محتواك بأعلى جودة احترافية.",
+        title1: "استديوهات",
+        title2: "التصوير",
+        description: "تعرّف على الاستديوهات واختر التجهيز المناسب لجلسة التصوير.",
         features: {
           f1: "كاميرات سينمائية 4K",
           f2: "هندسة صوتية احترافية",
@@ -237,7 +237,7 @@ const resources = {
       contact: {
         title1: "تواصل",
         title2: "معنا",
-        description: "نحن هنا لتحويل أفكارك إلى واقع. دعنا نتحدث عن مشروعك القادم.",
+        description: "أرسل تفاصيل مشروعك أو تواصل معنا هاتفيًا.",
         addressTitle: "العنوان: مدينة 6 أكتوبر، الجيزة، مصر",
         phoneTitle: "هاتف: 01114466646 (+20)",
         form: {

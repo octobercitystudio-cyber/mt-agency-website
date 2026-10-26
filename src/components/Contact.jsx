@@ -27,7 +27,7 @@ const Contact = () => {
             <p className="contact-desc">
               {t('contact.description')}
             </p>
-            <Link className="public-preview-link" to={localizePublicPath('/contact', isEnglish ? 'en' : 'ar')}>{isEnglish ? 'Open the full contact page' : 'افتح صفحة التواصل الكاملة'}</Link>
+            <Link className="public-preview-link" to={localizePublicPath('/contact', isEnglish ? 'en' : 'ar')}>{isEnglish ? 'Contact details' : 'بيانات التواصل'}</Link>
             
             <div className="contact-details-row">
               <div className="contact-item">
