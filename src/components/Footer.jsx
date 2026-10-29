@@ -23,7 +23,7 @@ const Footer = () => {
         <div className="footer-grid">
           
           <div className="footer-col footer-col-about">
-            <img src="/logo.webp" alt="Multi Task Agency Logo" className="footer-logo" width="80" height="80"
+            <img src="/brand/gold/mt-agency-logo.webp" alt="Multi Task Agency Logo" className="footer-logo" width="80" height="80"
                  onError={(e) => { e.target.style.display = 'none'; }} />
             <p className="footer-desc">
               {isEnglish 

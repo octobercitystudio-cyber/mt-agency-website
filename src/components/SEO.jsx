@@ -22,7 +22,7 @@ const SEO = ({ title, description, url = '', section = 'home', schema, image, no
   const arabicUrl = `${SITE_URL}${localizePublicPath(path, 'ar')}`;
   const englishUrl = `${SITE_URL}${localizePublicPath(path, 'en')}`;
   const defaultUrl = path === '/' ? `${SITE_URL}/` : arabicUrl;
-  const socialImage = image || globalSeo.defaultImage || `${SITE_URL}/logo.webp`;
+  const socialImage = image || globalSeo.defaultImage || siteIdentity.logo;
   const schemas = (Array.isArray(schema) ? schema : schema ? [schema] : []).filter(Boolean);
 
   return (

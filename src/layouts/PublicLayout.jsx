@@ -12,6 +12,7 @@ import { organizationId, siteIdentity, websiteId } from '../seo/siteIdentity';
 import '../components/GoldenTicketTheme.css';
 import '../pages/PublicPages.css';
 import '../pages/PublicLightTheme.css';
+import '../pages/PublicGoldTheme.css';
 
 const legacySections = new Set(['home', 'about', 'services', 'portfolio', 'studio', 'contact', 'educational-filming']);
 

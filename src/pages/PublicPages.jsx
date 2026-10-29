@@ -53,7 +53,7 @@ function PageHero({ title, summary, index, actions, image, imageAlt, className =
     <div className="container public-editorial-hero__grid">
       <div className="public-editorial-hero__copy"><h1>{title}</h1><p>{summary}</p>{actions && <div className="public-hero-actions">{actions}</div>}</div>
       {showMark && (image
-        ? <figure className="public-editorial-hero__media"><img src={image} alt={imageAlt || ''} width="800" height="800" loading="eager" fetchPriority="high" decoding="async" /></figure>
+        ? <figure className="public-editorial-hero__media"><img src={image} alt={imageAlt || ''} width="960" height="640" loading="eager" fetchPriority="high" decoding="async" /></figure>
         : <div className="public-editorial-hero__mark" aria-hidden="true"><span>{index || 'MT'}</span><i /></div>)}
       {children}
     </div>

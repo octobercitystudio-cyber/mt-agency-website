@@ -1,5 +1,8 @@
 const entry = (slug, erpServiceType, icon, group, portfolioCategories, heroImage, ar, en) => ({
-  slug, erpServiceType, icon, group, portfolioCategories, heroImage, ar, en,
+  slug, erpServiceType, icon, group, portfolioCategories,
+  heroImage: heroImage.replace('/service-heroes/', '/brand/gold/services/'),
+  ar: { ...ar, heroAlt: `صورة توضيحية لخدمة ${ar.navLabel} بإضاءة ذهبية دافئة.` },
+  en: { ...en, heroAlt: `Illustrative image of ${en.navLabel} in warm golden light.` },
 });
 
 export const publicServiceCatalog = [

@@ -18,7 +18,7 @@ test('public catalog has ten stable unique service slugs and complete bilingual 
   for (const service of publicServiceCatalog) {
     assert.match(service.slug, /^[a-z0-9]+(?:-[a-z0-9]+)*$/);
     assert.ok(service.erpServiceType && service.icon && service.group);
-    assert.match(service.heroImage, /^\/service-heroes\/[a-z0-9]+(?:-[a-z0-9]+)*\.webp$/);
+    assert.match(service.heroImage, /^\/brand\/gold\/services\/[a-z0-9]+(?:-[a-z0-9]+)*\.webp$/);
     heroImages.push(service.heroImage);
     await access(new URL(`public${service.heroImage}`, root));
     for (const locale of ['ar', 'en']) {
@@ -241,7 +241,7 @@ test('public pages preserve mobile containment, 44px controls and reduced motion
   for (const width of ['900', '600', '340']) assert.ok(pagesCss.includes(`@media(max-width:${width}px)`));
   assert.match(pagesCss, /min-height:48px/); assert.match(pagesCss, /@media\(prefers-reduced-motion:reduce\)/); assert.match(pagesCss, /overflow:clip/); assert.match(headerCss, /min-height:44px/);
   assert.match(pagesCss, /\.public-work-media>a>img\{[^}]*width:100%;height:100%;display:block;object-fit:contain;object-position:center/s);
-  assert.match(pages, /<figure className="public-editorial-hero__media"><img src=\{image\} alt=\{imageAlt \|\| ''\} width="800" height="800" loading="eager" fetchPriority="high" decoding="async" \/><\/figure>/);
+  assert.match(pages, /<figure className="public-editorial-hero__media"><img src=\{image\} alt=\{imageAlt \|\| ''\} width="960" height="640" loading="eager" fetchPriority="high" decoding="async" \/><\/figure>/);
   assert.match(pages, /image=\{service\.heroImage\} imageAlt=\{text\.heroAlt\}/);
   assert.match(pagesCss, /\.public-editorial-hero__media\{[^}]*max-width:430px;[^}]*aspect-ratio:1/s);
   assert.match(pagesCss, /\.public-editorial-hero__media img\{[^}]*object-fit:contain;object-position:center/s);

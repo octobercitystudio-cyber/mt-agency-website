@@ -30,7 +30,7 @@ test('build emits a complete crawlable Arabic and English HTML page for every pu
       assert.match(html, /<title>[^<]+\| Multi Task Agency<\/title>/);
       assert.match(html, /<meta name="description" content="[^"]+">/);
       assert.match(html, /<meta name="robots" content="index, follow">/);
-      assert.match(html, /<h1>[^<]+<\/h1>/);
+      assert.match(html, /<h1(?:\s[^>]*)?>[^<]+(?:<span[^>]*>[^<]+<\/span>)?<\/h1>/);
       assert.match(html, /hreflang="ar-EG"/);
       assert.match(html, /hreflang="en-EG"/);
       assert.match(html, /"@type":\["Organization","ProfessionalService"\]/);

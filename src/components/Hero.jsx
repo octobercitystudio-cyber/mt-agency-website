@@ -1,98 +1,34 @@
-import { useState, useEffect } from 'react';
+import { ArrowLeft, ArrowRight, MapPin, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
+import { goldHeroCopy } from '../data/goldHero';
+import ServicePhotoCarousel from './ServicePhotoCarousel';
 import './Hero.css';
 
-const HERO_SLIDES = [
-  { small: '/hero-service-1-v2-small.webp', tiny: '/hero-service-1-v2-tiny.webp', alt: 'كاميرا وإضاءة للتصوير الاحترافي', altEn: 'Camera and lighting for professional photography' },
-  { small: '/hero-service-2-v2-small.webp', tiny: '/hero-service-2-v2-tiny.webp', alt: 'كاميرا وشاشة وميكروفون لإنتاج الفيديو في الاستديو', altEn: 'Camera, monitor and microphone for studio video production' },
-  { small: '/hero-service-3-v2-small.webp', tiny: '/hero-service-3-v2-tiny.webp', alt: 'لوحة رسم رقمية وأدوات التصميم الإبداعي', altEn: 'Drawing tablet and creative design tools' },
-  { small: '/hero-service-4-v2-small.webp', tiny: '/hero-service-4-v2-tiny.webp', alt: 'هاتف وبطاقات محتوى لمنصات التواصل الاجتماعي', altEn: 'Phone and content cards for social media' },
-];
-
-const Hero = () => {
-  const { t, i18n } = useTranslation();
+export default function Hero() {
+  const { i18n } = useTranslation();
   const { siteData } = useData();
-  const isEnglish = i18n.language === 'en';
-  
+  const isEnglish = String(i18n.language).startsWith('en');
+  const copy = goldHeroCopy[isEnglish ? 'en' : 'ar'];
   const heroData = siteData.hero || {};
-  // Replace the former generic headline, including copies saved in site settings.
-  // An intentionally edited headline in the admin panel still takes precedence.
-  const legacyHeadline = (isEnglish ? heroData.title1En : heroData.title1) === (isEnglish ? 'We Craft Your Vision,' : 'نصنع رؤيتك،');
-  const title1 = legacyHeadline ? (isEnglish ? 'Content production,' : 'تصوير وإنتاج محتوى،') : (isEnglish ? heroData.title1En : heroData.title1);
-  const title2 = legacyHeadline ? (isEnglish ? 'marketing and digital development.' : 'وتسويق وتطوير رقمي.') : (isEnglish ? heroData.title2En : heroData.title2);
-  const subtitle = legacyHeadline ? (isEnglish
-    ? 'Studios, video, social media, design, websites and software in 6th of October City.'
-    : 'استديوهات وفيديو وإدارة منصات وتصميم ومواقع وبرمجيات في 6 أكتوبر.') : (isEnglish ? heroData.subtitleEn : heroData.subtitle);
+  const savedTitle = isEnglish ? heroData.title1En : heroData.title1;
+  const hasCustomHeadline = savedTitle && !['We Craft Your Vision,', 'Content production,', 'نصنع رؤيتك،', 'تصوير وإنتاج محتوى،'].includes(savedTitle);
+  const title1 = hasCustomHeadline ? savedTitle : copy.title1;
+  const title2 = hasCustomHeadline ? (isEnglish ? heroData.title2En : heroData.title2) : copy.title2;
+  const subtitle = hasCustomHeadline ? ((isEnglish ? heroData.subtitleEn : heroData.subtitle) || copy.subtitle) : copy.subtitle;
+  const DirectionArrow = isEnglish ? ArrowRight : ArrowLeft;
 
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [readyImages, setReadyImages] = useState({});
-  // Keep only the first photo on the initial connection. Once decoded, prepare
-  // the following slide; already loaded slides stay mounted for smooth dissolves.
-  const loadedSlideCount = Math.min(HERO_SLIDES.length, currentImageIndex + (readyImages[currentImageIndex] ? 2 : 1));
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => {
-        const next = (prev + 1) % HERO_SLIDES.length;
-        return readyImages[next] ? next : prev;
-      });
-    }, 4000); // Change image every 4 seconds
-    return () => clearInterval(interval);
-  }, [readyImages]);
-
-  return (
-    <section id="home" className="hero-section">
-      <div className="container hero-container">
-        
-        {/* Visual Slider (Right side in RTL, or top in mobile) */}
-        <div className="hero-visual">
-          <div className="visual-banner">
-            {HERO_SLIDES.slice(0, Math.max(loadedSlideCount, ...Object.keys(readyImages).map(index => Number(index) + 1))).map((slide, index) => <picture key={slide.small}>
-              <source media="(max-width: 520px)" srcSet={slide.tiny} />
-              <img
-                src={slide.small}
-                alt={`${isEnglish ? slide.altEn : slide.alt} - Multi Task Agency`}
-                className={`hero-slider-img${index === currentImageIndex ? ' active' : ''}`}
-                aria-hidden={index !== currentImageIndex}
-                width="800"
-                height="800"
-                fetchPriority={index === 0 ? 'high' : 'low'}
-                loading="eager"
-                decoding="async"
-                onLoad={async (event) => {
-                  const image = event.currentTarget;
-                  try { await image.decode(); } catch { return; }
-                  setReadyImages((current) => current[index] ? current : { ...current, [index]: true });
-                }}
-              />
-            </picture>)}
-            <div className="visual-overlay"></div>
-          </div>
-        </div>
-        
-        {/* Text Content (Left side in RTL, or bottom in mobile) */}
-        <div className="hero-content">
-          <h1 className="hero-title">
-            {title1}{' '}
-            <span className="text-gradient">{title2}</span>
-          </h1>
-          <p className="hero-subtitle">
-            {subtitle}
-          </p>
-          <div className="hero-actions">
-            <a href="#portfolio" className="btn-primary">{t('hero.discover')}</a>
-            <a href="#contact" className="btn-secondary">{t('hero.contact')}</a>
-          </div>
-        </div>
-        
+  return <section id="home" className="hero-section gold-hero">
+    <div className="gold-hero__decoration" aria-hidden="true"><i/><i/><i/></div>
+    <div className="container gold-hero__intro">
+      <h1 className="gold-hero__title">{title1}{' '}<span className="gold-hero__highlight">{title2}</span></h1>
+      <p className="gold-hero__subtitle">{subtitle}</p>
+      <p className="gold-hero__location"><MapPin aria-hidden="true"/>{copy.location}</p>
+      <div className="gold-hero__actions">
+        <a href="#contact" className="btn-primary">{copy.primary}<DirectionArrow aria-hidden="true"/></a>
+        <a href="#portfolio" className="btn-secondary">{copy.secondary}<Play aria-hidden="true"/></a>
       </div>
-      
-      {/* Background elements */}
-      <div className="bg-blob blob-1"></div>
-      <div className="bg-blob blob-2"></div>
-    </section>
-  );
-};
-
-export default Hero;
+    </div>
+    <ServicePhotoCarousel isEnglish={isEnglish}/>
+  </section>;
+}

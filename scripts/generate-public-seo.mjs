@@ -7,6 +7,7 @@ import { getServicePortfolio, publicServiceCatalog } from '../src/data/publicSer
 import { VERIFIED_PORTFOLIO } from '../src/data/verifiedPortfolio.js';
 import { EDUCATIONAL_BOOKING_COPY, EDUCATIONAL_BOOKING_IMAGE, EDUCATIONAL_BOOKING_SERVICE, EDUCATIONAL_BOOKING_TARGET } from '../src/data/educationalBooking.js';
 import { CLIENT_APP_DOWNLOAD_URL } from '../src/data/clientApp.js';
+import { goldHeroCopy, goldServiceOrder } from '../src/data/goldHero.js';
 import { SITE_URL, organizationId, siteIdentity, websiteId } from '../src/seo/siteIdentity.js';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -51,15 +52,15 @@ const commonPages = [
       title: 'إنتاج إعلامي وتسويق رقمي وتقنية في 6 أكتوبر',
       description: 'Multi Task Agency تقدم خدمات الإنتاج الإعلامي وصناعة المحتوى والتسويق الرقمي وتصميم المواقع والبرمجيات من مدينة 6 أكتوبر، الجيزة.',
       eyebrow: 'تصوير وتسويق وتطوير رقمي',
-      h1: 'تصوير وإنتاج محتوى، وتسويق وتطوير رقمي',
-      summary: 'استديوهات وفيديو وإدارة منصات وتصميم ومواقع وبرمجيات في 6 أكتوبر.',
+      h1: `${goldHeroCopy.ar.title1} ${goldHeroCopy.ar.title2}`,
+      summary: goldHeroCopy.ar.subtitle,
     },
     en: {
       title: 'Media Production, Digital Marketing & Technology in Giza',
       description: 'Multi Task Agency provides media production, content, digital marketing, web and software services from 6th of October City, Giza.',
       eyebrow: 'Production, marketing and digital development',
-      h1: 'Content production, marketing and digital development',
-      summary: 'Studios, video, social media, design, websites and software in 6th of October City.',
+      h1: `${goldHeroCopy.en.title1} ${goldHeroCopy.en.title2}`,
+      summary: goldHeroCopy.en.subtitle,
     },
   },
   {
@@ -104,7 +105,8 @@ const navigation = (locale, currentPath) => {
     : [['الرئيسية', '/'], ['الخدمات', '/services/'], ['أعمالنا', '/portfolio/'], ['الاستديوهات', '/studios/'], ['من نحن', '/about/'], ['تواصل معنا', '/contact/']];
   const otherLocale = locale === 'en' ? 'ar' : 'en';
   const languageLabel = locale === 'en' ? 'العربية' : 'English';
-  return `<header class="top-bar"><div class="top-bar-right"><a class="logo-link" href="${languagePath(locale, '/')}"><img src="/logo.webp" width="50" height="50" alt="Multi Task Agency"></a></div><nav class="header-nav" aria-label="${locale === 'en' ? 'Main navigation' : 'التنقل الرئيسي'}"><ul class="nav-list">${links.map(([label, href]) => `<li><a class="nav-link" href="${languagePath(locale, href)}">${escapeHtml(label)}</a></li>`).join('')}</ul></nav><div class="top-bar-left"><a class="lang-btn" href="${languagePath(otherLocale, currentPath)}" hreflang="${otherLocale === 'en' ? 'en-EG' : 'ar-EG'}">${languageLabel}</a><a href="/login" class="btn-secondary login-btn">${locale === 'en' ? 'Login' : 'تسجيل الدخول'}</a></div></header>`;
+  return `<header class="top-bar"><div class="top-bar-right"><a class="logo-link" href="${languagePath(locale, '/')}"><img class="header-logo" src="/brand/gold/mt-agency-logo.webp" width="100" height="84" alt="Multi Task Agency"></a><a class="lang-btn" href="${languagePath(otherLocale, currentPath)}" hreflang="${otherLocale === 'en' ? 'en-EG' : 'ar-EG'}">${languageLabel}</a><button class="mobile-menu-btn" type="button" aria-label="${locale === 'en' ? 'Open menu' : 'فتح القائمة'}" aria-expanded="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button></div><div class="mobile-nav-wrapper"><div class="top-bar-center"><nav class="header-nav" aria-label="${locale === 'en' ? 'Main navigation' : 'التنقل الرئيسي'}"><ul class="nav-list">${links.map(([label, href]) => `<li><a class="nav-link" href="${languagePath(locale, href)}">${escapeHtml(label)}</a></li>`).join('')}</ul></nav></div><div class="top-bar-left"><a href="/login" class="btn-secondary login-btn">${locale === 'en' ? 'Login' : 'تسجيل الدخول'}</a></div></div></header>`;
+
 };
 
 const educationalBookingContent = locale => {
@@ -162,10 +164,17 @@ const serviceContent = (page, locale) => {
   <section class="public-inline-cta container"><h2>${sectionTitle('احكِ لنا احتياجك', 'Tell us what you need')}</h2><a class="public-solid-button" href="${languagePath(locale, `/contact/?service=${page.service.slug}`)}">${sectionTitle('اطلب عرض سعر', 'Request a quote')}</a></section>`;
 };
 
+const goldHomeHero = locale => {
+  const copy = goldHeroCopy[locale];
+  const slides = goldServiceOrder.map(slug => publicServiceCatalog.find(service => service.slug === slug)).filter(Boolean);
+  return `<section id="home" class="hero-section gold-hero"><div class="gold-hero__decoration" aria-hidden="true"><i></i><i></i><i></i></div><div class="container gold-hero__intro"><h1 class="gold-hero__title">${escapeHtml(copy.title1)} <span class="gold-hero__highlight">${escapeHtml(copy.title2)}</span></h1><p class="gold-hero__subtitle">${escapeHtml(copy.subtitle)}</p><p class="gold-hero__location">${escapeHtml(copy.location)}</p><div class="gold-hero__actions"><a class="btn-primary" href="#contact">${escapeHtml(copy.primary)}</a><a class="btn-secondary" href="#portfolio">${escapeHtml(copy.secondary)}</a></div></div><section class="gold-service-carousel" aria-label="${locale === 'en' ? 'Our services' : 'خدماتنا'}"><div class="gold-service-carousel__viewport"><div class="gold-service-carousel__track" dir="ltr">${slides.map((service,index) => `<a class="gold-service-slide" href="${languagePath(locale, '/services/'+service.slug+'/')}" dir="${locale === 'en' ? 'ltr' : 'rtl'}"><img src="/brand/gold/services/${service.slug}.webp" srcset="/brand/gold/services/${service.slug}-small.webp 640w, /brand/gold/services/${service.slug}.webp 960w" sizes="(max-width: 640px) 90vw, (max-width: 1024px) 46vw, 32vw" width="960" height="640" alt="${escapeHtml(service[locale].heroAlt)}" loading="${index < 3 ? 'eager' : 'lazy'}" decoding="async"><span class="gold-service-slide__caption"><span>${escapeHtml(service[locale].navLabel)}</span></span></a>`).join('')}</div></div></section></section>`;
+};
+
 const visiblePage = (page, locale) => {
   const copy = page[locale];
   const body = page.service ? serviceContent(page, locale) : (page.path === '/' ? educationalBookingContent(locale) + servicesList(locale) : page.path === '/services/' ? servicesList(locale) : page.path === '/about/' ? `<section class="public-intro container"><h2>${locale === 'en' ? 'What we do' : 'ماذا نقدم'}</h2><p>${locale === 'en' ? 'We produce video and content, manage social media, design visual identities and build websites and software. Each project starts with an agreed scope and deliverables.' : 'نصور وننتج المحتوى، وندير منصات التواصل، ونصمم الهويات البصرية، ونطور المواقع والبرمجيات. يبدأ كل مشروع بنطاق ومخرجات متفق عليها.'}</p></section>` : page.path === '/contact/' ? `<section class="public-contact-info container"><a href="tel:${siteIdentity.telephone}">${siteIdentity.telephone}</a><a href="tel:${siteIdentity.secondaryTelephone}">${siteIdentity.secondaryTelephone}</a><a href="mailto:${siteIdentity.email}">${siteIdentity.email}</a><p>${escapeHtml(siteIdentity.address[locale])}</p></section>` : '');
-  return `<div class="app-container public-site-shell">${navigation(locale, page.path)}<main id="main-content" class="public-page"><header class="public-editorial-hero"><div class="container public-editorial-hero__grid"><div class="public-editorial-hero__copy"><h1>${escapeHtml(copy.h1)}</h1><p>${escapeHtml(copy.summary)}</p></div>${page.service ? `<figure class="public-editorial-hero__media"><img src="${escapeHtml(page.service.heroImage)}" width="800" height="800" alt="${escapeHtml(page.service[locale].heroAlt)}"></figure>` : ''}</div></header>${body}</main></div>`;
+  if (page.path === '/') return `<div class="app-container public-site-shell">${navigation(locale, page.path)}<main id="main-content" class="public-home-page">${goldHomeHero(locale)}${body}</main></div>`;
+  return `<div class="app-container public-site-shell">${navigation(locale, page.path)}<main id="main-content" class="public-page"><header class="public-editorial-hero"><div class="container public-editorial-hero__grid"><div class="public-editorial-hero__copy"><h1>${escapeHtml(copy.h1)}</h1><p>${escapeHtml(copy.summary)}</p></div>${page.service ? `<figure class="public-editorial-hero__media"><img src="${escapeHtml(page.service.heroImage)}" width="960" height="640" alt="${escapeHtml(page.service[locale].heroAlt)}"></figure>` : ''}</div></header>${body}</main></div>`;
 };
 
 const organization = {
@@ -242,7 +251,7 @@ const renderDocument = (page, locale, { rootAlias = false, noIndex = false } = {
     .replace('</head>', `    ${head}\n    ${routeAssets('src/layouts/PublicLayout.jsx', page.path === '/' ? 'src/pages/HomePage.jsx' : 'src/pages/PublicPages.jsx')}\n  </head>`)
     .replace('<body>', `<body><noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=${META_PIXEL_ID}&amp;ev=PageView&amp;noscript=1"></noscript>`)
     .replace('<div id="root"></div>', `<div id="root">${visiblePage(page, locale)}</div>`);
-  if (page.path === '/') html = html.replace('</head>', '<link rel="preload" as="image" href="/hero-service-1-v2-tiny.webp" media="(max-width: 520px)" fetchpriority="high"><link rel="preload" as="image" href="/hero-service-1-v2-small.webp" media="(min-width: 521px)" fetchpriority="high"></head>');
+  if (page.path === '/') html = html.replace('</head>', `<link rel="preload" as="image" href="/brand/gold/services/${goldServiceOrder[0]}.webp" imagesrcset="/brand/gold/services/${goldServiceOrder[0]}-small.webp 640w, /brand/gold/services/${goldServiceOrder[0]}.webp 960w" imagesizes="(max-width: 640px) 90vw, (max-width: 1024px) 46vw, 32vw" fetchpriority="high"></head>`);
   if (rootAlias) html = html.replace(`<link rel="canonical" href="${canonical}">`, `<link rel="canonical" href="${arabicUrl}">`);
   return html.replace(/\r\n/g, '\n').replace(/[ \t]+$/gm, '');
 };

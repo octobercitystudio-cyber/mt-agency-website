@@ -4,7 +4,7 @@ export const siteIdentity = {
   name: 'Multi Task Agency',
   alternateName: ['MT Agency', 'multitaskagency.com'],
   url: `${SITE_URL}/`,
-  logo: `${SITE_URL}/logo.webp`,
+  logo: `${SITE_URL}/brand/gold/mt-agency-logo.webp`,
   email: 'info@multitaskagency.com',
   telephone: '+201114466646',
   secondaryTelephone: '+201094084424',
