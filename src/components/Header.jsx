@@ -8,11 +8,18 @@ import { publicServiceCatalog } from '../data/publicServiceCatalog';
 import { alternatePublicPath, localizePublicPath, stripPublicLocale } from '../lib/publicRoutes';
 import './Header.css';
 
+const studioServices = [
+  { slug: 'studio-content-production', ar: 'تصوير المحتوى التعليمي', en: 'Educational Content Filming' },
+  { slug: 'podcast-production', ar: 'تصوير البودكاست', en: 'Podcast Production' },
+];
+
 export default function Header() {
   const { t, i18n } = useTranslation(); const { isErpAuth } = useData(); const location = useLocation();
   const [lang, setLang] = useState(i18n.language); const [isMenuOpen, setIsMenuOpen] = useState(false); const [servicesOpen, setServicesOpen] = useState(false);
+  const [studiosOpen, setStudiosOpen] = useState(false);
   const [isMobileHeader, setIsMobileHeader] = useState(() => window.matchMedia?.('(max-width: 769px)').matches || false);
   const headerRef = useRef(null); const servicesRef = useRef(null); const servicesTriggerRef = useRef(null);
+  const studiosTriggerRef = useRef(null);
   const menuTriggerRef = useRef(null); const closeMenuRef = useRef(null); const menuWasOpenRef = useRef(false);
   const isEnglish = String(lang).startsWith('en');
   const drawerClosed = isMobileHeader && !isMenuOpen;
@@ -44,11 +51,15 @@ export default function Header() {
 
   useEffect(() => {
     if (!servicesOpen) return undefined;
-    const outside = event => { if (!servicesRef.current?.contains(event.target)) setServicesOpen(false); };
-    const keyboard = event => { if (event.key === 'Escape') { setServicesOpen(false); servicesTriggerRef.current?.focus(); } };
+    const outside = event => { if (!servicesRef.current?.contains(event.target)) { setServicesOpen(false); setStudiosOpen(false); } };
+    const keyboard = event => { if (event.key === 'Escape') {
+      event.preventDefault();
+      if (studiosOpen) { setStudiosOpen(false); studiosTriggerRef.current?.focus(); }
+      else { setServicesOpen(false); servicesTriggerRef.current?.focus(); }
+    } };
     document.addEventListener('pointerdown', outside); document.addEventListener('keydown', keyboard);
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', keyboard); };
-  }, [servicesOpen]);
+  }, [servicesOpen, studiosOpen]);
 
   useEffect(() => {
     let focusFrame;
@@ -64,12 +75,12 @@ export default function Header() {
 
   useEffect(() => {
     if (!isMenuOpen) return undefined;
-    const closeOnEscape = event => { if (event.key === 'Escape') { event.preventDefault(); setIsMenuOpen(false); } };
+    const closeOnEscape = event => { if (event.key === 'Escape' && !event.defaultPrevented && !(servicesOpen && servicesRef.current?.contains(event.target))) { event.preventDefault(); setIsMenuOpen(false); setStudiosOpen(false); } };
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [isMenuOpen]);
+  }, [isMenuOpen, servicesOpen]);
 
-  const closeNavigation = () => { setServicesOpen(false); setIsMenuOpen(false); };
+  const closeNavigation = () => { setServicesOpen(false); setStudiosOpen(false); setIsMenuOpen(false); };
   const publicPath = value => localizePublicPath(value, isEnglish ? 'en' : 'ar');
   const alternateLanguagePath = alternatePublicPath(location, isEnglish ? 'ar' : 'en');
   const navLinks = [
@@ -85,9 +96,17 @@ export default function Header() {
       <div className="top-bar-center"><nav className="header-nav" aria-label={isEnglish ? 'Main navigation' : 'التنقل الرئيسي'}><ul className="nav-list">
         {navLinks.slice(0, 2).map(link => <li key={link.to}><NavLink to={link.to} end={stripPublicLocale(link.to) === '/'} className="nav-link" tabIndex={drawerTabIndex} onClick={closeNavigation}>{link.label}</NavLink></li>)}
         <li className="services-menu" ref={servicesRef}>
-          <button ref={servicesTriggerRef} type="button" className={`nav-link services-menu__trigger${stripPublicLocale(location.pathname).startsWith('/services') ? ' active' : ''}`} tabIndex={drawerTabIndex} aria-expanded={servicesOpen} aria-controls="services-mega-menu" onClick={() => setServicesOpen(open => !open)}>{t('header.services')}<ChevronDown aria-hidden="true"/></button>
+          <button ref={servicesTriggerRef} type="button" className={`nav-link services-menu__trigger${stripPublicLocale(location.pathname).startsWith('/services') ? ' active' : ''}`} tabIndex={drawerTabIndex} aria-expanded={servicesOpen} aria-controls="services-mega-menu" onClick={() => { setServicesOpen(open => !open); setStudiosOpen(false); }}>{t('header.services')}<ChevronDown aria-hidden="true"/></button>
           <div id="services-mega-menu" className={`services-mega-menu${servicesOpen ? ' open' : ''}`} inert={!servicesOpen} aria-hidden={!servicesOpen}>
-            <ul className="services-dropdown-list">{publicServiceCatalog.map(service => <li key={service.slug}><NavLink to={publicPath(`/services/${service.slug}`)} tabIndex={servicesTabIndex} onClick={closeNavigation}>{(isEnglish ? service.en : service.ar).navLabel}</NavLink></li>)}</ul>
+            <ul className="services-dropdown-list">
+              <li>
+                <button ref={studiosTriggerRef} type="button" className={`services-studios-trigger${studioServices.some(service => stripPublicLocale(location.pathname).replace(/\/+$/, '') === `/services/${service.slug}`) ? ' active' : ''}`} tabIndex={servicesTabIndex} aria-expanded={studiosOpen} aria-controls="services-studios-submenu" onClick={() => setStudiosOpen(open => !open)}>{isEnglish ? 'Our Studios' : 'استديوهاتنا'}<ChevronDown aria-hidden="true"/></button>
+                <ul id="services-studios-submenu" className="services-studios-submenu" hidden={!studiosOpen} inert={!studiosOpen}>
+                  {studioServices.map(service => <li key={service.slug}><NavLink to={publicPath(`/services/${service.slug}`)} tabIndex={drawerClosed || !servicesOpen || !studiosOpen ? -1 : undefined} onClick={closeNavigation}>{isEnglish ? service.en : service.ar}</NavLink></li>)}
+                </ul>
+              </li>
+              {publicServiceCatalog.filter(service => !studioServices.some(studio => studio.slug === service.slug)).map(service => <li key={service.slug}><NavLink to={publicPath(`/services/${service.slug}`)} tabIndex={servicesTabIndex} onClick={closeNavigation}>{(isEnglish ? service.en : service.ar).navLabel}</NavLink></li>)}
+            </ul>
             <Link className="services-dropdown-all" to={publicPath('/services')} tabIndex={servicesTabIndex} onClick={closeNavigation}>{isEnglish ? 'View all services' : 'عرض كل الخدمات'}</Link>
           </div>
         </li>
