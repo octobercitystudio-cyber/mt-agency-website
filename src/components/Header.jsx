@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronDown, Menu, User, X } from 'lucide-react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useData } from '../store/DataContext';
-import { publicServiceCatalog, publicServiceGroups } from '../data/publicServiceCatalog';
+import { publicServiceCatalog } from '../data/publicServiceCatalog';
 import { alternatePublicPath, localizePublicPath, stripPublicLocale } from '../lib/publicRoutes';
 import './Header.css';
 
@@ -17,7 +17,7 @@ export default function Header() {
   const isEnglish = String(lang).startsWith('en');
   const drawerClosed = isMobileHeader && !isMenuOpen;
   const drawerTabIndex = drawerClosed ? -1 : undefined;
-  const servicesTabIndex = drawerClosed || (isMobileHeader && !servicesOpen) ? -1 : undefined;
+  const servicesTabIndex = drawerClosed || !servicesOpen ? -1 : undefined;
 
   useEffect(() => {
     const applyLanguage = nextLanguage => { const next = String(nextLanguage || '').startsWith('en') ? 'en' : 'ar'; setLang(next); document.documentElement.lang = next; document.documentElement.dir = next === 'en' ? 'ltr' : 'rtl'; };
@@ -86,9 +86,9 @@ export default function Header() {
         {navLinks.slice(0, 2).map(link => <li key={link.to}><NavLink to={link.to} end={stripPublicLocale(link.to) === '/'} className="nav-link" tabIndex={drawerTabIndex} onClick={closeNavigation}>{link.label}</NavLink></li>)}
         <li className="services-menu" ref={servicesRef}>
           <button ref={servicesTriggerRef} type="button" className={`nav-link services-menu__trigger${stripPublicLocale(location.pathname).startsWith('/services') ? ' active' : ''}`} tabIndex={drawerTabIndex} aria-expanded={servicesOpen} aria-controls="services-mega-menu" onClick={() => setServicesOpen(open => !open)}>{t('header.services')}<ChevronDown aria-hidden="true"/></button>
-          <div id="services-mega-menu" className={`services-mega-menu${servicesOpen ? ' open' : ''}`}>
-            <div className="services-mega-menu__head"><span>{isEnglish ? 'Capabilities' : 'قدرات متكاملة'}</span><Link to={publicPath('/services')} tabIndex={servicesTabIndex} onClick={closeNavigation}>{isEnglish ? 'View all services' : 'عرض كل الخدمات'}</Link></div>
-            <div className="services-mega-menu__groups">{publicServiceGroups.map(group => <section key={group.id}><h2>{isEnglish ? group.en : group.ar}</h2>{publicServiceCatalog.filter(service => service.group === group.id).map(service => <NavLink key={service.slug} to={publicPath(`/services/${service.slug}`)} tabIndex={servicesTabIndex} onClick={closeNavigation}>{(isEnglish ? service.en : service.ar).navLabel}</NavLink>)}</section>)}</div>
+          <div id="services-mega-menu" className={`services-mega-menu${servicesOpen ? ' open' : ''}`} inert={!servicesOpen} aria-hidden={!servicesOpen}>
+            <ul className="services-dropdown-list">{publicServiceCatalog.map(service => <li key={service.slug}><NavLink to={publicPath(`/services/${service.slug}`)} tabIndex={servicesTabIndex} onClick={closeNavigation}>{(isEnglish ? service.en : service.ar).navLabel}</NavLink></li>)}</ul>
+            <Link className="services-dropdown-all" to={publicPath('/services')} tabIndex={servicesTabIndex} onClick={closeNavigation}>{isEnglish ? 'View all services' : 'عرض كل الخدمات'}</Link>
           </div>
         </li>
         {navLinks.slice(2).map(link => <li key={link.to}><NavLink to={link.to} className="nav-link" tabIndex={drawerTabIndex} onClick={closeNavigation}>{link.label}</NavLink></li>)}

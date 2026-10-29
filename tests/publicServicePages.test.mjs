@@ -164,9 +164,9 @@ test('legacy hashes scroll gracefully while canonical homepage navigation remain
 test('services navigation supports desktop keyboard controls and a mobile accordion', async () => {
   const [header, css] = await Promise.all(['src/components/Header.jsx', 'src/components/Header.css'].map(load));
   assert.match(header, /aria-expanded=\{servicesOpen\}/); assert.match(header, /aria-controls="services-mega-menu"/); assert.match(header, /event\.key === 'Escape'/); assert.match(header, /servicesTriggerRef\.current\?\.focus\(\)/); assert.match(header, /document\.addEventListener\('pointerdown', outside\)/);
-  assert.match(header, /publicServiceGroups\.map/); assert.match(header, /publicServiceCatalog\.filter/); assert.match(header, /setServicesOpen\(open => !open\)/); assert.match(header, /setIsMenuOpen\(false\)/);
-  assert.match(css, /\.services-mega-menu__groups\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-  assert.match(css, /@media\(max-width:769px\).*\.services-mega-menu\{position:static/s); assert.match(css, /\.services-mega-menu\.open\{max-height:1050px/); assert.match(css, /min-height:44px/); assert.match(css, /max-width:94vw/);
+  assert.match(header, /publicServiceCatalog\.map/); assert.match(header, /inert=\{!servicesOpen\}/); assert.match(header, /setServicesOpen\(open => !open\)/); assert.match(header, /setIsMenuOpen\(false\)/);
+  assert.match(css, /\.services-dropdown-list\{display:flex;flex-direction:column/);
+  assert.match(css, /@media\(max-width:769px\).*\.services-mega-menu\{position:static/s); assert.match(css, /\.services-mega-menu\.open\{max-height:800px/); assert.match(css, /min-height:44px/); assert.match(css, /max-width:94vw/);
 });
 
 test('standalone About and Contact keep concise copy and service-preselected safe inquiries', async () => {
