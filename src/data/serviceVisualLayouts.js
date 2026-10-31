@@ -11,7 +11,7 @@ export const serviceVisualLayouts = {
   'event-coverage': { variant: 'events', heroImage: photo('event-coverage'), companionImage: photo('event-coverage') },
   'social-media-management': { variant: 'social', heroImage: photo('social-media-management'), companionImage: photo('social-media-management') },
   'creative-design-branding': { variant: 'branding', heroImage: photo('creative-design-branding'), companionImage: photo('creative-design-branding') },
-  'web-design-development': { variant: 'web', heroImage: photo('web-design-development'), companionImage: photo('web-design-development') },
+  'web-design-development': { variant: 'web', heroImage: photo('web-design-development'), companionImage: photo('web-design-development'), desktopPreview: '/portfolio-previews/qpshoes-device-desktop.jpg', mobilePreview: '/portfolio-previews/qpshoes-device-mobile.jpg' },
   'software-development': { variant: 'software', heroImage: photo('software-development'), companionImage: photo('software-development') },
   'ai-video-production': { variant: 'ai', heroImage: photo('ai-video-production'), companionImage: photo('ai-video-production') },
 };

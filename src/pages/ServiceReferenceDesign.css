@@ -75,15 +75,16 @@ html[dir="ltr"] .public-site-shell #main-content.reference-service .sd-hero--com
 .public-site-shell #main-content.reference-service .sd-brand-swatches i:nth-child(2){background:#c28b2c}
 .public-site-shell #main-content.reference-service .sd-brand-swatches i:nth-child(3){background:#f5e9d2}
 /* Websites: an actual existing project framed as desktop and mobile. */
-.public-site-shell #main-content.reference-service .sd-device-composition{padding:20px 0 35px 28px}
-.public-site-shell #main-content.reference-service .sd-desktop-screen{padding:8px 8px 24px;border:9px solid #25221b;border-bottom-width:28px;border-radius:17px;background:#25221b;transform:perspective(1300px) rotateY(-6deg);box-shadow:0 22px 30px rgba(59,40,14,.19);position:relative}
-.public-site-shell #main-content.reference-service .sd-desktop-screen::after{content:'';position:absolute;width:45%;height:23px;inset:auto 27.5% -48px;background:linear-gradient(90deg,#b4aa98,#e7dece,#a79b87);clip-path:polygon(30% 0,70% 0,85% 100%,15% 100%)}
+.public-site-shell #main-content.reference-service .sd-device-composition{padding:14px 0 66px;padding-inline:2% 8%}
+.public-site-shell #main-content.reference-service .sd-desktop-screen{padding:0;border:7px solid #25221b;border-bottom-width:22px;border-radius:13px;background:#25221b;box-shadow:0 22px 30px rgba(59,40,14,.19);position:relative}
+.public-site-shell #main-content.reference-service .sd-desktop-screen::after{content:'';position:absolute;width:32%;height:34px;inset:auto 34% -56px;background:linear-gradient(90deg,#b4aa98,#e7dece,#a79b87);clip-path:polygon(32% 0,68% 0,80% 100%,20% 100%)}
+.public-site-shell #main-content.reference-service .sd-desktop-screen::before{content:'';position:absolute;width:45%;height:7px;inset:auto 27.5% -61px;background:linear-gradient(90deg,#b4aa98,#e7dece,#a79b87);border-radius:50% 50% 3px 3px}
 .public-site-shell #main-content.reference-service .sd-window-chrome{display:flex;align-items:center;gap:5px;height:22px;padding-inline:7px;background:#fffaf0;border-radius:5px 5px 0 0}
 .public-site-shell #main-content.reference-service .sd-window-chrome i{width:5px;height:5px;background:#d7bb87;border-radius:50%}
 .public-site-shell #main-content.reference-service .sd-window-chrome b{width:45%;height:5px;background:#eee4d2;margin-inline-start:auto;border-radius:4px}
-.public-site-shell #main-content.reference-service .sd-desktop-screen>img{width:100%;display:block;height:305px;object-fit:cover;object-position:top;background:#f7ecd7}
-.public-site-shell #main-content.reference-service .sd-phone-screen{position:absolute;width:25%;min-width:95px;height:255px;inset-inline-end:-8px;bottom:0;padding:6px;border:5px solid #211b12;border-radius:21px;background:#211b12;box-shadow:0 17px 24px rgba(59,40,14,.19);overflow:hidden}
-.public-site-shell #main-content.reference-service .sd-phone-screen img{width:100%;height:100%;object-fit:cover;object-position:top;border-radius:11px}
+.public-site-shell #main-content.reference-service .sd-desktop-screen>img{width:100%;display:block;height:auto;aspect-ratio:16/9;object-fit:contain;object-position:top;background:#f7ecd7;border-radius:0 0 4px 4px}
+.public-site-shell #main-content.reference-service .sd-phone-screen{position:absolute;width:28%;max-width:155px;min-width:0;height:auto;inset-inline-end:0;bottom:0;padding:3px;border:5px solid #211b12;border-radius:21px;background:#211b12;box-shadow:0 17px 24px rgba(59,40,14,.19);overflow:hidden}
+.public-site-shell #main-content.reference-service .sd-phone-screen img{display:block;width:100%;height:auto;aspect-ratio:1/2;object-fit:contain;object-position:top;border-radius:12px}
 /* Software: a glass application frame without fabricated dashboard data. */
 .public-site-shell #main-content.reference-service .sd-software-composition{padding:0 0 25px}
 .public-site-shell #main-content.reference-service .sd-software-window{overflow:hidden;padding:10px;border:1px solid rgba(255,255,255,.95);border-radius:20px;background:rgba(255,250,238,.72);box-shadow:0 22px 45px rgba(69,44,10,.16);backdrop-filter:blur(10px);transform:perspective(1400px) rotateY(8deg)}
@@ -234,10 +235,11 @@ html[dir="ltr"] .public-site-shell #main-content.reference-service .sd-hero--com
  .public-site-shell #main-content.reference-service .sd-brand-composition>img{min-height:300px;height:300px}
  .public-site-shell #main-content.reference-service .sd-brand-swatches{inset-inline-end:10px}
  .public-site-shell #main-content.reference-service .sd-brand-swatches i{width:45px;height:51px}
- .public-site-shell #main-content.reference-service .sd-device-composition{padding-inline:15px 20px}
- .public-site-shell #main-content.reference-service .sd-desktop-screen{padding-bottom:10px;border-width:6px;border-bottom-width:17px}
- .public-site-shell #main-content.reference-service .sd-desktop-screen>img{height:220px}
- .public-site-shell #main-content.reference-service .sd-phone-screen{height:195px;width:27%;min-width:80px;inset-inline-end:0;bottom:7px}
+ .public-site-shell #main-content.reference-service .sd-device-composition{padding:8px 0 58px;padding-inline:2% 8%}
+ .public-site-shell #main-content.reference-service .sd-desktop-screen{padding:0;border-width:5px;border-bottom-width:16px;border-radius:10px}
+ .public-site-shell #main-content.reference-service .sd-desktop-screen>img{height:auto}
+ .public-site-shell #main-content.reference-service .sd-phone-screen{height:auto;width:29%;min-width:0;border-width:4px;padding:2px;border-radius:14px;inset-inline-end:0;bottom:5px}
+ .public-site-shell #main-content.reference-service .sd-phone-screen img{border-radius:8px}
  .public-site-shell #main-content.reference-service .sd-software-window{transform:none}
  .public-site-shell #main-content.reference-service .sd-software-window img{height:270px}
  .public-site-shell #main-content.reference-service .sd-software-mini{inset-inline-start:0;width:125px}
