@@ -6,7 +6,10 @@ import { getPublicService, getServicePortfolio, portfolioMatchesService, publicS
 import { VERIFIED_PORTFOLIO, withVerifiedPortfolioServiceLinks } from '../src/data/verifiedPortfolio.js';
 
 const root = new URL('../', import.meta.url);
-const load = path => readFile(new URL(path, root), 'utf8');
+const load = async path => {
+  const source = await readFile(new URL(path, root), 'utf8');
+  return path === 'src/pages/PublicPages.jsx' ? source + '\n' + await readFile(new URL('src/pages/ServiceDetailDesign.jsx', root), 'utf8') : source;
+};
 
 test('public catalog has ten stable unique service slugs and complete bilingual content', async () => {
   assert.equal(publicServiceCatalog.length, 10);
@@ -130,7 +133,7 @@ test('social media management excludes reels while the dedicated reels service k
 test('social media success-partner proof replaces the empty portfolio state and receives the hero shortcut', async () => {
   const pages = await load('src/pages/PublicPages.jsx');
   const css = await load('src/pages/PublicPages.css');
-  assert.match(pages, /id="al-majd-work" className="public-success-partner"/);
+  assert.match(pages, /id="al-majd-work" className="public-success-partner sd-success-partner"/);
   assert.match(pages, /work\.length > 0 && <section id="service-work"/);
   assert.match(pages, /const workTarget = hasSuccessPartner \? '#al-majd-work' : '#service-work';/);
   assert.match(pages, /href=\{workTarget\}/);
@@ -175,17 +178,17 @@ test('standalone About and Contact keep concise copy and service-preselected saf
   assert.match(pages, /export function ContactPage/); assert.match(pages, /new URLSearchParams\(location\.search\)\.get\('service'\)/); assert.match(pages, /location\.state\?\.service/); assert.match(pages, /value=\{service\}/); assert.match(pages, /encodeURIComponent\(receivingEmail\)/); assert.match(pages, /info@multitaskagency\.com/); assert.match(pages, /siteData\.formSettings\?\.receivingEmail/);
 });
 
-test('Contact page presents company details first and keeps the form beside a compact map', async () => {
+test('Contact page keeps details beside the form and a separate compact map', async () => {
   const [pages, pagesCss] = await Promise.all(['src/pages/PublicPages.jsx', 'src/pages/PublicPages.css'].map(load));
   const start = pages.indexOf('export function ContactPage');
   const end = pages.indexOf('export function PortfolioPage', start);
   const contactPage = pages.slice(start, end);
-  const infoIndex = contactPage.indexOf('className="public-contact-info container"');
-  const workspaceIndex = contactPage.indexOf('className="public-contact-workspace container"');
+  const infoIndex = contactPage.indexOf('className="public-contact-info reference-contact-panel"');
+  const workspaceIndex = contactPage.indexOf('className="public-contact-workspace reference-contact-layout container"');
   const formIndex = contactPage.indexOf('className="public-contact-form"', workspaceIndex);
-  const mapIndex = contactPage.indexOf('className="public-contact-map-card"', workspaceIndex);
+  const mapIndex = contactPage.indexOf('className="public-contact-map-card reference-glass container"', workspaceIndex);
 
-  assert.ok(infoIndex > -1 && infoIndex < workspaceIndex, 'company details should appear before the form and map');
+  assert.ok(infoIndex > workspaceIndex && infoIndex < formIndex, 'company details belong to the same workspace before the form');
   assert.ok(formIndex > workspaceIndex && formIndex < mapIndex, 'the form should be primary and precede the map on mobile');
   assert.match(contactPage, /className="public-contact-hero"[\s\S]*showMark=\{false\}/);
   assert.match(contactPage, /companyPhoneTel\(contact\.phone\)/);
@@ -236,13 +239,13 @@ test('route SEO, schemas, sitemap and robots remain unique and private-safe', as
   assert.match(generator, /Generated \$\{pages\.length \* 2\} localized public pages/); assert.match(generator, /FAQPage/); assert.match(generator, /app\.html/);
 });
 
-test('public pages preserve mobile containment, 44px controls and reduced motion', async () => {
+test('public pages preserve responsive styles, image accessibility and reduced motion', async () => {
   const [pagesCss, headerCss, pages, portfolio, admin] = await Promise.all(['src/pages/PublicPages.css', 'src/components/Header.css', 'src/pages/PublicPages.jsx', 'src/components/PublicPortfolioGrid.jsx', 'src/admin/AdminPortfolio.jsx'].map(load));
   for (const width of ['900', '600', '340']) assert.ok(pagesCss.includes(`@media(max-width:${width}px)`));
   assert.match(pagesCss, /min-height:48px/); assert.match(pagesCss, /@media\(prefers-reduced-motion:reduce\)/); assert.match(pagesCss, /overflow:clip/); assert.match(headerCss, /min-height:44px/);
   assert.match(pagesCss, /\.public-work-media>a>img\{[^}]*width:100%;height:100%;display:block;object-fit:contain;object-position:center/s);
   assert.match(pages, /<figure className="public-editorial-hero__media"><img src=\{image\} alt=\{imageAlt \|\| ''\} width="960" height="640" loading="eager" fetchPriority="high" decoding="async" \/><\/figure>/);
-  assert.match(pages, /image=\{service\.heroImage\} imageAlt=\{text\.heroAlt\}/);
+  assert.match(pages, /src=\{layout\.heroImage\} alt=\{text\.heroAlt\}/);
   assert.match(pagesCss, /\.public-editorial-hero__media\{[^}]*max-width:430px;[^}]*aspect-ratio:1/s);
   assert.match(pagesCss, /\.public-editorial-hero__media img\{[^}]*object-fit:contain;object-position:center/s);
   assert.match(pagesCss, /@media\(max-width:600px\).*\.public-editorial-hero__media\{[^}]*width:min\(82vw,300px\)/s);

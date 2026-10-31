@@ -6,10 +6,11 @@ import { localizePublicPath } from '../lib/publicRoutes';
 import { getStudioFallback, STUDIO_CATEGORIES } from '../data/studioGalleries';
 import './StudioShowcase.css';
 
-const StudioShowcase = () => {
+const StudioShowcase = ({ selectedCategory, onCategoryChange } = {}) => {
   const { t, i18n } = useTranslation();
   const { siteData } = useData();
-  const [activeTab, setActiveTab] = useState('october');
+  const [internalTab, setActiveTab] = useState('october');
+  const activeTab = selectedCategory || internalTab;
   const isEnglish = i18n.language === 'en';
 
   const tabs = siteData.studioCategories || STUDIO_CATEGORIES;
@@ -27,7 +28,7 @@ const StudioShowcase = () => {
             <button
               key={tab.id}
               className={`studio-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => { setActiveTab(tab.id); onCategoryChange?.(tab.id); }}
             >
               {isEnglish ? tab.nameEn : tab.nameAr}
             </button>

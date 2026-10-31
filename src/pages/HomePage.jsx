@@ -13,7 +13,7 @@ const Contact = lazy(() => import('../components/Contact'));
 export default function HomePage() {
   const { i18n } = useTranslation();
   const isEnglish = String(i18n.language).startsWith('en');
-  return <main id="main-content" className="public-home-page">
+  return <main id="main-content" className="public-home-page reference-home">
     <SEO
       title={isEnglish ? 'Media Production, Digital Marketing & Technology in Giza' : 'إنتاج إعلامي وتسويق رقمي وتقنية في 6 أكتوبر'}
       description={isEnglish ? 'Multi Task Agency provides media production, content, digital marketing, web and software services from 6th of October City, Giza.' : 'Multi Task Agency تقدم خدمات الإنتاج الإعلامي وصناعة المحتوى والتسويق الرقمي وتصميم المواقع والبرمجيات من مدينة 6 أكتوبر، الجيزة.'}

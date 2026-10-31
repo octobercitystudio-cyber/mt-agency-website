@@ -65,11 +65,11 @@ const Portfolio = () => {
         <img src={thumbnailUrl} alt={title} style={{width: '100%', height: '100%', objectFit: 'cover'}} loading="lazy" />
         <div style={{
           position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-          width: '68px', height: '48px', backgroundColor: 'rgba(255,0,0,0.9)', borderRadius: '12px',
+          width: '54px', height: '54px', backgroundColor: 'rgba(18,15,10,.88)', border: '1px solid #d4ad5f', borderRadius: '50%',
           display: 'flex', justifyContent: 'center', alignItems: 'center',
           boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
         }}>
-          <div style={{width: 0, height: 0, borderTop: '10px solid transparent', borderBottom: '10px solid transparent', borderLeft: '16px solid white', marginLeft: '4px'}}></div>
+          <div style={{width: 0, height: 0, borderTop: '10px solid transparent', borderBottom: '10px solid transparent', borderLeft: '16px solid #efd38f', marginLeft: '4px'}}></div>
         </div>
       </div>
     );

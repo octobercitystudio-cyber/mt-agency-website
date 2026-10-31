@@ -13,6 +13,7 @@ import '../components/GoldenTicketTheme.css';
 import '../pages/PublicPages.css';
 import '../pages/PublicLightTheme.css';
 import '../pages/PublicGoldTheme.css';
+import '../pages/PublicReferenceTheme.css';
 
 const legacySections = new Set(['home', 'about', 'services', 'portfolio', 'studio', 'contact', 'educational-filming']);
 

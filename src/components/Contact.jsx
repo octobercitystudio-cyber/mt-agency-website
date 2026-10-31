@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
 import { Link } from 'react-router-dom';
+import { Mail, MapPin, Phone } from 'lucide-react';
 import { companyPhoneTel, normalizeCompanyPhone } from '../lib/companyContact';
 import { localizePublicPath } from '../lib/publicRoutes';
 import './Contact.css';
@@ -31,11 +32,11 @@ const Contact = () => {
             
             <div className="contact-details-row">
               <div className="contact-item">
-                <span className="icon">📍</span>
+                <span className="icon"><MapPin aria-hidden="true"/></span>
                 <p>{isEnglish ? contactData.addressEn : contactData.address}</p>
               </div>
               <div className="contact-item">
-                <span className="icon">📞</span>
+                <span className="icon"><Phone aria-hidden="true"/></span>
                 <div style={{display: 'flex', flexDirection: 'column'}}>
                   {primaryPhone && <a href={`tel:${companyPhoneTel(contactData.phone)}`} aria-label={`${isEnglish ? 'Call' : 'اتصل على'} ${primaryPhone}`}><p dir="ltr">{primaryPhone}</p></a>}
                   {secondaryPhone && (
@@ -44,7 +45,7 @@ const Contact = () => {
                 </div>
               </div>
               <div className="contact-item">
-                <span className="icon">✉️</span>
+                <span className="icon"><Mail aria-hidden="true"/></span>
                 <p dir="ltr">{contactData.email}</p>
               </div>
             </div>

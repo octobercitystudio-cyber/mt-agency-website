@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { Mail, MapPin, Phone } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { companyPhoneTel, normalizeCompanyPhone } from '../lib/companyContact';
 import { localizePublicPath } from '../lib/publicRoutes';
@@ -48,11 +49,11 @@ const Footer = () => {
             <h3>{isEnglish ? "Contact Us" : "تواصل معنا"}</h3>
             <div className="footer-contact">
               <div className="footer-contact-item">
-                <span className="footer-contact-icon">📍</span>
+                <span className="footer-contact-icon"><MapPin aria-hidden="true"/></span>
                 <span>{isEnglish ? contact.addressEn : contact.address}</span>
               </div>
               <div className="footer-contact-item">
-                <span className="footer-contact-icon">📞</span>
+                <span className="footer-contact-icon"><Phone aria-hidden="true"/></span>
                 <div style={{display: 'flex', flexDirection: 'column', gap: '5px'}}>
                   {primaryPhone && <a href={`tel:${companyPhoneTel(contact.phone)}`} dir="ltr" style={{textAlign: isEnglish ? 'left' : 'right'}}>{primaryPhone}</a>}
                   {secondaryPhone && (
@@ -61,7 +62,7 @@ const Footer = () => {
                 </div>
               </div>
               <div className="footer-contact-item">
-                <span className="footer-contact-icon">✉️</span>
+                <span className="footer-contact-icon"><Mail aria-hidden="true"/></span>
                 <span dir="ltr">{contact.email}</span>
               </div>
             </div>
