@@ -123,10 +123,10 @@ const servicesList = locale => `<section class="services-section"><div class="co
   return `<article class="service-card glass-panel"><h3><a href="${languagePath(locale, `/services/${service.slug}/`)}">${escapeHtml(copy.title)}</a></h3><p>${escapeHtml(copy.cardSummary)}</p></article>`;
 }).join('')}</div></div></section>`;
 
-const decisionGuideContent = (copy, number) => {
+const decisionGuideContent = (copy, number, layout) => {
   const content = copy.decisionGuide;
   if (!content) return '';
-  return `<section class="public-decision-guide" aria-labelledby="decision-guide-title"><div class="container"><header class="public-decision-guide__header"><span class="public-section-number">${number}</span><div><h2 id="decision-guide-title">${escapeHtml(content.title)}</h2></div></header><div class="public-decision-guide__options">${content.options.slice(0, 3).map((item, index) => `<article><span>${String(index + 1).padStart(2, '0')}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.text)}</p></article>`).join('')}</div></div></section>`;
+  return `<section class="public-decision-guide sd-decision-guide" aria-labelledby="decision-guide-title"><div class="container"><header class="public-decision-guide__header"><span class="public-section-number">${number}</span><div><h2 id="decision-guide-title">${escapeHtml(content.title)}</h2></div></header><div class="public-decision-guide__options">${content.options.slice(0, 3).map((item, index) => `<article>${layout?.decisionImages?.[index] ? `<div class="sd-decision-photo" aria-hidden="true">${referencePhoto(layout.decisionImages[index])}</div>` : ''}<div class="sd-decision-body"><span>${String(index + 1).padStart(2, '0')}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.text)}</p></div></article>`).join('')}</div></div></section>`;
 };
 
 const alMajdPartnerContent = (service, locale, number) => {
@@ -159,7 +159,7 @@ const serviceContent = (page, locale) => {
   const faqNumber = sectionNumber();
   return `<section class="public-split-section container"><h2>${sectionTitle('ما الذي تتضمنه الخدمة', 'What is included')}</h2><ul>${copy.deliverables.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></section>
   <section class="public-suitable container"><h2>${sectionTitle('مناسبة لـ', 'Suitable for')}</h2><ul>${copy.suitableFor.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></section>
-  ${decisionGuideContent(copy, decisionNumber)}
+  ${decisionGuideContent(copy, decisionNumber, serviceVisualLayouts[page.service.slug])}
   ${alMajdPartnerContent(page.service, locale, partnerNumber)}
   ${verifiedWorkContent(page.service, locale, workNumber)}
   <section class="public-faq container"><div class="public-section-heading"><span>${faqNumber}</span><h2>${sectionTitle('قبل الاتفاق', 'Before you book')}</h2></div><div>${copy.faq.map(([question, answer]) => `<details><summary>${escapeHtml(question)}</summary><p>${escapeHtml(answer)}</p></details>`).join('')}</div></section>
@@ -206,7 +206,7 @@ const serviceReferenceHero = (page, locale) => {
 const referenceServiceContent = (page, locale) => {
   const layout = serviceVisualLayouts[page.service.slug]; const text = page.service[locale]; const en = locale === 'en';
   const old = serviceContent(page, locale);
-  const replacement = `<section class="sd-inclusions container" aria-labelledby="service-deliverables-title"><div class="public-section-heading"><span>01</span><h2 id="service-deliverables-title">${en ? 'What is included' : 'ما الذي تتضمنه الخدمة'}</h2></div><div class="sd-inclusions__layout sd-inclusions__layout--${layout.variant}"><ul class="sd-deliverable-cards">${text.deliverables.map(item=>`<li><div class="sd-deliverable-card__body"><p>${escapeHtml(item)}</p></div></li>`).join('')}</ul></div></section>`;
+  const replacement = `<section class="sd-inclusions container" aria-labelledby="service-deliverables-title"><div class="public-section-heading"><span>01</span><h2 id="service-deliverables-title">${en ? 'What is included' : 'ما الذي تتضمنه الخدمة'}</h2></div><div class="sd-inclusions__layout sd-inclusions__layout--${layout.variant}"><ul class="sd-deliverable-cards">${text.deliverables.map((item,index)=>`<li>${layout.deliverableImages?.[index] ? referencePhoto(layout.deliverableImages[index]) : ''}<div class="sd-deliverable-card__body"><p>${escapeHtml(item)}</p></div></li>`).join('')}</ul></div></section>`;
   return old.replace(/<section class="public-split-section container">[\s\S]*?<\/section>/, replacement);
 };
 const visiblePage = (page, locale) => {

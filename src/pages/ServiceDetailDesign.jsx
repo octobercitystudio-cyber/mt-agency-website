@@ -69,7 +69,7 @@ function Deliverables({ text, layout, isEnglish }) {
       <ul className="sd-deliverable-cards">{text.deliverables.map((item, index) => {
         const FeatureIcon = layout.variant === 'social' ? [FileText, Palette, Share2, MonitorSmartphone][index % 4] : featureIcons[index % featureIcons.length];
         return <li key={item}>{layout.variant === 'education' && <Photo src={EDUCATIONAL_BOOKING_GALLERY[index % EDUCATIONAL_BOOKING_GALLERY.length].url}/>}
-          {layout.variant === 'ai' && <Photo src={layout.companionImage}/>}
+          {layout.deliverableImages?.[index] && <Photo src={layout.deliverableImages[index]}/>}
           <div className="sd-deliverable-card__body"><span className="sd-feature-icon"><FeatureIcon aria-hidden="true"/></span><p>{item}</p></div>
         </li>;
       })}</ul>
@@ -83,7 +83,7 @@ function DecisionGuideSection({ content, number, layout }) {
   return <section className="public-decision-guide sd-decision-guide" aria-labelledby="decision-guide-title"><div className="container">
     <header className="public-decision-guide__header"><span className="public-section-number">{number}</span><div><h2 id="decision-guide-title">{content.title}</h2></div></header>
     <div className="public-decision-guide__options">{content.options.slice(0, 3).map((item, index) => <article key={item.title}>
-      <div className="sd-decision-photo" aria-hidden="true"><Photo src={layout.companionImage}/></div><div className="sd-decision-body"><span>{String(index + 1).padStart(2, '0')}</span><h3>{item.title}</h3><p>{item.text}</p></div>
+      {layout.decisionImages?.[index] && <div className="sd-decision-photo" aria-hidden="true"><Photo src={layout.decisionImages[index]}/></div>}<div className="sd-decision-body"><span>{String(index + 1).padStart(2, '0')}</span><h3>{item.title}</h3><p>{item.text}</p></div>
     </article>)}</div>
   </div></section>;
 }

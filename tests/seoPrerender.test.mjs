@@ -92,7 +92,7 @@ test('priority service prerenders keep real work and the complete Al Majd partne
 test('web design prerender includes the buying guide without repeated marketing sections', async () => {
   for (const locale of ['ar', 'en']) {
     const html = await load(`dist/${locale}/services/web-design-development/index.html`);
-    assert.match(html, /class="public-decision-guide"/);
+    assert.match(html, /class="public-decision-guide(?: [^"]*)?"/);
     assert.doesNotMatch(html, /class="public-local-expertise container"|class="public-related-services container"/);
     assert.match(html, /"serviceType":"[^"]+"/);
   }
