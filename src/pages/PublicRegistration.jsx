@@ -11,6 +11,7 @@ import PromotionGiftLauncher from '../components/PromotionGiftLauncher';
 import usePublicGiftPromotions from '../components/usePublicGiftPromotions';
 import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
 import './PublicRegistration.css';
+import './AuthGoldTheme.css';
 
 const emptyForm = { first_name: '', second_name: '', last_name: '', phone: '', job: '', password: '', password_confirmation: '' };
 const botErrors = ['bot_verification_required', 'bot_verification_failed', 'bot_verification_expired'];
@@ -73,9 +74,9 @@ export default function PublicRegistration() {
     }
   };
 
-  return <main className="registration-page" dir="rtl">
+  return <main className="registration-page auth-gold-page" dir="rtl">
     <div className="registration-shell">
-      <header className="registration-topbar"><Link to="/" aria-label="الموقع الرئيسي"><img src="/logo.webp" alt="Multi Task Agency"/></Link><span>عندك حساب؟ <Link to={clientAuthPath('/login', clientDestination)}>تسجيل الدخول <ArrowLeft size={15}/></Link></span></header>
+      <header className="registration-topbar"><Link to="/" aria-label="الموقع الرئيسي"><img src="/brand/gold/mt-agency-logo.webp" width="90" height="73" alt="Multi Task Agency"/></Link><span>عندك حساب؟ <Link to={clientAuthPath('/login', clientDestination)}>تسجيل الدخول <ArrowLeft size={15}/></Link></span></header>
       {authRetryNotice && <div className="auth-entry-recovery">{authRetryNotice}</div>}
       <header className="registration-intro"><h1 ref={registrationHeadingRef} tabIndex={-1} id="registration-title">إنشاء حساب</h1><p>من حسابك، شوف الباقات والأسعار، اختَر الخدمة المناسبة، واحجز مواعيد التصوير المتاحة. وبعد الاشتراك، تابع مواعيدك ورصيد ساعاتك من نفس المكان</p></header>
       <div className="registration-grid">

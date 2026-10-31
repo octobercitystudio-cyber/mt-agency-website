@@ -1,0 +1,162 @@
+/* The public brand, scoped to customer authentication without changing its flows. */
+.auth-gold-page {
+  --auth-gold:#a46b13; --auth-gold-light:#efd399; --auth-ink:#19150e;
+  --auth-muted:#6b593c; --auth-edge:rgba(175,123,34,.34); --auth-focus:#a87522;
+  color-scheme:light;
+}
+.unified-login-container.auth-gold-page,
+.registration-page.auth-gold-page {
+  --login-canvas:#fbf4e7; --login-paper:rgba(255,252,245,.76); --login-ink:var(--auth-ink);
+  --login-muted:var(--auth-muted); --login-primary:var(--auth-gold); --login-primary-dark:#76500f;
+  --login-line:var(--auth-edge); --login-focus:var(--auth-focus);
+  --reg-purple:var(--auth-gold); --reg-ink:var(--auth-ink); --reg-muted:var(--auth-muted);
+  background:radial-gradient(ellipse at 3% 8%,rgba(226,188,120,.3),transparent 45%),
+    radial-gradient(ellipse at 100% 95%,rgba(229,192,126,.28),transparent 42%),#fbf4e7;
+  color:var(--auth-ink); isolation:isolate;
+}
+.registration-page.auth-gold-page { position:relative; }
+.auth-gold-page::before,.auth-gold-page::after {
+  content:''; position:absolute; z-index:-1; pointer-events:none; inset:0;
+}
+.auth-gold-page::before { background:radial-gradient(ellipse at -35% 12%,rgba(255,255,255,.2) 49.8%,rgba(182,126,30,.3) 50%,transparent 50.15%); }
+.auth-gold-page::after { background:radial-gradient(ellipse at 130% 110%,rgba(223,181,104,.09) 49.8%,rgba(255,255,255,.9) 50%,transparent 50.15%); }
+.auth-gold-page .unified-login-content { padding-block:34px 22px; }
+.auth-gold-page .unified-login-box {
+  width:min(100%,470px); padding:30px 38px 18px; border:1px solid var(--auth-edge);
+  border-radius:18px; background:rgba(255,252,245,.76);
+  box-shadow:0 18px 58px rgba(99,66,15,.08),inset 0 1px 0 rgba(255,255,255,.9);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+.auth-gold-page .unified-login-box::before { display:none; }
+.auth-gold-page .unified-login-brand img { width:90px; height:73px; aspect-ratio:600/485; margin-bottom:11px; }
+.auth-gold-page .unified-login-brand p { color:#5b431e; font-size:21px; letter-spacing:.025em; }
+.auth-gold-page .unified-login-heading { margin:20px 0 25px; }
+.auth-gold-page .unified-quiet-rule { width:72px; background:linear-gradient(90deg,transparent,#ba8330,transparent); margin-bottom:17px; }
+.auth-gold-page .unified-login-heading h1 { font-size:31px; color:var(--auth-ink); }
+.auth-gold-page .unified-field label { color:#40331d; }
+.auth-gold-page .unified-field input,
+.auth-gold-page .registration-form-card input:not([type=checkbox]) {
+  color:var(--auth-ink); border-color:#d8c4a0; background:rgba(255,254,250,.86); border-radius:8px;
+}
+.auth-gold-page .unified-field input::placeholder,
+.auth-gold-page .registration-form-card input::placeholder { color:#80715a; }
+.auth-gold-page .unified-field input:focus,
+.auth-gold-page .registration-form-card input:focus {
+  border-color:#ac771f; box-shadow:0 0 0 3px rgba(185,135,49,.16); outline:0;
+}
+.auth-gold-page .unified-field input[aria-invalid="true"] { border-color:var(--login-danger); }
+.auth-gold-page .unified-text-button { color:#85560f; }
+.auth-gold-page .unified-password-toggle { color:#846435; }
+.auth-gold-page .unified-password-toggle:hover { color:#614009; background:#f6ecd9; }
+.auth-gold-page .unified-login-submit,
+.auth-gold-page .registration-primary,
+.auth-gold-page .unified-support-primary {
+  color:#f4d68f; background:#17140f; border:1px solid #b17d27;
+  border-radius:28px; box-shadow:0 5px 15px rgba(126,82,14,.12); min-height:54px;
+}
+.auth-gold-page .unified-login-submit:hover:not(:disabled),
+.auth-gold-page .registration-primary:hover:not(:disabled),
+.auth-gold-page .unified-support-primary:hover { background:#302618; box-shadow:0 7px 18px rgba(126,82,14,.18); }
+.auth-gold-page .unified-login-submit:disabled,
+.auth-gold-page .registration-primary:disabled { background:#e7dcc7; color:#665434; border-color:#cfbd9b; box-shadow:none; }
+.auth-gold-page .unified-login-footer a,
+.auth-gold-page .unified-login-preview { color:var(--auth-muted); }
+.auth-gold-page .unified-login-preview button { border-color:#bba175; color:#755221; }
+.auth-gold-page .unified-registration { border-color:var(--auth-edge); }
+.auth-gold-page :is(button,a,summary):focus-visible { outline:3px solid var(--auth-focus); outline-offset:3px; }
+.auth-gold-page .unified-support-dialog {
+  border-color:var(--auth-edge); border-radius:16px; background:#fffaf0;
+  color:var(--auth-ink); box-shadow:0 22px 80px rgba(48,32,8,.25);
+}
+.auth-gold-page .unified-support-dialog::backdrop { background:rgba(35,27,13,.5); backdrop-filter:blur(4px); }
+.auth-gold-page .unified-dialog-close:hover { background:#f2e6d0; }
+.auth-gold-page .registration-topbar { border-color:var(--auth-edge); min-height:108px; }
+.auth-gold-page .registration-topbar img { width:90px; height:73px; aspect-ratio:600/485; }
+.auth-gold-page .registration-topbar>span { color:var(--auth-muted); }
+.auth-gold-page .registration-topbar>span a {
+  color:#79500e; padding:3px 17px; min-height:44px; border:1px solid var(--auth-edge);
+  border-radius:24px; background:rgba(255,252,245,.5);
+}
+.auth-gold-page .registration-intro { padding-block:30px 25px; }
+.auth-gold-page .registration-intro h1 { color:var(--auth-ink); font-size:38px; }
+.auth-gold-page .registration-intro h1::after {
+  content:''; display:block; width:110px; height:1px; margin-top:14px;
+  background:linear-gradient(90deg,transparent,#b48029);
+}
+.auth-gold-page .registration-intro p { color:var(--auth-muted); margin-top:17px; }
+.auth-gold-page .registration-form-card {
+  background:rgba(255,252,245,.76); border-color:var(--auth-edge); border-radius:16px;
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  box-shadow:0 14px 44px rgba(99,66,15,.06),inset 0 1px 0 rgba(255,255,255,.9);
+}
+.auth-gold-page .registration-name-hint { color:#59421c; }
+.auth-gold-page .registration-form-card label { color:#40331d; }
+.auth-gold-page .registration-site-footer { color:var(--auth-muted); }
+.auth-gold-page .registration-bot-check {
+  --altcha-color-base:#fffdf7; --altcha-color-base-content:#3d311d;
+  --altcha-color-primary:#94600e; --altcha-color-neutral:#d6bf96;
+  --altcha-color-neutral-content:#6b593c; --altcha-border-color:#d6bf96;
+  --altcha-checkbox-border-color:#9a732e;
+  background:rgba(249,241,225,.8); border-color:#dfcca9;
+}
+.auth-gold-page .registration-bot-title>svg { color:#9c6a18; }
+.auth-gold-page .registration-bot-title h3 { color:#45341b; }
+.auth-gold-page .registration-bot-title p { color:#6b593c; }
+.auth-gold-page .registration-bot-loading { background:#fffdf7; border-color:#dfcca9; color:#755723; }
+.auth-gold-page .registration-bot-error button { color:#815515; }
+.auth-gold-page .registration-bot-check .altcha-checkbox input:focus-visible { outline-color:var(--auth-focus); }
+.auth-gold-page .auth-support-dock {
+  border-color:var(--auth-edge); background:rgba(250,242,227,.95); color:#65502d;
+  box-shadow:0 -5px 20px rgba(99,66,15,.04); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+}
+.auth-gold-page .auth-support-dock .auth-support-links a { border-color:#d9c29a; background:#fffaf0; color:#745016; box-shadow:none; }
+.auth-gold-page .auth-support-dock .auth-support-links a:hover { background:#f3e5ca; }
+.auth-gold-page .auth-support-dock .auth-support-links a:focus-visible { outline-color:var(--auth-focus); }
+.auth-gold-page .auth-entry-recovery { color:#765113; border-color:#dfc89e; background:#fff6e3; }
+.auth-gold-page .promotion-gift-launcher { border-color:#d8bc89; color:#5d4018; background:#fffaf0; box-shadow:0 8px 25px rgba(99,66,15,.1); }
+.auth-gold-page .promotion-gift-box { background:#211a10; box-shadow:inset 0 0 0 1px #ad7a26; }
+.auth-gold-page .promotion-gift-launcher-copy>span { color:#79603a; }
+/* Gift dialogs are portaled; restrict their palette to this registration route. */
+body:has(.registration-page.auth-gold-page) .promotion-gift-overlay { background:rgba(35,27,13,.55); color:#3f2f17; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-dialog { background:#fffaf0; border:1px solid #cda765; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-header { background:#211a10; color:#f5dfb1; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-details { background:#f8efdc; border-color:#decca9; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-details h3,
+body:has(.registration-page.auth-gold-page) .promotion-gift-note strong { color:#5b4017; }
+body:has(.registration-page.auth-gold-page) :is(.promotion-gift-description,.promotion-gift-expiry,.promotion-gift-note,.promotion-gift-carousel span,.promotion-gift-value>div>span,.promotion-gift-value del,.promotion-gift-expiry small) { color:#6c5836; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-value { border-color:#dfcba6; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-value strong { color:#8c5b0e; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-action { background:#211a10; border-color:#ae7c2a; color:#f4d68f; border-radius:26px; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-action:hover { background:#382b18; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-carousel button { color:#805415; border-color:#dbc399; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-carousel button:hover { background:#f1e5cc; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-burst-box { background:#211a10; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-burst i:nth-child(3n) { background:#775421; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-burst i:nth-child(3n + 1) { background:#ebcf91; }
+body:has(.registration-page.auth-gold-page) .promotion-gift-farewell { color:#664617; border-color:#d8bc89; background:#fffaf0; }
+@media(max-width:540px) {
+  .auth-gold-page .unified-login-content { padding:22px 16px 14px; }
+  .auth-gold-page .unified-login-box { max-width:400px; padding:23px 23px 16px; border-radius:15px; }
+  .auth-gold-page .unified-login-brand img { width:82px; height:auto; margin-bottom:10px; }
+  .auth-gold-page .unified-login-brand p { font-size:19px; }
+  .auth-gold-page .unified-login-heading h1 { font-size:28px; }
+  .auth-gold-page .unified-login-heading { margin:17px 0 23px; }
+  .auth-gold-page .unified-login-footer { padding-top:12px; }
+  .auth-gold-page .registration-shell { padding-inline:16px; }
+  .auth-gold-page .registration-topbar { min-height:94px; gap:10px; }
+  .auth-gold-page .registration-topbar img { width:80px; height:auto; }
+  .auth-gold-page .registration-topbar>span { flex-direction:column; align-items:flex-end; gap:0; }
+  .auth-gold-page .registration-topbar>span a { padding-inline:12px; }
+  .auth-gold-page .registration-intro h1 { font-size:31px; }
+  .auth-gold-page .registration-intro { padding-block:23px 20px; }
+  .auth-gold-page .registration-form-card { padding:22px 20px; }
+}
+@media(max-width:360px) {
+  .auth-gold-page .unified-login-content { padding-inline:12px; }
+  .auth-gold-page .unified-login-box { padding-inline:18px; }
+  .auth-gold-page .unified-login-heading h1 { font-size:26px; }
+  .auth-gold-page .unified-login-heading p { font-size:14px; }
+  .auth-gold-page .registration-shell { padding-inline:12px; }
+  .auth-gold-page .registration-form-card { padding-inline:16px; }
+}
+@media(prefers-reduced-motion:reduce) { .auth-gold-page * { animation:none!important; transition:none!important; } }

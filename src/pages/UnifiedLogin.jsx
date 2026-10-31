@@ -9,6 +9,7 @@ import { companyPhoneTel, companyPhoneWhatsApp } from '../lib/companyContact';
 import { safeClientDestination, clientAuthPath } from '../lib/clientAuthDestination';
 import ClientSupport from '../components/ClientSupport';
 import './UnifiedLogin.css';
+import './AuthGoldTheme.css';
 
 const SUPPORT_PHONE = '01094084424';
 
@@ -82,11 +83,11 @@ export default function UnifiedLogin() {
     finally { setLoading(false); }
   };
 
-  return <main className="unified-login-container" dir="rtl">
+  return <main className="unified-login-container auth-gold-page" dir="rtl">
     <div className="unified-login-content">
     {authRetryNotice && <div className="auth-entry-recovery">{authRetryNotice}</div>}
     <section className="unified-login-box" aria-labelledby="unified-login-title">
-      <div className="unified-login-brand"><img src="/logo.webp" width="82" height="78" alt="Multi Task Agency" /><p dir="ltr">Multi Task Agency</p></div>
+      <div className="unified-login-brand"><img src="/brand/gold/mt-agency-logo.webp" width="90" height="73" alt="Multi Task Agency" /><p dir="ltr">Multi Task Agency</p></div>
       <header className="unified-login-heading">
         <span className="unified-quiet-rule" aria-hidden="true" />
         <h1 id="unified-login-title">تسجيل الدخول</h1>

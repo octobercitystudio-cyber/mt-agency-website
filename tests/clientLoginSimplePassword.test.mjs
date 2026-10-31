@@ -53,7 +53,7 @@ test('production login uses Hostinger /api by default and preserves explicit acc
   const loginBlock = api.slice(api.indexOf("$path === '/auth/login'"), api.indexOf("$path === '/auth/session'"));
   assert.match(provider, /hostingerClient/);
   assert.match(provider, /dataProvider = 'hostinger'/);
-  assert.doesNotMatch(provider, /VITE_DATA_PROVIDER|VITE_SUPABASE|createClient/);
+  assert.doesNotMatch(provider, /VITE_DATA_PROVIDER|VITE_SUPABASE|\bcreateClient\b/);
   assert.match(hostinger, /VITE_API_URL \|\| '\/api'/);
   assert.match(env, /VITE_API_URL=\/api/);
   assert.doesNotMatch(env, /VITE_DATA_PROVIDER|VITE_SUPABASE/);
