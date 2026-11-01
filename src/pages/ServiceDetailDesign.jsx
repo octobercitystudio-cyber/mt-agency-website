@@ -5,7 +5,8 @@ import SEO from '../components/SEO';
 import PublicPortfolioGrid from '../components/PublicPortfolioGrid';
 import { useData } from '../store/DataContext';
 import { AL_MAJD_SOCIAL_PARTNER } from '../data/alMajdSocialPartner';
-import { EDUCATIONAL_BOOKING_GALLERY } from '../data/educationalBooking';
+import { EDUCATIONAL_BOOKING_GALLERY, EDUCATIONAL_BOOKING_TARGET } from '../data/educationalBooking';
+import { educationalServiceBookingCopy } from '../data/educationalServiceBooking';
 import { getPublicService, getServicePortfolio } from '../data/publicServiceCatalog';
 import { serviceVisualLayouts } from '../data/serviceVisualLayouts';
 import { aiVideoPlatforms } from '../data/aiVideoPlatforms';
@@ -49,18 +50,27 @@ function ServiceVisual({ text, layout, work, isEnglish }) {
   return <figure className={`sd-hero__visual sd-photo-${variant}`}><Photo src={layout.heroImage} alt={variant === 'education' ? (isEnglish ? EDUCATIONAL_BOOKING_GALLERY[0].altEn : EDUCATIONAL_BOOKING_GALLERY[0].alt) : text.heroAlt} eager/>{variant === 'podcast' && <Waveform/>}</figure>;
 }
 function ServiceHero({ service, text, layout, work, isEnglish, workTarget, hasSuccessPartner }) {
+  const bookingCopy = educationalServiceBookingCopy[isEnglish ? 'en' : 'ar'];
   return <header className={`sd-hero sd-hero--${layout.variant}`}>
     <div className="sd-hero__curve" aria-hidden="true"/>
     {layout.variant === 'commercial' && <Photo src={layout.heroImage} alt="" eager className="sd-hero__backdrop"/>}
     <div className="container sd-hero__grid">
       <div className="sd-hero__copy"><h1><HighlightTitle>{text.title}</HighlightTitle></h1><p>{text.heroSummary}</p><div className="public-hero-actions sd-hero__actions">
-        <Link className="public-solid-button" to={publicPath(`/contact?service=${service.slug}`, isEnglish)} state={{ service: service.slug }}>{isEnglish ? 'Request a quote' : 'اطلب عرض سعر'}<DirectionArrow isEnglish={isEnglish}/></Link>
+        <Link className="public-solid-button" to={layout.variant === 'education' ? EDUCATIONAL_BOOKING_TARGET : publicPath(`/contact?service=${service.slug}`, isEnglish)} state={layout.variant === 'education' ? undefined : { service: service.slug }}>{layout.variant === 'education' ? bookingCopy.action : isEnglish ? 'Request a quote' : 'اطلب عرض سعر'}<DirectionArrow isEnglish={isEnglish}/></Link>
         {(work.length > 0 || hasSuccessPartner) && <a className="public-ghost-button" href={workTarget}>{isEnglish ? 'See our work' : 'شاهد أعمالنا'}</a>}
       </div></div>
       {layout.variant !== 'commercial' && <ServiceVisual text={text} layout={layout} work={work} isEnglish={isEnglish}/>}
     </div>
     {layout.variant === 'podcast' && <Waveform/>}
   </header>;
+}
+function EducationalServiceBooking({ isEnglish }) {
+  const copy = educationalServiceBookingCopy[isEnglish ? 'en' : 'ar'];
+  return <section id="online-booking" className="sd-education-booking container" aria-labelledby="online-booking-title"><div className="sd-education-booking__panel">
+    <header><h2 id="online-booking-title">{copy.title}</h2><p>{copy.intro}</p></header>
+    <ol className="sd-education-booking__steps">{copy.steps.map((step, index) => <li key={step.title}><span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><div><h3>{step.title}</h3><p>{step.description}</p></div></li>)}</ol>
+    <div className="sd-education-booking__action"><Link className="public-solid-button" to={EDUCATIONAL_BOOKING_TARGET}>{copy.action}<DirectionArrow isEnglish={isEnglish}/></Link><p>{copy.note}</p></div>
+  </div></section>;
 }
 function AiVideoPlatforms({ isEnglish }) {
   return <section className="sd-ai-platforms container" aria-labelledby="ai-platforms-title">
@@ -124,6 +134,7 @@ export default function ServiceDetailPage() {
   if (!service) return <MissingService isEnglish={isEnglish}/>;
   const text = isEnglish ? service.en : service.ar; const work = getServicePortfolio(siteData.portfolio, service); const categories = siteData.portfolioCategories || [];
   const layout = serviceVisualLayouts[slug];
+  const bookingCopy = educationalServiceBookingCopy[isEnglish ? 'en' : 'ar'];
   const hasDecisionGuide = Boolean(text.decisionGuide); const hasSuccessPartner = service.slug === AL_MAJD_SOCIAL_PARTNER.serviceSlug;
   const workTarget = hasSuccessPartner ? '#al-majd-work' : '#service-work';
   let nextSection = 3; const sectionNumber = () => String(nextSection++).padStart(2, '0');
@@ -137,6 +148,7 @@ export default function ServiceDetailPage() {
     <SEO title={text.seoTitle} description={text.metaDescription} image={`${SITE_URL}${service.heroImage}`} url={`/services/${service.slug}`} schema={[serviceSchema, breadcrumbSchema, faqSchema].filter(Boolean)}/>
     <nav className="public-breadcrumb container sd-breadcrumb" aria-label={isEnglish ? 'Breadcrumb' : 'مسار الصفحة'}><Link to={publicPath('/', isEnglish)}>{home}</Link><CrumbArrow isEnglish={isEnglish}/><Link to={publicPath('/services', isEnglish)}>{services}</Link><CrumbArrow isEnglish={isEnglish}/><span aria-current="page">{text.navLabel}</span></nav>
     <ServiceHero service={service} text={text} layout={layout} work={work} isEnglish={isEnglish} workTarget={workTarget} hasSuccessPartner={hasSuccessPartner}/>
+    {layout.variant === 'education' && <EducationalServiceBooking isEnglish={isEnglish}/>}
     {layout.variant === 'ai' && <AiVideoPlatforms isEnglish={isEnglish}/>}
     {layout.variant === 'podcast' && <PodcastStudioGallery isEnglish={isEnglish}/>}
     <Deliverables text={text} layout={layout} isEnglish={isEnglish}/>
@@ -145,6 +157,6 @@ export default function ServiceDetailPage() {
     {hasSuccessPartner && <AlMajdPartnerSection isEnglish={isEnglish} number={partnerSectionNumber}/>}
     {work.length > 0 && <section id="service-work" className="public-work-section container sd-real-work"><div className="public-section-heading"><span>{workSectionNumber}</span><div><h2>{isEnglish ? 'Relevant work' : 'أعمال مرتبطة بالخدمة'}</h2></div></div><PublicPortfolioGrid items={work} categories={categories} isEnglish={isEnglish}/></section>}
     {text.faq.length > 0 && <section className="public-faq container sd-faq"><div className="public-section-heading"><span>{faqSectionNumber}</span><h2>{isEnglish ? 'Before you book' : 'قبل الاتفاق'}</h2></div><div>{text.faq.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div></section>}
-    <section className="public-final-cta sd-final-cta" style={{ '--sd-cta-image': `url("${layout.companionImage}")` }}><div className="container"><h2>{isEnglish ? 'Tell us what you need' : 'احكِ لنا احتياجك'}</h2><div><Link className="public-solid-button" to={publicPath(`/contact?service=${service.slug}`, isEnglish)}>{isEnglish ? 'Request a quote' : 'اطلب عرض سعر'}<DirectionArrow isEnglish={isEnglish}/></Link><a className="public-ghost-button" href={`https://wa.me/${companyPhoneWhatsApp(siteData.contact?.phone)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a></div></div></section>
+    <section className="public-final-cta sd-final-cta" style={{ '--sd-cta-image': `url("${layout.companionImage}")` }}><div className="container"><h2>{layout.variant === 'education' ? bookingCopy.finalTitle : isEnglish ? 'Tell us what you need' : 'احكِ لنا احتياجك'}</h2><div><Link className="public-solid-button" to={layout.variant === 'education' ? EDUCATIONAL_BOOKING_TARGET : publicPath(`/contact?service=${service.slug}`, isEnglish)}>{layout.variant === 'education' ? bookingCopy.action : isEnglish ? 'Request a quote' : 'اطلب عرض سعر'}<DirectionArrow isEnglish={isEnglish}/></Link><a className="public-ghost-button" href={`https://wa.me/${companyPhoneWhatsApp(siteData.contact?.phone)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a></div></div></section>
   </main>;
 }

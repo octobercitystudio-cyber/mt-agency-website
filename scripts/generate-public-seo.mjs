@@ -7,6 +7,7 @@ import { getServicePortfolio, publicServiceCatalog, publicServiceGroups } from '
 import { serviceVisualLayouts } from '../src/data/serviceVisualLayouts.js';
 import { aiVideoPlatforms } from '../src/data/aiVideoPlatforms.js';
 import { podcastStudioGallery, podcastStudioGalleryCopy } from '../src/data/podcastStudioGallery.js';
+import { educationalServiceBookingCopy } from '../src/data/educationalServiceBooking.js';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../src/data/studioGalleries.js';
 import { VERIFIED_PORTFOLIO } from '../src/data/verifiedPortfolio.js';
 import { EDUCATIONAL_BOOKING_COPY, EDUCATIONAL_BOOKING_IMAGE, EDUCATIONAL_BOOKING_SERVICE, EDUCATIONAL_BOOKING_TARGET } from '../src/data/educationalBooking.js';
@@ -151,6 +152,8 @@ const verifiedWorkContent = (service, locale, number) => {
 
 const serviceContent = (page, locale) => {
   const copy = page.service[locale];
+  const education = page.service.slug === 'studio-content-production';
+  const bookingCopy = educationalServiceBookingCopy[locale];
   const sectionTitle = (ar, en) => locale === 'en' ? en : ar;
   let nextSection = 3;
   const sectionNumber = () => String(nextSection++).padStart(2, '0');
@@ -165,7 +168,7 @@ const serviceContent = (page, locale) => {
   ${alMajdPartnerContent(page.service, locale, partnerNumber)}
   ${verifiedWorkContent(page.service, locale, workNumber)}
   <section class="public-faq container"><div class="public-section-heading"><span>${faqNumber}</span><h2>${sectionTitle('قبل الاتفاق', 'Before you book')}</h2></div><div>${copy.faq.map(([question, answer]) => `<details><summary>${escapeHtml(question)}</summary><p>${escapeHtml(answer)}</p></details>`).join('')}</div></section>
-  <section class="public-inline-cta container"><h2>${sectionTitle('احكِ لنا احتياجك', 'Tell us what you need')}</h2><a class="public-solid-button" href="${languagePath(locale, `/contact/?service=${page.service.slug}`)}">${sectionTitle('اطلب عرض سعر', 'Request a quote')}</a></section>`;
+  <section class="public-inline-cta container"><h2>${education ? escapeHtml(bookingCopy.finalTitle) : sectionTitle('احكِ لنا احتياجك', 'Tell us what you need')}</h2><a class="public-solid-button" href="${education ? EDUCATIONAL_BOOKING_TARGET : languagePath(locale, `/contact/?service=${page.service.slug}`)}">${education ? escapeHtml(bookingCopy.action) : sectionTitle('اطلب عرض سعر', 'Request a quote')}</a></section>`;
 };
 
 const goldHomeHero = locale => {
@@ -199,6 +202,8 @@ const contactReference = locale => {
 };
 const serviceReferenceHero = (page, locale) => {
   const copy = page[locale]; const service = page.service; const layout = serviceVisualLayouts[service.slug]; const en = locale === 'en';
+  const primaryHref = layout.variant === 'education' ? EDUCATIONAL_BOOKING_TARGET : languagePath(locale, '/contact/?service='+service.slug);
+  const primaryLabel = layout.variant === 'education' ? educationalServiceBookingCopy[locale].action : en ? 'Request a quote' : 'اطلب عرض سعر';
   const work = getServicePortfolio(VERIFIED_PORTFOLIO, service); const hasPartner = service.slug === AL_MAJD_SOCIAL_PARTNER.serviceSlug;
   const image = layout.variant === 'web'
     ? `<div class="sd-hero__visual sd-device-composition"><div class="sd-desktop-screen"><div class="sd-window-chrome" aria-hidden="true"><i></i><i></i><i></i><b></b></div><img src="${escapeHtml(layout.desktopPreview)}" alt="${en ? 'QP Shoes Store — desktop view' : 'متجر قصر الملكة — عرض الكمبيوتر'}" width="1440" height="810" loading="eager" fetchpriority="high" decoding="async"></div><div class="sd-phone-screen" aria-hidden="true"><img src="${escapeHtml(layout.mobilePreview)}" alt="" width="390" height="780" loading="eager" decoding="async"></div></div>`
@@ -207,7 +212,7 @@ const serviceReferenceHero = (page, locale) => {
       : layout.variant === 'ai'
         ? `<figure class="sd-hero__visual sd-ai-cinema">${referencePhoto(layout.heroImage, en ? 'Imaginary advertising scene with a perfume bottle and floating golden ribbon between stone arches' : 'مشهد إعلاني تخيلي بزجاجة عطر وشريط ذهبي عائم بين أقواس حجرية', true)}<span class="sd-cinema-corner" aria-hidden="true"></span><div class="sd-ai-filmstrip" aria-hidden="true">${layout.heroFrames.map(src => referencePhoto(src)).join('')}</div><figcaption class="sd-ai-caption">${en ? 'Illustrative AI-generated scenes' : 'مشاهد توضيحية مولّدة بالذكاء الاصطناعي'}</figcaption></figure>`
         : `<figure class="sd-hero__visual sd-photo-${layout.variant}">${referencePhoto(layout.heroImage, service[locale].heroAlt, true)}</figure>`;
-  return `<nav class="public-breadcrumb container sd-breadcrumb" aria-label="${en ? 'Breadcrumb' : 'مسار الصفحة'}"><a href="${languagePath(locale,'/')}">${en ? 'Home' : 'الرئيسية'}</a><span aria-hidden="true">‹</span><a href="${languagePath(locale,'/services/')}">${en ? 'Services' : 'الخدمات'}</a><span aria-hidden="true">‹</span><span aria-current="page">${escapeHtml(service[locale].navLabel)}</span></nav><header class="sd-hero sd-hero--${layout.variant}"><div class="sd-hero__curve" aria-hidden="true"></div>${layout.variant === 'commercial' ? `<img class="sd-hero__backdrop" src="${layout.heroImage}" alt="" width="960" height="640" loading="eager">` : ''}<div class="container sd-hero__grid"><div class="sd-hero__copy"><h1>${highlightedTitle(copy.h1,'sd-title-gold')}</h1><p>${escapeHtml(copy.summary)}</p><div class="public-hero-actions sd-hero__actions"><a class="public-solid-button" href="${languagePath(locale,'/contact/?service='+service.slug)}">${en ? 'Request a quote' : 'اطلب عرض سعر'}</a>${work.length || hasPartner ? `<a class="public-ghost-button" href="${hasPartner ? '#al-majd-work' : '#service-work'}">${en ? 'See our work' : 'شاهد أعمالنا'}</a>` : ''}</div></div>${layout.variant !== 'commercial' ? image : ''}</div></header>`;
+  return `<nav class="public-breadcrumb container sd-breadcrumb" aria-label="${en ? 'Breadcrumb' : 'مسار الصفحة'}"><a href="${languagePath(locale,'/')}">${en ? 'Home' : 'الرئيسية'}</a><span aria-hidden="true">‹</span><a href="${languagePath(locale,'/services/')}">${en ? 'Services' : 'الخدمات'}</a><span aria-hidden="true">‹</span><span aria-current="page">${escapeHtml(service[locale].navLabel)}</span></nav><header class="sd-hero sd-hero--${layout.variant}"><div class="sd-hero__curve" aria-hidden="true"></div>${layout.variant === 'commercial' ? `<img class="sd-hero__backdrop" src="${layout.heroImage}" alt="" width="960" height="640" loading="eager">` : ''}<div class="container sd-hero__grid"><div class="sd-hero__copy"><h1>${highlightedTitle(copy.h1,'sd-title-gold')}</h1><p>${escapeHtml(copy.summary)}</p><div class="public-hero-actions sd-hero__actions"><a class="public-solid-button" href="${escapeHtml(primaryHref)}">${escapeHtml(primaryLabel)}</a>${work.length || hasPartner ? `<a class="public-ghost-button" href="${hasPartner ? '#al-majd-work' : '#service-work'}">${en ? 'See our work' : 'شاهد أعمالنا'}</a>` : ''}</div></div>${layout.variant !== 'commercial' ? image : ''}</div></header>`;
 };
 const aiPlatformsContent = locale => {
   const en = locale === 'en';
@@ -221,6 +226,10 @@ const podcastGalleryContent = locale => {
     return `<a href="${escapeHtml(image.src)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(`${copy.viewPhoto}: ${title}`)}"><figure><div class="sd-podcast-gallery__media"><img src="${escapeHtml(image.src)}" alt="${escapeHtml(alt)}" width="${image.width}" height="${image.height}" loading="lazy" decoding="async"></div><figcaption><h3>${escapeHtml(title)}</h3><span>${escapeHtml(copy.viewPhoto)} <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M21 14v7H3V3h7"/></svg></span></figcaption></figure></a>`;
   }).join('')}</div></section>`;
 };
+const educationalServiceBookingContent = locale => {
+  const copy = educationalServiceBookingCopy[locale];
+  return `<section id="online-booking" class="sd-education-booking container" aria-labelledby="online-booking-title"><div class="sd-education-booking__panel"><header><h2 id="online-booking-title">${escapeHtml(copy.title)}</h2><p>${escapeHtml(copy.intro)}</p></header><ol class="sd-education-booking__steps">${copy.steps.map((step, index) => `<li><span aria-hidden="true">${String(index + 1).padStart(2, '0')}</span><div><h3>${escapeHtml(step.title)}</h3><p>${escapeHtml(step.description)}</p></div></li>`).join('')}</ol><div class="sd-education-booking__action"><a class="public-solid-button" href="${EDUCATIONAL_BOOKING_TARGET}">${escapeHtml(copy.action)}</a><p>${escapeHtml(copy.note)}</p></div></div></section>`;
+};
 const referenceServiceContent = (page, locale) => {
   const layout = serviceVisualLayouts[page.service.slug]; const text = page.service[locale]; const en = locale === 'en';
   const old = serviceContent(page, locale);
@@ -231,7 +240,7 @@ const visiblePage = (page, locale) => {
   const copy = page[locale];
   const shell = (classes, content) => `<div class="app-container public-site-shell">${navigation(locale,page.path)}<main id="main-content" class="${classes}">${content}</main></div>`;
   if (page.path === '/') return shell('public-home-page reference-home',goldHomeHero(locale)+educationalBookingContent(locale)+servicesList(locale));
-  if (page.service) { const layout=serviceVisualLayouts[page.service.slug]; return shell(`public-page service-detail-page reference-service sd--${layout.variant}`,serviceReferenceHero(page,locale)+(layout.variant === 'ai' ? aiPlatformsContent(locale) : '')+(layout.variant === 'podcast' ? podcastGalleryContent(locale) : '')+referenceServiceContent(page,locale)); }
+  if (page.service) { const layout=serviceVisualLayouts[page.service.slug]; return shell(`public-page service-detail-page reference-service sd--${layout.variant}`,serviceReferenceHero(page,locale)+(layout.variant === 'education' ? educationalServiceBookingContent(locale) : '')+(layout.variant === 'ai' ? aiPlatformsContent(locale) : '')+(layout.variant === 'podcast' ? podcastGalleryContent(locale) : '')+referenceServiceContent(page,locale)); }
   const kind = page.path.split('/').filter(Boolean)[0];
   const image = kind === 'services' ? '/brand/gold/services/commercial-video-production.webp' : kind === 'about' ? '/brand/gold/services/ai-video-production.webp' : kind === 'studios' ? STUDIO_GALLERIES.october[0].url : '';
   const body = kind === 'services' ? referenceServices(locale) : kind === 'about' ? aboutReference(locale) : kind === 'portfolio' ? portfolioReference(locale) : kind === 'studios' ? studiosReference(locale) : kind === 'contact' ? contactReference(locale) : '';
