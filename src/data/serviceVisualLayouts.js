@@ -13,6 +13,6 @@ export const serviceVisualLayouts = {
   'social-media-management': { variant: 'social', heroImage: photo('social-media-management'), companionImage: photo('social-media-management') },
   'creative-design-branding': { variant: 'branding', heroImage: photo('creative-design-branding'), companionImage: photo('creative-design-branding') },
   'web-design-development': { variant: 'web', heroImage: photo('web-design-development'), companionImage: photo('web-design-development'), desktopPreview: '/portfolio-previews/qpshoes-device-desktop.jpg', mobilePreview: '/portfolio-previews/qpshoes-device-mobile.jpg', decisionImages: ['company-website', 'online-store', 'landing-page'].map(detailPhoto) },
-  'software-development': { variant: 'software', heroImage: photo('software-development'), companionImage: photo('software-development') },
+  'software-development': { variant: 'software', heroImage: photo('software-development'), companionImage: photo('software-development'), desktopPreview: '/brand/gold/software-app/desktop-app.webp', mobilePreview: '/brand/gold/software-app/mobile-app.webp' },
   'ai-video-production': { variant: 'ai', heroImage: photo('ai-video-production'), companionImage: photo('ai-video-production'), deliverableImages: ['ai-storyboard', 'ai-generated-scene', 'ai-editing-review', 'ai-delivery-formats'].map(detailPhoto) },
 };
