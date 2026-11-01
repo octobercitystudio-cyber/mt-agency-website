@@ -16,7 +16,8 @@ function LiteYouTube({ url, title }) {
   const [loaded, setLoaded] = useState(false);
   const videoId = getYouTubeId(url);
   if (!videoId) return null;
-  if (loaded) return <iframe src={`https://www.youtube.com/embed/${videoId}?autoplay=1`} title={title} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
+  // YouTube requires an origin referrer even when the page uses same-origin policy.
+  if (loaded) return <iframe src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`} title={title} referrerPolicy="strict-origin-when-cross-origin" loading="eager" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />;
   return <button type="button" className="public-work-video" onClick={() => setLoaded(true)} aria-label={`${title} — YouTube`}>
     <img src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`} alt={title} loading="lazy" decoding="async" />
     <span><Play aria-hidden="true" /></span>

@@ -43,15 +43,16 @@ const Portfolio = () => {
     const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
     if (isLoaded || !videoId) {
-      const embedSrc = videoId === url ? url : `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+      const embedSrc = videoId === url ? url : `https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1`;
       return (
         <iframe 
           src={embedSrc} 
           title={title}
+          referrerPolicy="strict-origin-when-cross-origin"
           frameBorder="0" 
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
           allowFullScreen
-          loading="lazy"
+          loading="eager"
           style={{width: '100%', height: '100%', position: 'absolute', top: 0, left: 0}}
         ></iframe>
       );
