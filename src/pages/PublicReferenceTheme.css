@@ -4,8 +4,8 @@
   --reference-edge: rgba(201, 151, 65, .34);
 }
 .public-site-shell .top-bar { background: rgba(251,244,231,.88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-.public-site-shell .services-mega-menu { background: rgba(255,249,237,.94); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-.services-studios-submenu { background: rgba(255,249,237,.96); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.public-site-shell .services-mega-menu { background: #fff9ed; backdrop-filter: none; -webkit-backdrop-filter: none; }
+.services-studios-submenu { background: #fff9ed; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .public-site-shell #main-content.reference-page {
   background: radial-gradient(ellipse at 0 15%,rgba(227,190,125,.2),transparent 38%), radial-gradient(ellipse at 100% 56%,rgba(230,197,143,.24),transparent 42%),#fbf4e7;
 }
