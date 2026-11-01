@@ -19,6 +19,27 @@
 .public-site-shell #main-content.reference-service .sd-hero__actions :is(a,button){min-height:48px}
 .public-site-shell #main-content.reference-service .sd-hero__visual{margin:0;position:relative;min-width:0}
 .public-site-shell #main-content.reference-service .sd-hero__visual>img{width:100%;height:100%;min-height:360px;max-height:490px;object-fit:cover;display:block}
+/* Original podcast studio photography, shown in full with branch captions. */
+.public-site-shell #main-content.reference-service .sd-podcast-gallery{padding-block:56px 18px}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery>header{max-width:760px;margin:0 auto 30px;text-align:center}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery h2{margin:0;color:var(--sd-ink);font-size:clamp(1.8rem,3vw,2.65rem);line-height:1.35}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery>header p{margin:12px 0 0;color:var(--sd-muted);font-size:1rem;line-height:1.85}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery__grid>a{display:block;min-width:0;overflow:hidden;border:1px solid var(--sd-edge);border-radius:12px;background:var(--sd-glass);color:var(--sd-ink);text-decoration:none;box-shadow:0 12px 25px rgba(69,44,10,.055);backdrop-filter:blur(8px);transition:border-color .18s,box-shadow .18s}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery__grid>a:is(:hover,:focus-visible){border-color:#b18136;box-shadow:0 15px 28px rgba(69,44,10,.12)}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery__grid>a:focus-visible{outline:3px solid #a86d13;outline-offset:4px}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery figure{margin:0}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery__media{aspect-ratio:3/2;background:#ede1ca}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery__media img{display:block;width:100%;height:100%;object-fit:contain}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery figcaption{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border-top:1px solid var(--sd-edge)}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery h3{margin:0;font-size:1.05rem;font-weight:700;line-height:1.65}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery figcaption span{display:flex;align-items:center;gap:7px;flex-shrink:0;color:#87570e;font-size:.8rem;font-weight:700;white-space:nowrap}
+.public-site-shell #main-content.reference-service .sd-podcast-gallery figcaption svg{width:15px;height:15px}
+@media(max-width:769px){
+ .public-site-shell #main-content.reference-service .sd-podcast-gallery{padding-block:38px 10px}
+ .public-site-shell #main-content.reference-service .sd-podcast-gallery__grid{grid-template-columns:minmax(0,1fr);gap:22px}
+ .public-site-shell #main-content.reference-service .sd-podcast-gallery figcaption{padding:16px 18px;align-items:flex-start;flex-direction:column;gap:6px}
+}
 /* Educational filming: a real studio photograph extends to the edge. */
 .public-site-shell #main-content.reference-service .sd-photo-education{align-self:stretch;border-radius:0 130px 130px 0;overflow:hidden;margin-inline-end:calc((min(1200px,90vw) - 100vw)/2)}
 html[dir="ltr"] .public-site-shell #main-content.reference-service .sd-photo-education{border-radius:130px 0 0 130px}

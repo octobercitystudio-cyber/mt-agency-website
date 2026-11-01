@@ -6,6 +6,7 @@ import { AL_MAJD_SOCIAL_PARTNER } from '../src/data/alMajdSocialPartner.js';
 import { getServicePortfolio, publicServiceCatalog, publicServiceGroups } from '../src/data/publicServiceCatalog.js';
 import { serviceVisualLayouts } from '../src/data/serviceVisualLayouts.js';
 import { aiVideoPlatforms } from '../src/data/aiVideoPlatforms.js';
+import { podcastStudioGallery, podcastStudioGalleryCopy } from '../src/data/podcastStudioGallery.js';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../src/data/studioGalleries.js';
 import { VERIFIED_PORTFOLIO } from '../src/data/verifiedPortfolio.js';
 import { EDUCATIONAL_BOOKING_COPY, EDUCATIONAL_BOOKING_IMAGE, EDUCATIONAL_BOOKING_SERVICE, EDUCATIONAL_BOOKING_TARGET } from '../src/data/educationalBooking.js';
@@ -212,6 +213,14 @@ const aiPlatformsContent = locale => {
   const en = locale === 'en';
   return `<section class="sd-ai-platforms container" aria-labelledby="ai-platforms-title"><header><h2 id="ai-platforms-title">${en ? 'Examples of AI video platforms' : 'أمثلة على منصات صناعة الفيديو'}</h2><p>${en ? 'Tools for generating scenes and digital avatars, with capabilities that vary by platform.' : 'أدوات لتوليد المشاهد والشخصيات الرقمية، وتختلف إمكانياتها حسب المنصة.'}</p></header><ul>${aiVideoPlatforms.map(platform => `<li><a href="${escapeHtml(platform.url)}" target="_blank" rel="noopener noreferrer"><strong dir="ltr">${escapeHtml(platform.name)}</strong><p>${escapeHtml(platform[locale])}</p><span>${en ? 'Official website' : 'الموقع الرسمي'} <span aria-hidden="true">↗</span></span></a></li>`).join('')}</ul></section>`;
 };
+const podcastGalleryContent = locale => {
+  const copy = podcastStudioGalleryCopy[locale];
+  return `<section class="sd-podcast-gallery container" aria-labelledby="podcast-gallery-title"><header><h2 id="podcast-gallery-title">${escapeHtml(copy.title)}</h2><p>${escapeHtml(copy.intro)}</p></header><div class="sd-podcast-gallery__grid">${podcastStudioGallery.map(image => {
+    const title = locale === 'en' ? image.enTitle : image.arTitle;
+    const alt = locale === 'en' ? image.enAlt : image.arAlt;
+    return `<a href="${escapeHtml(image.src)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(`${copy.viewPhoto}: ${title}`)}"><figure><div class="sd-podcast-gallery__media"><img src="${escapeHtml(image.src)}" alt="${escapeHtml(alt)}" width="${image.width}" height="${image.height}" loading="lazy" decoding="async"></div><figcaption><h3>${escapeHtml(title)}</h3><span>${escapeHtml(copy.viewPhoto)} <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M21 14v7H3V3h7"/></svg></span></figcaption></figure></a>`;
+  }).join('')}</div></section>`;
+};
 const referenceServiceContent = (page, locale) => {
   const layout = serviceVisualLayouts[page.service.slug]; const text = page.service[locale]; const en = locale === 'en';
   const old = serviceContent(page, locale);
@@ -222,7 +231,7 @@ const visiblePage = (page, locale) => {
   const copy = page[locale];
   const shell = (classes, content) => `<div class="app-container public-site-shell">${navigation(locale,page.path)}<main id="main-content" class="${classes}">${content}</main></div>`;
   if (page.path === '/') return shell('public-home-page reference-home',goldHomeHero(locale)+educationalBookingContent(locale)+servicesList(locale));
-  if (page.service) { const layout=serviceVisualLayouts[page.service.slug]; return shell(`public-page service-detail-page reference-service sd--${layout.variant}`,serviceReferenceHero(page,locale)+(layout.variant === 'ai' ? aiPlatformsContent(locale) : '')+referenceServiceContent(page,locale)); }
+  if (page.service) { const layout=serviceVisualLayouts[page.service.slug]; return shell(`public-page service-detail-page reference-service sd--${layout.variant}`,serviceReferenceHero(page,locale)+(layout.variant === 'ai' ? aiPlatformsContent(locale) : '')+(layout.variant === 'podcast' ? podcastGalleryContent(locale) : '')+referenceServiceContent(page,locale)); }
   const kind = page.path.split('/').filter(Boolean)[0];
   const image = kind === 'services' ? '/brand/gold/services/commercial-video-production.webp' : kind === 'about' ? '/brand/gold/services/ai-video-production.webp' : kind === 'studios' ? STUDIO_GALLERIES.october[0].url : '';
   const body = kind === 'services' ? referenceServices(locale) : kind === 'about' ? aboutReference(locale) : kind === 'portfolio' ? portfolioReference(locale) : kind === 'studios' ? studiosReference(locale) : kind === 'contact' ? contactReference(locale) : '';

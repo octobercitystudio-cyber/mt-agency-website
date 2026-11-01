@@ -9,6 +9,7 @@ import { EDUCATIONAL_BOOKING_GALLERY } from '../data/educationalBooking';
 import { getPublicService, getServicePortfolio } from '../data/publicServiceCatalog';
 import { serviceVisualLayouts } from '../data/serviceVisualLayouts';
 import { aiVideoPlatforms } from '../data/aiVideoPlatforms';
+import { podcastStudioGallery, podcastStudioGalleryCopy } from '../data/podcastStudioGallery';
 import { companyPhoneWhatsApp } from '../lib/companyContact';
 import { localizePublicPath } from '../lib/publicRoutes';
 import { organizationId, SITE_URL } from '../seo/siteIdentity';
@@ -65,6 +66,19 @@ function AiVideoPlatforms({ isEnglish }) {
   return <section className="sd-ai-platforms container" aria-labelledby="ai-platforms-title">
     <header><h2 id="ai-platforms-title">{isEnglish ? 'Examples of AI video platforms' : 'أمثلة على منصات صناعة الفيديو'}</h2><p>{isEnglish ? 'Tools for generating scenes and digital avatars, with capabilities that vary by platform.' : 'أدوات لتوليد المشاهد والشخصيات الرقمية، وتختلف إمكانياتها حسب المنصة.'}</p></header>
     <ul>{aiVideoPlatforms.map(platform => <li key={platform.name}><a href={platform.url} target="_blank" rel="noopener noreferrer"><strong dir="ltr">{platform.name}</strong><p>{isEnglish ? platform.en : platform.ar}</p><span>{isEnglish ? 'Official website' : 'الموقع الرسمي'}<ExternalLink aria-hidden="true"/></span></a></li>)}</ul>
+  </section>;
+}
+function PodcastStudioGallery({ isEnglish }) {
+  const copy = podcastStudioGalleryCopy[isEnglish ? 'en' : 'ar'];
+  return <section className="sd-podcast-gallery container" aria-labelledby="podcast-gallery-title">
+    <header><h2 id="podcast-gallery-title">{copy.title}</h2><p>{copy.intro}</p></header>
+    <div className="sd-podcast-gallery__grid">{podcastStudioGallery.map(image => {
+      const title = isEnglish ? image.enTitle : image.arTitle;
+      return <a key={image.id} href={image.src} target="_blank" rel="noopener noreferrer" aria-label={`${copy.viewPhoto}: ${title}`}><figure>
+        <div className="sd-podcast-gallery__media"><img src={image.src} alt={isEnglish ? image.enAlt : image.arAlt} width={image.width} height={image.height} loading="lazy" decoding="async"/></div>
+        <figcaption><h3>{title}</h3><span>{copy.viewPhoto}<ExternalLink aria-hidden="true"/></span></figcaption>
+      </figure></a>;
+    })}</div>
   </section>;
 }
 function Deliverables({ text, layout, isEnglish }) {
@@ -124,6 +138,7 @@ export default function ServiceDetailPage() {
     <nav className="public-breadcrumb container sd-breadcrumb" aria-label={isEnglish ? 'Breadcrumb' : 'مسار الصفحة'}><Link to={publicPath('/', isEnglish)}>{home}</Link><CrumbArrow isEnglish={isEnglish}/><Link to={publicPath('/services', isEnglish)}>{services}</Link><CrumbArrow isEnglish={isEnglish}/><span aria-current="page">{text.navLabel}</span></nav>
     <ServiceHero service={service} text={text} layout={layout} work={work} isEnglish={isEnglish} workTarget={workTarget} hasSuccessPartner={hasSuccessPartner}/>
     {layout.variant === 'ai' && <AiVideoPlatforms isEnglish={isEnglish}/>}
+    {layout.variant === 'podcast' && <PodcastStudioGallery isEnglish={isEnglish}/>}
     <Deliverables text={text} layout={layout} isEnglish={isEnglish}/>
     <section className="public-suitable container sd-suitable"><div className="public-section-heading"><span>02</span><h2>{isEnglish ? 'Suitable for' : 'مناسبة لـ'}</h2></div><div>{text.suitableFor.map(item => <span key={item}>{item}</span>)}</div></section>
     <DecisionGuideSection content={text.decisionGuide} number={decisionSectionNumber} layout={layout}/>
