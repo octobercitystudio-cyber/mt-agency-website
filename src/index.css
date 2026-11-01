@@ -221,21 +221,28 @@ ul {
 }
 
 /* Custom Scrollbar */
+html:has(.public-site-shell, .auth-gold-page) {
+  --scrollbar-track: #fbf4e7;
+  --scrollbar-thumb: #a46b13;
+  --scrollbar-thumb-hover: #76500f;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
 ::-webkit-scrollbar {
   width: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-dark);
+  background: var(--scrollbar-track, var(--bg-dark));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-vibrant-purple);
+  background: var(--scrollbar-thumb, var(--color-vibrant-purple));
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-neon-purple);
+  background: var(--scrollbar-thumb-hover, var(--color-neon-purple));
 }
 
 /* Button Styles */
