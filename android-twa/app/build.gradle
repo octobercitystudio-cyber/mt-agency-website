@@ -28,13 +28,13 @@ def twaManifest = [
     launchUrl: '/login?source=android-app', // The start path for the TWA. Must be relative to the domain.
     name: 'MTA', // The application name.
     launcherName: 'MTA', // The name shown on the Android Launcher.
-    themeColor: '#6D28D9', // The color used for the status bar.
-    themeColorDark: '#4C1D95', // The color used for the dark status bar.
-    navigationColor: '#0F1020', // The color used for the navigation bar.
-    navigationColorDark: '#090A14', // The color used for the dark navbar.
-    navigationDividerColor: '#0F1020', // The navbar divider color.
-    navigationDividerColorDark: '#090A14', // The dark navbar divider color.
-    backgroundColor: '#0F1020', // The color used for the splash screen background.
+    themeColor: '#28190F', // The color used for the status bar.
+    themeColorDark: '#28190F', // The color used for the dark status bar.
+    navigationColor: '#28190F', // The color used for the navigation bar.
+    navigationColorDark: '#28190F', // The color used for the dark navbar.
+    navigationDividerColor: '#28190F', // The navbar divider color.
+    navigationDividerColorDark: '#28190F', // The dark navbar divider color.
+    backgroundColor: '#FBF4E7', // The color used for the splash screen background.
     enableNotifications: true, // Set to true to enable notification delegation.
     // Every shortcut must include the following fields:
     // - name: String that will show up in the shortcut.
@@ -59,8 +59,8 @@ android {
         applicationId "com.multitaskagency.app"
         minSdkVersion 23
         targetSdkVersion 36
-        versionCode 7
-        versionName "1.0.6"
+        versionCode 8
+        versionName "1.0.7"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name

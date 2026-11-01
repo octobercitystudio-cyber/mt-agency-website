@@ -103,7 +103,7 @@ export default function AdminLogin() {
   return <main className={`staff-login${staffApp ? ' staff-login--app' : ''}`} dir="rtl">
     <section className="staff-login-panel" aria-labelledby="staff-login-title">
       <header className="staff-login-brand">
-        <img src="/logo.webp" width="64" height="61" alt="شعار Multi Task Agency" />
+        <img src="/brand/gold/mt-agency-logo.webp" width="64" height="61" alt="شعار Multi Task Agency" />
         <div><p dir="ltr">Multi Task Agency</p><span>{staffApp ? 'MTA Team · تطبيق الإدارة' : 'مساحة إدارة الشركة'}</span></div>
       </header>
       <div className="staff-login-intro">

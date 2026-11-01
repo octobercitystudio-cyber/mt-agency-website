@@ -9,8 +9,8 @@ android {
         applicationId 'com.multitaskagency.staff'
         minSdkVersion 23
         targetSdkVersion 36
-        versionCode 4
-        versionName '1.0.3'
+        versionCode 5
+        versionName '1.0.4'
         resValue 'string', 'appName', 'MTA Team'
         resValue 'string', 'launcherName', 'MTA Team'
         resValue 'string', 'launchUrl', 'https://multitaskagency.com/p-e2f8474bcda6b5ea/login?source=android-staff-app'
@@ -26,13 +26,13 @@ android {
         resValue 'bool', 'enableNotification', 'true'
         resValue 'bool', 'enableSiteSettingsShortcut', 'true'
         resValue 'integer', 'splashScreenFadeOutDuration', '300'
-        resValue 'color', 'colorPrimary', '#37496E'
-        resValue 'color', 'colorPrimaryDark', '#263957'
-        resValue 'color', 'navigationColor', '#F4F3EF'
-        resValue 'color', 'navigationColorDark', '#263957'
-        resValue 'color', 'navigationDividerColor', '#E3E5E9'
-        resValue 'color', 'navigationDividerColorDark', '#263957'
-        resValue 'color', 'backgroundColor', '#F4F3EF'
+        resValue 'color', 'colorPrimary', '#28190F'
+        resValue 'color', 'colorPrimaryDark', '#28190F'
+        resValue 'color', 'navigationColor', '#28190F'
+        resValue 'color', 'navigationColorDark', '#28190F'
+        resValue 'color', 'navigationDividerColor', '#28190F'
+        resValue 'color', 'navigationDividerColorDark', '#28190F'
+        resValue 'color', 'backgroundColor', '#FBF4E7'
     }
     sourceSets {
         main {

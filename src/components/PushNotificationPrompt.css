@@ -1,6 +1,6 @@
 .push-notification-prompt {
-  --push-prompt-violet: var(--erp-primary, #6d28d9);
-  --push-prompt-violet-hover: var(--erp-primary-hover, #5b21b6);
+  --push-prompt-violet: var(--erp-primary, #936015);
+  --push-prompt-violet-hover: var(--erp-primary-hover, #75490e);
   --push-prompt-ink: #171a27;
   --push-prompt-muted: #596173;
   --push-prompt-border: #dedbd4;
@@ -101,7 +101,7 @@
   padding: 12px;
   border: 1px solid #d7c5f6;
   border-radius: 9px;
-  color: #5b21b6;
+  color: #75490e;
   background: #f5efff;
   text-align: center;
   font-size: 1rem;
@@ -109,7 +109,7 @@
 }
 
 .push-notification-prompt__copy details p { margin-block: 10px; }
-.push-notification-prompt__copy details a { color: #5b21b6; text-decoration: underline; }
+.push-notification-prompt__copy details a { color: #75490e; text-decoration: underline; }
 
 .push-notification-prompt__actions button {
   min-height: 44px;

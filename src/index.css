@@ -1,12 +1,12 @@
 :root {
   /* Color Palette */
-  --bg-dark: #130D1A;
-  --bg-gradient: radial-gradient(circle at 50% 0%, #1e142e 0%, #130D1A 80%);
-  --color-deep-purple: #1e142e;
-  --color-vibrant-purple: #9d4edd;
+  --bg-dark: #28190f;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #3d2919 0%, #28190f 80%);
+  --color-deep-purple: #3d2919;
+  --color-vibrant-purple: #936015;
   --color-silver: #E0E0E0;
   --color-light-silver: #FFFFFF;
-  --color-neon-purple: #c678ff;
+  --color-neon-purple: #eac06b;
   
   /* Typography */
   --font-arabic: 'Tajawal', sans-serif;
@@ -22,9 +22,9 @@
   /* Utilities */
   --border-radius: 12px;
   --transition: all 0.3s ease-in-out;
-  --box-shadow: 0 8px 32px 0 rgba(122, 40, 203, 0.15);
-  --glass-bg: rgba(28, 11, 59, 0.4);
-  --glass-border: 1px solid rgba(122, 40, 203, 0.3);
+  --box-shadow: 0 8px 32px 0 rgba(93, 57, 14, 0.15);
+  --glass-bg: rgba(40, 25, 15, 0.4);
+  --glass-border: 1px solid rgba(189, 134, 44, 0.3);
 }
 
 body[dir="ltr"], html[lang="en"] body {

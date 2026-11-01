@@ -110,7 +110,7 @@ const ERPLayout = () => {
     <div className="erp-layout erp-layout--pearl">
       {/* Mobile Header */}
       <div className="erp-mobile-header">
-        <h4 style={{fontWeight: 'bold', margin: 0, color: 'var(--erp-text-main)'}}>Multi Task <span style={{color: 'var(--erp-primary)'}}>Agency</span></h4>
+        <NavLink to={staffPath('')} className="erp-mobile-brand"><img src="/brand/gold/mt-agency-logo.webp" alt="Multi Task Agency"/><span>Multi Task Agency</span></NavLink>
         <div style={{display: 'flex', gap: '8px'}}>
 
           <button className="erp-mobile-toggle-btn" aria-label="قائمة التنقل" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -127,6 +127,7 @@ const ERPLayout = () => {
       {/* Sidebar */}
       <div className={`erp-sidebar ${sidebarOpen ? 'show' : ''}`}>
         <nav className="erp-nav-menu" aria-label="التنقل الرئيسي">
+          <NavLink to={staffPath('')} aria-label="لوحة قيادة Multi Task Agency"><img className="erp-brand-logo" src="/brand/gold/mt-agency-logo.webp" alt="Multi Task Agency"/></NavLink>
           <section className="erp-nav-group" aria-labelledby="erp-nav-daily-label">
             <h2 id="erp-nav-daily-label" className="erp-nav-group-label">التشغيل اليومي</h2>
             <ul className="erp-nav-list">
@@ -230,7 +231,7 @@ const ERPLayout = () => {
               <Settings size={20} /> إعدادات النظام
             </NavLink>
           </div>}
-          <a href="/" target="_blank" rel="noopener noreferrer" className="erp-nav-link mb-2" style={{color: 'var(--erp-text-muted)'}}>
+          <a href="/" target="_blank" rel="noopener noreferrer" className="erp-nav-link mb-2">
             <Home size={20} /> عرض الموقع
           </a>
           <button type="button" onClick={handleLogout} className="erp-nav-link" style={{width: '100%', color: '#ef4444', background: 'transparent', border: 'none', justifyContent: 'flex-start'}}>

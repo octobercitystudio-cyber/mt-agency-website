@@ -25,7 +25,7 @@ test('client dashboard owns the approved client sections and appointment actions
   assert.match(dashboard, /<ClientNotifications key=\{clientId\} clientId=\{clientId\}/);
   assert.match(dashboard, /client-topbar-points/); assert.match(dashboard, /formatClientPoints\(client\?\.points\)/);
   assert.doesNotMatch(overview, /<aside className="client-home-focus-side">/);
-  assert.match(css, /\.client-topbar-points\{[^}]*background:#f2ebff/);
+  assert.match(css, /\.client-topbar-points\{[^}]*background:#f5ead6/);
   assert.match(dashboard, /orderedBookings/); assert.match(dashboard, /تغيير الموعد/); assert.match(dashboard, /إلغاء/);
   assert.match(dashboard, /<ClientBookingDialog[^>]*booking=/); assert.doesNotMatch(dashboard, /window\.confirm/);
   assert.ok(dashboard.includes('تم إرسال الطلب'));

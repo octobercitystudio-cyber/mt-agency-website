@@ -537,7 +537,7 @@ export const DataProvider = ({ children }) => {
       >
         <img
           className="data-loading__logo"
-          src="/logo.webp"
+          src="/brand/gold/mt-agency-logo.webp"
           alt=""
           aria-hidden="true"
         />

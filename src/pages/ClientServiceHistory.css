@@ -15,7 +15,7 @@
 
 
 /* Service history shares the portal palette and reflows within the content width. */
-.client-app--glance .client-history { --history-panel:#fff;--history-elevated:#faf9fc;--history-interactive:#f0e9fb;--history-border:#e7e4ed;--history-text:#29243b;--history-muted:#6b6579;--history-purple:#6f39c7;--history-success:#176343;--history-warning:#89500f;--history-danger:#a52e42;--history-info:#24678d;min-width:0; }
+.client-app--glance .client-history { --history-panel:#fff;--history-elevated:#faf9fc;--history-interactive:#f0e9fb;--history-border:#e7e4ed;--history-text:#29243b;--history-muted:#6b6579;--history-purple:#936015;--history-success:#176343;--history-warning:#89500f;--history-danger:#a52e42;--history-info:#24678d;min-width:0; }
 .client-app--glance :is(.client-history__heading,.client-history-entry__main,.client-history-state,.client-history__controls) { background:var(--history-panel);border-color:var(--history-border);border-radius:14px; }
 .client-app--glance .client-history__heading { align-items:flex-start;flex-wrap:wrap; }
 .client-app--glance .client-history__heading :is(p,span,small) { font-size:14px;line-height:1.8; }
@@ -34,7 +34,7 @@
 .client-app--glance .client-history__search input { color:var(--history-text);font-size:15px; }
 .client-app--glance .client-history__search input::placeholder { color:var(--history-muted); }
 .client-app--glance .client-history__chips button { border-color:#ded3ee;background:#faf7ff;color:var(--history-purple);border-radius:8px; }
-.client-app--glance .client-history__chips button.active { background:#6f39c7;color:#fff;border-color:#6f39c7; }
+.client-app--glance .client-history__chips button.active { background:#936015;color:#fff;border-color:#936015; }
 .client-app--glance .client-history__chips button.secondary { color:#a52e42;border-color:#e5bcc4;background:#fff5f6; }
 .client-app--glance .client-history__chips button.secondary.active { background:#a52e42;color:#fff; }
 .client-app--glance .client-history__month>header span { color:var(--history-text);font-size:16px; }

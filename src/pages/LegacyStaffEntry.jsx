@@ -15,7 +15,7 @@ export default function LegacyStaffEntry() {
   }
   if (staffApp) return <Navigate replace to={`${STAFF_LOGIN_PATH}?source=android-staff-app`} />;
   return <main dir="rtl" className="staff-login"><section className="staff-login-panel">
-    <img src="/logo.webp" width="64" alt="Multi Task Agency" />
+    <img src="/brand/gold/mt-agency-logo.webp" width="64" alt="Multi Task Agency" />
     <h1>تم تحديث بوابة فريق العمل</h1>
     <p>الرابط المحفوظ قديم. اضغط الزر التالي لفتح صفحة الدخول الحالية بنفس بيانات حسابك.</p>
     <Link className="staff-login-submit" to={`${STAFF_LOGIN_PATH}?source=android-staff-app`}>فتح تسجيل دخول فريق العمل</Link>

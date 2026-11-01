@@ -21,7 +21,7 @@ const AdminLayout = () => {
       {/* Sidebar */}
       <aside className="admin-sidebar glass-panel">
         <div className="sidebar-header">
-          <h2>Multi Task Agency</h2>
+          <img className="admin-brand-logo" src="/brand/gold/mt-agency-logo.webp" alt="Multi Task Agency"/><h2>Multi Task Agency</h2>
           <p>لوحة التحكم</p>
         </div>
         

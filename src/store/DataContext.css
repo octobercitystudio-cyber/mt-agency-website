@@ -6,17 +6,17 @@
   transform: translateX(-50%);
   width: min(440px, calc(100% - 32px));
   padding: 18px;
-  border: 1px solid #d4c4e6;
+  border: 1px solid #d8bd8b;
   border-radius: 14px;
   background: #fff;
-  color: #38224f;
-  box-shadow: 0 8px 30px #21113a24;
+  color: #4b3825;
+  box-shadow: 0 8px 30px #28190f24;
   font: 500 16px/1.8 'Tajawal', sans-serif;
   text-align: center;
 }
 .auth-restore-notice p { margin: 0 0 12px; }
-.auth-restore-notice button { min-height: 44px; padding: 8px 24px; border: 0; border-radius: 8px; background: #6d3cba; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
-.auth-restore-notice button:focus-visible { outline: 3px solid #8f67ba; outline-offset: 3px; }
+.auth-restore-notice button { min-height: 44px; padding: 8px 24px; border: 0; border-radius: 8px; background: #936015; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.auth-restore-notice button:focus-visible { outline: 3px solid #bd862c; outline-offset: 3px; }
 .data-loading {
   position: fixed;
   z-index: 9999;
@@ -28,8 +28,8 @@
   overflow: hidden;
   background:
     radial-gradient(circle at 14% 50%, rgba(255, 255, 255, .09), transparent 18rem),
-    radial-gradient(circle at 78% 23%, rgba(76, 0, 255, .34), transparent 27rem),
-    linear-gradient(125deg, #21113a, #4b1e7a 58%, #1b0e2f);
+    radial-gradient(circle at 78% 23%, rgba(219, 169, 75, .34), transparent 27rem),
+    linear-gradient(125deg, #21160e, #49331b 58%, #28190f);
 }
 
 .data-loading__logo {
@@ -37,8 +37,8 @@
   width: clamp(110px, 12vw, 150px);
   height: auto;
   filter:
-    drop-shadow(0 0 12px rgba(76, 0, 255, .46))
-    drop-shadow(0 12px 28px rgba(8, 3, 24, .34));
+    drop-shadow(0 0 12px rgba(219, 169, 75, .46))
+    drop-shadow(0 12px 28px rgba(20, 11, 4, .34));
   animation: data-loading-logo 2.2s ease-in-out infinite;
 }
 
@@ -58,14 +58,14 @@
   0%, 100% {
     transform: translateY(0) scale(1);
     filter:
-      drop-shadow(0 0 10px rgba(76, 0, 255, .38))
-      drop-shadow(0 12px 28px rgba(8, 3, 24, .34));
+      drop-shadow(0 0 10px rgba(219, 169, 75, .38))
+      drop-shadow(0 12px 28px rgba(20, 11, 4, .34));
   }
   50% {
     transform: translateY(-7px) scale(1.025);
     filter:
-      drop-shadow(0 0 20px rgba(76, 0, 255, .62))
-      drop-shadow(0 18px 34px rgba(8, 3, 24, .4));
+      drop-shadow(0 0 20px rgba(219, 169, 75, .62))
+      drop-shadow(0 18px 34px rgba(20, 11, 4, .4));
   }
 }
 

@@ -109,7 +109,7 @@
 .promotion-live-preview nav button.active { color: #111629; background: #f4b548; border-color: #f4b548; }
 .promotion-preview-stage { min-height: 500px; display: grid; place-content: center; gap: 12px; padding: 24px; background: radial-gradient(circle at 80% 10%,rgba(109,40,217,.16),transparent 34%),#0c1020; }
 .promotion-preview-stage > small { color: #778198; text-align: center; }
-.promotion-preview-popup { width: min(390px, 100%); display: grid; padding: 30px; color: #fff; background: #141a2d; border: 1px solid #46506c; border-top: 7px solid #6d28d9; box-shadow: 0 22px 45px rgba(0,0,0,.3); }
+.promotion-preview-popup { width: min(390px, 100%); display: grid; padding: 30px; color: #fff; background: #141a2d; border: 1px solid #46506c; border-top: 7px solid #936015; box-shadow: 0 22px 45px rgba(0,0,0,.3); }
 .promotion-preview-popup > span { justify-self: start; padding: 5px 8px; color: #161a28; background: #f4b548; font-size: .62rem; font-weight: 900; }
 .promotion-preview-popup h3 { margin: 16px 0 7px; color: #fff; font-size: 1.4rem !important; }
 .promotion-preview-popup p { margin: 0 0 16px; color: #b4bdd0; font-size: .72rem; line-height: 1.7; }
@@ -117,7 +117,7 @@
 .promotion-preview-popup del { color: #7e889d; font-size: .65rem; }
 .promotion-preview-popup time { margin: 16px 0 9px; padding-top: 12px; color: #a8b1c4; border-top: 1px solid #303950; font-size: .68rem; }
 .promotion-preview-popup button,.promotion-preview-banner button { min-height: 44px; color: #101528; background: #f4b548; border: 0; font-weight: 900; }
-.promotion-preview-banner { width: min(480px, 100%); display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 12px; color: #fff; background: #141a2d; border-bottom: 2px solid #6d28d9; }
+.promotion-preview-banner { width: min(480px, 100%); display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 12px; color: #fff; background: #141a2d; border-bottom: 2px solid #936015; }
 .promotion-preview-banner > span { padding: 5px 7px; color: #111629; background: #f4b548; font-size: .58rem; font-weight: 900; }
 .promotion-preview-banner > div { min-width: 0; display: grid; }
 .promotion-preview-banner strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; }

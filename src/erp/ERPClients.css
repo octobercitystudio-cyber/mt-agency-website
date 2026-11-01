@@ -355,7 +355,7 @@
 }
 
 .client-crm-item__actions button.primary {
-  color: #5b21b6;
+  color: #75490e;
   background: #f1ebfb;
   border-color: #d8c8f3;
 }
@@ -544,7 +544,7 @@
 }
 
 .client-crm-tabs button.active {
-  color: #5b21b6;
+  color: #75490e;
   background: #f1ebfb;
   border-color: #d7c8f2;
 }

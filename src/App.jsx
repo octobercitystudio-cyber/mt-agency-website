@@ -147,7 +147,7 @@ function AppSurface() {
         <ScrollToTop />
         <AuthenticatedPushBridge />
         <GlobalContactActions />
-        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#faf8f5', color: '#5b21b6' }}>جاري التحميل...</div>}>
+        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#fbf4e7', color: '#75490e' }}>جاري التحميل...</div>}>
           <Routes>
             <Route element={<PublicLayout />}>
               <Route index element={<HomePage />} />

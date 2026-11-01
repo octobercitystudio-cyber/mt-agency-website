@@ -12,8 +12,8 @@
   padding: 14px 18px;
   border: 1px solid transparent;
   border-radius: 10px;
-  background: var(--login-primary, var(--reg-purple, #6d3cba));
-  box-shadow: 0 5px 14px #5e399425;
+  background: var(--login-primary, var(--reg-purple, #936015));
+  box-shadow: 0 5px 14px #93601525;
   color: #fff;
   font: 800 17px/1.7 'Tajawal', 'Segoe UI', sans-serif;
   text-decoration: none;
@@ -43,17 +43,17 @@
 }
 
 .client-app-download .client-app-download-link:hover {
-  background: var(--login-primary-dark, #57299d);
-  box-shadow: 0 6px 18px #5e399435;
+  background: var(--login-primary-dark, #75490e);
+  box-shadow: 0 6px 18px #93601535;
 }
 
 .client-app-download .client-app-download-link:focus-visible {
-  outline: 3px solid #8a60ba;
+  outline: 3px solid #bd862c;
   outline-offset: 3px;
 }
 
 .client-app-download .client-app-download-link:active {
-  background: #4c248a;
+  background: #5d390e;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -62,7 +62,7 @@
 
 .client-app-download-hint {
   margin: 9px 0 0;
-  color: #646174;
+  color: #735b40;
   font: 500 14px/1.8 'Tajawal', 'Segoe UI', sans-serif;
   text-align: center;
 }

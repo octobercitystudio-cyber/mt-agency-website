@@ -27,9 +27,9 @@ test('appointment surfaces use the same calm cards at every viewport', async () 
   const css = await readSource('../src/pages/ClientDashboard.css');
 
   assert.match(lastRule(css, '.client-app--calm .client-simple-next-card'), /background:#fffefa/);
-  assert.match(lastRule(css, '.client-app--calm .client-simple-date-block'), /background:#f2ebff/);
+  assert.match(lastRule(css, '.client-app--calm .client-simple-date-block'), /background:#f5ead6/);
   assert.match(lastRule(css, '.client-app--calm .client-next-appointment,.client-app--calm .client-appointment-cards'), /background:#fffefa/);
-  assert.match(lastRule(css, '.client-app--calm .client-booking-date'), /background:#f2ebff/);
+  assert.match(lastRule(css, '.client-app--calm .client-booking-date'), /background:#f5ead6/);
   assert.match(css, /\.client-home-focus-grid\{[^}]*grid-template-columns:220px minmax\(0,1fr\)/);
   assert.match(css, /\.client-app--calm \.client-modal-card :is\(input,select,textarea\)\{[^}]*min-height:44px/);
 });

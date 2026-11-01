@@ -1,7 +1,7 @@
 .booking-reschedule-overlay { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 16px; background: rgba(15,23,42,.7); backdrop-filter: blur(4px); direction: rtl; }
 .booking-reschedule-dialog { width: min(640px, 100%); max-height: calc(100dvh - 32px); overflow: auto; border-radius: 18px; background: var(--erp-surface); box-shadow: 0 24px 70px rgba(0,0,0,.3); color: var(--erp-text-main); }
 .booking-reschedule-dialog > header { display: flex; justify-content: space-between; gap: 16px; padding: 20px 22px; background: #1e293b; color: white; }
-.booking-reschedule-dialog header span { color: #c4b5fd; font-size: .68rem; font-weight: 800; }
+.booking-reschedule-dialog header span { color: #ddc08b; font-size: .68rem; font-weight: 800; }
 .booking-reschedule-dialog h2 { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: white; font-size: 1.15rem; }
 .booking-reschedule-dialog header p { margin: 0; color: #cbd5e1; font-size: .74rem; }
 .booking-reschedule-dialog header button { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 9px; background: rgba(255,255,255,.08); color: white; }

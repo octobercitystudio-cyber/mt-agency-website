@@ -4,9 +4,9 @@
     --erp-text-main: #1b1e2b;
     --erp-text-muted: #737681;
     --erp-border: #dcd9d1;
-    --erp-primary: #6d28d9;
-    --erp-primary-hover: #5b21b6;
-    --erp-primary-gradient: #6d28d9;
+    --erp-primary: #936015;
+    --erp-primary-hover: #75490e;
+    --erp-primary-gradient: #936015;
     --erp-success: #198754;
     --erp-warning: #ffc107;
     --erp-danger: #dc3545;
@@ -62,7 +62,7 @@
 .erp-sidebar .erp-user-card { background: #171d31; border-color: #30384f; }
 .erp-sidebar .erp-user-card>div:last-child>span { border-radius: 4px !important; }
 .erp-sidebar .erp-nav-link:hover { color: #ffffff; }
-.erp-sidebar .erp-nav-link:hover svg { color: #a78bfa; }
+.erp-sidebar .erp-nav-link:hover svg { color: #cfad70; }
 
 .erp-brand-container {
     text-align: center;

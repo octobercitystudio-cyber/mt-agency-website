@@ -60,8 +60,8 @@ self.addEventListener('push', event => {
   const destination = normalizeDestination(data.url || notification.click_action || DEFAULT_URL);
   const options = {
     body,
-    icon: '/app-icon-192.png?v=104',
-    badge: '/app-icon-monochrome.png?v=105',
+    icon: '/app-icon-192.png?v=gold-20261101',
+    badge: '/app-icon-monochrome.png?v=gold-20261101',
     dir: 'rtl',
     lang: 'ar',
     tag: data.is_test === '1' ? 'mt-notification-test' : data.notification_id ? `mt-notification-${data.notification_id}` : `mt-notification-${Date.now()}`,

@@ -285,3 +285,20 @@
 .btn-secondary:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* CMS owner workspace shares the same company identity without altering its forms. */
+.admin-container { --bg-dark:#fbf4e7; --bg-gradient:none; --color-vibrant-purple:#936015; --color-neon-purple:#bd862c; --color-silver:#4b3825; --color-light-silver:#28190f; --glass-bg:#fffaf1; --glass-border:1px solid #dfcba9; background:#fbf4e7; color:#332316; }
+.admin-container .admin-sidebar { background:#28190f; border-color:#62452a; color:#eadcc4; }
+.admin-container .sidebar-header :is(h2,p) { color:#f0cd8a; }
+.admin-container .admin-brand-logo { display:block; width:100px; height:81px; object-fit:contain; margin:0 auto 10px; filter:drop-shadow(0 1px 1px #f5dfb3) drop-shadow(0 0 8px #e8b85a33); }
+.admin-container .admin-sidebar .nav-item:not(.logout-btn) { color:#eadcc4; }
+.admin-container .admin-sidebar .nav-item:not(.logout-btn):is(:hover,.active) { background:#48311c; color:#f6d58e; border-color:#bd862c; }
+.admin-container :is(.admin-header,.admin-card,.glass-panel:not(.admin-sidebar)) { background:#fffaf1; color:#332316; border-color:#dfcba9; box-shadow:0 8px 24px #28190f0a; }
+.admin-container :is(.admin-input,.form-control,input:not([type="checkbox"]):not([type="color"]),select,textarea) { background:#fff; color:#332316; border-color:#d6bf96; color-scheme:light; }
+.admin-container :is(.admin-input,.form-control,input,select,textarea):focus-visible { outline:3px solid #bd862c66; outline-offset:2px; }
+.admin-container .btn-primary { background:#936015; color:#fff; }
+.admin-container .btn-primary:hover { background:#75490e; }
+.admin-container .btn-secondary { background:#f5ead6; color:#75490e; border-color:#d6bf96; }
+.admin-container .text-white { color:#332316!important; }
+.admin-container .text-white-50 { color:#735b40!important; }
+.admin-container .bg-dark { background:#fffaf1!important; }

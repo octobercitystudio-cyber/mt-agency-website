@@ -29,9 +29,9 @@
   --erp-text-subtle: #9699a3;
   --erp-border: #dedcd5;
   --erp-border-strong: #c9c6bd;
-  --erp-primary: #6d28d9;
-  --erp-primary-hover: #5b21b6;
-  --erp-primary-soft: #f1eafe;
+  --erp-primary: #936015;
+  --erp-primary-hover: #75490e;
+  --erp-primary-soft: #f5ead6;
   --erp-success: #17835f;
   --erp-success-soft: #e8f6f0;
   --erp-warning: #bd7514;
@@ -253,7 +253,7 @@
 
 .erp-main :where(.ops-commandbar, .attendance-head, .attendance-drawer > header, .policy-modal > header, .correction-modal > header)
   :where(.ops-eyebrow, .attendance-eyebrow, span:first-child) {
-  color: #c4b5fd !important;
+  color: #ddc08b !important;
 }
 
 .erp-main :where(p, small) { color: var(--erp-text-muted); }
@@ -569,21 +569,21 @@
   --erp-border: #dedcd5;
   --erp-text-main: #171a27;
   --erp-text-muted: #6f7380;
-  --erp-primary: #6d28d9;
+  --erp-primary: #936015;
   --offer-bg: #f6f5f1;
   --offer-surface: #fffefa;
   --offer-surface2: #f1f0eb;
   --offer-border: #dedcd5;
   --offer-text: #171a27;
   --offer-muted: #6f7380;
-  --offer-violet: #6d28d9;
+  --offer-violet: #936015;
   --pc-bg: #f6f5f1;
   --pc-panel: #fffefa;
   --pc-panel2: #f1f0eb;
   --pc-line: #dedcd5;
   --pc-text: #171a27;
   --pc-muted: #6f7380;
-  --pc-violet: #6d28d9;
+  --pc-violet: #936015;
   --pc-cyan: #2476a6;
   color: var(--erp-text-default) !important;
   background: transparent !important;
@@ -1074,7 +1074,7 @@
   inset-block: 0;
   inset-inline-end: 0;
   width: 6px;
-  background: linear-gradient(180deg, #8b5cf6, #5b21b6);
+  background: linear-gradient(180deg, #aa7b2b, #75490e);
 }
 
 .erp-layout .erp-main .erp-page-hero__identity {
@@ -1101,7 +1101,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: #c4b5fd !important;
+  color: #ddc08b !important;
   font-size: var(--erp-font-size-caption) !important;
   font-weight: var(--erp-weight-bold) !important;
   line-height: 1.45 !important;
@@ -1110,7 +1110,7 @@
 
 .erp-layout .erp-main .erp-page-hero__eyebrow svg {
   flex: 0 0 auto;
-  color: #a78bfa;
+  color: #cfad70;
 }
 
 .erp-layout .erp-main .erp-page-hero__actions {
@@ -1146,26 +1146,26 @@
 .erp-layout .erp-main .erp-page-hero__actions > [data-variant="primary"],
 .erp-layout .erp-main .erp-page-hero__action[data-variant="primary"] {
   color: #ffffff !important;
-  background: #6d28d9 !important;
-  border-color: #7c3aed !important;
+  background: #936015 !important;
+  border-color: #936015 !important;
 }
 
 .erp-layout .erp-main .erp-page-hero__actions > :is(button, a):hover,
 .erp-layout .erp-main .erp-page-hero__action:hover {
   color: #ffffff !important;
   background: #252d48 !important;
-  border-color: #8b5cf6 !important;
+  border-color: #aa7b2b !important;
 }
 
 .erp-layout .erp-main .erp-page-hero__actions > [data-variant="primary"]:hover,
 .erp-layout .erp-main .erp-page-hero__action[data-variant="primary"]:hover {
-  background: #7c3aed !important;
+  background: #936015 !important;
 }
 
 .erp-layout .erp-main .erp-page-hero__actions > :is(button, a):focus-visible,
 .erp-layout .erp-main .erp-page-hero__action:focus-visible,
 .erp-layout .erp-main .erp-page-hero__details :is(button, input, select):focus-visible {
-  outline: 3px solid #c4b5fd !important;
+  outline: 3px solid #ddc08b !important;
   outline-offset: 2px;
 }
 
