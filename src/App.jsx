@@ -108,20 +108,21 @@ const RoleProtectedRoute = ({ roles, children }) => {
 };
 
 const ScrollToTop = () => {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
 
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
     }
 
-    if (pathname === '/' && window.location.hash) return undefined;
+    if (pathname === '/' && hash) return undefined;
+    if (/^\/(?:(?:ar|en)\/)?services\/podcast-production\/?$/.test(pathname) && hash === '#podcast-studios') return undefined;
     window.scrollTo(0, 0);
-    setTimeout(() => {
+    const resetTimer = window.setTimeout(() => {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     }, 100);
-    return undefined;
-  }, [pathname]);
+    return () => window.clearTimeout(resetTimer);
+  }, [pathname, hash]);
 
   // Listen to hash changes (e.g. mobile back button returning to empty hash)
   useEffect(() => {

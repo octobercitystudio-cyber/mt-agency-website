@@ -14,6 +14,7 @@ import '../pages/PublicPages.css';
 import '../pages/PublicLightTheme.css';
 import '../pages/PublicGoldTheme.css';
 import '../pages/PublicReferenceTheme.css';
+import '../components/HeaderBrand.css';
 
 const legacySections = new Set(['home', 'about', 'services', 'portfolio', 'studio', 'contact', 'educational-filming']);
 
@@ -21,6 +22,22 @@ export function PublicScrollManager() {
   const { pathname, hash } = useLocation();
   useEffect(() => {
     const section = hash.replace(/^#/, '');
+    if (section === 'podcast-studios' && stripPublicLocale(pathname).replace(/\/+$/, '') === '/services/podcast-production') {
+      let frame;
+      let observer;
+      const scrollToGallery = () => {
+        const target = document.getElementById(section);
+        if (!target) return false;
+        frame = window.requestAnimationFrame(() => target.scrollIntoView({ block: 'start', behavior: 'instant' }));
+        observer?.disconnect();
+        return true;
+      };
+      if (!scrollToGallery()) {
+        observer = new MutationObserver(scrollToGallery);
+        observer.observe(document.getElementById('root'), { childList: true, subtree: true });
+      }
+      return () => { observer?.disconnect(); window.cancelAnimationFrame(frame); };
+    }
     if (pathname === '/' && legacySections.has(section)) {
       const timer = window.setTimeout(() => document.getElementById(section)?.scrollIntoView({ block: 'start' }), 80);
       return () => window.clearTimeout(timer);

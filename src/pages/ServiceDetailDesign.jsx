@@ -80,7 +80,7 @@ function AiVideoPlatforms({ isEnglish }) {
 }
 function PodcastStudioGallery({ isEnglish }) {
   const copy = podcastStudioGalleryCopy[isEnglish ? 'en' : 'ar'];
-  return <section className="sd-podcast-gallery container" aria-labelledby="podcast-gallery-title">
+  return <section id="podcast-studios" className="sd-podcast-gallery container" aria-labelledby="podcast-gallery-title">
     <header><h2 id="podcast-gallery-title">{copy.title}</h2><p>{copy.intro}</p></header>
     <div className="sd-podcast-gallery__grid">{podcastStudioGallery.map(image => {
       const title = isEnglish ? image.enTitle : image.arTitle;
