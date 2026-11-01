@@ -162,10 +162,10 @@ html[dir="ltr"] .public-site-shell #main-content.reference-services .reference-s
 .public-site-shell #main-content.reference-home .portfolio-info span { color:#e5d2aa; }
 .public-site-shell #main-content.reference-home .contact-item { box-shadow:none; }
 .public-site-shell #main-content.reference-home :is(.filter-btn,.studio-tab-btn) { border-radius:22px; }
-.public-site-shell .footer-section { color:#4d3e26; background:rgba(250,241,223,.9); border-top:1px solid #bc8b36; }
-.public-site-shell .footer-section :is(.footer-desc,.footer-links a,.footer-contact-item) { color:#59472d; }
-.public-site-shell .footer-section .footer-col h3 { color:#39280e; }
-.public-site-shell .footer-section .footer-bottom { color:#6c593b; border-color:#d6bb8e; }
+.public-site-shell .footer-section { color:#eadbc3; background:#28190f; border-top:1px solid #bc8b36; }
+.public-site-shell .footer-section :is(.footer-desc,.footer-links a,.footer-contact-item) { color:#e0ceb0; }
+.public-site-shell .footer-section .footer-col h3 { color:#f0cd8a; }
+.public-site-shell .footer-section .footer-bottom { color:#cdb797; border-color:#62452a; }
 
 @media(max-width:1050px) {
   .public-site-shell #main-content.reference-services .reference-service-group--production>div { grid-template-columns:repeat(2,minmax(0,1fr)); }
@@ -235,3 +235,8 @@ html[dir="ltr"] .public-site-shell #main-content.reference-services .reference-s
   .public-site-shell #main-content.reference-about .public-principles { grid-template-columns:minmax(0,1fr); }
   .public-site-shell #main-content.reference-about .public-principles article { border-inline-end:0; border-bottom:1px solid rgba(218,176,99,.35); }
 }
+
+.public-site-shell .footer-section .footer-logo { width:124px; height:100px; padding:8px; border-radius:16px; object-fit:contain; background:radial-gradient(ellipse,rgba(245,219,171,.3),rgba(245,219,171,0) 72%); filter:brightness(1.12) drop-shadow(0 1px 1px #f5dfb3) drop-shadow(0 0 12px rgba(235,195,115,.3)); }
+.public-site-shell .footer-section .footer-contact-icon { color:#f0cd8a; }
+.public-site-shell .footer-section :is(.footer-links a,.footer-contact-item a):hover { color:#ffdfa0; }
+.public-site-shell .footer-section a:focus-visible { outline:3px solid #f0cd8a; outline-offset:3px; }

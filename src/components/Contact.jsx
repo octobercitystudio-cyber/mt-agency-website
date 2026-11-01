@@ -6,6 +6,7 @@ import { Mail, MapPin, Phone } from 'lucide-react';
 import { companyPhoneTel, normalizeCompanyPhone } from '../lib/companyContact';
 import { localizePublicPath } from '../lib/publicRoutes';
 import { buildContactEmailUrl } from '../lib/contactEmail';
+import BrandSocialLinks from './BrandSocialLinks';
 import './Contact.css';
 
 const Contact = () => {
@@ -75,6 +76,7 @@ const Contact = () => {
                 <p dir="ltr">{contactData.email}</p>
               </div>
             </div>
+            <BrandSocialLinks contact={contactData} isEnglish={isEnglish}/>
           </div>
 
           {/* Form and Map Side by Side Grid */}

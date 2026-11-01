@@ -4,6 +4,7 @@ import { Mail, MapPin, Phone } from 'lucide-react';
 import { useData } from '../store/DataContext';
 import { companyPhoneTel, normalizeCompanyPhone } from '../lib/companyContact';
 import { localizePublicPath } from '../lib/publicRoutes';
+import BrandSocialLinks from './BrandSocialLinks';
 import './Footer.css';
 
 const Footer = () => {
@@ -31,6 +32,7 @@ const Footer = () => {
                 ? (footer?.descEn || "Multi Task Agency provides media production, digital marketing and technology services from 6th of October City, Giza.")
                 : (footer?.descAr || "Multi Task Agency تقدم خدمات الإنتاج الإعلامي والتسويق الرقمي والحلول التقنية من مدينة 6 أكتوبر، الجيزة.")}
             </p>
+            <BrandSocialLinks contact={contact} isEnglish={isEnglish} dark/>
           </div>
           
           <div className="footer-col">

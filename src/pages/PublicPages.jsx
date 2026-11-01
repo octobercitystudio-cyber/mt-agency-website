@@ -6,6 +6,7 @@ import {
   Code2, Mail, MapPin, Mic2, MonitorSmartphone, Palette, Phone, Send, Share2, Smartphone,
   Sparkles, WandSparkles,
 } from 'lucide-react';
+import BrandSocialLinks from '../components/BrandSocialLinks';
 import SEO from '../components/SEO';
 import PublicPortfolioGrid from '../components/PublicPortfolioGrid';
 import { useData } from '../store/DataContext';
@@ -95,6 +96,7 @@ export function ContactPage() {
       {primaryPhone && <a className="public-contact-info__item" href={`tel:${companyPhoneTel(contact.phone)}`} aria-label={`${copy.primary}: ${primaryPhone}`} dir="ltr"><Phone aria-hidden="true"/><span><small>{copy.primary}</small><strong>{primaryPhone}</strong></span></a>}
       {secondaryPhone && <a className="public-contact-info__item" href={`tel:${companyPhoneTel(contact.phone2)}`} aria-label={`${copy.secondary}: ${secondaryPhone}`} dir="ltr"><Phone aria-hidden="true"/><span><small>{copy.secondary}</small><strong>{secondaryPhone}</strong></span></a>}
       <a className="public-contact-info__item" href={`mailto:${receivingEmail}`} aria-label={`${copy.emailLabel}: ${receivingEmail}`} dir="ltr"><Mail aria-hidden="true"/><span><small>{copy.emailLabel}</small><strong>{receivingEmail}</strong></span></a>
+      <BrandSocialLinks contact={contact} isEnglish={isEnglish} dark/>
     </aside>
 
       <div className="public-contact-form"><h2>{copy.form}</h2><form onSubmit={submit}><label>{copy.name}<input name="Name" required autoComplete="name"/></label><label>{copy.email}<input name="Email" type="email" required autoComplete="email" dir="ltr"/></label><label>{copy.phone}<input name="Phone" type="tel" autoComplete="tel" dir="ltr"/></label><label>{copy.choose}<select name="Service" value={service} onChange={event => setService(event.target.value)}><option value="">—</option>{publicServiceCatalog.map(item => <option key={item.slug} value={item.slug}>{(isEnglish ? item.en : item.ar).title}</option>)}</select></label><label className="public-contact-form__message">{copy.message}<textarea name="Message" rows="5" required/></label><button className="public-solid-button" type="submit">{copy.send}<Send/></button></form></div>
