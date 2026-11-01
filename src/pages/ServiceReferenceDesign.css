@@ -94,14 +94,31 @@ html[dir="ltr"] .public-site-shell #main-content.reference-service .sd-hero--com
 .public-site-shell #main-content.reference-service .sd-software-phone{position:absolute;inset-inline-end:0;bottom:32px;width:28%;max-width:160px;padding:2px;border:5px solid #292720;border-radius:23px;background:#292720;box-shadow:0 17px 26px rgba(69,44,10,.22);overflow:hidden}
 .public-site-shell #main-content.reference-service .sd-software-phone img{display:block;width:100%;height:auto;aspect-ratio:1/2;object-fit:contain;border-radius:16px;background:#f8f5ef}
 .public-site-shell #main-content.reference-service .sd-software-caption{position:absolute;inset-inline:0;bottom:0;text-align:center;font-size:12px;line-height:1.6;color:#78603c}
-/* AI video: a widescreen creative workstation with cinematic framing. */
-.public-site-shell #main-content.reference-service .sd-ai-cinema{padding:22px 0 50px}
-.public-site-shell #main-content.reference-service .sd-ai-cinema>img{aspect-ratio:1.5;border:9px solid #211b12;border-radius:6px;box-shadow:0 22px 40px rgba(69,44,10,.18)}
-.public-site-shell #main-content.reference-service .sd-ai-filmstrip{position:absolute;inset:auto 8% 0 8%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:8px;border:1px solid rgba(255,255,255,.8);background:rgba(255,251,240,.82);backdrop-filter:blur(10px);box-shadow:0 12px 24px rgba(69,44,10,.12)}
-.public-site-shell #main-content.reference-service .sd-ai-filmstrip img{width:100%;aspect-ratio:1.7;height:auto;object-fit:cover}
-.public-site-shell #main-content.reference-service .sd-ai-filmstrip img:nth-child(1){object-position:left}
-.public-site-shell #main-content.reference-service .sd-ai-filmstrip img:nth-child(3){object-position:right}
+/* AI video: distinct imaginative generated scenes, not editing-desk photography. */
+.public-site-shell #main-content.reference-service .sd-ai-cinema{padding:22px 0 0}
+.public-site-shell #main-content.reference-service .sd-ai-cinema>img{height:auto;min-height:0;max-height:none;aspect-ratio:1.5;object-fit:contain;border:9px solid #211b12;border-radius:6px;box-shadow:0 22px 40px rgba(69,44,10,.18)}
+.public-site-shell #main-content.reference-service .sd-ai-filmstrip{position:relative;width:84%;margin:-35px auto 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:8px;border:1px solid rgba(255,255,255,.8);background:rgba(255,251,240,.82);backdrop-filter:blur(10px);box-shadow:0 12px 24px rgba(69,44,10,.12)}
+.public-site-shell #main-content.reference-service .sd-ai-filmstrip img{display:block;width:100%;aspect-ratio:1.5;height:auto;object-fit:contain}
+.public-site-shell #main-content.reference-service .sd-ai-caption{margin-top:13px;text-align:center;font-size:12px;line-height:1.6;color:#78603c}
 .public-site-shell #main-content.reference-service .sd-cinema-corner{position:absolute;width:85px;height:80px;inset:8px -12px auto auto;border-top:1px solid #b27c26;border-inline-end:1px solid #b27c26}
+.public-site-shell #main-content.reference-service .sd-ai-platforms{padding-block:42px 10px}
+.public-site-shell #main-content.reference-service .sd-ai-platforms header{max-width:760px;margin:0 auto 22px;text-align:center}
+.public-site-shell #main-content.reference-service .sd-ai-platforms h2{margin:0;color:var(--sd-ink);font-size:clamp(1.6rem,2.5vw,2.25rem);line-height:1.4}
+.public-site-shell #main-content.reference-service .sd-ai-platforms header p{margin:9px 0 0;color:var(--sd-muted);font-size:.96rem;line-height:1.85}
+.public-site-shell #main-content.reference-service .sd-ai-platforms ul{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0;padding:0;list-style:none}
+.public-site-shell #main-content.reference-service .sd-ai-platforms li{min-width:0}
+.public-site-shell #main-content.reference-service .sd-ai-platforms a{display:flex;flex-direction:column;height:100%;padding:25px;border:1px solid var(--sd-edge);border-radius:12px;background:rgba(255,253,247,.7);backdrop-filter:blur(8px);box-shadow:0 9px 20px rgba(69,44,10,.04);color:var(--sd-ink);text-decoration:none;transition:border-color .18s,box-shadow .18s}
+.public-site-shell #main-content.reference-service .sd-ai-platforms a:is(:hover,:focus-visible){border-color:#aa7626;box-shadow:0 12px 24px rgba(69,44,10,.1)}
+.public-site-shell #main-content.reference-service .sd-ai-platforms a:focus-visible{outline:2px solid #aa7626;outline-offset:4px}
+.public-site-shell #main-content.reference-service .sd-ai-platforms strong{align-self:flex-start;font-family:var(--font-latin);font-size:1.65rem;font-weight:700;line-height:1.3;letter-spacing:-.03em}
+.public-site-shell #main-content.reference-service .sd-ai-platforms a p{margin:13px 0 18px;font-size:.95rem;line-height:1.8;color:var(--sd-muted)}
+.public-site-shell #main-content.reference-service .sd-ai-platforms a span{display:flex;align-items:center;gap:8px;margin-top:auto;color:#87570e;font-size:.85rem;font-weight:700}
+.public-site-shell #main-content.reference-service .sd-ai-platforms a span svg{width:15px;height:15px}
+@media(max-width:769px){
+ .public-site-shell #main-content.reference-service .sd-ai-platforms ul{grid-template-columns:minmax(0,1fr);gap:12px}
+ .public-site-shell #main-content.reference-service .sd-ai-platforms a{padding:20px 23px}
+ .public-site-shell #main-content.reference-service .sd-ai-platforms a p{margin-block:8px 12px}
+}
 
 /* Existing service content is arranged into photographic and glass sections. */
 .public-site-shell #main-content.reference-service .sd-inclusions{padding-block:60px 25px}
@@ -243,7 +260,8 @@ html[dir="ltr"] .public-site-shell #main-content.reference-service .sd-hero--com
  .public-site-shell #main-content.reference-service .sd-software-window{border-width:5px;border-bottom-width:15px;border-radius:10px}
  .public-site-shell #main-content.reference-service .sd-software-phone{width:29%;border-width:4px;border-radius:17px;bottom:30px}
  .public-site-shell #main-content.reference-service .sd-software-phone img{border-radius:10px}
- .public-site-shell #main-content.reference-service .sd-ai-cinema>img{min-height:300px;height:300px}
+ .public-site-shell #main-content.reference-service .sd-ai-cinema>img{min-height:0;height:auto;border-width:6px}
+ .public-site-shell #main-content.reference-service .sd-ai-filmstrip{width:88%;margin-top:-22px;padding:5px;gap:5px}
  .public-site-shell #main-content.reference-service .sd-cinema-corner{inset-inline-end:0}
  .public-site-shell #main-content.reference-service .sd-inclusions{padding-block:40px 15px}
  .public-site-shell #main-content.reference-service .public-section-heading{margin-bottom:24px}

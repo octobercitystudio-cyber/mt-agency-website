@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Camera, Check, ChevronLeft, ChevronRight, Clapperboard, Code2, FileText, Layers, Mic2, MonitorSmartphone, Palette, Play, Share2, Smartphone, Sparkles, WandSparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronLeft, ChevronRight, Clapperboard, Code2, ExternalLink, FileText, Layers, Mic2, MonitorSmartphone, Palette, Play, Share2, Smartphone, Sparkles, WandSparkles } from 'lucide-react';
 import SEO from '../components/SEO';
 import PublicPortfolioGrid from '../components/PublicPortfolioGrid';
 import { useData } from '../store/DataContext';
@@ -8,6 +8,7 @@ import { AL_MAJD_SOCIAL_PARTNER } from '../data/alMajdSocialPartner';
 import { EDUCATIONAL_BOOKING_GALLERY } from '../data/educationalBooking';
 import { getPublicService, getServicePortfolio } from '../data/publicServiceCatalog';
 import { serviceVisualLayouts } from '../data/serviceVisualLayouts';
+import { aiVideoPlatforms } from '../data/aiVideoPlatforms';
 import { companyPhoneWhatsApp } from '../lib/companyContact';
 import { localizePublicPath } from '../lib/publicRoutes';
 import { organizationId, SITE_URL } from '../seo/siteIdentity';
@@ -43,7 +44,7 @@ function ServiceVisual({ text, layout, work, isEnglish }) {
   }
   if (variant === 'software') return <figure className="sd-hero__visual sd-software-composition"><div className="sd-software-window"><img src={layout.desktopPreview} alt={isEnglish ? 'Illustrative project management app on desktop' : 'نموذج واجهة تطبيق إدارة المشاريع على الكمبيوتر'} width="1440" height="900" loading="eager" fetchPriority="high" decoding="async"/></div><div className="sd-software-phone"><img src={layout.mobilePreview} alt={isEnglish ? 'Illustrative mobile app for projects and tasks' : 'نموذج تطبيق موبايل لمتابعة المشاريع والمهام'} width="390" height="780" loading="eager" decoding="async"/></div><figcaption className="sd-software-caption">{isEnglish ? 'Illustrative interface' : 'نموذج توضيحي'}</figcaption></figure>;
   if (variant === 'branding') return <div className="sd-hero__visual sd-brand-composition"><Photo src={layout.heroImage} alt={text.heroAlt} eager/><div className="sd-brand-swatches" aria-hidden="true"><i/><i/><i/></div></div>;
-  if (variant === 'ai') return <div className="sd-hero__visual sd-ai-cinema"><Photo src={layout.heroImage} alt={text.heroAlt} eager/><span className="sd-cinema-corner" aria-hidden="true"/><div className="sd-ai-filmstrip" aria-hidden="true">{[0,1,2].map(index => <Photo key={index} src={layout.heroImage}/>)}</div></div>;
+  if (variant === 'ai') return <figure className="sd-hero__visual sd-ai-cinema"><Photo src={layout.heroImage} alt={isEnglish ? 'Imaginary advertising scene with a perfume bottle and floating golden ribbon between stone arches' : 'مشهد إعلاني تخيلي بزجاجة عطر وشريط ذهبي عائم بين أقواس حجرية'} eager/><span className="sd-cinema-corner" aria-hidden="true"/><div className="sd-ai-filmstrip" aria-hidden="true">{layout.heroFrames.map(src => <Photo key={src} src={src}/>)}</div><figcaption className="sd-ai-caption">{isEnglish ? 'Illustrative AI-generated scenes' : 'مشاهد توضيحية مولّدة بالذكاء الاصطناعي'}</figcaption></figure>;
   return <figure className={`sd-hero__visual sd-photo-${variant}`}><Photo src={layout.heroImage} alt={variant === 'education' ? (isEnglish ? EDUCATIONAL_BOOKING_GALLERY[0].altEn : EDUCATIONAL_BOOKING_GALLERY[0].alt) : text.heroAlt} eager/>{variant === 'podcast' && <Waveform/>}</figure>;
 }
 function ServiceHero({ service, text, layout, work, isEnglish, workTarget, hasSuccessPartner }) {
@@ -59,6 +60,12 @@ function ServiceHero({ service, text, layout, work, isEnglish, workTarget, hasSu
     </div>
     {layout.variant === 'podcast' && <Waveform/>}
   </header>;
+}
+function AiVideoPlatforms({ isEnglish }) {
+  return <section className="sd-ai-platforms container" aria-labelledby="ai-platforms-title">
+    <header><h2 id="ai-platforms-title">{isEnglish ? 'Examples of AI video platforms' : 'أمثلة على منصات صناعة الفيديو'}</h2><p>{isEnglish ? 'Tools for generating scenes and digital avatars, with capabilities that vary by platform.' : 'أدوات لتوليد المشاهد والشخصيات الرقمية، وتختلف إمكانياتها حسب المنصة.'}</p></header>
+    <ul>{aiVideoPlatforms.map(platform => <li key={platform.name}><a href={platform.url} target="_blank" rel="noopener noreferrer"><strong dir="ltr">{platform.name}</strong><p>{isEnglish ? platform.en : platform.ar}</p><span>{isEnglish ? 'Official website' : 'الموقع الرسمي'}<ExternalLink aria-hidden="true"/></span></a></li>)}</ul>
+  </section>;
 }
 function Deliverables({ text, layout, isEnglish }) {
   const Icon = serviceIcons[layout.variant] || Sparkles;
@@ -116,6 +123,7 @@ export default function ServiceDetailPage() {
     <SEO title={text.seoTitle} description={text.metaDescription} image={`${SITE_URL}${service.heroImage}`} url={`/services/${service.slug}`} schema={[serviceSchema, breadcrumbSchema, faqSchema].filter(Boolean)}/>
     <nav className="public-breadcrumb container sd-breadcrumb" aria-label={isEnglish ? 'Breadcrumb' : 'مسار الصفحة'}><Link to={publicPath('/', isEnglish)}>{home}</Link><CrumbArrow isEnglish={isEnglish}/><Link to={publicPath('/services', isEnglish)}>{services}</Link><CrumbArrow isEnglish={isEnglish}/><span aria-current="page">{text.navLabel}</span></nav>
     <ServiceHero service={service} text={text} layout={layout} work={work} isEnglish={isEnglish} workTarget={workTarget} hasSuccessPartner={hasSuccessPartner}/>
+    {layout.variant === 'ai' && <AiVideoPlatforms isEnglish={isEnglish}/>}
     <Deliverables text={text} layout={layout} isEnglish={isEnglish}/>
     <section className="public-suitable container sd-suitable"><div className="public-section-heading"><span>02</span><h2>{isEnglish ? 'Suitable for' : 'مناسبة لـ'}</h2></div><div>{text.suitableFor.map(item => <span key={item}>{item}</span>)}</div></section>
     <DecisionGuideSection content={text.decisionGuide} number={decisionSectionNumber} layout={layout}/>
