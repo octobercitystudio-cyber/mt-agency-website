@@ -353,3 +353,5 @@ html[dir="ltr"] .public-site-shell #main-content.reference-service .sd-hero--com
  .public-site-shell #main-content.reference-service .sd-decision-photo img[src$="/corporate-video.webp"]{object-position:center 18%}
 }
 @media(prefers-reduced-motion:reduce){.public-site-shell #main-content.reference-service :is(a,button,img){transition:none}}
+
+.public-site-shell #podcast-studios.showcase-section { background: transparent; padding-block: 48px; }

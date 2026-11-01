@@ -85,7 +85,7 @@ function StudioGallery({ category, items, studioName, isEnglish }) {
   </>;
 }
 
-const StudioShowcase = ({ selectedCategory, onCategoryChange } = {}) => {
+const StudioShowcase = ({ selectedCategory, onCategoryChange, sectionId = 'studio', title, description, showExploreLink = true } = {}) => {
   const { t, i18n } = useTranslation();
   const { siteData } = useData();
   const [internalTab, setActiveTab] = useState('october');
@@ -96,14 +96,15 @@ const StudioShowcase = ({ selectedCategory, onCategoryChange } = {}) => {
   const studio = tabs.find(tab => tab.id === activeTab);
   const studioName = (isEnglish ? studio?.nameEn : studio?.nameAr) || (isEnglish ? 'Multi Task Agency Studio' : 'استديو Multi Task Agency');
   return (
-    <section id="studio" className="showcase-section">
+    <section id={sectionId} className="showcase-section">
       <div className="container">
-        <h2 className="section-title">{t('studio.title1')} <span className="text-gradient">{t('studio.title2')}</span></h2>
+        <h2 className="section-title">{title || <>{t('studio.title1')} <span className="text-gradient">{t('studio.title2')}</span></>}</h2>
+        {description && <p className="studio-gallery-hint">{description}</p>}
         <div className="studio-tabs">
           {tabs.map(tab => <button key={tab.id} type="button" className={`studio-tab-btn ${activeTab === tab.id ? 'active' : ''}`} aria-pressed={activeTab === tab.id} onClick={() => { setActiveTab(tab.id); onCategoryChange?.(tab.id); }}>{isEnglish ? tab.nameEn : tab.nameAr}</button>)}
         </div>
         <StudioGallery key={activeTab} category={activeTab} items={studioData[activeTab] || []} studioName={studioName} isEnglish={isEnglish}/>
-        <Link className="public-preview-link" to={localizePublicPath('/studios', isEnglish ? 'en' : 'ar')}>{isEnglish ? 'Explore all studio locations' : 'استكشف كل الاستديوهات'}</Link>
+        {showExploreLink && <Link className="public-preview-link" to={localizePublicPath('/studios', isEnglish ? 'en' : 'ar')}>{isEnglish ? 'Explore all studio locations' : 'استكشف كل الاستديوهات'}</Link>}
       </div>
     </section>
   );

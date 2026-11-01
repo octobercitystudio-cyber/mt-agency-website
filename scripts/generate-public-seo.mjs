@@ -7,7 +7,7 @@ import { AL_MAJD_SOCIAL_PARTNER } from '../src/data/alMajdSocialPartner.js';
 import { getServicePortfolio, publicServiceCatalog, publicServiceGroups } from '../src/data/publicServiceCatalog.js';
 import { serviceVisualLayouts } from '../src/data/serviceVisualLayouts.js';
 import { aiVideoPlatforms } from '../src/data/aiVideoPlatforms.js';
-import { podcastStudioGallery, podcastStudioGalleryCopy } from '../src/data/podcastStudioGallery.js';
+import { podcastStudioGalleryCopy } from '../src/data/podcastStudioGallery.js';
 import { educationalServiceBookingCopy } from '../src/data/educationalServiceBooking.js';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../src/data/studioGalleries.js';
 import { VERIFIED_PORTFOLIO } from '../src/data/verifiedPortfolio.js';
@@ -231,11 +231,7 @@ const aiPlatformsContent = locale => {
 };
 const podcastGalleryContent = locale => {
   const copy = podcastStudioGalleryCopy[locale];
-  return `<section id="podcast-studios" class="sd-podcast-gallery container" aria-labelledby="podcast-gallery-title"><header><h2 id="podcast-gallery-title">${escapeHtml(copy.title)}</h2><p>${escapeHtml(copy.intro)}</p></header><div class="sd-podcast-gallery__grid">${podcastStudioGallery.map(image => {
-    const title = locale === 'en' ? image.enTitle : image.arTitle;
-    const alt = locale === 'en' ? image.enAlt : image.arAlt;
-    return `<a href="${escapeHtml(image.src)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(`${copy.viewPhoto}: ${title}`)}"><figure><div class="sd-podcast-gallery__media"><img src="${escapeHtml(image.src)}" alt="${escapeHtml(alt)}" width="${image.width}" height="${image.height}" loading="lazy" decoding="async"></div><figcaption><h3>${escapeHtml(title)}</h3><span>${escapeHtml(copy.viewPhoto)} <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M21 14v7H3V3h7"/></svg></span></figcaption></figure></a>`;
-  }).join('')}</div></section>`;
+  return `<section id="podcast-studios" class="showcase-section"><div class="container"><h2 class="section-title">${escapeHtml(copy.title)}</h2><p class="studio-gallery-hint">${escapeHtml(copy.intro)}</p></div>${studiosReference(locale)}</section>`;
 };
 const educationalServiceBookingContent = locale => {
   const copy = educationalServiceBookingCopy[locale];

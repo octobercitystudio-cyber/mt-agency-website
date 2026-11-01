@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Camera, Check, ChevronLeft, ChevronRight, Clapperboard, Code2, ExternalLink, FileText, Layers, Mic2, MonitorSmartphone, Palette, Play, Share2, Smartphone, Sparkles, WandSparkles } from 'lucide-react';
+import StudioShowcase from '../components/StudioShowcase';
 import SEO from '../components/SEO';
 import PublicPortfolioGrid from '../components/PublicPortfolioGrid';
 import { useData } from '../store/DataContext';
@@ -10,7 +11,7 @@ import { educationalServiceBookingCopy } from '../data/educationalServiceBooking
 import { getPublicService, getServicePortfolio } from '../data/publicServiceCatalog';
 import { serviceVisualLayouts } from '../data/serviceVisualLayouts';
 import { aiVideoPlatforms } from '../data/aiVideoPlatforms';
-import { podcastStudioGallery, podcastStudioGalleryCopy } from '../data/podcastStudioGallery';
+import { podcastStudioGalleryCopy } from '../data/podcastStudioGallery';
 import { companyPhoneWhatsApp } from '../lib/companyContact';
 import { localizePublicPath } from '../lib/publicRoutes';
 import { organizationId, SITE_URL } from '../seo/siteIdentity';
@@ -80,16 +81,7 @@ function AiVideoPlatforms({ isEnglish }) {
 }
 function PodcastStudioGallery({ isEnglish }) {
   const copy = podcastStudioGalleryCopy[isEnglish ? 'en' : 'ar'];
-  return <section id="podcast-studios" className="sd-podcast-gallery container" aria-labelledby="podcast-gallery-title">
-    <header><h2 id="podcast-gallery-title">{copy.title}</h2><p>{copy.intro}</p></header>
-    <div className="sd-podcast-gallery__grid">{podcastStudioGallery.map(image => {
-      const title = isEnglish ? image.enTitle : image.arTitle;
-      return <a key={image.id} href={image.src} target="_blank" rel="noopener noreferrer" aria-label={`${copy.viewPhoto}: ${title}`}><figure>
-        <div className="sd-podcast-gallery__media"><img src={image.src} alt={isEnglish ? image.enAlt : image.arAlt} width={image.width} height={image.height} loading="lazy" decoding="async"/></div>
-        <figcaption><h3>{title}</h3><span>{copy.viewPhoto}<ExternalLink aria-hidden="true"/></span></figcaption>
-      </figure></a>;
-    })}</div>
-  </section>;
+  return <StudioShowcase sectionId="podcast-studios" title={copy.title} description={copy.intro} showExploreLink={false}/>;
 }
 function Deliverables({ text, layout, isEnglish }) {
   const Icon = serviceIcons[layout.variant] || Sparkles;

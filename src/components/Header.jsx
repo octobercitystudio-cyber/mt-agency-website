@@ -170,7 +170,6 @@ export default function Header() {
       else if (!event.shiftKey && event.target === links?.[links.length - 1]) { event.preventDefault(); studiosTriggerRef.current?.closest('li')?.nextElementSibling?.querySelector('a')?.focus(); }
     }}>
       {studioServices.map(service => <li key={service.slug}><NavLink to={publicPath(`/services/${service.slug}`)} onClick={closeNavigation}>{isEnglish ? service.en : service.ar}</NavLink></li>)}
-      <li><Link to={publicPath('/services/podcast-production/#podcast-studios')} className="services-podcast-photos" onClick={closeNavigation}>{isEnglish ? 'Podcast studio photos' : 'صور استديوهات البودكاست'}</Link></li>
     </ul>, document.body)}
   </header>;
 }
