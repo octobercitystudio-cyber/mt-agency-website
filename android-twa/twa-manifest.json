@@ -13,9 +13,9 @@
   "backgroundColor": "#FBF4E7",
   "enableNotifications": true,
   "startUrl": "/login?source=android-app",
-  "iconUrl": "https://multitaskagency.com/app-icon-512.png?v=gold-20261101",
-  "maskableIconUrl": "https://multitaskagency.com/app-icon-maskable.png?v=gold-20261101",
-  "monochromeIconUrl": "https://multitaskagency.com/app-icon-monochrome.png?v=gold-20261101",
+  "iconUrl": "https://multitaskagency.com/brand/gold/app-icon-512.png?v=gold-20261102",
+  "maskableIconUrl": "https://multitaskagency.com/brand/gold/app-icon-maskable.png?v=gold-20261102",
+  "monochromeIconUrl": "https://multitaskagency.com/brand/gold/app-icon-monochrome.png?v=gold-20261102",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
@@ -28,7 +28,7 @@
       "name": "لوحة القيادة",
       "shortName": "لوحة القيادة",
       "url": "/login?source=android-shortcut",
-      "chosenIconUrl": "https://multitaskagency.com/app-icon-512.png?v=gold-20261101"
+      "chosenIconUrl": "https://multitaskagency.com/brand/gold/app-icon-512.png?v=gold-20261102"
     }
   ],
   "generatorApp": "bubblewrap-cli",

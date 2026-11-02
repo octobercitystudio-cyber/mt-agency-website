@@ -83,8 +83,8 @@ const foregroundNotification = async payload => {
   const notification = payload?.notification || {};
   await registration.showNotification(notification.title || data.title || 'MT Agency', {
     body: notification.body || data.body || 'لديك تحديث جديد في حسابك.',
-    icon: '/app-icon-192.png?v=104',
-    badge: '/app-icon-monochrome.png?v=105',
+    icon: '/brand/gold/app-icon-192.png?v=gold-20261102',
+    badge: '/brand/gold/app-icon-monochrome.png?v=gold-20261102',
     dir: 'rtl',
     lang: 'ar',
     tag: data.is_test === '1' ? 'mt-notification-test' : data.notification_id ? `mt-notification-${data.notification_id}` : `mt-notification-${Date.now()}`,
@@ -172,7 +172,7 @@ export const testLocalPushNotification = async () => {
   const registration = await readyPushRegistration();
   await registration.showNotification('اختبار إشعار الهاتف — MTA', {
     body: 'هذا اختبار من الهاتف فقط. ظهوره لا يعني نجاح اتصال الإشعارات بالخادم.',
-    icon: '/app-icon-192.png?v=104', badge: '/app-icon-monochrome.png?v=105',
+    icon: '/brand/gold/app-icon-192.png?v=gold-20261102', badge: '/brand/gold/app-icon-monochrome.png?v=gold-20261102',
     tag: 'mt-notification-local-test', dir: 'rtl', lang: 'ar',
     renotify: true, silent: false, vibrate: [220, 100, 220],
     data: { url: isStaffPushPage() ? staffPath('/') : '/dashboard' },
