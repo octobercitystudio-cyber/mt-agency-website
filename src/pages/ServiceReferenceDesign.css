@@ -1,4 +1,37 @@
 /* Distinct service compositions using the existing public content and media. */
+.public-site-shell #main-content.reference-service .sd-remote-editing {padding-block:48px 16px;scroll-margin-top:calc(var(--public-header-height,110px) + 24px)}
+.public-site-shell #main-content.reference-service .sd-remote-editing__panel {display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.9fr);gap:clamp(32px,5vw,72px);padding:clamp(26px,4vw,54px);border:1px solid #9c753d;border-radius:18px;background:#28190f;color:#f5e7d0;box-shadow:0 14px 38px #3a240c10}
+.public-site-shell #main-content.reference-service .sd-remote-editing__intro {min-width:0}
+.public-site-shell #main-content.reference-service .sd-remote-editing__availability {display:inline-flex;align-items:center;gap:10px;color:#f1ce8b;font-size:.88rem;font-weight:700;letter-spacing:.01em}
+.public-site-shell #main-content.reference-service .sd-remote-editing__availability::before {content:'';width:28px;height:1px;background:#c39850}
+.public-site-shell #main-content.reference-service .sd-remote-editing h2 {color:#ffdfa0;font-size:clamp(1.9rem,3.1vw,3rem);line-height:1.3;margin:13px 0 18px;text-wrap:balance}
+.public-site-shell #main-content.reference-service .sd-remote-editing__summary {color:#f5e7d0;font-size:1.06rem;line-height:1.85;margin:0 0 23px}
+.public-site-shell #main-content.reference-service .sd-remote-editing__types-title {font-size:.9rem;color:#d8bd93;margin:0 0 10px;font-weight:700}
+.public-site-shell #main-content.reference-service .sd-remote-editing__types {list-style:none;padding:0;margin:0;display:grid;gap:9px}
+.public-site-shell #main-content.reference-service .sd-remote-editing__types li {color:#fff5e6;display:flex;gap:10px;align-items:baseline;font-size:.98rem;line-height:1.6}
+.public-site-shell #main-content.reference-service .sd-remote-editing__types li::before {content:'';flex:0 0 5px;width:5px;height:5px;background:#eac06b;transform:rotate(45deg)}
+.public-site-shell #main-content.reference-service .sd-remote-editing__scope {margin:18px 0 24px;color:#ddcbb1;font-size:.92rem;line-height:1.8}
+.public-site-shell #main-content.reference-service .sd-remote-editing__cta {background:#eac06b;color:#28190f;border:1px solid #eac06b;min-height:50px;box-shadow:none;font-size:.98rem}
+.public-site-shell #main-content.reference-service .sd-remote-editing__cta:hover {background:#ffdfa0;border-color:#ffdfa0;transform:translateY(-2px)}
+.public-site-shell #main-content.reference-service .sd-remote-editing__cta:focus-visible {outline:3px solid #fff6e5;outline-offset:5px}
+.public-site-shell #main-content.reference-service .sd-remote-editing__note {margin:12px 0 0;color:#d8bd93;font-size:.84rem;line-height:1.75}
+.public-site-shell #main-content.reference-service .sd-remote-editing__process {border-inline-start:1px solid #6f5030;padding-inline-start:clamp(24px,3vw,42px);align-self:stretch;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.public-site-shell #main-content.reference-service .sd-remote-editing__process>h3 {font-size:1.2rem;color:#ffdfa0;line-height:1.5;margin:0 0 28px}
+.public-site-shell #main-content.reference-service .sd-remote-editing__process ol {list-style:none;padding:0;margin:0;display:grid;gap:25px}
+.public-site-shell #main-content.reference-service .sd-remote-editing__process li {display:grid;grid-template-columns:34px minmax(0,1fr);gap:16px}
+.public-site-shell #main-content.reference-service .sd-remote-editing__process li>span {font-family:var(--font-latin);font-size:1.15rem;font-weight:600;color:#eac06b;padding-top:2px;line-height:1.4}
+.public-site-shell #main-content.reference-service .sd-remote-editing__process h4 {color:#fff5e6;font-size:1.02rem;line-height:1.5;margin:0 0 7px}
+.public-site-shell #main-content.reference-service .sd-remote-editing__process p {color:#ddcbb1;line-height:1.8;font-size:.94rem;margin:0}
+@media(max-width:850px) {
+  .public-site-shell #main-content.reference-service .sd-remote-editing__panel {grid-template-columns:minmax(0,1fr);gap:30px}
+  .public-site-shell #main-content.reference-service .sd-remote-editing__process {border-inline-start:0;border-top:1px solid #6f5030;padding-inline-start:0;padding-top:28px}
+}
+@media(max-width:480px) {
+  .public-site-shell #main-content.reference-service .sd-remote-editing {padding-block:30px 6px}
+  .public-site-shell #main-content.reference-service .sd-remote-editing__panel {padding:25px 21px;border-radius:12px}
+  .public-site-shell #main-content.reference-service .sd-remote-editing__cta {width:100%;padding-inline:12px}
+  .public-site-shell #main-content.reference-service .sd-remote-editing__process li {grid-template-columns:27px minmax(0,1fr);gap:12px}
+}
 .public-site-shell #main-content.reference-service {
   --sd-gold:#a86d13;--sd-gold-light:#e6c482;--sd-ink:#17140f;--sd-muted:#67573e;
   --sd-edge:rgba(185,139,62,.3);--sd-glass:rgba(255,251,243,.68);

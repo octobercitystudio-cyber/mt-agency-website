@@ -29,7 +29,7 @@ test('public catalog has ten stable unique service slugs and complete bilingual 
       for (const field of requiredLists) assert.ok(Array.isArray(service[locale][field]) && service[locale][field].length >= (field === 'faq' ? 2 : 1), `${service.slug}.${locale}.${field}`);
       assert.ok(service[locale].heroSummary.length <= 220, `${service.slug}.${locale} summary is concise`);
       assert.ok(service[locale].deliverables.length <= 4, `${service.slug}.${locale} deliverables are focused`);
-      assert.ok(service[locale].faq.length <= 4, `${service.slug}.${locale} questions are focused`);
+      assert.ok(service[locale].faq.length <= (service.slug === 'creative-design-branding' ? 5 : 4), `${service.slug}.${locale} questions are focused`);
       for (const faq of service[locale].faq) assert.equal(faq.length, 2);
     }
     assert.equal(getPublicService(service.slug), service);

@@ -12,6 +12,7 @@ import { getPublicService, getServicePortfolio } from '../data/publicServiceCata
 import { serviceVisualLayouts } from '../data/serviceVisualLayouts';
 import { aiVideoPlatforms } from '../data/aiVideoPlatforms';
 import { podcastStudioGalleryCopy } from '../data/podcastStudioGallery';
+import { REMOTE_EDITING_SERVICE, remoteVideoEditingCopy } from '../data/remoteVideoEditing';
 import { companyPhoneWhatsApp } from '../lib/companyContact';
 import { localizePublicPath } from '../lib/publicRoutes';
 import { organizationId, SITE_URL } from '../seo/siteIdentity';
@@ -64,6 +65,23 @@ function ServiceHero({ service, text, layout, work, isEnglish, workTarget, hasSu
     </div>
     {layout.variant === 'podcast' && <Waveform/>}
   </header>;
+}
+function RemoteVideoEditing({ isEnglish }) {
+  const copy = remoteVideoEditingCopy[isEnglish ? 'en' : 'ar'];
+  return <section id="remote-video-editing" className="sd-remote-editing container" aria-labelledby="remote-video-editing-title">
+    <div className="sd-remote-editing__panel">
+      <div className="sd-remote-editing__intro">
+        <span className="sd-remote-editing__availability">{copy.availability}</span>
+        <h2 id="remote-video-editing-title">{copy.title}</h2><p className="sd-remote-editing__summary">{copy.intro}</p>
+        <h3 className="sd-remote-editing__types-title">{copy.typesTitle}</h3>
+        <ul className="sd-remote-editing__types">{copy.types.map(item => <li key={item}>{item}</li>)}</ul>
+        <p className="sd-remote-editing__scope">{copy.scope}</p>
+        <Link className="public-solid-button sd-remote-editing__cta" to={publicPath(`/contact?service=${REMOTE_EDITING_SERVICE}`, isEnglish)} state={{ service: REMOTE_EDITING_SERVICE }}>{copy.action}<DirectionArrow isEnglish={isEnglish}/></Link>
+        <p className="sd-remote-editing__note">{copy.note}</p>
+      </div>
+      <div className="sd-remote-editing__process"><h3>{copy.processTitle}</h3><ol>{copy.steps.map((step, index) => <li key={step.title}><span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><div><h4>{step.title}</h4><p>{step.description}</p></div></li>)}</ol></div>
+    </div>
+  </section>;
 }
 function EducationalServiceBooking({ isEnglish }) {
   const copy = educationalServiceBookingCopy[isEnglish ? 'en' : 'ar'];
@@ -140,6 +158,7 @@ export default function ServiceDetailPage() {
     <SEO title={text.seoTitle} description={text.metaDescription} image={`${SITE_URL}${service.heroImage}`} url={`/services/${service.slug}`} schema={[serviceSchema, breadcrumbSchema, faqSchema].filter(Boolean)}/>
     <nav className="public-breadcrumb container sd-breadcrumb" aria-label={isEnglish ? 'Breadcrumb' : 'مسار الصفحة'}><Link to={publicPath('/', isEnglish)}>{home}</Link><CrumbArrow isEnglish={isEnglish}/><Link to={publicPath('/services', isEnglish)}>{services}</Link><CrumbArrow isEnglish={isEnglish}/><span aria-current="page">{text.navLabel}</span></nav>
     <ServiceHero service={service} text={text} layout={layout} work={work} isEnglish={isEnglish} workTarget={workTarget} hasSuccessPartner={hasSuccessPartner}/>
+    {service.slug === REMOTE_EDITING_SERVICE && <RemoteVideoEditing isEnglish={isEnglish}/>}
     {layout.variant === 'education' && <EducationalServiceBooking isEnglish={isEnglish}/>}
     {layout.variant === 'ai' && <AiVideoPlatforms isEnglish={isEnglish}/>}
     {layout.variant === 'podcast' && <PodcastStudioGallery isEnglish={isEnglish}/>}
