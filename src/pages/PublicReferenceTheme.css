@@ -236,7 +236,25 @@ html[dir="ltr"] .public-site-shell #main-content.reference-services .reference-s
   .public-site-shell #main-content.reference-about .public-principles article { border-inline-end:0; border-bottom:1px solid rgba(218,176,99,.35); }
 }
 
-.public-site-shell .footer-section .footer-logo { width:124px; height:100px; padding:8px; border-radius:16px; object-fit:contain; background:radial-gradient(ellipse,rgba(245,219,171,.3),rgba(245,219,171,0) 72%); filter:brightness(1.12) drop-shadow(0 1px 1px #f5dfb3) drop-shadow(0 0 12px rgba(235,195,115,.3)); }
+/* A quiet ivory mount keeps the original black and gold artwork crisp. */
+.public-site-shell .footer-section .footer-logo {
+  display:block;
+  width:168px;
+  max-width:100%;
+  height:auto;
+  margin-inline:0 auto;
+  margin-bottom:24px;
+  padding:14px 18px;
+  border:1px solid #c6a267;
+  border-radius:12px;
+  object-fit:contain;
+  background:#fff6e5;
+  filter:none;
+  box-shadow:0 4px 12px rgba(18,11,6,.12);
+}
+@media(max-width:768px) {
+  .public-site-shell .footer-section .footer-logo { margin-inline:auto; }
+}
 .public-site-shell .footer-section .footer-contact-icon { color:#f0cd8a; }
 .public-site-shell .footer-section :is(.footer-links a,.footer-contact-item a):hover { color:#ffdfa0; }
 .public-site-shell .footer-section a:focus-visible { outline:3px solid #f0cd8a; outline-offset:3px; }
