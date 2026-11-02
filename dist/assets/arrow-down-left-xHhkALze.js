@@ -1,0 +1,1 @@
+import{x as e}from"./index-CiFrtnT1.js";var t=e(`arrow-down-left`,[[`path`,{d:`M17 7 7 17`,key:`15tmo1`}],[`path`,{d:`M17 17H7V7`,key:`1org7z`}]]);export{t};

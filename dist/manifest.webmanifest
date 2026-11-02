@@ -7,6 +7,10 @@
   "dir": "rtl",
   "start_url": "/login?source=android-app",
   "scope": "/",
+  "related_applications": [
+    { "platform": "play", "id": "com.multitaskagency.app" }
+  ],
+  "prefer_related_applications": false,
   "display": "standalone",
   "display_override": [
     "standalone",

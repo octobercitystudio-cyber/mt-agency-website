@@ -1,0 +1,42 @@
+.client-app-update {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px max(18px, calc((100vw - 1180px) / 2));
+  background: #fbf4e7;
+  border-bottom: 1px solid #c6a267;
+  color: #28190f;
+  font-family: 'Tajawal', 'Segoe UI', sans-serif;
+}
+.client-app-update__copy { min-width: 0; }
+.client-app-update__copy strong { font-size: 18px; line-height: 1.5; }
+.client-app-update__copy p { margin: 5px 0 0; font-size: 14px; line-height: 1.8; color: #694d30; }
+.client-app-update__actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.client-app-update__actions a, .client-app-update__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #936015;
+  border-radius: 10px;
+  font: 700 15px/1.5 'Tajawal', 'Segoe UI', sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+}
+.client-app-update__actions a { background: #28190f; color: #f8d58c; }
+.client-app-update__actions button { background: transparent; color: #694d30; border-color: #c6a267; }
+.client-app-update__actions svg { width: 19px; height: 19px; }
+.client-app-update__actions :is(a, button):focus-visible { outline: 3px solid #936015; outline-offset: 3px; }
+/* The login screen normally fills the viewport. Let it follow the notice
+   in document flow so the message and its actions remain accessible. */
+.client-app-update ~ .unified-login-container { position: relative; inset: auto; }
+@media (max-width: 760px) {
+  .client-app-update { flex-direction: column; align-items: stretch; gap: 12px; }
+  .client-app-update__actions { flex-wrap: wrap; }
+  .client-app-update__actions a { flex: 1; }
+}

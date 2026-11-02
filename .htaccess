@@ -31,6 +31,9 @@ RewriteRule ^ https://multitaskagency.com%{REQUEST_URI} [R=301,L]
     Header always set Pragma "no-cache"
     Header always set X-Robots-Tag "noindex, nofollow, noarchive"
   </Files>
+  <Files "manifest.webmanifest">
+    Header always set Cache-Control "no-cache, must-revalidate, max-age=0"
+  </Files>
 
   SetEnvIf Request_URI "^/(?:p-e2f8474bcda6b5ea|erp|adminmt|dashboard|login)(?:/|$)" MT_PRIVATE_PAGE
   Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0" env=MT_PRIVATE_PAGE
@@ -41,6 +44,10 @@ RewriteRule ^ https://multitaskagency.com%{REQUEST_URI} [R=301,L]
 # Keep the PHP API at its stable public URL. The nested api/.htaccess
 # routes API requests to api/index.php and protects its local config.
 RewriteRule ^api(/|$) - [L,NC]
+
+# Old client download links should deliver the latest signed client release.
+# Keep versioned files intact and leave the separate team app untouched.
+RewriteRule ^downloads/MTA-(?:1\.0\.[56]|latest)\.apk$ /downloads/MTA-1.0.7.apk [R=302,L,NE]
 
 # Keep automated SSL certificate validation available to the hosting layer.
 RewriteRule ^\.well-known/acme-challenge/ - [L,NC]

@@ -6,6 +6,7 @@ import { DataProvider, useData } from './store/DataContext';
 import GlobalContactActions from './components/GlobalContactActions';
 import ContextMenuPolicy from './components/ContextMenuPolicy';
 import MetaPixelTracker from './components/MetaPixelTracker';
+import ClientAppUpdateNotice from './components/ClientAppUpdateNotice';
 import LegacyStaffEntry from './pages/LegacyStaffEntry';
 import { authAudience } from './lib/authAudience';
 import { safeClientDestination, clientAuthPath } from './lib/clientAuthDestination';
@@ -147,6 +148,7 @@ function AppSurface() {
         <ScrollToTop />
         <AuthenticatedPushBridge />
         <GlobalContactActions />
+        <ClientAppUpdateNotice />
         <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#fbf4e7', color: '#75490e' }}>جاري التحميل...</div>}>
           <Routes>
             <Route element={<PublicLayout />}>
