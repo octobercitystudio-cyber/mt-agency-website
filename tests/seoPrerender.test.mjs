@@ -27,7 +27,9 @@ test('build emits a complete crawlable Arabic and English HTML page for every pu
     for (const route of localizedRoutes) {
       const html = await load(`dist/${locale}/${route}`);
       assert.match(html, new RegExp(`<html lang="${locale}" dir="${locale === 'en' ? 'ltr' : 'rtl'}" data-public-prerender="true">`));
-      assert.match(html, /<title>[^<]+\| Multi Task Agency<\/title>/);
+      const title = match(html, /<title>([^<]+)<\/title>/, `${locale}/${route} title`);
+      assert.equal((title.match(/Multi Task Agency/g) || []).length, 1);
+      assert.ok(title.length > 'Multi Task Agency'.length);
       assert.match(html, /<meta name="description" content="[^"]+">/);
       assert.match(html, /<meta name="robots" content="index, follow">/);
       assert.match(html, /<h1(?:\s[^>]*)?>[^<]+(?:<span[^>]*>[^<]+<\/span>)?<\/h1>/);
@@ -99,15 +101,16 @@ test('web design prerender includes the buying guide without repeated marketing 
 });
 
 test('private shell and unknown-route page are protected from indexing', async () => {
-  const [app, notFound, htaccess, main] = await Promise.all([load('dist/app.html'), load('dist/404.html'), load('.htaccess'), load('src/main.jsx')]);
+  const [app, notFound, htaccess, main, recovery] = await Promise.all([load('dist/app.html'), load('dist/404.html'), load('.htaccess'), load('src/main.jsx'), load('src/seo/publicPrerender.js')]);
   assert.match(app, /<meta name="robots" content="noindex, nofollow, noarchive">/);
   assert.doesNotMatch(app, /<h1>/);
   assert.match(notFound, /<meta name="robots" content="noindex, nofollow">/);
   assert.match(htaccess, /dist\/app\.html \[L,NC\]/);
   assert.match(htaccess, /ErrorDocument 404 \/dist\/404\.html/);
   assert.match(htaccess, /\[R=404,L\]/);
-  assert.match(main, /hasAttribute\('data-public-prerender'\)/);
-  assert.match(main, /script\[type="application\/ld\+json"\]/);
+  assert.match(main, /capturePublicPrerender\(\)/);
+  assert.match(recovery, /hasAttribute\('data-public-prerender'\)/);
+  assert.match(recovery, /script\[type="application\/ld\+json"\]/);
 });
 
 test('generated sitemap lists exactly the 32 canonical localized pages', async () => {

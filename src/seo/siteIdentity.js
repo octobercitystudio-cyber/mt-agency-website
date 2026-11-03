@@ -20,3 +20,32 @@ export const siteIdentity = {
 export const organizationId = `${SITE_URL}/#organization`;
 export const websiteId = `${SITE_URL}/#website`;
 
+export const formatPageTitle = title => title.includes(siteIdentity.name) ? title : `${title} | ${siteIdentity.name}`;
+
+export const publicPageDescriptions = {
+  '/': {
+    ar: 'Multi Task Agency تقدم خدمات الإنتاج الإعلامي وصناعة المحتوى والتسويق الرقمي وتصميم المواقع والبرمجيات من مدينة 6 أكتوبر، الجيزة.',
+    en: 'Multi Task Agency provides media production, content, digital marketing, web and software services from 6th of October City, Giza.',
+  },
+  '/services/': {
+    ar: 'خدمات تصوير المحتوى التعليمي والريلز والإعلانات والبودكاست، وتغطية الفعاليات والمونتاج والجرافيكس وتصميم الهوية والمواقع والبرمجيات من 6 أكتوبر.',
+    en: 'Educational filming, Reels, advertising, podcasts, event coverage, video editing, graphics, brand identity, websites and software from 6th of October City.',
+  },
+  '/about/': {
+    ar: 'تعرف على Multi Task Agency في 6 أكتوبر: فريق للإنتاج الإعلامي والتسويق الرقمي والمونتاج والتصميم وتطوير المواقع والبرمجيات، بنطاق عمل وتسليمات واضحة.',
+    en: 'Meet Multi Task Agency in 6th of October City: media production, digital marketing, video editing, design, websites and software with an agreed scope and deliverables.',
+  },
+  '/portfolio/': {
+    ar: 'شاهد نماذج أعمال Multi Task Agency في تصوير الفيديو والريلز والبودكاست والتصميم وتطوير المواقع، واختر الخدمة المناسبة لمشروعك.',
+    en: 'Explore Multi Task Agency work in video production, Reels, podcasts, design and website development, and find the right service for your project.',
+  },
+  '/studios/': {
+    ar: 'تعرف على استديوهات Multi Task Agency في أكتوبر وميدان لبنان والقاهرة الجديدة، وخيارات تصوير المحتوى التعليمي والبودكاست وطريقة الحجز.',
+    en: 'Explore Multi Task Agency studios in October, Lebanon Square and New Cairo, with educational filming, podcast production and booking options.',
+  },
+  '/contact/': {
+    ar: 'تواصل مع Multi Task Agency في 6 أكتوبر لطلب عرض سعر للتصوير والمونتاج والتصميم والتسويق والمواقع والبرمجيات. اتصل على 01114466646 أو أرسل تفاصيل مشروعك.',
+    en: 'Contact Multi Task Agency in 6th of October City for filming, editing, design, marketing, websites and software. Call +20 111 446 6646 or share your project details.',
+  },
+};
+

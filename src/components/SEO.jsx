@@ -1,8 +1,10 @@
+import { useLayoutEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../store/DataContext';
-import { localizePublicPath } from '../lib/publicRoutes';
-import { SITE_URL, siteIdentity } from '../seo/siteIdentity';
+import { localizePublicPath, stripPublicLocale } from '../lib/publicRoutes';
+import { SITE_URL, siteIdentity, formatPageTitle, publicPageDescriptions } from '../seo/siteIdentity';
+import { releasePrerenderMetadata } from '../seo/publicPrerender';
 
 const SEO = ({ title, description, url = '', section = 'home', schema, image, noIndex = false }) => {
   const { i18n } = useTranslation();
@@ -14,16 +16,19 @@ const SEO = ({ title, description, url = '', section = 'home', schema, image, no
   const siteName = siteIdentity.name;
   const fallbackTitle = (isEn ? sectionSeo.titleEn : sectionSeo.titleAr) || `${siteName} | ${isEn ? 'We Drive Impact' : 'نصنع التأثير'}`;
   const fallbackDescription = (isEn ? sectionSeo.descEn : sectionSeo.descAr) || (isEn ? 'Media production, digital marketing and technology services from 6th of October City, Giza.' : 'إنتاج إعلامي وتسويق رقمي وحلول تقنية من مدينة 6 أكتوبر، الجيزة.');
-  const finalTitle = title ? `${title} | ${siteName}` : fallbackTitle;
-  const finalDescription = description || fallbackDescription;
+  const finalTitle = title ? formatPageTitle(title) : fallbackTitle;
   const path = url ? (String(url).startsWith('/') ? String(url) : `/${url}`) : '/';
   const canonicalPath = localizePublicPath(path, isEn ? 'en' : 'ar');
+  const pageKey = stripPublicLocale(canonicalPath).split(/[?#]/)[0];
+  const finalDescription = publicPageDescriptions[pageKey]?.[isEn ? 'en' : 'ar'] || description || fallbackDescription;
   const canonicalUrl = `${SITE_URL}${canonicalPath}`;
   const arabicUrl = `${SITE_URL}${localizePublicPath(path, 'ar')}`;
   const englishUrl = `${SITE_URL}${localizePublicPath(path, 'en')}`;
   const defaultUrl = path === '/' ? `${SITE_URL}/` : arabicUrl;
   const socialImage = image || globalSeo.defaultImage || siteIdentity.logo;
   const schemas = (Array.isArray(schema) ? schema : schema ? [schema] : []).filter(Boolean);
+
+  useLayoutEffect(() => { releasePrerenderMetadata(); }, []);
 
   return (
     <Helmet htmlAttributes={{ lang: isEn ? 'en' : 'ar', dir: isEn ? 'ltr' : 'rtl' }}>

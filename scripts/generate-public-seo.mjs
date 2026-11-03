@@ -15,7 +15,8 @@ import { VERIFIED_PORTFOLIO } from '../src/data/verifiedPortfolio.js';
 import { EDUCATIONAL_BOOKING_COPY, EDUCATIONAL_BOOKING_IMAGE, EDUCATIONAL_BOOKING_SERVICE, EDUCATIONAL_BOOKING_TARGET } from '../src/data/educationalBooking.js';
 import { CLIENT_APP_DOWNLOAD_URL } from '../src/data/clientApp.js';
 import { goldHeroCopy, goldServiceOrder } from '../src/data/goldHero.js';
-import { SITE_URL, organizationId, siteIdentity, websiteId } from '../src/seo/siteIdentity.js';
+import { SITE_URL, organizationId, siteIdentity, websiteId, formatPageTitle, publicPageDescriptions } from '../src/seo/siteIdentity.js';
+import { organizationSchema } from '../src/seo/organizationSchema.js';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, '..');
@@ -264,22 +265,13 @@ const visiblePage = (page, locale) => {
 };
 
 
-const organization = {
-  '@type': ['Organization', 'ProfessionalService'],
-  '@id': organizationId,
-  name: siteIdentity.name,
-  alternateName: siteIdentity.alternateName,
-  url: siteIdentity.url,
-  logo: { '@type': 'ImageObject', url: siteIdentity.logo },
-  image: siteIdentity.logo,
-  email: siteIdentity.email,
-  telephone: siteIdentity.telephone,
-  address: { '@type': 'PostalAddress', addressLocality: siteIdentity.address.locality, addressRegion: siteIdentity.address.region, addressCountry: siteIdentity.address.country },
-  areaServed: [{ '@type': 'City', name: '6th of October City' }, { '@type': 'AdministrativeArea', name: 'Giza' }, { '@type': 'Country', name: 'Egypt' }],
-};
+for (const page of commonPages) {
+  for (const locale of ['ar', 'en']) page[locale].description = publicPageDescriptions[page.path][locale];
+}
 
 const schemaGraph = (page, locale, canonical) => {
   const copy = page[locale];
+  const organization = organizationSchema(locale);
   const graph = [organization, {
     '@type': page.path === '/about/' ? 'AboutPage' : page.path === '/contact/' ? 'ContactPage' : page.path === '/services/' || page.path === '/portfolio/' ? 'CollectionPage' : 'WebPage',
     '@id': `${canonical}#webpage`, url: canonical, name: copy.title, description: copy.description, inLanguage: locale === 'en' ? 'en-EG' : 'ar-EG', about: { '@id': organizationId },
@@ -311,7 +303,7 @@ const renderDocument = (page, locale, { rootAlias = false, noIndex = false } = {
   const defaultUrl = page.path === '/' ? `${SITE_URL}/` : arabicUrl;
   const copy = page[locale];
   const socialImage = page.service ? absoluteUrl(page.service.heroImage) : siteIdentity.logo;
-  const head = `<title>${escapeHtml(copy.title)} | ${siteIdentity.name}</title>
+  const head = `<title>${escapeHtml(formatPageTitle(copy.title))}</title>
     <meta name="description" content="${escapeHtml(copy.description)}">
     <meta name="author" content="${siteIdentity.name}">
     <meta name="robots" content="${noIndex ? 'noindex, nofollow' : 'index, follow'}">
@@ -321,14 +313,14 @@ const renderDocument = (page, locale, { rootAlias = false, noIndex = false } = {
     <link rel="alternate" hreflang="x-default" href="${defaultUrl}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="${canonical}">
-    <meta property="og:title" content="${escapeHtml(copy.title)} | ${siteIdentity.name}">
+    <meta property="og:title" content="${escapeHtml(formatPageTitle(copy.title))}">
     <meta property="og:description" content="${escapeHtml(copy.description)}">
     <meta property="og:image" content="${socialImage}">
     <meta property="og:site_name" content="${siteIdentity.name}">
     <meta property="og:locale" content="${locale === 'en' ? 'en_EG' : 'ar_EG'}">
     <meta property="og:locale:alternate" content="${locale === 'en' ? 'ar_EG' : 'en_EG'}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="${escapeHtml(copy.title)} | ${siteIdentity.name}">
+    <meta name="twitter:title" content="${escapeHtml(formatPageTitle(copy.title))}">
     <meta name="twitter:description" content="${escapeHtml(copy.description)}">
     <meta name="twitter:image" content="${socialImage}">
     <script type="application/ld+json">${jsonForHtml(schemaGraph(page, locale, canonical))}</script>`;

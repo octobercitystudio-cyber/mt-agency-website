@@ -252,7 +252,7 @@ export const publicServiceCatalog = [
   entry('web-design-development', 'website', 'MonitorSmartphone', 'digital', ['web'], '/service-heroes/web-design-development.webp', {
     title: "تصميم مواقع ومتاجر إلكترونية", navLabel: 'تصميم المواقع', eyebrow: 'شركة تصميم مواقع في 6 أكتوبر والجيزة',
     heroSummary: "نصمم ونطور مواقع شركات ومتاجر إلكترونية تعمل على الموبايل. نحدد الصفحات والوظائف والإدارة والتكاملات قبل بدء التنفيذ.", cardSummary: "مواقع شركات ومتاجر إلكترونية متوافقة مع الموبايل.",
-    heroAlt: 'مجسم ثلاثي الأبعاد لحاسوب وأجهزة متجاوبة تعرض تخطيطات واجهات مواقع.',
+    heroAlt: 'عرض موقع متجاوب على شاشة كمبيوتر وموبايل.',
     deliverables: ["هيكل صفحات وتصميم متجاوب","تطوير الصفحات ولوحة الإدارة حسب النطاق","إعداد المتجر والدفع والشحن عند الاتفاق","اختبار وتسليم وتهيئة تقنية أساسية لمحركات البحث"],
     suitableFor: ['مواقع الشركات', 'المتاجر الإلكترونية', 'صفحات الحملات', 'منصات المحتوى والخدمات'],
     serviceType: 'تصميم وبرمجة مواقع الشركات والمتاجر الإلكترونية',
@@ -269,7 +269,7 @@ export const publicServiceCatalog = [
   }, {
     title: "Website and Online Store Development", navLabel: 'Web Design', eyebrow: 'A web design agency in 6th of October, Giza',
     heroSummary: "We design and build mobile-friendly company sites and online stores. Pages, features, administration and integrations are agreed before development.", cardSummary: "Mobile-friendly company websites and online stores.",
-    heroAlt: 'A 3D laptop and responsive devices displaying abstract website interface layouts.',
+    heroAlt: 'A responsive website displayed on desktop and mobile screens.',
     deliverables: ["Site structure and responsive design","Pages and dashboard by scope","Store, payments and shipping when agreed","Testing, handover and basic technical SEO setup"],
     suitableFor: ['Company websites', 'Online stores', 'Campaign landing pages', 'Content and service platforms'],
     serviceType: 'Company website and e-commerce design and development',

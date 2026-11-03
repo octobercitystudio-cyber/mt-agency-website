@@ -6,35 +6,23 @@ import './i18n'; // Import i18n for translations
 
 import { HelmetProvider } from 'react-helmet-async';
 import ErrorBoundary from './components/ErrorBoundary';
+import { capturePublicPrerender } from './seo/publicPrerender';
 
 console.log("Cache buster: ", Date.now());
 
-// Public build pages contain crawlable SEO tags before JavaScript runs. Once
-// React starts, remove only those build-time tags so Helmet becomes the single
-// live source and rendered crawlers never see duplicate metadata or JSON-LD.
-if (document.documentElement.hasAttribute('data-public-prerender')) {
-  document.head.querySelectorAll([
-    'title',
-    'meta[name="description"]',
-    'meta[name="author"]',
-    'meta[name="robots"]',
-    'meta[property^="og:"]',
-    'meta[name^="twitter:"]',
-    'link[rel="canonical"]',
-    'link[rel="alternate"]',
-    'script[type="application/ld+json"]',
-  ].join(',')).forEach(element => element.remove());
-}
+// Preserve the public document until Helmet has committed its replacement.
+capturePublicPrerender();
 
 // A user may keep the ERP open while a new build is deployed. If a lazy route
 // still points at an old hashed file, refresh once so Vite can load the current
 // asset map instead of leaving the requested page blank.
 window.addEventListener('vite:preloadError', event => {
-  event.preventDefault();
   const reloadKey = 'mta:stale-build-reload';
-  const lastReload = Number(window.sessionStorage.getItem(reloadKey) || 0);
+  let lastReload;
+  try { lastReload = Number(window.sessionStorage.getItem(reloadKey) || 0); } catch { return; }
   if (Date.now() - lastReload < 30_000) return;
-  window.sessionStorage.setItem(reloadKey, String(Date.now()));
+  try { window.sessionStorage.setItem(reloadKey, String(Date.now())); } catch { return; }
+  event.preventDefault();
   window.location.reload();
 });
 

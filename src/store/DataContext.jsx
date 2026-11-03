@@ -157,7 +157,7 @@ const readCachedSiteData = () => {
   } catch {
     // A partially written legacy cache must never prevent the login screen
     // or the public website from rendering.
-    localStorage.removeItem('mt_agency_data_v5');
+    try { localStorage.removeItem('mt_agency_data_v5'); } catch { /* Storage may be disabled entirely. */ }
     return withOfficialContactEmail(defaultData);
   }
 };
@@ -315,7 +315,7 @@ export const DataProvider = ({ children }) => {
   }, [authRestoreError]);
 
   useEffect(() => {
-    localStorage.setItem('mt_agency_data_v5', JSON.stringify(siteData));
+    try { localStorage.setItem('mt_agency_data_v5', JSON.stringify(siteData)); } catch { /* The optional cache must not break the site when storage is full or disabled. */ }
   }, [siteData]);
 
   useEffect(() => {
