@@ -2,6 +2,14 @@ Options -Indexes
 AddType application/manifest+json .webmanifest
 RewriteEngine On
 
+# Apply within the production directory as well as at the repository root.
+# Nested rewrite contexts must never expose Vite's internal build manifest.
+RewriteRule (?:^|/)(?:\.vite|\.git|private_config|private_uploads|private_runtime)(?:/|$) - [F,L,NC]
+<FilesMatch "(?i)(?:^\.env(?:\..*)?$|\.(?:map|sql|sqlite3?|db|bak|backup|old|orig|log|pem|key|p12|pfx)$)">
+  Require all denied
+</FilesMatch>
+
+
 RewriteRule ^api(/|$) - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
