@@ -25,7 +25,8 @@ require_once __DIR__ . '/client_request_withdrawal.php';
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
-header('Referrer-Policy: same-origin');
+header('Referrer-Policy: no-referrer');
+header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
 header("Permissions-Policy: camera=(), microphone=(), geolocation=()");
 header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -267,7 +268,7 @@ function clearAuthCookies(array $config): void {
 
 function requireCsrf(array $config, string $path, string $method): void {
     if (in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) return;
-    if (in_array($path, ['/auth/login', '/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue', '/cron/booking-tick'], true)) return;
+    if (in_array($path, ['/auth/bootstrap', '/cron/whatsapp-queue', '/cron/push-queue', '/cron/booking-tick'], true)) return;
     $cookie = (string)($_COOKIE[csrfCookieName($config)] ?? (empty($config['_auth_audience']) ? ($_COOKIE['mt_csrf'] ?? '') : ''));
     $header = (string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
     if ($cookie === '' || $header === '' || !hash_equals($cookie, $header)) {

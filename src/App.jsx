@@ -21,7 +21,7 @@ const AuthenticatedPushBridge = () => {
 
 const ERP_ROLES = ['owner', 'admin', 'operations', 'finance', 'staff'];
 
-const PrivateSurface = ({ children }) => <><Helmet><meta name="robots" content="noindex, nofollow" /></Helmet>{children}</>;
+const PrivateSurface = ({ children }) => <><Helmet><meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" /><meta name="referrer" content="no-referrer" /></Helmet>{children}</>;
 
 const PublicRegistration = lazy(() => import('./pages/PublicRegistration'));
 const ApplicantDashboard = lazy(() => import('./pages/ApplicantDashboard'));

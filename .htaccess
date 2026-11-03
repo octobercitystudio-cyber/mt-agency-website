@@ -29,16 +29,23 @@ RewriteRule ^ https://multitaskagency.com%{REQUEST_URI} [R=301,L]
   <Files "app.html">
     Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
     Header always set Pragma "no-cache"
-    Header always set X-Robots-Tag "noindex, nofollow, noarchive"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
   </Files>
   <Files "manifest.webmanifest">
     Header always set Cache-Control "no-cache, must-revalidate, max-age=0"
   </Files>
 
-  SetEnvIf Request_URI "^/(?:p-e2f8474bcda6b5ea|erp|adminmt|dashboard|login)(?:/|$)" MT_PRIVATE_PAGE
+  SetEnvIf Request_URI "^/(?:p-e2f8474bcda6b5ea|erp|adminmt|dashboard|login|register|change-password|reset-password)(?:/|$)" MT_PRIVATE_PAGE
   Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0" env=MT_PRIVATE_PAGE
   Header always set Pragma "no-cache" env=MT_PRIVATE_PAGE
-  Header always set X-Robots-Tag "noindex, nofollow, noarchive" env=MT_PRIVATE_PAGE
+  Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex" env=MT_PRIVATE_PAGE
+  Header always set Referrer-Policy "no-referrer" env=MT_PRIVATE_PAGE
+
+  # Downloadable app packages and implementation files are not search content.
+  <FilesMatch "\.(?:apk|aab|webmanifest|js|mjs|css)$">
+    Header always set X-Robots-Tag "noindex, nofollow, noarchive"
+  </FilesMatch>
 </IfModule>
 
 # Keep the PHP API at its stable public URL. The nested api/.htaccess
@@ -70,6 +77,13 @@ RewriteRule ^(.+)$ /$1/ [R=301,L,NE]
 RewriteRule ^(?:src|database|tests|docs|scripts|scratch|artifacts|\.git|\.github|\.builds|node_modules|public)(?:/|$) - [F,L,NC]
 
 <FilesMatch "^(?:\.env(?:\..*)?|package(?:-lock)?\.json|vite\.config\.(?:js|mjs|ts)|README(?:\..*)?|AGENTS\.md)$">
+  Require all denied
+</FilesMatch>
+
+# Block internal build indexes, source maps, and accidental database/key backups
+# even when placed inside the otherwise public production bundle.
+RewriteRule (?:^|/)(?:\.vite|\.git|private_config|private_uploads|private_runtime)(?:/|$) - [F,L,NC]
+<FilesMatch "(?i)(?:^\.env(?:\..*)?$|\.(?:map|sql|sqlite3?|db|bak|backup|old|orig|log|pem|key|p12|pfx)$)">
   Require all denied
 </FilesMatch>
 

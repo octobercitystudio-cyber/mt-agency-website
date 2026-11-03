@@ -227,14 +227,14 @@ test('all public company contact surfaces share the international phone formatte
 test('route SEO, schemas, sitemap and robots remain unique and private-safe', async () => {
   const [seo, layout, pages, index, sitemap, robots, generator] = await Promise.all(['src/components/SEO.jsx', 'src/layouts/PublicLayout.jsx', 'src/pages/PublicPages.jsx', 'index.html', 'dist/sitemap.xml', 'public/robots.txt', 'scripts/generate-public-seo.mjs'].map(load));
   assert.match(seo, /<link rel="canonical" href=\{canonicalUrl\}/); assert.match(seo, /og:url/); assert.match(seo, /twitter:title/); assert.match(seo, /hrefLang="ar-EG"/); assert.match(seo, /hrefLang="en-EG"/);
-  assert.equal((layout.match(/type="application\/ld\+json"/g) || []).length, 1); assert.match(layout, /'@type': \['Organization', 'ProfessionalService'\]/); assert.match(layout, /'@type': 'WebSite'/);
+  assert.equal((layout.match(/type="application\/ld\+json"/g) || []).length, 1); assert.match(await load('src/seo/organizationSchema.js'), /'@type': \['Organization', 'ProfessionalService'\]/); assert.match(layout, /'@type': 'WebSite'/);
   assert.equal(index.includes('application/ld+json'), false, 'static duplicate Organization schema was removed');
   assert.match(pages, /'@type': 'Service'/); assert.match(pages, /'@type': 'BreadcrumbList'/); assert.match(pages, /'@type': 'AboutPage'/); assert.match(pages, /'@type': 'ContactPage'/);
   const sitemapPaths = [...sitemap.matchAll(/<loc>https:\/\/multitaskagency\.com\/(.*?)<\/loc>/g)].map(match => match[1]);
   const unlocalized = ['', 'services/', ...publicServiceSlugs.map(slug => `services/${slug}/`), 'about/', 'portfolio/', 'studios/', 'contact/'];
   const expected = ['ar', 'en'].flatMap(locale => unlocalized.map(route => `${locale}/${route}`));
   assert.deepEqual(new Set(sitemapPaths), new Set(expected)); assert.equal(sitemapPaths.length, expected.length);
-  for (const path of ['/login', '/change-password', '/reset-password', '/dashboard', '/erp/', '/adminmt/']) assert.ok(robots.includes(`Disallow: ${path}`));
+  assert.doesNotMatch(robots, /^Disallow:/m, 'noindex headers must remain crawlable so private URLs can be removed from search');
   assert.match(robots, /Sitemap: https:\/\/multitaskagency\.com\/sitemap\.xml/);
   assert.match(generator, /Generated \$\{pages\.length \* 2\} localized public pages/); assert.match(generator, /FAQPage/); assert.match(generator, /app\.html/);
 });

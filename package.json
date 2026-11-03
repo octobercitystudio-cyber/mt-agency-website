@@ -47,5 +47,10 @@
     "globals": "^17.6.0",
     "sqlite3": "^6.0.1",
     "vite": "^8.0.12"
+  },
+  "overrides": {
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "1.13.6"
+    }
   }
 }

@@ -1,6 +1,20 @@
 Options -Indexes
 RewriteEngine On
 
+<IfModule mod_headers.c>
+  Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
+  Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  Header always set Referrer-Policy "no-referrer"
+</IfModule>
+
+# Only the API front controller is a web entry point. Internal PHP includes,
+# dependency metadata, and private files remain readable by PHP, not by visitors.
+<FilesMatch "(?i)^(?!index\.php$).*\.(?:php[0-9]?|phtml|phar|json|lock|sql|sqlite3?|db|ini|log|bak|backup|old|orig|pem|key|env)$">
+  Require all denied
+</FilesMatch>
+RewriteRule ^(?:vendor|uploads|private_config|private_uploads|private_runtime)(?:/|$) - [F,L,NC]
+
+
 # Let committed booking/account events finish their bounded push dispatch if
 # the requesting phone closes the connection. Keep normal request timeouts.
 <IfModule LiteSpeed>

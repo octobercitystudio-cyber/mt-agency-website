@@ -56,7 +56,7 @@ test('push registration can reach the Firebase SDK endpoints without opening arb
   const policy = htaccess.match(/Header always set Content-Security-Policy "([^"]+)"/)[1];
   const directives = new Map(policy.split(';').map(value => value.trim().split(/\s+/)).filter(parts => parts[0]).map(([name, ...sources]) => [name, sources]));
   const allowed = directives.get('connect-src');
-  assert.deepEqual(new Set(allowed), new Set(["'self'", 'https://firebaseinstallations.googleapis.com', 'https://fcmregistrations.googleapis.com']));
+  assert.deepEqual(new Set(allowed), new Set(["'self'", 'https://firebaseinstallations.googleapis.com', 'https://fcmregistrations.googleapis.com', 'https://connect.facebook.net', 'https://www.facebook.com']));
   // Check the actual SDK endpoints so an SDK change cannot silently break registration again.
   for (const module of ['installations', 'messaging']) {
     const sdk = await readFile(new URL(`../node_modules/@firebase/${module}/dist/esm/index.esm.js`, import.meta.url), 'utf8');

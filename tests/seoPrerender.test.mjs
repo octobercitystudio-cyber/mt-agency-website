@@ -102,8 +102,10 @@ test('web design prerender includes the buying guide without repeated marketing 
 
 test('private shell and unknown-route page are protected from indexing', async () => {
   const [app, notFound, htaccess, main, recovery] = await Promise.all([load('dist/app.html'), load('dist/404.html'), load('.htaccess'), load('src/main.jsx'), load('src/seo/publicPrerender.js')]);
-  assert.match(app, /<meta name="robots" content="noindex, nofollow, noarchive">/);
+  assert.match(app, /<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">/);
   assert.doesNotMatch(app, /<h1>/);
+  assert.doesNotMatch(app, /property="og:|name="twitter:|rel="canonical"|application\/ld\+json/);
+  assert.match(app, /<meta name="referrer" content="no-referrer">/);
   assert.match(notFound, /<meta name="robots" content="noindex, nofollow">/);
   assert.match(htaccess, /dist\/app\.html \[L,NC\]/);
   assert.match(htaccess, /ErrorDocument 404 \/dist\/404\.html/);

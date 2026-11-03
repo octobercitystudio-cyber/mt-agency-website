@@ -38,6 +38,7 @@ test('staff password login cannot bypass CSRF or issue a session before the seco
   const api=read('api/index.php');
   const csrf=api.match(/function requireCsrf[\s\S]*?\n\}/)[0];
   assert.ok(!csrf.includes("'/auth/staff/login'"));
+  assert.ok(!csrf.includes("'/auth/login'"), 'client login must also validate the same-site CSRF token');
   const login=api.match(/if \(\$path === '\/auth\/staff\/login'[\s\S]*?\n\}/)[0];
   assert.ok(login.indexOf('authenticateStaffPassword')<login.indexOf('verifyOwnerMfa'));
   assert.ok(login.indexOf('verifyOwnerMfa')<login.indexOf('issueLoginSession'));
