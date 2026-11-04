@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/articles_cta.php';
 
 /** Public article markup. All editorial strings are escaped; no raw HTML is accepted. */
 function articleViewEscape(mixed $value): string {
@@ -42,9 +43,12 @@ function articleViewVideo(string $url): ?array {
 }
 function articleViewContent(array $blocks, string $lang): string {
     $e = 'articleViewEscape';
+    $closingCta = articleClosingCta($blocks,$lang);
     ob_start(); ?>
     <div class="article-prose">
     <?php foreach ($blocks as $index=>$block): $type=$block['type']??'';
+        if($closingCta && $index===$closingCta['start']) { echo articleEndingCta($lang,$closingCta['service'],$closingCta['contactHref'],$closingCta['serviceHref']); continue; }
+        if($closingCta && $index===$closingCta['end']) continue;
         if ($type==='heading'): $tag=(int)($block['level']??2)===3?'h3':'h2'; ?>
             <<?=$tag?> id="section-<?=$index+1?>" tabindex="-1"><?=$e($block['text']??'')?></<?=$tag?>>
         <?php elseif($type==='paragraph'): ?><p><?=$e($block['text']??'')?></p>
@@ -88,7 +92,7 @@ function articlesRenderMain(array $data, string $kind, string $lang): string {
         <article><header class="article-heading"><div class="article-card__kicker"><?php if($category): ?><a href="<?=$e(articleViewListPath($lang,['category'=>$article['category']['slug']]))?>"><?=$e($category)?></a><?php endif ?><span><?=$en?'PRACTICAL GUIDE':'دليل عملي'?></span></div><h1><?=$e($article['title'])?></h1><p class="article-lede"><?=$e($article['excerpt']??'')?></p><div class="article-byline"><span><?=$e($article['author_name']??'Multi Task Agency')?></span><span><?=$en?'Published':'نُشر في'?> <time datetime="<?=$e($article['published_at']??'')?>"><?=$e(articleViewDate($article['published_at']??null,$lang))?></time></span><?php if(!empty($article['updated_at']) && strtotime($article['updated_at'])>strtotime($article['published_at']??'now')+60): ?><span><?=$en?'Updated':'آخر تحديث'?> <time datetime="<?=$e($article['updated_at'])?>"><?=$e(articleViewDate($article['updated_at'],$lang))?></time></span><?php endif ?><?php if(!empty($article['reading_minutes'])): ?><span><?=(int)$article['reading_minutes']?> <?=$en?'min read':'دقائق قراءة'?></span><?php endif ?></div></header>
         <?php if(!empty($article['cover_url'])): ?><figure class="article-cover"><img src="<?=$e(articleViewUrl($article['cover_url']))?>" alt="<?=$e($article['cover_alt']??'')?>" width="1600" height="900" fetchpriority="high" decoding="async"></figure><?php endif ?>
         <div class="article-reading-layout<?=count($headings)<3?' article-reading-layout--simple':''?>"><?php if(count($headings)>=3): ?><nav class="article-toc" aria-label="<?=$en?'On this page':'محتويات المقال'?>"><h2><?=$en?'On this page':'في هذا المقال'?></h2><ol><?php foreach($headings as $heading): ?><li<?=((int)$heading['level']===3?' class="article-toc__sub"':'')?>><a href="#<?=$e($heading['id'])?>"><?=$e($heading['text'])?></a></li><?php endforeach ?></ol></nav><?php endif ?><div class="article-reading-column"><?=articleViewContent($article['blocks']??[],$lang)?><section class="article-share" aria-label="<?=$en?'Share this article':'مشاركة المقال'?>"><strong><?=$en?'Useful? Share it.':'مفيد؟ شاركه.'?></strong><?php $shareUrl='https://multitaskagency.com'.articleViewPath($lang,(string)$article['slug']); ?><a href="https://wa.me/?text=<?=rawurlencode($article['title']."\n".$shareUrl)?>" target="_blank" rel="noopener noreferrer">WhatsApp</a><a href="https://www.facebook.com/sharer/sharer.php?u=<?=rawurlencode($shareUrl)?>" target="_blank" rel="noopener noreferrer">Facebook</a></section></div></div></article>
-        <?=articleViewCta($lang,$article['service_slug']??null)?>
+        <?php if(!articleClosingCta($article['blocks']??[],$lang)) echo articleEndingCta($lang,$article['service_slug']??''); ?>
         <?php if(!empty($data['related'])): ?><section class="articles-related"><div class="articles-results__heading"><h2><?=$en?'Continue reading':'اقرأ أيضًا'?></h2><a href="<?=articleViewPath($lang)?>"><?=$en?'All articles':'جميع المقالات'?></a></div><div class="articles-grid"><?php foreach($data['related'] as $related)echo articleViewCard($related,$lang); ?></div></section><?php endif ?>
     <?php elseif($kind==='list'):
         $q=(string)($_GET['q']??'');$category=(string)($_GET['category']??'');$page=max(1,(int)($data['page']??1));$total=(int)($data['total']??0);$pages=(int)($data['pages']??1);

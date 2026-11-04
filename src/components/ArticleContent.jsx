@@ -1,8 +1,13 @@
 import { articleVideo, safeArticleLink } from '../lib/articlesApi';
+import { articleClosingCta } from '../lib/articleCta';
+import ArticleCta from './ArticleCta';
 
 export default function ArticleContent({ blocks = [], locale = 'ar' }) {
+  const closingCta = articleClosingCta(blocks, locale);
   return <div className="article-prose">{blocks.map((block, index) => {
     const key = `${index}-${block.type}`;
+    if (closingCta && index === closingCta.start) return <ArticleCta key={key} locale={locale} {...closingCta}/>;
+    if (closingCta && index === closingCta.end) return null;
     if (block.type === 'heading') {
       const Heading = Number(block.level) === 3 ? 'h3' : 'h2';
       return <Heading key={key} id={`section-${index + 1}`} tabIndex={-1}>{block.text}</Heading>;

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Link2, Check } from 'lucide-react';
+import { Link2, Check } from 'lucide-react';
 import ArticleContent from '../components/ArticleContent';
+import ArticleCta from '../components/ArticleCta';
+import { articleClosingCta } from '../lib/articleCta';
 import ArticleCard from '../components/ArticleCard';
 import ArticleSEO from '../components/ArticleSEO';
 import { articleBootstrap, articlesRequest, articlesPath, articlesListPath, articleDate, articleHeadings } from '../lib/articlesApi';
@@ -33,7 +35,7 @@ export function ArticlePresentation({ article, related = [], locale = 'ar', prev
           </div>
         </div>
       </article>
-      {!preview && <aside className="articles-contact"><div><span className="articles-eyebrow">{en ? 'LET’S TALK ABOUT YOUR PROJECT' : 'خلّينا نتكلم عن مشروعك'}</span><h2>{en ? 'Ready to put your idea into practice?' : 'جاهز تنفّذ فكرتك؟'}</h2><p>{en ? 'Share your requirements so we can agree on the scope and deliverables.' : 'شاركنا احتياجاتك علشان نحدد معك نطاق العمل والتسليمات.'}</p></div><div className="article-cta-links">{article.service_slug && <Link className="article-service-link" to={`/${locale}/services/${article.service_slug}/`}>{en ? 'Explore the related service' : 'تعرّف على الخدمة المرتبطة'}</Link>}<Link className="article-button article-button--light" to={`/${locale}/contact/`}>{en ? 'Request a quote' : 'اطلب عرض سعر'} {en ? <ArrowRight size={18}/> : <ArrowLeft size={18}/>}</Link></div></aside>}
+      {!preview && !articleClosingCta(article.blocks || [], locale) && <ArticleCta locale={locale} service={article.service_slug}/>}
       {!preview && related.length > 0 && <section className="articles-related"><div className="articles-results__heading"><h2>{en ? 'Continue reading' : 'اقرأ أيضًا'}</h2><Link to={articlesPath(locale)}>{en ? 'All articles' : 'جميع المقالات'}</Link></div><div className="articles-grid">{related.map(item => <ArticleCard key={item.id} article={item} locale={locale}/>)}</div></section>}
     </div>
   </main>;
