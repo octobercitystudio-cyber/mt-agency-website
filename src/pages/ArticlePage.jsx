@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Link2, Check } from 'lucide-react';
 import ArticleContent from '../components/ArticleContent';
 import ArticleCta from '../components/ArticleCta';
+import ArticleShare from '../components/ArticleShare';
 import { articleClosingCta } from '../lib/articleCta';
 import ArticleCard from '../components/ArticleCard';
 import ArticleSEO from '../components/ArticleSEO';
@@ -14,14 +14,9 @@ import './Articles.css';
 
 export function ArticlePresentation({ article, related = [], locale = 'ar', preview = false }) {
   const en = locale === 'en'; const headings = articleHeadings(article.blocks);
-  const [copyState, setCopyState] = useState('');
   const shareUrl = `${SITE_URL}${articlesPath(locale, article.slug)}`;
   const category = article.category?.[en ? 'name_en' : 'name_ar'];
   const showUpdate = article.updated_at && article.published_at && new Date(article.updated_at).getTime() > new Date(article.published_at).getTime() + 60000;
-  const copyLink = async () => {
-    try { await navigator.clipboard.writeText(shareUrl); setCopyState('copied'); }
-    catch { setCopyState('failed'); }
-  };
   return <main id="main-content" className={`public-page articles-page article-detail${preview ? ' article-detail--preview' : ''}`} lang={locale} dir={en ? 'ltr' : 'rtl'}>
     <div className="articles-container">
       {!preview && <nav className="article-breadcrumb" aria-label={en ? 'Breadcrumb' : 'مسار التنقل'}><Link to={`/${locale}/`}>{en ? 'Home' : 'الرئيسية'}</Link><span aria-hidden="true">/</span><Link to={articlesPath(locale)}>{en ? 'Articles' : 'المقالات'}</Link><span aria-hidden="true">/</span><span aria-current="page">{article.title}</span></nav>}
@@ -31,7 +26,7 @@ export function ArticlePresentation({ article, related = [], locale = 'ar', prev
         <div className={`article-reading-layout${headings.length < 3 ? ' article-reading-layout--simple' : ''}`}>
           {headings.length >= 3 && <nav className="article-toc" aria-label={en ? 'On this page' : 'محتويات المقال'}><h2>{en ? 'On this page' : 'في هذا المقال'}</h2><ol>{headings.map(heading => <li key={heading.id} className={heading.level === 3 ? 'article-toc__sub' : undefined}><a href={`#${heading.id}`}>{heading.text}</a></li>)}</ol></nav>}
           <div className="article-reading-column"><ArticleContent blocks={article.blocks || []} locale={locale}/>
-            {!preview && <section className="article-share" aria-label={en ? 'Share this article' : 'مشاركة المقال'}><strong>{en ? 'Useful? Share it.' : 'مفيد؟ شاركه.'}</strong><a href={`https://wa.me/?text=${encodeURIComponent(`${article.title}\n${shareUrl}`)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a><a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer">Facebook</a><button type="button" onClick={copyLink}>{copyState === 'copied' ? <Check size={16}/> : <Link2 size={16}/>} {copyState === 'copied' ? (en ? 'Copied' : 'تم النسخ') : (en ? 'Copy link' : 'نسخ الرابط')}</button><span role="status">{copyState === 'failed' ? (en ? 'Copy the page address from your browser.' : 'يمكنك نسخ عنوان الصفحة من المتصفح.') : ''}</span></section>}
+            {!preview && <ArticleShare title={article.title} url={shareUrl} locale={locale}/>}
           </div>
         </div>
       </article>

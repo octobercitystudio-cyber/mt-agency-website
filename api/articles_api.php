@@ -41,6 +41,24 @@ function articlesServeMedia(ArticleStore $store,array $config,string $id,?array 
     if($m)foreach($store->publishedRows() as $t)if(str_contains($t['cover_url'],$id)||str_contains($t['blocks'],$id)){$public=true;break;}
     if(!$m||(!$public&&(!ArticleStore::canEdit($user)||(int)$user['organization_id']!==$store->org)))throw new ArticleError('not_found','الملف غير موجود.',404);
     $path=articlesUploadDirectory($config).'/'.$m['filename'];if(!is_file($path))throw new ArticleError('not_found','الملف غير موجود.',404);
+    // Authorization above also applies to social previews; drafts never become public.
+    if(($_GET['format']??'')==='jpeg' && str_starts_with($m['mime'],'image/')) {
+        if(!function_exists('imagejpeg'))throw new ArticleError('article_image_processor_missing','معالج الصور غير متاح.',503);
+        $image=@imagecreatefromstring(file_get_contents($path));
+        if(!$image)throw new ArticleError('article_file_type','تعذر قراءة الصورة.',500);
+        $canvas=imagecreatetruecolor(imagesx($image),imagesy($image));
+        imagefill($canvas,0,0,imagecolorallocate($canvas,250,244,232));
+        imagecopy($canvas,$image,0,0,0,0,imagesx($image),imagesy($image));
+        ob_start();$saved=imagejpeg($canvas,null,88);$jpeg=ob_get_clean();
+        imagedestroy($canvas);imagedestroy($image);
+        if(!$saved||!$jpeg)throw new ArticleError('article_image_failed','تعذر تجهيز الصورة.',500);
+        if($public)header_remove('X-Robots-Tag');
+        header('Content-Type: image/jpeg');header('Content-Disposition: inline; filename="'.$id.'.jpg"');
+        header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');header('Content-Length: '.strlen($jpeg));
+        if(($_SERVER['REQUEST_METHOD']??'GET')!=='HEAD')echo $jpeg;
+        exit;
+    }
+    if($public && str_starts_with($m['mime'],'image/'))header_remove('X-Robots-Tag');
     $size=filesize($path);$start=0;$end=$size-1;
     header('Content-Type: '.$m['mime']);header('Content-Disposition: inline; filename="'.$m['filename'].'"');header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');header('Accept-Ranges: bytes');
     if(isset($_SERVER['HTTP_RANGE'])){

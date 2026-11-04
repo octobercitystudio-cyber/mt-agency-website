@@ -35,9 +35,14 @@ function articlesDocument(array $data,string $kind,string $lang,string $root): s
     $meta=articlesMeta($data,$kind,$lang);$title=str_contains($meta['title'],'Multi Task Agency')?$meta['title']:$meta['title'].' | Multi Task Agency';$head='<title>'.articlesEscape($title).'</title><meta name="description" content="'.articlesEscape($meta['desc']).'"><meta name="robots" content="'.($meta['noindex']?'noindex, follow':'index, follow').'">';
     if($kind!=='error')$head.='<link rel="canonical" href="'.articlesEscape($meta['canonical']).'">';
     foreach($meta['alternates'] as $locale=>$url)$head.='<link rel="alternate" hreflang="'.$locale.'-EG" href="'.articlesEscape(ARTICLES_SITE.$url).'">';
-    foreach(['type'=>$kind==='detail'?'article':'website','site_name'=>'Multi Task Agency','title'=>$title,'description'=>$meta['desc'],'url'=>$meta['canonical'],'image'=>$meta['image'],'locale'=>$lang==='en'?'en_EG':'ar_EG'] as $key=>$value)$head.='<meta property="og:'.$key.'" content="'.articlesEscape($value).'">';
+    $shareTitle=$data['article']['title']??$title;$shareDescription=$data['article']['excerpt']??$meta['desc'];
+    $shareImage=$meta['image'];$isArticleMedia=preg_match('~^https://multitaskagency\.com/api/articles/media/([a-f0-9]{32})(?:\?[^#]*)?$~',$shareImage,$imageMatch)===1;
+    if($isArticleMedia)$shareImage=ARTICLES_SITE.'/api/articles/media/'.$imageMatch[1].'?format=jpeg';
+    $imageAlt=$data['article']['cover_alt']??$shareTitle;
+    foreach(['type'=>$kind==='detail'?'article':'website','site_name'=>'Multi Task Agency','title'=>$shareTitle,'description'=>$shareDescription,'url'=>$meta['canonical'],'image'=>$shareImage,'image:secure_url'=>$shareImage,'image:alt'=>$imageAlt,'locale'=>$lang==='en'?'en_EG':'ar_EG'] as $key=>$value)$head.='<meta property="og:'.$key.'" content="'.articlesEscape($value).'">';
+    if($isArticleMedia)$head.='<meta property="og:image:type" content="image/jpeg">';
     $head.='<meta name="twitter:card" content="summary_large_image">';
-    foreach(['title'=>$title,'description'=>$meta['desc'],'image'=>$meta['image']] as $key=>$value)$head.='<meta name="twitter:'.$key.'" content="'.articlesEscape($value).'">';
+    foreach(['title'=>$shareTitle,'description'=>$shareDescription,'image'=>$shareImage,'image:alt'=>$imageAlt] as $key=>$value)$head.='<meta name="twitter:'.$key.'" content="'.articlesEscape($value).'">';
     if($kind==='detail')foreach(['published_time'=>'published_at','modified_time'=>'updated_at'] as $key=>$field)if(!empty($data['article'][$field]))$head.='<meta property="article:'.$key.'" content="'.articlesEscape($data['article'][$field]).'">';
     if($meta['graph'])$head.='<script type="application/ld+json">'.articlesJson(['@context'=>'https://schema.org','@graph'=>$meta['graph']]).'</script>';
     $manifest=json_decode(file_get_contents($root.'/dist/.vite/manifest.json'),true);$css=[];$seen=[];

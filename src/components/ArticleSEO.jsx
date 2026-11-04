@@ -9,6 +9,12 @@ export default function ArticleSEO({ locale, title, description, path, translati
   const canonical = `${SITE_URL}${path}`;
   const name = formatPageTitle(title);
   const image = article?.cover_url ? new URL(article.cover_url, SITE_URL).href : siteIdentity.logo;
+  const shareImage = new URL(image);
+  const isArticleMedia = shareImage.origin === SITE_URL && /^\/api\/articles\/media\/[a-f0-9]{32}$/.test(shareImage.pathname);
+  if (isArticleMedia) { shareImage.search = '?format=jpeg'; }
+  const shareTitle = article?.title || name;
+  const shareDescription = article?.excerpt || description;
+  const imageAlt = article?.cover_alt || shareTitle;
   const schemas = [];
   if (article?.published_at && !noIndex) schemas.push({
     '@context': 'https://schema.org', '@type': 'BlogPosting', '@id': `${canonical}#article`,
@@ -28,8 +34,9 @@ export default function ArticleSEO({ locale, title, description, path, translati
     {!omitCanonical && <link rel="canonical" href={canonical}/>}
     {!noIndex && Object.entries(translations).filter(([lang, href]) => ['ar', 'en'].includes(lang) && href).map(([lang, href]) => <link key={lang} rel="alternate" hrefLang={`${lang}-EG`} href={`${SITE_URL}${href}`}/>)}
     <meta property="og:type" content={article ? 'article' : 'website'}/><meta property="og:site_name" content="Multi Task Agency"/><meta property="og:locale" content={locale === 'en' ? 'en_EG' : 'ar_EG'}/>
-    <meta property="og:title" content={name}/><meta property="og:description" content={description}/><meta property="og:url" content={canonical}/><meta property="og:image" content={image}/>
-    <meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content={name}/><meta name="twitter:description" content={description}/><meta name="twitter:image" content={image}/>
+    <meta property="og:title" content={shareTitle}/><meta property="og:description" content={shareDescription}/><meta property="og:url" content={canonical}/><meta property="og:image" content={shareImage.href}/><meta property="og:image:secure_url" content={shareImage.href}/><meta property="og:image:alt" content={imageAlt}/>
+    {isArticleMedia && <meta property="og:image:type" content="image/jpeg"/>}
+    <meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content={shareTitle}/><meta name="twitter:description" content={shareDescription}/><meta name="twitter:image" content={shareImage.href}/><meta name="twitter:image:alt" content={imageAlt}/>
     {article?.published_at && <meta property="article:published_time" content={article.published_at}/>}{article?.updated_at && <meta property="article:modified_time" content={article.updated_at}/>}
     {schemas.map((schema, index) => <script key={index} type="application/ld+json">{JSON.stringify(schema).replaceAll('<', '\\u003c')}</script>)}
   </Helmet>;
