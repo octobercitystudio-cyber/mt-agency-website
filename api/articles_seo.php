@@ -5,7 +5,7 @@ function articlesEscape(mixed $v): string { return htmlspecialchars((string)$v,E
 function articlesJson(mixed $v): string { return json_encode($v,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_THROW_ON_ERROR); }
 function articlesMeta(array $data,string $kind,string $lang): array {
     $en=$lang==='en';$base='/'.$lang.'/articles/';$article=$data['article']??null;
-    $title=$article?($article['seo_title']?:$article['title']):($en?'Articles & practical guides':'مقالات وأدلة عملية');
+    $title=$article?($article['seo_title']?:$article['title']):($en?'Articles':'المقالات');
     $desc=$article?($article['seo_description']?:$article['excerpt']):($en?'Answers to help you plan your next video, podcast, event coverage or social media project.':'إجابات تساعدك على التخطيط للتصوير والبودكاست وتغطية الفعاليات وإدارة محتواك.');
     $page=(int)($data['page']??1);if(!$article&&$page>1)$title.=($en?' — Page ':' — صفحة ').$page;$canonical=ARTICLES_SITE.($article?$base.rawurlencode($article['slug']).'/':$base.($page>1?'?page='.$page:''));
     if($kind==='error'){$title=$en?'Article not found':'المقال غير موجود';$desc=$en?'The requested article is not available.':'المقال المطلوب غير متاح.';}

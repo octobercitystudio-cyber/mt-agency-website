@@ -28,13 +28,13 @@ export default function ArticlesPage() {
   const data = result.key === key ? result.data : null; const error = result.key === key ? result.error : null;
   const featured = !q && !category && page === 1 ? data?.featured : null;
   const items = (data?.items || []).filter(item => !featured || item.id !== featured.id);
-  const title = en ? 'Articles & practical guides' : 'مقالات وأدلة عملية';
+  const title = en ? 'Articles' : 'المقالات';
   const description = en ? 'Answers to help you plan your next video, podcast, event coverage or social media project.' : 'إجابات تساعدك على التخطيط للتصوير والبودكاست وتغطية الفعاليات وإدارة محتواك.';
   return <main id="main-content" className="public-page articles-page" lang={locale} dir={en ? 'ltr' : 'rtl'}>
     <ArticleSEO locale={locale} title={`${title}${page > 1 ? ` — ${en ? 'Page' : 'صفحة'} ${page}` : ''}`} description={description} path={articlesListPath(locale, { page })} translations={!q && !category && page === 1 ? { ar: articlesPath('ar'), en: articlesPath('en') } : {}} noIndex={!!q || !!category || !!error || query.has('translation') || !data?.total}/>
     <div className="articles-container">
       <nav className="article-breadcrumb" aria-label={en ? 'Breadcrumb' : 'مسار التنقل'}><Link to={`/${locale}/`}>{en ? 'Home' : 'الرئيسية'}</Link><span aria-hidden="true">/</span><span>{en ? 'Articles' : 'المقالات'}</span></nav>
-      <header className="articles-intro"><span className="articles-eyebrow">MULTI TASK AGENCY · {en ? 'KNOWLEDGE' : 'المعرفة'}</span><div><h1>{title}</h1><p>{description}</p></div></header>
+      <header className="articles-intro"><span className="articles-eyebrow">MULTI TASK AGENCY · {en ? 'KNOWLEDGE' : 'المعرفة'}</span><div><h1>{title}</h1></div></header>
       {query.get('translation') === 'unavailable' && <p className="articles-notice" role="status">{en ? 'This article is not available in English yet. Explore our English articles below.' : 'هذا المقال غير متاح بالعربية حاليًا. يمكنك تصفّح المقالات العربية هنا.'}</p>}
       <section className="articles-discovery" aria-label={en ? 'Find an article' : 'ابحث عن مقال'}>
         <form action={articlesPath(locale)} method="get" className="articles-search" role="search"><label htmlFor="article-search">{en ? 'What would you like to know?' : 'عن ماذا تريد أن تعرف؟'}</label><div><input id="article-search" name="q" type="search" defaultValue={q} key={key} placeholder={en ? 'Search articles…' : 'ابحث في المقالات…'} maxLength={120}/>{category && <input type="hidden" name="category" value={category}/>}<button type="submit"><Search size={18} aria-hidden="true"/><span>{en ? 'Search' : 'بحث'}</span></button></div></form>
