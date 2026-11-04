@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/staff_routes.php';
+require_once __DIR__.'/articles_api.php';
 require_once __DIR__.'/site_analytics.php';
 require_once __DIR__.'/promotion_requests.php';
 require_once __DIR__.'/package_payment_access.php';
@@ -1962,7 +1963,7 @@ $pdo = db($config);
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $path = routePath();
 // File previews open in a new browser tab and cannot attach custom headers.
-$filePreview = isPrivateProofPreview($method, $path);
+$filePreview = isPrivateProofPreview($method, $path) || (in_array($method, ['GET','HEAD'], true) && preg_match('~^/articles/media/[a-f0-9]{32}$~', $path));
 $audience = (string)($_SERVER['HTTP_X_MTA_AUDIENCE'] ?? ($filePreview ? ($_GET['audience'] ?? '') : ''));
 if ($audience !== '' && !in_array($audience, ['staff', 'client'], true)) fail('مساحة الدخول غير صحيحة.', 400, 'invalid_auth_audience');
 $config['_auth_audience'] = $audience;
@@ -1970,6 +1971,7 @@ $loginAudience = ['/auth/staff/login'=>'staff', '/auth/login'=>'client'][$path] 
 if ($audience !== '' && $loginAudience !== null && $loginAudience !== $audience) fail('استخدم صفحة الدخول الخاصة بحسابك.', 403, 'auth_audience_mismatch');
 if ($method === 'GET' && in_array($path, ['/auth/session'], true)) migratePortalSession($pdo, $config);
 handlePublicAnalytics($pdo,$config,$path,$method);
+if ($method === 'GET' && str_starts_with($path, '/public/articles')) handleArticlesApi($pdo, $config, $path, $method, null);
 requireCsrf($config, $path, $method);
 $user = sessionUser($pdo, $config);
 
@@ -1982,6 +1984,8 @@ if ($user && $user['role'] === 'applicant' && !$isPasswordResetRequest) {
 if ($user && !empty($user['must_change_password']) && !$isPasswordResetRequest && !in_array($path, ['/auth/session','/auth/password','/auth/logout','/health'], true)) {
     fail('يلزم تحديث كلمة المرور قبل متابعة استخدام الحساب.', 403, 'password_change_required');
 }
+
+handleArticlesApi($pdo, $config, $path, $method, $user);
 
 function remainingPackageCalendarDays(?string $expiresAt, ?string $today=null): int {
     if(!$expiresAt)return 0;

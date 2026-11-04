@@ -26,7 +26,16 @@ export const localizePublicPath = (value = '/', language = 'ar') => {
   return `${localized}${query}${hash}`;
 };
 
-export const alternatePublicPath = (location, targetLanguage) => {
+export const alternatePublicPath = (location, targetLanguage, articleTranslations = {}) => {
   const pathname = stripPublicLocale(location?.pathname || '/');
+  // Article slugs can differ between languages, and a translation may be a
+  // private draft. Never invent a sibling URL from the current article slug.
+  if (/^\/articles\/[^/]+\/?$/.test(pathname)) {
+    const translation = articleTranslations[targetLanguage];
+    return typeof translation === 'string' && translation.startsWith(`/${targetLanguage}/articles/`)
+      ? translation
+      : `/${targetLanguage}/articles/?translation=unavailable`;
+  }
+  if (/^\/articles\/?$/.test(pathname)) return `/${targetLanguage}/articles/`;
   return localizePublicPath(`${pathname}${location?.search || ''}${location?.hash || ''}`, targetLanguage);
 };

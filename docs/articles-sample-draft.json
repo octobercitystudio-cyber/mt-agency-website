@@ -1,0 +1,281 @@
+{
+  "author_name": "Multi Task Agency — Editorial team / فريق التحرير",
+  "service_slug": "event-coverage",
+  "featured": false,
+  "translations": {
+    "ar": {
+      "title": "كيف تختار شركة لتغطية مؤتمر؟",
+      "slug": "اختيار-شركة-تغطية-مؤتمر",
+      "excerpt": "دليل عملي لمقارنة شركات تغطية المؤتمرات: نطاق التصوير، وضوح الصوت، المخرجات، المونتاج ومواعيد التسليم.",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "اختَر شركة التغطية على أساس فهمها لبرنامج المؤتمر وقدرتها على توضيح خطة التصوير والتسليم. اطلب نماذج قريبة من نوع فعاليتك، ثم قارن عروض الأسعار على المخرجات المتفق عليها، وليس على عدد الكاميرات أو السعر وحدهما."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "ابدأ بالهدف من التغطية"
+        },
+        {
+          "type": "paragraph",
+          "text": "حدّد أين ستستخدم المحتوى بعد المؤتمر: توثيق داخلي، تقرير للجهات المشاركة، حملة لاحقة، أم مقاطع للسوشيال ميديا؟ تصوير محاضرة كاملة يحتاج خطة مختلفة عن فيديو قصير يلخص اليوم. اكتب الأولوية قبل طلب عرض السعر حتى تكون المقارنة عادلة."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "ما التفاصيل التي ترسلها للشركة؟"
+        },
+        {
+          "type": "list",
+          "ordered": false,
+          "items": [
+            "تاريخ المؤتمر ومكانه وعدد أيامه وساعات التغطية المطلوبة.",
+            "برنامج الفقرات: الكلمات الرئيسية، الجلسات، المقابلات، وتوزيعها بين القاعات.",
+            "أهم الشخصيات واللحظات والأجنحة التي تحتاج تصويرًا.",
+            "المخرجات المطلوبة: صور، تسجيل جلسات، فيديو ملخص أو مقاطع رأسية.",
+            "موعد التسليم المطلوب، وأي حاجة إلى تسليم مواد أثناء الفعالية."
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "راجع أعمالًا تشبه فعاليتك"
+        },
+        {
+          "type": "paragraph",
+          "text": "اطلب مشاهدة أمثلة من نفس نوع الحدث الذي تنظمه، وراقب وضوح الصوت وثبات الصورة وتنوع اللقطات وسهولة متابعة القصة. لا تعتبر فيديو دعائيًا سريعًا دليلًا كافيًا على قدرة الفريق على تسجيل جلسة طويلة كاملة. اسأل عن دور الشركة في النموذج المعروض: تصوير أم مونتاج أم تنفيذ متكامل؟"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "ناقش خطة الصوت والقاعات"
+        },
+        {
+          "type": "paragraph",
+          "text": "البرنامج المتزامن في أكثر من قاعة يحتاج توزيعًا واضحًا للفريق. اطلب تحديد ما تتم تغطيته في كل قاعة وما لا يشمله الاتفاق. بالنسبة للجلسات والكلمات، ناقش تسجيل الصوت مع مسؤول الصوت في المكان، وتجربة التوصيلات قبل البداية، والخطة البديلة عند حدوث مشكلة."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "حدّد الفرق بين التسجيل الكامل وفيديو Highlights"
+        },
+        {
+          "type": "paragraph",
+          "text": "فيديو Highlights هو ملخص منتقى لأبرز لحظات الحدث، وقد يجمع لقطات الجمهور والمتحدثين والمساحة مع مقتطفات صوتية مناسبة. هو ليس بديلًا لتسجيل كل الجلسات. اتفق على المدة التقريبية والمقاسات وطبيعة الموسيقى والترجمة، واطلب تسجيلًا كاملًا بشكل منفصل إذا كان ذلك مطلوبًا."
+        },
+        {
+          "type": "table",
+          "rows": [
+            [
+              "المخرج",
+              "ما الذي توضحه قبل الاتفاق؟"
+            ],
+            [
+              "صور الفعالية",
+              "نطاق التغطية، الاختيار والتعديل وطريقة التسليم"
+            ],
+            [
+              "تسجيل الجلسات",
+              "الجلسات المشمولة، الصوت، وهل يشمل المونتاج؟"
+            ],
+            [
+              "فيديو ملخص",
+              "المدة التقريبية، المقاسات، الموسيقى والترجمة"
+            ],
+            [
+              "مقاطع قصيرة",
+              "عدد المقاطع، الاتجاه الرأسي أو الأفقي وموعد التسليم"
+            ]
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "قارن العرض بعد توحيد نطاقه"
+        },
+        {
+          "type": "paragraph",
+          "text": "قد يختلف السعر بسبب ساعات التصوير، عدد القاعات، حجم الفريق، معدات الصوت، الانتقالات، وحجم المونتاج المطلوب. لا توجد تكلفة واحدة تناسب كل المؤتمرات. تأكد أن كل عرض يوضح البنود نفسها، وأي تكلفة للعمل الإضافي أو التسليم العاجل أو تعديلات خارج الاتفاق."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "اتفق على التسليم وحقوق الاستخدام"
+        },
+        {
+          "type": "list",
+          "ordered": false,
+          "items": [
+            "موعد أول نسخة والنسخة النهائية، وعدد جولات المراجعة المشمولة.",
+            "صيغة الملفات والمقاسات وطريقة مشاركة المواد.",
+            "هل المواد الخام ضمن التسليم أم تحتاج اتفاقًا منفصلًا؟",
+            "المسؤول عن موافقات التصوير وحقوق الموسيقى والمواد التي يزوّدكم بها العميل.",
+            "فترة الاحتفاظ بنسخة من الملفات إن كانت متاحة، بدل افتراض الأرشفة الدائمة."
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "قبل يوم المؤتمر"
+        },
+        {
+          "type": "paragraph",
+          "text": "عيّن شخصًا من جهة التنظيم للتواصل مع فريق التصوير، وشاركه النسخة النهائية من البرنامج وتصاريح الدخول وأماكن العمل. أي تغيير في توقيت جلسة أو مكان متحدث يجب أن يصل إليه بسرعة. مراجعة هذه التفاصيل مسبقًا تساعد على تقليل المفاجآت أثناء اليوم."
+        },
+        {
+          "type": "paragraph",
+          "text": "لو بتحضّر مؤتمرًا، ابعت لنا البرنامج والمكان والمخرجات المطلوبة لنراجع معك نطاق التغطية والتسليم المناسب. التفاصيل النهائية تكون في عرض السعر المتفق عليه."
+        },
+        {
+          "type": "link",
+          "text": "تعرّف على خدمة تغطية الفعاليات والمؤتمرات",
+          "url": "/ar/services/event-coverage/"
+        }
+      ],
+      "seo_title": "كيف تختار شركة لتغطية مؤتمر؟",
+      "seo_description": "دليل عملي لمقارنة شركات تغطية المؤتمرات: نطاق التصوير، وضوح الصوت، المخرجات، المونتاج ومواعيد التسليم.",
+      "cover_url": "/brand/gold/services/event-coverage.webp",
+      "cover_alt": "صورة توضيحية لتغطية مؤتمر بكاميرا احترافية",
+      "status": "draft",
+      "scheduled_at": null
+    },
+    "en": {
+      "title": "How to choose a conference coverage company",
+      "slug": "choose-conference-coverage-company",
+      "excerpt": "A practical guide to comparing conference coverage proposals: filming scope, sound, deliverables, editing and delivery dates.",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Choose an event coverage company by how well it understands your programme and explains its filming and delivery plan. Review work comparable to your event, then compare proposals by agreed deliverables rather than camera count or price alone."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Start with the purpose of the coverage"
+        },
+        {
+          "type": "paragraph",
+          "text": "Decide how you will use the material after the conference: an internal record, a report for participants, a later campaign or social media clips. Recording a complete talk calls for a different plan from creating a short event summary. State your priority before asking for a quotation."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "What should you send with your enquiry?"
+        },
+        {
+          "type": "list",
+          "ordered": false,
+          "items": [
+            "The date, venue, number of days and required coverage hours.",
+            "The programme, including keynote talks, sessions, interviews and room assignments.",
+            "Priority speakers, moments and exhibition stands.",
+            "Required outputs: photographs, session recordings, a highlights film or vertical clips.",
+            "Your delivery deadline and whether any content is needed during the event."
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Review relevant work"
+        },
+        {
+          "type": "paragraph",
+          "text": "Ask to see examples from a similar type of event. Pay attention to clear audio, steady images, varied shots and an understandable story. A fast promotional montage alone does not demonstrate the ability to record a complete long session. Ask what the company contributed to each example: filming, editing or the full production."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Discuss audio and room coverage"
+        },
+        {
+          "type": "paragraph",
+          "text": "Simultaneous sessions require a clear allocation of people and equipment. Establish which rooms and sessions are covered and which are outside the agreement. For talks, discuss the audio feed with the venue technician, a sound check before the start and a backup plan if a connection fails."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Separate full recordings from highlights"
+        },
+        {
+          "type": "paragraph",
+          "text": "A highlights film selects key moments from the event. It may combine speakers, audience reactions and venue footage with suitable sound bites. It is not a substitute for recording every session. Agree an approximate length, aspect ratios, music and captions; request full recordings separately when you need them."
+        },
+        {
+          "type": "table",
+          "rows": [
+            [
+              "Deliverable",
+              "Clarify before agreeing"
+            ],
+            [
+              "Event photographs",
+              "Coverage, selection, editing and delivery method"
+            ],
+            [
+              "Session recordings",
+              "Sessions included, audio and editing scope"
+            ],
+            [
+              "Highlights film",
+              "Approximate length, formats, music and captions"
+            ],
+            [
+              "Short clips",
+              "Quantity, vertical or horizontal format and deadline"
+            ]
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Compare like-for-like proposals"
+        },
+        {
+          "type": "paragraph",
+          "text": "Costs can vary with filming hours, simultaneous rooms, crew size, audio equipment, travel and editing scope. There is no single price suitable for every conference. Check that each proposal covers the same items and explains charges for overtime, urgent delivery or revisions outside the agreement."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Agree delivery and usage terms"
+        },
+        {
+          "type": "list",
+          "ordered": false,
+          "items": [
+            "Dates for the first cut and final files, and the included review rounds.",
+            "File formats, aspect ratios and how material will be shared.",
+            "Whether raw footage is included or requires a separate agreement.",
+            "Who is responsible for filming permissions, music licences and client-supplied materials.",
+            "Any agreed file retention period rather than assuming permanent storage."
+          ]
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Before the conference day"
+        },
+        {
+          "type": "paragraph",
+          "text": "Nominate one organiser as the filming team’s contact. Share the final programme, access arrangements and working locations. Changes to session timings or speaker locations should reach that contact promptly. Checking these details in advance helps reduce surprises on the day."
+        },
+        {
+          "type": "paragraph",
+          "text": "Preparing a conference? Send us the programme, venue and required outputs so we can discuss a suitable coverage and delivery scope. Final details are confirmed in the agreed quotation."
+        },
+        {
+          "type": "link",
+          "text": "Explore conference and event coverage",
+          "url": "/en/services/event-coverage/"
+        }
+      ],
+      "seo_title": "How to choose a conference coverage company",
+      "seo_description": "A practical guide to comparing conference coverage proposals: filming scope, sound, deliverables, editing and delivery dates.",
+      "cover_url": "/brand/gold/services/event-coverage.webp",
+      "cover_alt": "Illustrative image of professional conference filming",
+      "status": "draft",
+      "scheduled_at": null
+    }
+  }
+}

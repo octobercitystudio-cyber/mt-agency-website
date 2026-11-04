@@ -10,6 +10,7 @@ import { alternatePublicPath, localizePublicPath, stripPublicLocale } from '../l
 import { companyPhoneTel, normalizeCompanyPhone } from '../lib/companyContact';
 import { siteIdentity } from '../seo/siteIdentity';
 import { getHeaderSocialLinks } from '../data/publicHeader';
+import { useArticleNavigation } from '../lib/articleNavigation';
 import { BrandSocialIcon } from './BrandSocialLinks';
 import './Header.css';
 
@@ -111,10 +112,11 @@ export default function Header() {
 
   const closeNavigation = () => { setServicesOpen(false); setStudiosOpen(false); setIsMenuOpen(false); };
   const publicPath = value => localizePublicPath(value, isEnglish ? 'en' : 'ar');
-  const alternateLanguagePath = alternatePublicPath(location, isEnglish ? 'ar' : 'en');
+  const articleTranslations = useArticleNavigation(location.pathname);
+  const alternateLanguagePath = alternatePublicPath(location, isEnglish ? 'ar' : 'en', articleTranslations);
   const navLinks = [
     { label: t('header.home'), to: publicPath('/') }, { label: t('header.about'), to: publicPath('/about') },
-    { label: t('header.portfolio'), to: publicPath('/portfolio') }, { label: t('header.contact'), to: publicPath('/contact') },
+    { label: t('header.portfolio'), to: publicPath('/portfolio') }, { label: isEnglish ? 'Articles' : 'المقالات', to: publicPath('/articles') }, { label: t('header.contact'), to: publicPath('/contact') },
   ];
 
   const contact = siteData.contact || {};

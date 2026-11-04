@@ -55,6 +55,11 @@ const AdminSettings = lazy(() => import('./admin/AdminSettings'));
 const AdminSEO = lazy(() => import('./admin/AdminSEO'));
 const AdminAnalytics = lazy(() => import('./admin/AdminAnalytics'));
 
+const ArticlesPage = lazy(() => import('./pages/ArticlesPage'));
+const ArticlePage = lazy(() => import('./pages/ArticlePage'));
+const AdminArticles = lazy(() => import('./admin/AdminArticles'));
+const AdminArticlePreview = lazy(() => import('./admin/AdminArticlePreview'));
+
 // Lazy Load ERP Components
 const ERPClients = lazy(() => import('./erp/ERPClients'));
 const ERPBookings = lazy(() => import('./erp/ERPBookings'));
@@ -117,6 +122,7 @@ const ScrollToTop = () => {
     }
 
     if (pathname === '/' && hash) return undefined;
+    if (/^\/(?:ar|en)\/articles\/[^/]+\/?$/.test(pathname) && /^#section-\d+$/.test(hash)) return undefined;
     if (/^\/(?:(?:ar|en)\/)?services\/podcast-production\/?$/.test(pathname) && hash === '#podcast-studios') return undefined;
     window.scrollTo(0, 0);
     const resetTimer = window.setTimeout(() => {
@@ -159,6 +165,8 @@ function AppSurface() {
               <Route path="portfolio" element={<PortfolioPage />} />
               <Route path="studios" element={<StudiosPage />} />
               <Route path="contact" element={<ContactPage />} />
+              <Route path="articles" element={<ArticlesPage />} />
+              <Route path="articles/:slug" element={<ArticlePage />} />
               <Route path="*" element={<PublicNotFound />} />
             </Route>
             {['ar', 'en'].map(locale => <Route key={locale} path={locale} element={<PublicLayout />}>
@@ -169,6 +177,8 @@ function AppSurface() {
               <Route path="portfolio" element={<PortfolioPage />} />
               <Route path="studios" element={<StudiosPage />} />
               <Route path="contact" element={<ContactPage />} />
+              <Route path="articles" element={<ArticlesPage />} />
+              <Route path="articles/:slug" element={<ArticlePage />} />
               <Route path="*" element={<PublicNotFound />} />
             </Route>)}
             <Route path="/register" element={<PrivateSurface><PublicRegistration /></PrivateSurface>} />
@@ -214,6 +224,8 @@ function AppSurface() {
             >
               <Route index element={<Navigate to="hero" replace />} />
               <Route path="hero" element={<AdminHero />} />
+              <Route path="articles" element={<AdminArticles />} />
+              <Route path="articles/:id/preview/:locale" element={<AdminArticlePreview />} />
               <Route path="about" element={<AdminAbout />} />
               <Route path="services" element={<AdminServices />} />
               <Route path="portfolio" element={<AdminPortfolio />} />

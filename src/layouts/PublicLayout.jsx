@@ -22,6 +22,8 @@ export function PublicScrollManager() {
   const { pathname, hash } = useLocation();
   useEffect(() => {
     const section = hash.replace(/^#/, '');
+    // Article table-of-contents anchors are native in-page navigation.
+    if (/^\/articles\/[^/]+\/?$/.test(stripPublicLocale(pathname)) && /^section-\d+$/.test(section)) return undefined;
     if (section === 'podcast-studios' && stripPublicLocale(pathname).replace(/\/+$/, '') === '/services/podcast-production') {
       let frame;
       let observer;

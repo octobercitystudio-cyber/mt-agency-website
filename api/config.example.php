@@ -26,6 +26,8 @@ return [
         // exist, be writable by PHP, and remain outside public_html.
         'private_runtime_dir' => dirname(__DIR__, 2) . '/private_runtime/pickup-availability',
         'max_upload_bytes' => 5 * 1024 * 1024,
+        // Create this writable directory OUTSIDE public_html before enabling articles.
+        'article_upload_dir' => dirname(__DIR__, 2) . '/private_uploads/articles',
     ],
     // Registration uses phone/password and self-hosted ALTCHA, without external keys.
     'registration' => ['organization_id' => 1],
