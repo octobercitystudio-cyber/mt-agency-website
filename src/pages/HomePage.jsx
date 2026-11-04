@@ -7,7 +7,7 @@ import SEO from '../components/SEO';
 const About = lazy(() => import('../components/About'));
 const Services = lazy(() => import('../components/Services'));
 const Portfolio = lazy(() => import('../components/Portfolio'));
-const StudioShowcase = lazy(() => import('../components/StudioShowcase'));
+const PodcastStudioGallery = lazy(() => import('../components/PodcastStudioGallery'));
 const Contact = lazy(() => import('../components/Contact'));
 
 export default function HomePage() {
@@ -26,7 +26,7 @@ export default function HomePage() {
       <About />
       <Services />
       <Portfolio />
-      <StudioShowcase />
+      <PodcastStudioGallery sectionId="studio" showExploreLink />
       <Contact />
     </Suspense>
   </main>;

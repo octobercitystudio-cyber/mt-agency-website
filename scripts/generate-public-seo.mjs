@@ -240,9 +240,9 @@ const aiPlatformsContent = locale => {
   const en = locale === 'en';
   return `<section class="sd-ai-platforms container" aria-labelledby="ai-platforms-title"><header><h2 id="ai-platforms-title">${en ? 'Examples of AI video platforms' : 'أمثلة على منصات صناعة الفيديو'}</h2><p>${en ? 'Tools for generating scenes and digital avatars, with capabilities that vary by platform.' : 'أدوات لتوليد المشاهد والشخصيات الرقمية، وتختلف إمكانياتها حسب المنصة.'}</p></header><ul>${aiVideoPlatforms.map(platform => `<li><a href="${escapeHtml(platform.url)}" target="_blank" rel="noopener noreferrer"><strong dir="ltr">${escapeHtml(platform.name)}</strong><p>${escapeHtml(platform[locale])}</p><span>${en ? 'Official website' : 'الموقع الرسمي'} <span aria-hidden="true">↗</span></span></a></li>`).join('')}</ul></section>`;
 };
-const podcastGalleryContent = locale => {
+const podcastGalleryContent = (locale, sectionId = 'podcast-studios', showExploreLink = false) => {
   const copy = podcastStudioGalleryCopy[locale];
-  return `<section id="podcast-studios" class="showcase-section"><div class="container"><h2 class="section-title">${escapeHtml(copy.title)}</h2><p class="studio-gallery-hint">${escapeHtml(copy.intro)}</p><div class="showcase-grid">${podcastStudioPhotos.map(photo => `<a class="showcase-item" href="${photo.url}"><img src="${photo.url}" alt="${escapeHtml(locale === "en" ? photo.altEn : photo.alt)}" loading="lazy" decoding="async"></a>`).join("")}</div></div></section>`;
+  return `<section id="${sectionId}" class="showcase-section"><div class="container"><h2 class="section-title">${escapeHtml(copy.title)}</h2><p class="studio-gallery-hint">${escapeHtml(copy.intro)}</p><div class="showcase-grid">${podcastStudioPhotos.map(photo => `<a class="showcase-item" href="${photo.url}"><img src="${photo.url}" alt="${escapeHtml(locale === "en" ? photo.altEn : photo.alt)}" loading="lazy" decoding="async"></a>`).join("")}</div>${showExploreLink ? `<a class="public-preview-link" href="${languagePath(locale, "/services/podcast-production/")}">${locale === "en" ? "Explore podcast filming and booking" : "استكشف تصوير البودكاست وتفاصيل الحجز"}</a>` : ""}</div></section>`;
 };
 const educationalServiceBookingContent = locale => {
   const copy = educationalServiceBookingCopy[locale];
@@ -257,7 +257,7 @@ const referenceServiceContent = (page, locale) => {
 const visiblePage = (page, locale) => {
   const copy = page[locale];
   const shell = (classes, content) => `<div class="app-container public-site-shell">${navigation(locale,page.path)}<main id="main-content" class="${classes}">${content}</main>${footerMarkup(locale)}</div>`;
-  if (page.path === '/') return shell('public-home-page reference-home',goldHomeHero(locale)+educationalBookingContent(locale)+servicesList(locale));
+  if (page.path === '/') return shell('public-home-page reference-home',goldHomeHero(locale)+educationalBookingContent(locale)+servicesList(locale)+podcastGalleryContent(locale, 'studio', true));
   if (page.service) { const layout=serviceVisualLayouts[page.service.slug]; return shell(`public-page service-detail-page reference-service sd--${layout.variant}`,serviceReferenceHero(page,locale)+(page.service.slug === REMOTE_EDITING_SERVICE ? remoteVideoEditingContent(locale) : '')+(layout.variant === 'education' ? educationalServiceBookingContent(locale) : '')+(layout.variant === 'ai' ? aiPlatformsContent(locale) : '')+(layout.variant === 'podcast' ? podcastGalleryContent(locale) : '')+referenceServiceContent(page,locale)); }
   const kind = page.path.split('/').filter(Boolean)[0];
   const image = kind === 'services' ? '/brand/gold/services/commercial-video-production.webp' : kind === 'about' ? '/brand/gold/services/ai-video-production.webp' : kind === 'studios' ? STUDIO_GALLERIES.october[0].url : '';
