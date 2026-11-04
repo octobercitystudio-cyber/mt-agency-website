@@ -53,12 +53,12 @@ function StudioLightbox({ images, index, studioName, isEnglish, onStep, onClose,
   );
 }
 
-function StudioGallery({ category, items, studioName, isEnglish }) {
+export function StudioGallery({ category, items, studioName, isEnglish }) {
   const [selectedIndex, setSelectedIndex] = useState(null);
   const [imageStates, setImageStates] = useState({});
   const returnFocusRef = useRef(null);
   const images = items.map((img, index) => {
-    const fallback = getStudioFallback(category, index);
+    const fallback = category ? getStudioFallback(category, index) : null;
     const source = img.url || fallback;
     const key = `${img.id || index}-${source}`;
     return {

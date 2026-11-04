@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Camera, Check, ChevronLeft, ChevronRight, Clapperboard, Code2, ExternalLink, FileText, Layers, Mic2, MonitorSmartphone, Palette, Play, Share2, Smartphone, Sparkles, WandSparkles } from 'lucide-react';
-import StudioShowcase from '../components/StudioShowcase';
+import { StudioGallery } from '../components/StudioShowcase';
 import SEO from '../components/SEO';
 import PublicPortfolioGrid from '../components/PublicPortfolioGrid';
 import { useData } from '../store/DataContext';
@@ -11,7 +11,7 @@ import { educationalServiceBookingCopy } from '../data/educationalServiceBooking
 import { getPublicService, getServicePortfolio } from '../data/publicServiceCatalog';
 import { serviceVisualLayouts } from '../data/serviceVisualLayouts';
 import { aiVideoPlatforms } from '../data/aiVideoPlatforms';
-import { podcastStudioGalleryCopy } from '../data/podcastStudioGallery';
+import { podcastStudioGalleryCopy, podcastStudioPhotos } from '../data/podcastStudioGallery';
 import { REMOTE_EDITING_SERVICE, remoteVideoEditingCopy } from '../data/remoteVideoEditing';
 import { companyPhoneWhatsApp } from '../lib/companyContact';
 import { localizePublicPath } from '../lib/publicRoutes';
@@ -99,7 +99,7 @@ function AiVideoPlatforms({ isEnglish }) {
 }
 function PodcastStudioGallery({ isEnglish }) {
   const copy = podcastStudioGalleryCopy[isEnglish ? 'en' : 'ar'];
-  return <StudioShowcase sectionId="podcast-studios" title={copy.title} description={copy.intro} showExploreLink={false}/>;
+  return <section id="podcast-studios" className="showcase-section"><div className="container"><h2 className="section-title">{copy.title}</h2><p className="studio-gallery-hint">{copy.intro}</p><StudioGallery items={podcastStudioPhotos} studioName={copy.title} isEnglish={isEnglish}/></div></section>;
 }
 function Deliverables({ text, layout, isEnglish }) {
   const Icon = serviceIcons[layout.variant] || Sparkles;

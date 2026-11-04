@@ -7,7 +7,7 @@ import { AL_MAJD_SOCIAL_PARTNER } from '../src/data/alMajdSocialPartner.js';
 import { getServicePortfolio, publicServiceCatalog, publicServiceGroups } from '../src/data/publicServiceCatalog.js';
 import { serviceVisualLayouts } from '../src/data/serviceVisualLayouts.js';
 import { aiVideoPlatforms } from '../src/data/aiVideoPlatforms.js';
-import { podcastStudioGalleryCopy } from '../src/data/podcastStudioGallery.js';
+import { podcastStudioGalleryCopy, podcastStudioPhotos } from '../src/data/podcastStudioGallery.js';
 import { REMOTE_EDITING_SERVICE, remoteVideoEditingCopy } from '../src/data/remoteVideoEditing.js';
 import { educationalServiceBookingCopy } from '../src/data/educationalServiceBooking.js';
 import { STUDIO_CATEGORIES, STUDIO_GALLERIES } from '../src/data/studioGalleries.js';
@@ -241,7 +241,7 @@ const aiPlatformsContent = locale => {
 };
 const podcastGalleryContent = locale => {
   const copy = podcastStudioGalleryCopy[locale];
-  return `<section id="podcast-studios" class="showcase-section"><div class="container"><h2 class="section-title">${escapeHtml(copy.title)}</h2><p class="studio-gallery-hint">${escapeHtml(copy.intro)}</p></div>${studiosReference(locale)}</section>`;
+  return `<section id="podcast-studios" class="showcase-section"><div class="container"><h2 class="section-title">${escapeHtml(copy.title)}</h2><p class="studio-gallery-hint">${escapeHtml(copy.intro)}</p><div class="showcase-grid">${podcastStudioPhotos.map(photo => `<a class="showcase-item" href="${photo.url}"><img src="${photo.url}" alt="${escapeHtml(locale === "en" ? photo.altEn : photo.alt)}" loading="lazy" decoding="async"></a>`).join("")}</div></div></section>`;
 };
 const educationalServiceBookingContent = locale => {
   const copy = educationalServiceBookingCopy[locale];

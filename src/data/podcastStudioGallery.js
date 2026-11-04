@@ -1,4 +1,61 @@
 export const podcastStudioGalleryCopy = {
-  ar: { title: 'صور استديوهات البودكاست', intro: 'شاهد جلسات التصوير والديكورات في استديوهات أكتوبر والمهندسين والقاهرة الجديدة.', viewPhoto: 'عرض الصورة' },
-  en: { title: 'Podcast studio photos', intro: 'Explore filming setups and sets at our October, Mohandessin and New Cairo studios.', viewPhoto: 'View photo' },
+  ar: { title: 'صور استديوهات البودكاست', intro: 'تصفّح صور تجهيزات وديكورات تصوير البودكاست.', viewPhoto: 'عرض الصورة' },
+  en: { title: 'Podcast studio photos', intro: 'Explore podcast recording setups and sets.', viewPhoto: 'View photo' },
 };
+
+export const podcastStudioPhotos = [
+  {
+    "id": 1,
+    "url": "/brand/gold/podcast-gallery/photo-1.webp",
+    "alt": "صورة لتجهيز تصوير بودكاست (1)",
+    "altEn": "Podcast recording setup photo 1"
+  },
+  {
+    "id": 2,
+    "url": "/brand/gold/podcast-gallery/photo-2.webp",
+    "alt": "صورة لتجهيز تصوير بودكاست (2)",
+    "altEn": "Podcast recording setup photo 2"
+  },
+  {
+    "id": 3,
+    "url": "/brand/gold/podcast-gallery/photo-3.webp",
+    "alt": "صورة لتجهيز تصوير بودكاست (3)",
+    "altEn": "Podcast recording setup photo 3"
+  },
+  {
+    "id": 4,
+    "url": "/brand/gold/podcast-gallery/photo-4.webp",
+    "alt": "صورة لتجهيز تصوير بودكاست (4)",
+    "altEn": "Podcast recording setup photo 4"
+  },
+  {
+    "id": 5,
+    "url": "/brand/gold/podcast-gallery/photo-5.webp",
+    "alt": "صورة لتجهيز تصوير بودكاست (5)",
+    "altEn": "Podcast recording setup photo 5"
+  },
+  {
+    "id": 6,
+    "url": "/brand/gold/podcast-gallery/photo-6.webp",
+    "alt": "صورة لتجهيز تصوير بودكاست (6)",
+    "altEn": "Podcast recording setup photo 6"
+  },
+  {
+    "id": 7,
+    "url": "/brand/gold/podcast-gallery/photo-7.webp",
+    "alt": "صورة لتجهيز تصوير بودكاست (7)",
+    "altEn": "Podcast recording setup photo 7"
+  },
+  {
+    "id": 8,
+    "url": "/brand/gold/podcast-gallery/photo-8.webp",
+    "alt": "صورة لتجهيز تصوير بودكاست (8)",
+    "altEn": "Podcast recording setup photo 8"
+  },
+  {
+    "id": 9,
+    "url": "/brand/gold/podcast-gallery/photo-9.webp",
+    "alt": "صورة لتجهيز تصوير بودكاست (9)",
+    "altEn": "Podcast recording setup photo 9"
+  }
+];
