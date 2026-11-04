@@ -11,7 +11,7 @@ export default function ArticleSEO({ locale, title, description, path, translati
   const image = article?.cover_url ? new URL(article.cover_url, SITE_URL).href : siteIdentity.logo;
   const shareImage = new URL(image);
   const isArticleMedia = shareImage.origin === SITE_URL && /^\/api\/articles\/media\/[a-f0-9]{32}$/.test(shareImage.pathname);
-  if (isArticleMedia) { shareImage.search = '?format=jpeg'; }
+  if (isArticleMedia) { shareImage.pathname = `/article-images/${shareImage.pathname.split('/').pop()}.jpg`; shareImage.search = ''; }
   const shareTitle = article?.title || name;
   const shareDescription = article?.excerpt || description;
   const imageAlt = article?.cover_alt || shareTitle;

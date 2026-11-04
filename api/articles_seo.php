@@ -37,7 +37,7 @@ function articlesDocument(array $data,string $kind,string $lang,string $root): s
     foreach($meta['alternates'] as $locale=>$url)$head.='<link rel="alternate" hreflang="'.$locale.'-EG" href="'.articlesEscape(ARTICLES_SITE.$url).'">';
     $shareTitle=$data['article']['title']??$title;$shareDescription=$data['article']['excerpt']??$meta['desc'];
     $shareImage=$meta['image'];$isArticleMedia=preg_match('~^https://multitaskagency\.com/api/articles/media/([a-f0-9]{32})(?:\?[^#]*)?$~',$shareImage,$imageMatch)===1;
-    if($isArticleMedia)$shareImage=ARTICLES_SITE.'/api/articles/media/'.$imageMatch[1].'?format=jpeg';
+    if($isArticleMedia)$shareImage=ARTICLES_SITE.'/article-images/'.$imageMatch[1].'.jpg';
     $imageAlt=$data['article']['cover_alt']??$shareTitle;
     foreach(['type'=>$kind==='detail'?'article':'website','site_name'=>'Multi Task Agency','title'=>$shareTitle,'description'=>$shareDescription,'url'=>$meta['canonical'],'image'=>$shareImage,'image:secure_url'=>$shareImage,'image:alt'=>$imageAlt,'locale'=>$lang==='en'?'en_EG':'ar_EG'] as $key=>$value)$head.='<meta property="og:'.$key.'" content="'.articlesEscape($value).'">';
     if($isArticleMedia)$head.='<meta property="og:image:type" content="image/jpeg">';

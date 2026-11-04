@@ -2,9 +2,7 @@ Options -Indexes
 RewriteEngine On
 
 <IfModule mod_headers.c>
-  # index.php sets the private X-Robots-Tag policy before processing any request.
-  # PHP removes it only for images verified against currently published articles;
-  # an unconditional server header would override that publication check.
+  Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
   Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
   Header always set Referrer-Policy "no-referrer"
 </IfModule>

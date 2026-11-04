@@ -41,6 +41,7 @@ function articlesServeMedia(ArticleStore $store,array $config,string $id,?array 
     if($m)foreach($store->publishedRows() as $t)if(str_contains($t['cover_url'],$id)||str_contains($t['blocks'],$id)){$public=true;break;}
     if(!$m||(!$public&&(!ArticleStore::canEdit($user)||(int)$user['organization_id']!==$store->org)))throw new ArticleError('not_found','الملف غير موجود.',404);
     $path=articlesUploadDirectory($config).'/'.$m['filename'];if(!is_file($path))throw new ArticleError('not_found','الملف غير موجود.',404);
+    if(($_GET['format']??'')==='jpeg' && !str_starts_with($m['mime'],'image/'))throw new ArticleError('not_found','الملف غير موجود.',404);
     // Authorization above also applies to social previews; drafts never become public.
     if(($_GET['format']??'')==='jpeg' && str_starts_with($m['mime'],'image/')) {
         if(!function_exists('imagejpeg'))throw new ArticleError('article_image_processor_missing','معالج الصور غير متاح.',503);

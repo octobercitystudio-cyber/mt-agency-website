@@ -75,6 +75,7 @@ RewriteRule ^(.+)$ /$1/ [R=301,L,NE]
 # Database-backed public articles and live sitemap (no build required to publish).
 RewriteRule ^articles(?:/(.*))?$ /ar/articles/$1 [R=301,L,NE]
 RewriteRule ^(?:ar|en)/articles(?:/.*)?$ articles-public.php [END]
+RewriteRule ^article-images/[a-f0-9]{32}\.jpg$ articles-public.php [END]
 RewriteRule ^sitemap\.xml$ articles-public.php [END]
 
 # Hostinger Git deployment checks out the repository at the web root.

@@ -3,6 +3,7 @@ declare(strict_types=1);
 // Public HTML controller. Apache only rewrites article URLs/sitemap here;
 // direct requests to this source file remain denied by the root file rules.
 require_once __DIR__.'/api/articles.php';
+require_once __DIR__.'/api/articles_api.php';
 require_once __DIR__.'/api/articles_view.php';
 require_once __DIR__.'/api/articles_seo.php';
 header('X-Content-Type-Options: nosniff');
@@ -19,6 +20,13 @@ try {
         echo articlesSitemap($store,__DIR__.'/dist/sitemap.xml');exit;
     }
     $store->requireReady();
+    if(preg_match('~^/article-images/([a-f0-9]{32})\.jpg$~',$path,$imageMatch)) {
+        if(!in_array($_SERVER['REQUEST_METHOD']??'GET',['GET','HEAD'],true))throw new ArticleError('method_not_allowed','الطلب غير مسموح.',405);
+        // Public controller deliberately supplies no staff identity. Media must
+        // belong to a currently published article, even for signed-in editors.
+        $_GET['format']='jpeg';
+        articlesServeMedia($store,$config,$imageMatch[1],null);
+    }
     if(!preg_match('~^/(ar|en)/articles(?:/([^/]+))?/$~',$path,$m))throw new ArticleError('not_found','الصفحة غير موجودة.',404);
     $kind=empty($m[2])?'list':'detail';
     $data=$kind==='list'?$store->listing($lang,$_GET):$store->detail($lang,rawurldecode($m[2]));
