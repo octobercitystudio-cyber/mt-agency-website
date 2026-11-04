@@ -17,6 +17,7 @@ import { CLIENT_APP_DOWNLOAD_URL } from '../src/data/clientApp.js';
 import { goldHeroCopy, goldServiceOrder } from '../src/data/goldHero.js';
 import { SITE_URL, organizationId, siteIdentity, websiteId, formatPageTitle, publicPageDescriptions } from '../src/seo/siteIdentity.js';
 import { organizationSchema } from '../src/seo/organizationSchema.js';
+import { serviceLocationSchema } from '../src/seo/serviceLocation.js';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, '..');
@@ -101,8 +102,8 @@ const commonPages = [
 const servicePages = publicServiceCatalog.map(service => ({
   path: `/services/${service.slug}/`,
   service,
-  ar: { title: service.ar.seoTitle, description: service.ar.metaDescription, eyebrow: service.ar.eyebrow, h1: service.ar.title, summary: service.ar.heroSummary },
-  en: { title: service.en.seoTitle, description: service.en.metaDescription, eyebrow: service.en.eyebrow, h1: service.en.title, summary: service.en.heroSummary },
+  ar: { title: service.ar.seoTitle, description: service.ar.metaDescription, eyebrow: service.ar.eyebrow, h1: service.ar.pageHeading || service.ar.title, summary: service.ar.heroSummary },
+  en: { title: service.en.seoTitle, description: service.en.metaDescription, eyebrow: service.en.eyebrow, h1: service.en.pageHeading || service.en.title, summary: service.en.heroSummary },
 }));
 
 const pages = [...commonPages, ...servicePages];
@@ -278,7 +279,7 @@ const schemaGraph = (page, locale, canonical) => {
   }];
   if (page.path === '/') graph.unshift({ '@type': 'WebSite', '@id': websiteId, url: siteIdentity.url, name: siteIdentity.name, alternateName: siteIdentity.alternateName, publisher: { '@id': organizationId }, inLanguage: ['ar-EG', 'en-EG'] });
   if (page.service) {
-    graph.push({ '@type': 'Service', '@id': `${canonical}#service`, name: page[locale].h1, serviceType: page.service[locale].serviceType || page[locale].h1, description: copy.description, url: canonical, image: absoluteUrl(page.service.heroImage), inLanguage: locale === 'en' ? 'en-EG' : 'ar-EG', provider: { '@id': organizationId }, areaServed: organization.areaServed });
+    graph.push({ '@type': 'Service', '@id': `${canonical}#service`, name: page[locale].h1, serviceType: page.service[locale].serviceType || page[locale].h1, description: copy.description, url: canonical, image: absoluteUrl(page.service.heroImage), inLanguage: locale === 'en' ? 'en-EG' : 'ar-EG', provider: { '@id': organizationId }, areaServed: organization.areaServed, ...serviceLocationSchema(page.service.slug, locale) });
     graph.push({ '@type': 'BreadcrumbList', '@id': `${canonical}#breadcrumb`, itemListElement: [
       { '@type': 'ListItem', position: 1, name: locale === 'en' ? 'Home' : 'الرئيسية', item: absoluteUrl(languagePath(locale, '/')) },
       { '@type': 'ListItem', position: 2, name: locale === 'en' ? 'Services' : 'الخدمات', item: absoluteUrl(languagePath(locale, '/services/')) },

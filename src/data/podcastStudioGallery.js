@@ -1,6 +1,6 @@
 export const podcastStudioGalleryCopy = {
-  ar: { title: 'صور استديوهات البودكاست', intro: 'تصفّح صور تجهيزات وديكورات تصوير البودكاست.', viewPhoto: 'عرض الصورة' },
-  en: { title: 'Podcast studio photos', intro: 'Explore podcast recording setups and sets.', viewPhoto: 'View photo' },
+  ar: { title: 'صور استديو البودكاست في التجمع الخامس', intro: 'تصفّح تجهيزات وديكورات تصوير البودكاست والمحتوى في التجمع الخامس، القاهرة الجديدة. مقر الشركة في مدينة 6 أكتوبر، الجيزة.', viewPhoto: 'عرض الصورة' },
+  en: { title: 'Podcast studio photos in Fifth Settlement', intro: 'Explore podcast and content recording setups in Fifth Settlement, New Cairo. Company headquarters are in 6th of October City, Giza.', viewPhoto: 'View photo' },
 };
 
 export const podcastStudioPhotos = [

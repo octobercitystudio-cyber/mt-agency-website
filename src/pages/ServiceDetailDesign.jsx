@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Camera, Check, ChevronLeft, ChevronRight, Clapperboard, Code2, ExternalLink, FileText, Layers, Mic2, MonitorSmartphone, Palette, Play, Share2, Smartphone, Sparkles, WandSparkles } from 'lucide-react';
 import { StudioGallery } from '../components/StudioShowcase';
 import SEO from '../components/SEO';
+import { serviceLocationSchema } from '../seo/serviceLocation';
 import PublicPortfolioGrid from '../components/PublicPortfolioGrid';
 import { useData } from '../store/DataContext';
 import { AL_MAJD_SOCIAL_PARTNER } from '../data/alMajdSocialPartner';
@@ -57,7 +58,7 @@ function ServiceHero({ service, text, layout, work, isEnglish, workTarget, hasSu
     <div className="sd-hero__curve" aria-hidden="true"/>
     {layout.variant === 'commercial' && <Photo src={layout.heroImage} alt="" eager className="sd-hero__backdrop"/>}
     <div className="container sd-hero__grid">
-      <div className="sd-hero__copy"><h1><HighlightTitle>{text.title}</HighlightTitle></h1><p>{text.heroSummary}</p><div className="public-hero-actions sd-hero__actions">
+      <div className="sd-hero__copy"><h1><HighlightTitle>{text.pageHeading || text.title}</HighlightTitle></h1><p>{text.heroSummary}</p><div className="public-hero-actions sd-hero__actions">
         <Link className="public-solid-button" to={layout.variant === 'education' ? EDUCATIONAL_BOOKING_TARGET : publicPath(`/contact?service=${service.slug}`, isEnglish)} state={layout.variant === 'education' ? undefined : { service: service.slug }}>{layout.variant === 'education' ? bookingCopy.action : isEnglish ? 'Request a quote' : 'اطلب عرض سعر'}<DirectionArrow isEnglish={isEnglish}/></Link>
         {(work.length > 0 || hasSuccessPartner) && <a className="public-ghost-button" href={workTarget}>{isEnglish ? 'See our work' : 'شاهد أعمالنا'}</a>}
       </div></div>
@@ -151,7 +152,7 @@ export default function ServiceDetailPage() {
   const decisionSectionNumber = hasDecisionGuide ? sectionNumber() : null; const partnerSectionNumber = hasSuccessPartner ? sectionNumber() : null; const workSectionNumber = work.length ? sectionNumber() : null; const faqSectionNumber = text.faq.length ? sectionNumber() : null;
   const home = isEnglish ? 'Home' : 'الرئيسية'; const services = isEnglish ? 'Services' : 'الخدمات';
   const serviceUrl = publicUrl(`/services/${service.slug}`, isEnglish);
-  const serviceSchema = { '@context': 'https://schema.org', '@type': 'Service', '@id': `${serviceUrl}#service`, name: text.title, serviceType: text.serviceType || text.title, description: text.metaDescription, url: serviceUrl, image: `${SITE_URL}${service.heroImage}`, inLanguage: isEnglish ? 'en-EG' : 'ar-EG', provider: { '@id': organizationId }, areaServed: [{ '@type': 'City', name: '6th of October City' }, { '@type': 'AdministrativeArea', name: 'Giza' }, { '@type': 'Country', name: 'Egypt' }] };
+  const serviceSchema = { '@context': 'https://schema.org', '@type': 'Service', '@id': `${serviceUrl}#service`, name: text.pageHeading || text.title, serviceType: text.serviceType || text.title, description: text.metaDescription, url: serviceUrl, image: `${SITE_URL}${service.heroImage}`, inLanguage: isEnglish ? 'en-EG' : 'ar-EG', provider: { '@id': organizationId }, areaServed: [{ '@type': 'City', name: '6th of October City' }, { '@type': 'AdministrativeArea', name: 'Giza' }, { '@type': 'Country', name: 'Egypt' }], ...serviceLocationSchema(service.slug, isEnglish ? 'en' : 'ar') };
   const breadcrumbSchema = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: home, item: publicUrl('/', isEnglish) }, { '@type': 'ListItem', position: 2, name: services, item: publicUrl('/services', isEnglish) }, { '@type': 'ListItem', position: 3, name: text.title, item: publicUrl(`/services/${service.slug}`, isEnglish) }] };
   const faqSchema = text.faq.length ? { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: text.faq.map(([question, answer]) => ({ '@type': 'Question', name: question, acceptedAnswer: { '@type': 'Answer', text: answer } })) } : null;
   return <main id="main-content" className={`public-page service-detail-page reference-service sd--${layout.variant}`}>
