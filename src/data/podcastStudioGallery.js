@@ -11,12 +11,6 @@ export const podcastStudioPhotos = [
     "altEn": "Podcast recording setup photo 1"
   },
   {
-    "id": 2,
-    "url": "/brand/gold/podcast-gallery/photo-2.webp",
-    "alt": "صورة لتجهيز تصوير بودكاست (2)",
-    "altEn": "Podcast recording setup photo 2"
-  },
-  {
     "id": 3,
     "url": "/brand/gold/podcast-gallery/photo-3.webp",
     "alt": "صورة لتجهيز تصوير بودكاست (3)",
